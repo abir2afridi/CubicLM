@@ -28,6 +28,7 @@ class ChatView extends GetView<ChatController> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+      drawer: _buildSidebar(context, isDark),
       appBar: _appBar(context, isDark),
       body: Column(
         children: [
@@ -249,12 +250,14 @@ class ChatView extends GetView<ChatController> {
           ]),
         );
       }),
+      leading: Builder(
+        builder: (ctx) => IconButton(
+          icon: Icon(Icons.menu_rounded,
+              size: 24, color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A)),
+          onPressed: () => Scaffold.of(ctx).openDrawer(),
+        ),
+      ),
       actions: [
-        IconButton(
-            icon: Icon(Icons.history_rounded,
-                size: 22, color: Theme.of(context).hintColor),
-            onPressed: () => _showHistory(context)),
-        const SizedBox(width: 4),
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: IconButton(
@@ -890,99 +893,195 @@ class ChatView extends GetView<ChatController> {
     );
   }
 
-  // ── Chat History ──
-  void _showHistory(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: isDark ? AppColors.surface : Colors.white,
+  // ── Sidebar Drawer ──
+  Widget _buildSidebar(BuildContext context, bool isDark) {
+    return Drawer(
+      backgroundColor: isDark ? AppColors.bg : Colors.white,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) => Container(
-        constraints:
-            BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.7),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: isDark ? AppColors.surfaceLight : const Color(0xFFE2E8F0),
-                  borderRadius: BorderRadius.circular(2))),
-          Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-              child: Row(
-                children: [
-                  Text('Chat History',
+          borderRadius: BorderRadius.horizontal(right: Radius.circular(24))),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
+              child: Row(children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    'assets/icons/CubicLM.png',
+                    width: 32, height: 32, fit: BoxFit.cover,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text('CubicLM',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 20, fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A))),
+              ]),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    side: BorderSide(color: isDark ? AppColors.border : AppColors.borderLightMode),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 20, color: AppColors.primary),
+                  label: Text('New Chat',
                       style: GoogleFonts.plusJakartaSans(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5,
-                          color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A))),
-                  const Spacer(),
-                ],
-              )),
-          Flexible(child: Obx(() {
-            if (controller.sessions.isEmpty) {
-              return Padding(
-                  padding: const EdgeInsets.all(48),
-                  child: Text('No active sessions found.',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).hintColor)));
-            }
-            return ListView.separated(
-              shrinkWrap: true,
-              padding: const EdgeInsets.only(bottom: 20),
-              itemCount: controller.sessions.length,
-              separatorBuilder: (_, __) =>
-                  Divider(height: 1, indent: 72, color: isDark ? AppColors.border : AppColors.borderLightMode),
-              itemBuilder: (ctx, i) {
-                final s = controller.sessions[i];
-                final active = controller.currentSessionId.value == s.id;
-                return ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                  leading: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                          color: active
-                              ? AppColors.primary.withValues(alpha: 0.1)
-                              : (isDark ? AppColors.surfaceLight : const Color(0xFFF1F5F9)),
-                          borderRadius: BorderRadius.circular(12)),
-                      child: Icon(
-                          active
-                              ? Icons.chat_bubble_rounded
-                              : Icons.chat_bubble_outline_rounded,
-                          size: 18,
-                          color: active
-                              ? AppColors.primary
-                              : Theme.of(ctx).hintColor)),
-                  title: Text(s.title,
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          fontWeight:
-                              active ? FontWeight.w700 : FontWeight.w600,
-                          color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A)),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  subtitle: Text(_fmtDate(s.updatedAt),
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12, color: Theme.of(ctx).hintColor, fontWeight: FontWeight.w500)),
-                  trailing: IconButton(
-                      icon: Icon(Icons.delete_outline_rounded,
-                          size: 20, color: AppColors.error.withValues(alpha: 0.6)),
-                      onPressed: () => controller.deleteChat(s.id)),
-                  onTap: () {
-                    controller.openChat(s.id);
-                    Navigator.pop(ctx);
+                          fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                  onPressed: () { controller.createNewChat(); Navigator.pop(context); },
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text('RECENT',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11, fontWeight: FontWeight.w700,
+                      color: AppColors.textMuted, letterSpacing: 1.2)),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: Obx(() {
+                if (controller.sessions.isEmpty) {
+                  return Center(
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.forum_outlined, size: 40,
+                          color: AppColors.textMuted.withValues(alpha: 0.3)),
+                      const SizedBox(height: 12),
+                      Text('No conversations yet',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14, fontWeight: FontWeight.w600,
+                              color: AppColors.textMuted)),
+                    ]),
+                  );
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  itemCount: controller.sessions.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 2),
+                  itemBuilder: (ctx, i) {
+                    final s = controller.sessions[i];
+                    final active = controller.currentSessionId.value == s.id;
+                    return _sidebarTile(context, s, active, isDark);
                   },
                 );
-              },
-            );
-          })),
-        ]),
+              }),
+            ),
+            const Divider(height: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Row(children: [
+                Icon(Icons.info_outline_rounded, size: 14,
+                    color: AppColors.textMuted.withValues(alpha: 0.5)),
+                const SizedBox(width: 8),
+                Text(
+                  Get.find<SettingsController>().appVersion.value.isEmpty
+                      ? 'CubicLM · Engineering Build'
+                      : 'CubicLM · v${Get.find<SettingsController>().appVersion.value}',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11, fontWeight: FontWeight.w600,
+                      color: AppColors.textMuted.withValues(alpha: 0.6)),
+                ),
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _sidebarTile(BuildContext context, dynamic s, bool active, bool isDark) {
+    return Dismissible(
+      key: ValueKey(s.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 20),
+      ),
+      confirmDismiss: (_) async {
+        return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: isDark ? AppColors.surface : Colors.white,
+            title: Text('Delete chat?',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+            content: Text('This conversation will be permanently deleted.',
+                style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text('Cancel',
+                      style: GoogleFonts.plusJakartaSans(color: AppColors.textMuted))),
+              FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: Text('Delete',
+                      style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600))),
+            ],
+          ),
+        );
+      },
+      onDismissed: (_) => controller.deleteChat(s.id),
+      child: Material(
+        color: active ? AppColors.primary.withValues(alpha: 0.08) : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () { controller.openChat(s.id); Navigator.pop(context); },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(children: [
+              Container(
+                width: 34, height: 34,
+                decoration: BoxDecoration(
+                  color: active
+                      ? AppColors.primary.withValues(alpha: 0.12)
+                      : (isDark ? AppColors.surfaceLight : const Color(0xFFF1F5F9)),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  active ? Icons.chat_bubble_rounded : Icons.chat_bubble_outline_rounded,
+                  size: 16,
+                  color: active ? AppColors.primary : AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(s.title,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                            color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A))),
+                    const SizedBox(height: 2),
+                    Text(_fmtDate(s.updatedAt),
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11, fontWeight: FontWeight.w500,
+                            color: AppColors.textMuted)),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+        ),
       ),
     );
   }
