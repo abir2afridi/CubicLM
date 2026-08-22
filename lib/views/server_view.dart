@@ -234,12 +234,9 @@ class ServerView extends GetView<ServerController> {
   Widget _groupedCard(bool isDark, {required List<Widget> children}) {
     return Container(
       decoration: BoxDecoration(
-          color: isDark ? AppColors.surface : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04), blurRadius: 10, offset: const Offset(0, 4))
-          ]),
+          color: isDark ? Colors.white.withValues(alpha: 0.02) : const Color(0xFFF1F5F9).withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(24),
+      ),
       clipBehavior: Clip.antiAlias,
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );

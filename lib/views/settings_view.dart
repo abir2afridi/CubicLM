@@ -216,16 +216,8 @@ class SettingsView extends GetView<SettingsController> {
       {required List<Widget> children}) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surface : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
+        color: isDark ? Colors.white.withValues(alpha: 0.02) : const Color(0xFFF1F5F9).withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(24),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
@@ -247,7 +239,7 @@ class SettingsView extends GetView<SettingsController> {
       InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
           child: Row(children: [
             if (leading != null) ...[leading, const SizedBox(width: 16)],
             Expanded(
@@ -272,10 +264,12 @@ class SettingsView extends GetView<SettingsController> {
         ),
       ),
       if (showDivider)
-        Divider(
-            height: 1,
-            indent: leading != null ? 62 : 20,
-            color: isDark ? AppColors.border.withValues(alpha: 0.5) : AppColors.borderLightMode.withValues(alpha: 0.5)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Divider(
+              height: 1,
+              color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03)),
+        ),
     ]);
   }
 

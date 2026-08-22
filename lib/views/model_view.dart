@@ -348,34 +348,27 @@ class ModelView extends GetView<ModelController> {
           : (useGpu ? '⚡ GPU: ${inference.gpuName.value}' : '🖥 CPU Neural Engine');
 
       return Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         decoration: BoxDecoration(
-          color: isDark ? AppColors.surface : Colors.white,
-          borderRadius: BorderRadius.circular(24),
+          color: isDark ? AppColors.surface.withValues(alpha: 0.5) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.3),
-            width: 1.5,
+            color: AppColors.primary.withValues(alpha: 0.15),
+            width: 1,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1),
-              blurRadius: 20,
-              offset: const Offset(0, 8),
-            )
-          ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 useGpu ? Icons.bolt_rounded : Icons.memory_rounded,
-                color: useGpu ? AppColors.warning : AppColors.primary,
-                size: 24,
+                color: AppColors.primary,
+                size: 22,
               ),
             ),
             const SizedBox(width: 16),
@@ -389,10 +382,10 @@ class ModelView extends GetView<ModelController> {
                       fontSize: 10,
                       color: AppColors.primary,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
+                      letterSpacing: 1.0,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     name,
                     style: GoogleFonts.plusJakartaSans(
@@ -403,21 +396,18 @@ class ModelView extends GetView<ModelController> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
                   Text(
                     subtitle,
                     style: GoogleFonts.firaCode(
                       fontSize: 11,
-                      color: useGpu ? AppColors.success : Theme.of(context).hintColor,
-                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).hintColor,
+                      fontWeight: FontWeight.w500,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 24),
+            const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 22),
           ],
         ),
       );
@@ -443,18 +433,18 @@ class ModelView extends GetView<ModelController> {
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.32)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(9),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(10),
+              color: AppColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.cloud_done_outlined,
-                color: AppColors.secondary, size: 20),
+            child: const Icon(Icons.cloud_done,
+                color: AppColors.primary, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -462,20 +452,18 @@ class ModelView extends GetView<ModelController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'CLOUD · $providerName',
+                  'Cloud Provider: $providerName',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     color: Theme.of(context).hintColor,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.6,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 3),
                 Text(
-                  hasSelectedModel ? model : 'No online model selected',
+                  hasSelectedModel ? model : 'No cloud model selected',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
                   maxLines: 1,
@@ -484,290 +472,52 @@ class ModelView extends GetView<ModelController> {
               ],
             ),
           ),
-          TextButton(
-            onPressed: () {
-              if (provider == null) return;
-              if (providerId == 'custom') {
-                _showCustomProviderSheet(context, cloudModels);
-              } else {
-                _showProviderActionsSheet(context, cloudModels, provider);
-              }
-            },
-            child: const Text('Change'),
-          ),
+          const Icon(Icons.check_circle, color: AppColors.success, size: 20),
         ],
       ),
     );
   }
 
-  Widget _buildModelLoadingProgress(BuildContext context, AiModel model) {
-    return Obx(() {
-      final inference = Get.find<InferenceService>();
-      if (!inference.isLoadingModel.value ||
-          inference.loadingModelName.value != model.filename) {
-        return const SizedBox.shrink();
-      }
-      return Container(
-        margin: const EdgeInsets.only(top: 12),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.secondary,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  'Loading into memory',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.secondary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              model.filename,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11,
-                color: Theme.of(context).hintColor,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: inference.modelLoadProgress.value > 0
-                    ? inference.modelLoadProgress.value
-                    : null,
-                backgroundColor:
-                    Theme.of(context).colorScheme.surfaceContainerHighest,
-                color: AppColors.secondary,
-                minHeight: 3,
-              ),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
   Widget _buildImportingProgress(BuildContext context) {
     return Obx(() {
       if (!controller.isImporting.value) return const SizedBox.shrink();
-      final percent = controller.importProgress * 100;
-      final total = controller.importTotalBytes.value;
-      final copied = controller.importCopiedBytes.value;
-      final remaining = total <= 0 ? 0 : (total - copied).clamp(0, total);
-
-      return Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 2),
-              child: SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.secondary,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          controller.importStatus.value
-                                  .toLowerCase()
-                                  .contains('download')
-                              ? 'Downloading'
-                              : 'Importing',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.secondary,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${percent.toStringAsFixed(1)}%',
-                        style: GoogleFonts.firaCode(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.secondary,
-                        ),
-                      ),
-                      if (controller.externalDownloadId.value != null)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8.0),
-                          child: InkWell(
-                            onTap: controller.cancelExternalDownload,
-                            borderRadius: BorderRadius.circular(12),
-                            child: const Icon(Icons.close,
-                                size: 20, color: AppColors.error),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${controller.importStatus.value} ${controller.importFileName.value}',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: controller.importProgress > 0
-                          ? controller.importProgress
-                          : null,
-                      backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                      color: AppColors.secondary,
-                      minHeight: 5,
-                    ),
-                  ),
-                  const SizedBox(height: 7),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 4,
-                    children: [
-                      Text(
-                        '${DownloadService.formatWholeMb(copied)} / ${DownloadService.formatWholeMb(total)}',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11, color: Theme.of(context).hintColor),
-                      ),
-                      Text(
-                        '${DownloadService.formatWholeMb(remaining)} left',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11, color: Theme.of(context).hintColor),
-                      ),
-                      Text(
-                        DownloadService.formatSpeed(
-                            controller.importBytesPerSecond.value),
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11, color: Theme.of(context).hintColor),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
-  // ignore: unused_element
-  Widget _buildDownloadProgress(BuildContext context, DownloadProgress dp) {
-    return Obx(() {
       return Container(
         margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
+          color: AppColors.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.primary,
-                  ),
-                ),
-                const SizedBox(width: 10),
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.primary)),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Downloading ${dp.filename}',
+                    'Importing custom model...',
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                TextButton(
-                  onPressed: dp.isPaused.value
-                      ? () => controller.resumeDownload(dp.filename)
-                      : () => controller.pauseDownload(dp.filename),
-                  child: Text(dp.isPaused.value ? 'Resume' : 'Pause',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: dp.isPaused.value
-                              ? AppColors.success
-                              : AppColors.warning)),
-                ),
-                const SizedBox(width: 4),
-                TextButton(
-                  onPressed: () => controller.cancelDownload(dp.filename),
-                  child: Text('Cancel',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12, color: AppColors.error)),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: dp.progress.value,
-                backgroundColor:
-                    Theme.of(context).colorScheme.surfaceContainerHighest,
-                color: AppColors.primary,
+              child: const LinearProgressIndicator(
                 minHeight: 4,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              '${DownloadService.formatWholeMb(dp.downloadedBytes.value)} / ${DownloadService.formatWholeMb(dp.totalBytes.value)} · ${(dp.progress.value * 100).toStringAsFixed(1)}%',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11,
-                color: Theme.of(context).hintColor,
+                backgroundColor: Colors.transparent,
+                color: AppColors.primary,
               ),
             ),
           ],
@@ -777,1204 +527,135 @@ class ModelView extends GetView<ModelController> {
   }
 
   Widget _buildOnlineProviders(BuildContext context) {
-    final cloud = Get.find<CloudModelController>();
-    return Obx(() {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'PROVIDERS',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: Theme.of(context).hintColor,
-              letterSpacing: 1.2,
-            ),
-          ),
-          const SizedBox(height: 12),
-          for (final provider in cloud.providers)
-            _buildOnlineProviderRow(context, cloud, provider),
-        ],
-      );
-    });
-  }
-
-  Widget _buildOnlineProviderRow(
-    BuildContext context,
-    CloudModelController cloud,
-    CloudProviderInfo provider,
-  ) {
-    final settings = Get.find<SettingsController>();
-    final isCustom = provider.id == 'custom';
-    final isActive = cloud.activeProvider == provider.id;
-    final canUse = cloud.canSelectModel(provider.id);
-    final model = cloud.activeModelFor(provider.id);
-    final hasSelectedModel = canUse && model.isNotEmpty;
-    final modelLabel = hasSelectedModel ? model : 'No model selected';
-    final name = isCustom ? settings.customCloudName.value : provider.name;
-    final accent = _providerAccent(provider.id);
-    final error = cloud.errorByProvider[provider.id];
-    final status = isActive && hasSelectedModel
-        ? 'ACTIVE'
-        : canUse
-            ? 'READY'
-            : cloud.statusLabel(provider.id).toUpperCase();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => isCustom
-              ? _showCustomProviderSheet(context, cloud)
-              : _openProviderFlow(context, cloud, provider),
-          child: Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isActive
-                    ? accent.withValues(alpha: 0.55)
-                    : Theme.of(context).dividerColor.withValues(alpha: 0.55),
-              ),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(provider.icon, color: accent, size: 22),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  name.isEmpty ? provider.name : name,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w800,
-                                    color:
-                                        Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              _buildStatusPill(
-                                context,
-                                status,
-                                configured: canUse,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            modelLabel,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              fontWeight: hasSelectedModel
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: hasSelectedModel
-                                  ? Theme.of(context).colorScheme.onSurface
-                                  : Theme.of(context).hintColor,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      tooltip: 'Provider settings',
-                      onPressed: () =>
-                          _showProviderActionsSheet(context, cloud, provider),
-                      icon: const Icon(Icons.more_vert, size: 20),
-                    ),
-                  ],
-                ),
-                if (error != null) ...[
-                  const SizedBox(height: 10),
-                  _buildErrorBox(context, error),
-                ],
-              ],
-            ),
+    final cloudModels = Get.find<CloudModelController>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'CLOUD AI PROVIDERS',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Theme.of(context).hintColor,
+            letterSpacing: 1.2,
           ),
         ),
-      ),
+        const SizedBox(height: 12),
+        ...cloudModels.providers.map((p) => _buildProviderCard(context, p)),
+      ],
     );
   }
 
-  Color _providerAccent(String provider) {
-    switch (provider) {
-      case 'openrouter':
-        return AppColors.success;
-      case 'deepseek':
-        return const Color(0xFF00B8A9);
-      case 'google':
-        return AppColors.warning;
-      case 'nvidia':
-        return const Color(0xFF76B900);
-      case 'custom':
-        return AppColors.info;
-      default:
-        return AppColors.primary;
-    }
-  }
-
-  Future<void> _openProviderFlow(
-    BuildContext context,
-    CloudModelController cloud,
-    CloudProviderInfo provider,
-  ) async {
-    if (!cloud.canSelectModel(provider.id)) {
-      _showProviderKeyDialog(
-        context,
-        cloud,
-        provider,
-        openModelsAfterSave: true,
-      );
-      return;
-    }
-
-    await cloud.refreshModels(provider.id);
-    if ((cloud.errorByProvider[provider.id] ?? '').isNotEmpty) {
-      _showProviderKeyDialog(
-        context,
-        cloud,
-        provider,
-        openModelsAfterSave: true,
-      );
-      return;
-    }
-    _showModelSelectSheet(context, cloud, provider);
-  }
-
-  void _showProviderActionsSheet(
-    BuildContext context,
-    CloudModelController cloud,
-    CloudProviderInfo provider,
-  ) {
+  Widget _buildProviderCard(BuildContext context, CloudProviderInfo provider) {
     final settings = Get.find<SettingsController>();
-    final isCustom = provider.id == 'custom';
-
-    Get.bottomSheet(SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
-        child: SafeArea(
-          child: Obx(() {
-            final model = cloud.activeModelFor(provider.id);
-            final configured = cloud.isConfigured(provider.id);
-            final name =
-                isCustom ? settings.customCloudName.value : provider.name;
-            final accent = _providerAccent(provider.id);
-
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 22,
-                right: 22,
-                top: 22,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 22,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.max,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Icon(provider.icon, color: accent, size: 26),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              name.isEmpty ? provider.name : name,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            Text(
-                              model.isEmpty ? provider.description : model,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 14,
-                                color: Theme.of(context).hintColor,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: Get.back,
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  if (!isCustom) ...[
-                    ListTile(
-                      contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                      leading: const Icon(Icons.key_outlined, size: 26),
-                      title: Text(
-                        configured ? 'Update API key' : 'Add API key',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      subtitle:
-                          const Text('Required before selecting live models'),
-                      onTap: () {
-                        Get.back();
-                        _showProviderKeyDialog(
-                          context,
-                          cloud,
-                          provider,
-                          openModelsAfterSave: true,
-                        );
-                      },
-                    ),
-                    const Divider(height: 1),
-                  ],
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(vertical: 4),
-                    leading: Icon(
-                        isCustom ? Icons.tune : Icons.smart_toy_outlined,
-                        size: 26),
-                    title: Text(
-                      isCustom ? 'Configure and select' : 'Select model',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    subtitle: Text(isCustom
-                        ? 'Set base URL, key, and model ID'
-                        : 'Search provider models or enter a model ID'),
-                    onTap: () {
-                      Get.back();
-                      if (isCustom) {
-                        _showCustomProviderSheet(context, cloud);
-                      } else {
-                        _openProviderFlow(context, cloud, provider);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            );
-          }),
-
-          // isScrollControlled: true,
-          // backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          // shape: const RoundedRectangleBorder(
-          //   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          // ),
-        )));
-  }
-
-  // ignore: unused_element
-  Widget _buildProviderCard(
-    BuildContext context,
-    CloudModelController cloud,
-    CloudProviderInfo provider,
-  ) {
-    final isCustom = provider.id == 'custom';
-    final isActiveProvider = cloud.activeProvider == provider.id;
-    final activeModel = cloud.activeModelFor(provider.id);
-    final error = cloud.errorByProvider[provider.id];
-    final configured = cloud.isConfigured(provider.id);
-    final hasModel = activeModel.isNotEmpty;
-    final status = isActiveProvider && hasModel
-        ? 'ACTIVE'
-        : configured
-            ? (hasModel ? 'Ready' : 'No Model')
-            : cloud.statusLabel(provider.id);
-    final providerName = isCustom
-        ? Get.find<SettingsController>().customCloudName.value
-        : provider.name;
+    final cloudModels = Get.find<CloudModelController>();
+    final isSelected = settings.cloudProvider.value == provider.id;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: isActiveProvider
-              ? AppColors.secondary.withValues(alpha: 0.45)
-              : Colors.transparent,
-          width: 1.2,
+          color: isSelected
+              ? AppColors.primary.withValues(alpha: 0.5)
+              : Theme.of(context).dividerColor.withValues(alpha: 0.4),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: (configured ? AppColors.success : AppColors.warning)
-                        .withValues(alpha: 0.13),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    provider.icon,
-                    size: 18,
-                    color: configured ? AppColors.success : AppColors.warning,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        providerName.isEmpty ? provider.name : providerName,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        hasModel ? activeModel : provider.description,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          color: hasModel
-                              ? Theme.of(context).colorScheme.onSurface
-                              : Theme.of(context).hintColor,
-                          fontWeight:
-                              hasModel ? FontWeight.w600 : FontWeight.w400,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                _buildStatusPill(context, status, configured: configured),
-              ],
-            ),
-            if (error != null) ...[
-              const SizedBox(height: 10),
-              _buildErrorBox(context, error),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                if (!isCustom) ...[
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          _showProviderKeyDialog(context, cloud, provider),
-                      icon: const Icon(Icons.key_outlined, size: 16),
-                      label: Text(configured ? 'Update Key' : 'Add Key'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                ],
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => isCustom
-                        ? _showCustomProviderSheet(context, cloud)
-                        : _showModelSelectSheet(context, cloud, provider),
-                    icon: Icon(
-                      isCustom ? Icons.tune : Icons.smart_toy_outlined,
-                      size: 16,
-                    ),
-                    label: Text(isCustom ? 'Configure' : 'Select Model'),
-                  ),
-                ),
-              ],
-            ),
-          ],
+      child: ExpansionTile(
+        key: PageStorageKey('provider_${provider.id}'),
+        initiallyExpanded: isSelected,
+        shape: const Border(),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.primary.withValues(alpha: 0.15)
+                : Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            provider.icon,
+            color: isSelected ? AppColors.primary : Theme.of(context).hintColor,
+            size: 20,
+          ),
         ),
-      ),
-    );
-  }
-
-  void _showProviderKeyDialog(
-    BuildContext context,
-    CloudModelController cloud,
-    CloudProviderInfo provider, {
-    bool openModelsAfterSave = false,
-  }) {
-    final keyController = cloud.apiKeyControllerFor(provider.id);
-    final obscureKey = true.obs;
-    final isVerifying = false.obs;
-    final accent = _providerAccent(provider.id);
-    Get.dialog(AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-      titlePadding: const EdgeInsets.fromLTRB(26, 26, 22, 0),
-      contentPadding: const EdgeInsets.fromLTRB(26, 20, 26, 10),
-      actionsPadding: const EdgeInsets.fromLTRB(22, 10, 22, 22),
-      title: Row(
+        title: Text(
+          provider.name,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        subtitle: Text(
+          provider.description,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12,
+            color: Theme.of(context).hintColor,
+          ),
+        ),
         children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(provider.icon, color: accent, size: 29),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  provider.name,
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  'API key required',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).hintColor,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Obx(
-              () => TextField(
-                controller: keyController,
-                obscureText: obscureKey.value,
-                style: GoogleFonts.firaCode(fontSize: 13),
-                decoration: InputDecoration(
-                  labelText: 'API key',
-                  hintText: 'Paste ${provider.name} key',
-                  prefixIcon: const Icon(Icons.key_outlined, size: 23),
-                  suffixIcon: IconButton(
-                    tooltip: obscureKey.value ? 'Show API key' : 'Hide API key',
-                    onPressed: () => obscureKey.value = !obscureKey.value,
-                    icon: Icon(
-                      obscureKey.value
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      size: 24,
-                    ),
-                  ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 20, horizontal: 18),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            Obx(() {
-              final error = cloud.errorByProvider[provider.id];
-              if (error == null || error.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _buildErrorBox(context, error),
-              );
-            }),
-            Text(
-              'Save the key to verify it and load live models.',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                color: Theme.of(context).hintColor,
-                height: 1.35,
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Get.back(closeOverlays: false),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          ),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () async {
-            final value = keyController.text.trim();
-            if (value.isEmpty || isVerifying.value) return;
-            isVerifying.value = true;
-            await cloud.saveApiKey(provider.id, value);
-            await cloud.refreshModels(provider.id);
-            isVerifying.value = false;
-            if ((cloud.errorByProvider[provider.id] ?? '').isNotEmpty) {
-              return;
-            }
-            Get.back(closeOverlays: false);
-            if (openModelsAfterSave) {
-              _showModelSelectSheet(context, cloud, provider);
-            }
-          },
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-          ),
-          child:
-              Obx(() => Text(isVerifying.value ? 'Verifying...' : 'Save Key')),
-        ),
-      ],
-    ));
-  }
-
-  void _showCustomProviderSheet(
-    BuildContext context,
-    CloudModelController cloud,
-  ) {
-    final obscureCustomKey = true.obs;
-    Get.bottomSheet(
-      SafeArea(
-        child: Padding(
-          padding: EdgeInsets.only(
-            left: 24,
-            right: 24,
-            top: 26,
-            bottom: MediaQuery.of(context).viewInsets.bottom + 22,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Custom Provider',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 24, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                Text(
-                  'Use any OpenAI-compatible endpoint. Enter the base URL without /chat/completions.',
-                  style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    height: 1.35,
-                    color: Theme.of(context).hintColor,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Obx(() {
-                  final profiles = cloud.customProfiles;
-                  if (profiles.isEmpty) return const SizedBox.shrink();
-                  final selected = cloud.customProfileIndex;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            key: ValueKey(selected),
-                            initialValue: selected >= 0 ? selected : null,
-                            decoration: const InputDecoration(
-                              labelText: 'Saved provider',
-                              prefixIcon: Icon(Icons.bookmarks_outlined),
-                            ),
-                            items: [
-                              for (var i = 0; i < profiles.length; i++)
-                                DropdownMenuItem(
-                                  value: i,
-                                  child: Text(
-                                    profiles[i]['name']?.isNotEmpty == true
-                                        ? profiles[i]['name']!
-                                        : profiles[i]['baseUrl'] ??
-                                            'Custom API',
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                            ],
-                            onChanged: (index) {
-                              if (index != null) {
-                                cloud.selectCustomProfile(index);
-                              }
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton.filledTonal(
-                          tooltip: 'Add another provider',
-                          onPressed: cloud.beginNewCustomProfile,
-                          icon: const Icon(Icons.add),
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-                Obx(() {
-                  final error = cloud.customProviderError.value;
-                  if (error.isEmpty) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: _buildErrorBox(context, error),
-                  );
-                }),
-                TextField(
-                  controller: cloud.customNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Provider name',
-                    prefixIcon: Icon(Icons.badge_outlined, size: 23),
-                    contentPadding:
-                        EdgeInsets.symmetric(vertical: 20, horizontal: 18),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: cloud.customBaseUrlController,
-                  decoration: const InputDecoration(
-                    labelText: 'Base URL',
-                    hintText: 'https://example.com/v1',
-                    prefixIcon: Icon(Icons.link, size: 23),
-                    contentPadding:
-                        EdgeInsets.symmetric(vertical: 20, horizontal: 18),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Obx(
-                  () => TextField(
-                    controller: cloud.customApiKeyController,
-                    obscureText: obscureCustomKey.value,
-                    decoration: InputDecoration(
-                      labelText: 'API key',
-                      prefixIcon: const Icon(Icons.key_outlined, size: 23),
-                      suffixIcon: IconButton(
-                        tooltip: obscureCustomKey.value
-                            ? 'Show API key'
-                            : 'Hide API key',
-                        onPressed: () =>
-                            obscureCustomKey.value = !obscureCustomKey.value,
-                        icon: Icon(
-                          obscureCustomKey.value
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          size: 24,
-                        ),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                          vertical: 20, horizontal: 18),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: cloud.customModelController,
-                  decoration: const InputDecoration(
-                    labelText: 'Model ID',
-                    prefixIcon: Icon(Icons.smart_toy_outlined, size: 23),
-                    contentPadding:
-                        EdgeInsets.symmetric(vertical: 20, horizontal: 18),
-                  ),
-                ),
-                const SizedBox(height: 22),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      await cloud.saveCustomProvider();
-                      if (cloud.customProviderError.value.isEmpty) {
-                        Get.back(closeOverlays: false);
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                    ),
-                    icon: const Icon(Icons.check, size: 22),
-                    label: const Text('Save and Select'),
-                  ),
-                ),
+                const Divider(),
                 const SizedBox(height: 12),
-                Center(
-                  child: TextButton(
-                    onPressed: () async {
-                      await cloud.clearCustomProvider();
-                    },
-                    child: Obx(() => Text(
-                          cloud.customProfileIndex >= 0
-                              ? 'Remove selected provider'
-                              : 'Clear form',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.error,
-                          ),
-                        )),
+                if (cloudModels.canSelectModel(provider.id)) ...[
+                  Text(
+                    'Available Models',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).hintColor,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-    );
-  }
-
-  void _showModelSelectSheet(
-    BuildContext context,
-    CloudModelController cloud,
-    CloudProviderInfo provider,
-  ) {
-    if (!cloud.canSelectModel(provider.id)) {
-      _showProviderKeyDialog(
-        context,
-        cloud,
-        provider,
-        openModelsAfterSave: true,
-      );
-      return;
-    }
-
-    cloud.searchByProvider[provider.id] = '';
-    if ((cloud.modelsByProvider[provider.id] ?? const <String>[]).isEmpty) {
-      cloud.refreshModels(provider.id);
-    } else if (cloud.canFetchModels(provider.id) &&
-        cloud.fetchedAtByProvider[provider.id] == null) {
-      cloud.refreshModels(provider.id);
-    }
-
-    Get.bottomSheet(
-      SizedBox(
-        height: MediaQuery.of(context).size.height * 0.75,
-        child: SafeArea(
-          child: Obx(() {
-            final isLoading = cloud.isLoadingProvider[provider.id] == true;
-            final error = cloud.errorByProvider[provider.id];
-            final models = cloud.filteredModelsFor(provider.id);
-            final activeModel = cloud.activeModelFor(provider.id);
-            final isActiveProvider = cloud.activeProvider == provider.id;
-            final canFetch = cloud.canFetchModels(provider.id);
-            final freeFirst = cloud.freeFirstByProvider[provider.id] == true;
-            final freeModelCount = cloud.freeModelCountFor(provider.id);
-
-            Widget modelList;
-            if (isLoading && models.isEmpty) {
-              modelList = const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(30),
-                  child: CircularProgressIndicator(),
-                ),
-              );
-            } else if (models.isEmpty) {
-              modelList = _buildModelSelectEmptyState(context, provider);
-            } else {
-              modelList = ListView.separated(
-                itemCount: models.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final id = models[index];
-                  return _buildCloudModelRow(
-                    context,
-                    cloud,
-                    provider,
-                    id,
-                    activeModel,
-                    isActiveProvider,
-                  );
-                },
-              );
-            }
-
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 22,
-                right: 22,
-                top: 22,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 22,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.max,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Select ${provider.name} Model',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w800,
-                          ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: cloudModels.modelsByProvider[provider.id]!.map((model) {
+                      final activeModel = cloudModels.activeModelFor(provider.id);
+                      final isActive = activeModel == model;
+                      return ChoiceChip(
+                        label: Text(model),
+                        selected: isActive,
+                        onSelected: (selected) {
+                          if (selected) {
+                            cloudModels.selectModel(provider.id, model);
+                          }
+                        },
+                        labelStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight:
+                              isActive ? FontWeight.w700 : FontWeight.w500,
+                          color: isActive
+                              ? Colors.white
+                              : Theme.of(context).colorScheme.onSurface,
                         ),
-                      ),
-                      IconButton(
-                        onPressed: Get.back,
-                        icon: const Icon(Icons.close),
-                      ),
-                    ],
+                        selectedColor: AppColors.primary,
+                      );
+                    }).toList(),
                   ),
                   const SizedBox(height: 16),
-                  TextField(
-                    onChanged: (value) =>
-                        cloud.searchByProvider[provider.id] = value,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 15),
-                    decoration: const InputDecoration(
-                      hintText: 'Search models...',
-                      prefixIcon: Icon(Icons.search, size: 23),
-                      contentPadding: EdgeInsets.symmetric(
-                        vertical: 18,
-                        horizontal: 18,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${models.length} models - ${cloud.fetchedLabel(provider.id)}',
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            color: Theme.of(context).hintColor,
-                          ),
-                        ),
-                      ),
-                      if (provider.id == 'openrouter' ||
-                          freeModelCount > 0) ...[
-                        TextButton.icon(
-                          onPressed: freeModelCount == 0
-                              ? null
-                              : () => cloud.toggleFreeFirst(provider.id),
-                          icon: Icon(
-                            freeFirst
-                                ? Icons.check_circle
-                                : Icons.local_offer_outlined,
-                            size: 16,
-                          ),
-                          label: Text(
-                            freeModelCount == 0
-                                ? 'Free'
-                                : 'Free first ($freeModelCount)',
-                          ),
-                        ),
-                        const SizedBox(width: 2),
-                      ],
-                      TextButton.icon(
-                        onPressed: isLoading || !canFetch
-                            ? null
-                            : () => cloud.refreshModels(provider.id),
-                        icon: isLoading
-                            ? const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            : const Icon(Icons.refresh, size: 16),
-                        label: const Text('Refresh'),
-                      ),
-                    ],
-                  ),
-                  if (error != null) ...[
-                    const SizedBox(height: 8),
-                    _buildErrorBox(context, error),
-                  ],
-                  const SizedBox(height: 12),
-                  Expanded(child: modelList),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () =>
-                          _showCustomModelIdDialog(context, cloud, provider),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      icon: const Icon(Icons.add, size: 20),
-                      label: const Text('Use custom model ID'),
-                    ),
-                  ),
                 ],
-              ),
-            );
-          }),
-        ),
-      ),
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-    );
-  }
-
-  Widget _buildModelSelectEmptyState(
-    BuildContext context,
-    CloudProviderInfo provider,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor, width: 0.5),
-      ),
-      child: Text(
-        'No models loaded. Add an API key to update the live list, or use a custom model ID.',
-        textAlign: TextAlign.center,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 12,
-          color: Theme.of(context).hintColor,
-        ),
-      ),
-    );
-  }
-
-  void _showCustomModelIdDialog(
-    BuildContext context,
-    CloudModelController cloud,
-    CloudProviderInfo provider,
-  ) {
-    final textController =
-        TextEditingController(text: cloud.activeModelFor(provider.id));
-    Get.dialog(AlertDialog(
-      title: Text('Custom ${provider.name} Model',
-          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-      content: TextField(
-        controller: textController,
-        style: GoogleFonts.firaCode(fontSize: 12),
-        decoration: const InputDecoration(
-          labelText: 'Model ID',
-          prefixIcon: Icon(Icons.smart_toy_outlined, size: 18),
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: Get.back, child: const Text('Cancel')),
-        ElevatedButton(
-          onPressed: () async {
-            final value = textController.text.trim();
-            if (value.isEmpty) return;
-            if (!cloud.canSelectModel(provider.id)) {
-              if (provider.id == 'custom') {
-                _showCustomProviderSheet(context, cloud);
-              } else {
-                _showProviderKeyDialog(context, cloud, provider);
-              }
-              return;
-            }
-            await cloud.selectModel(
-              provider.id,
-              value,
-              showSnackbar: false,
-            );
-            Get.back(closeOverlays: false);
-            Get.back(closeOverlays: false);
-          },
-          child: const Text('Select'),
-        ),
-      ],
-    ));
-  }
-
-  Widget _buildCloudModelRow(
-    BuildContext context,
-    CloudModelController cloud,
-    CloudProviderInfo provider,
-    String id,
-    String activeModel,
-    bool isActiveProvider,
-  ) {
-    final providerId = provider.id;
-    final normalized =
-        providerId == 'google' ? id.replaceFirst('models/', '') : id;
-    final canUse = cloud.canSelectModel(providerId);
-    final isActive = isActiveProvider && normalized == activeModel && canUse;
-    final tags = cloud.modelTagsFor(providerId, id);
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: isActive
-            ? AppColors.secondary.withValues(alpha: 0.12)
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: isActive
-              ? AppColors.secondary.withValues(alpha: 0.35)
-              : Colors.transparent,
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    normalized,
-                    style: GoogleFonts.firaCode(
-                      fontSize: 13,
-                      fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonal(
+                    onPressed: isSelected
+                        ? null
+                        : () => settings.setCloudProvider(provider.id),
+                    child: Text(isSelected ? 'Active Provider' : 'Set as Active'),
                   ),
                 ),
-                if (tags.isNotEmpty) ...[
-                  const SizedBox(width: 8),
-                  Wrap(
-                    spacing: 5,
-                    children: [
-                      for (final tag in tags) _buildModelTag(context, tag),
-                    ],
-                  ),
-                ],
               ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          isActive
-              ? _buildStatusPill(context, 'ACTIVE', configured: true)
-              : TextButton(
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                  ),
-                  onPressed: () async {
-                    if (!canUse) {
-                      _showProviderKeyDialog(context, cloud, provider);
-                      return;
-                    }
-                    await cloud.selectModel(
-                      providerId,
-                      id,
-                      showSnackbar: false,
-                    );
-                    Get.back(closeOverlays: false);
-                  },
-                  child: Text(canUse ? 'Select' : 'Add Key'),
-                ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModelTag(BuildContext context, String label) {
-    final isFree = label == 'FREE';
-    final color = isFree ? AppColors.success : AppColors.info;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 9,
-          fontWeight: FontWeight.w900,
-          color: color,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusPill(
-    BuildContext context,
-    String label, {
-    required bool configured,
-  }) {
-    final color = configured ? AppColors.success : AppColors.warning;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          color: color,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorBox(BuildContext context, String error) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.error.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
-      ),
-      child: Text(
-        error,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 11,
-          color: AppColors.error,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoBox(BuildContext context, String message) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.info.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.info.withValues(alpha: 0.22)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.info_outline, size: 16, color: AppColors.info),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 11,
-                color: Theme.of(context).colorScheme.onSurface,
-                fontWeight: FontWeight.w500,
-                height: 1.35,
-              ),
             ),
           ),
         ],
@@ -1983,190 +664,97 @@ class ModelView extends GetView<ModelController> {
   }
 
   Widget _buildModelBadges(BuildContext context, AiModel model) {
-    final badges = <({String label, Color color})>[];
-    if (controller.isDownloaded(model.filename)) {
-      badges.add((label: 'DOWNLOADED', color: AppColors.success));
-    }
-    if (controller.isLiteRtModel(model)) {
-      badges.add((label: 'LiteRT', color: AppColors.primary));
-    } else if (controller.isLlamaModel(model)) {
-      badges.add((label: 'GGUF', color: AppColors.info));
-    }
-    if (controller.isUncensoredModel(model)) {
-      badges.add((label: 'UNCENSORED', color: AppColors.error));
-    }
-    if (controller.isVisionModel(model)) {
-      badges.add((label: 'VISION', color: AppColors.info));
-    }
-    if (controller.isImageModel(model)) {
-      badges.add((label: 'IMAGE', color: AppColors.primary));
-    }
-    if (model.isImported) {
-      badges.add((label: 'IMPORTED', color: AppColors.secondary));
-    }
-    if (model.isCustom) {
-      badges.add((label: 'CUSTOM', color: AppColors.warning));
-    }
-
-    if (badges.isEmpty) return const SizedBox.shrink();
-
     return Wrap(
       spacing: 6,
       runSpacing: 6,
       children: [
-        for (final badge in badges)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            decoration: BoxDecoration(
-              color: badge.color.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Text(
-              badge.label,
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: badge.color,
-              ),
-            ),
-          ),
+        if (model.isVision) _badge(context, 'Vision', Colors.orange),
+        if (controller.isUncensoredModel(model)) _badge(context, 'Uncensored', Colors.red),
+        if (controller.isImageModel(model)) _badge(context, 'Imaging', Colors.purple),
+        if (model.template == 'llama3') _badge(context, 'Llama 3', Colors.blue),
+        if (model.template == 'gemma') _badge(context, 'Gemma', Colors.cyan),
       ],
     );
   }
 
-  void _confirmDownload(BuildContext context, AiModel model,
-      {bool isToDownloadsFolder = false}) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(
-              isToDownloadsFolder
-                  ? Icons.save_alt
-                  : Icons.cloud_download_outlined,
-              color: AppColors.primary,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                isToDownloadsFolder ? 'Save to Downloads' : 'Download Model',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
+  Widget _badge(BuildContext context, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
+      ),
+      child: Text(
+        text,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: color,
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              isToDownloadsFolder
-                  ? 'You are about to save ${model.name} to your phone\'s public Downloads folder.'
-                  : 'You are about to download ${model.name} for use in the app.',
-              style:
-                  GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.sd_storage_outlined, size: 16),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Size: ${controller.modelSizeLabel(model)}',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-                border:
-                    Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.wifi, color: AppColors.warning, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'A Wi-Fi connection is highly recommended. Please keep the app open during the download.',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? const Color(
-                                0xFFFFD60A) // Brighter warning for dark mode
-                            : AppColors.warning,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.plusJakartaSans(color: Theme.of(context).hintColor),
-            ),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              if (isToDownloadsFolder) {
-                controller.downloadModelToDownloads(model);
-              } else {
-                controller.downloadModel(model);
-              }
-            },
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-            ),
-            child: Text(isToDownloadsFolder ? 'Save Now' : 'Download Now',
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
       ),
     );
   }
 
-  Future<void> _confirmDeleteModel(
-      BuildContext context, String filename) async {
+  Widget _buildModelLoadingProgress(BuildContext context, AiModel model) {
+    final inference = Get.find<InferenceService>();
+    return Obx(() {
+      final progress = inference.modelLoadProgress.value;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Initializing neural weights...',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primary,
+                ),
+              ),
+              Text(
+                '${(progress * 100).toStringAsFixed(0)}%',
+                style: GoogleFonts.firaCode(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress > 0 ? progress : null,
+              backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+              color: AppColors.primary,
+              minHeight: 4,
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Future<void> _confirmDeleteModel(BuildContext context, String filename) async {
     final confirmed = await showDialog<bool>(
           context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('Delete model?'),
-            content:
-                Text('$filename will be permanently removed from this device.'),
+          builder: (ctx) => AlertDialog(
+            title: Text('Delete model?',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+            content: Text('Are you sure you want to remove this model from storage?',
+                style: GoogleFonts.plusJakartaSans(fontSize: 14)),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
+                onPressed: () => Navigator.pop(ctx, false),
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.error,
-                ),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+                onPressed: () => Navigator.pop(ctx, true),
                 child: const Text('Delete'),
               ),
             ],
@@ -2196,162 +784,123 @@ class ModelView extends GetView<ModelController> {
       final disableActions = controller.isImporting.value ||
           isAnyModelLoading ||
           isCurrentlyDownloading;
-      final loadPercent = (inference.modelLoadProgress.value * 100)
-          .clamp(0.0, 100.0)
-          .toStringAsFixed(0);
+      final isDark = Theme.of(context).brightness == Brightness.dark;
 
-      return Card(
+      return Container(
         margin: const EdgeInsets.only(bottom: 12),
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
             color: isActive
-                ? AppColors.primary.withValues(alpha: 0.5)
-                : Theme.of(context).dividerColor.withValues(alpha: 0.4),
+                ? AppColors.primary.withValues(alpha: 0.2)
+                : Colors.transparent,
+            width: 1,
           ),
         ),
-        color: isActive
-            ? AppColors.primary.withValues(alpha: 0.05)
-            : Theme.of(context).cardColor,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          model.name,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        _buildModelBadges(context, model),
-                        const SizedBox(height: 6),
-                        Text(
-                          model.description,
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13,
-                            color:
-                                Theme.of(context).textTheme.bodyMedium?.color ??
-                                    Colors.grey,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          controller.modelSizeLabel(model),
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            color: Theme.of(context).hintColor,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  if (!isCurrentlyDownloading)
-                    Column(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      children: [
-                        if (isDownloaded) ...[
-                          FilledButton.tonal(
-                            onPressed: isActive || disableActions
-                                ? null
-                                : () => controller.loadModel(model.filename),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: isActive
-                                  ? AppColors.success.withValues(alpha: 0.2)
-                                  : null,
-                              foregroundColor:
-                                  isActive ? AppColors.success : null,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: isActive || disableActions ? null : () => controller.loadModel(model.filename),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  model.name,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? Colors.white : Colors.black,
+                                  ),
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              isThisImageModelLoading
-                                  ? 'Loading...'
-                                  : isThisTextModelLoading
-                                      ? '$loadPercent%'
-                                      : isActive
-                                          ? 'Active'
-                                          : 'Load',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold),
-                            ),
+                              if (isActive)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.success.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text('ACTIVE', style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w800, color: AppColors.success)),
+                                ),
+                            ],
                           ),
-                          IconButton(
-                            tooltip: isActive ? 'Unload model' : 'Delete model',
-                            onPressed: disableActions
-                                ? null
-                                : isActive
-                                    ? () => controller.unloadModel()
-                                    : () => _confirmDeleteModel(
-                                        context, model.filename),
-                            icon: Icon(
-                              isActive
-                                  ? Icons.eject_outlined
-                                  : Icons.delete_outline,
-                              size: 20,
-                              color: isActive
-                                  ? AppColors.warning
-                                  : AppColors.error,
+                          const SizedBox(height: 6),
+                          _buildModelBadges(context, model),
+                          const SizedBox(height: 8),
+                          Text(
+                            model.description,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              color: Theme.of(context).hintColor,
+                              height: 1.4,
                             ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ] else ...[
-                          FilledButton(
-                            onPressed: disableActions
-                                ? null
-                                : () => _confirmDownload(context, model),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Icon(Icons.storage_rounded, size: 12, color: Theme.of(context).hintColor.withValues(alpha: 0.5)),
+                              const SizedBox(width: 4),
+                              Text(
+                                controller.modelSizeLabel(model),
+                                style: GoogleFonts.firaCode(
+                                  fontSize: 11,
+                                  color: Theme.of(context).hintColor.withValues(alpha: 0.7),
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ),
-                            child: const Text('Get',
-                                style: TextStyle(fontWeight: FontWeight.bold)),
+                            ],
                           ),
-                          if (model.url.trim().isNotEmpty)
-                            IconButton(
-                              tooltip: 'Download to phone Downloads folder',
-                              onPressed: disableActions
-                                  ? null
-                                  : () => _confirmDownload(context, model,
-                                      isToDownloadsFolder: true),
-                              icon: const Icon(Icons.save_alt, size: 20),
-                              color: AppColors.secondary,
-                            ),
                         ],
-                      ],
+                      ),
                     ),
+                    if (!isCurrentlyDownloading && isDownloaded)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12, top: 4),
+                        child: IconButton(
+                          tooltip: isActive ? 'Unload model' : 'Delete model',
+                          onPressed: disableActions
+                              ? null
+                              : isActive
+                                  ? () => controller.unloadModel()
+                                  : () => _confirmDeleteModel(context, model.filename),
+                          icon: Icon(
+                            isActive ? Icons.eject_rounded : Icons.delete_outline_rounded,
+                            size: 20,
+                            color: isActive ? AppColors.warning : AppColors.error.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      )
+                    else if (!isCurrentlyDownloading && !isDownloaded)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 12, top: 12),
+                        child: Icon(Icons.cloud_download_rounded, size: 20, color: AppColors.primary),
+                      ),
+                  ],
+                ),
+                if (isCurrentlyDownloading) ...[
+                  const SizedBox(height: 16),
+                  _buildInlineDownloadProgress(context, model),
                 ],
-              ),
-              if (isCurrentlyDownloading) ...[
-                const SizedBox(height: 16),
-                _buildInlineDownloadProgress(context, model),
+                if (isThisModelLoading) ...[
+                  const SizedBox(height: 16),
+                  _buildModelLoadingProgress(context, model),
+                ],
               ],
-              if (isThisModelLoading) ...[
-                const SizedBox(height: 16),
-                _buildModelLoadingProgress(context, model),
-              ],
-            ],
+            ),
           ),
         ),
       );
@@ -2460,6 +1009,39 @@ class ModelView extends GetView<ModelController> {
         ],
       );
     });
+  }
+
+  Future<void> _confirmDownload(BuildContext context, AiModel model, {bool isToDownloadsFolder = false}) async {
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text('Download model?',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+            content: Text(
+                isToDownloadsFolder 
+                  ? 'Download ${model.name} to your device downloads folder?' 
+                  : 'Download ${model.name} for local inference?',
+                style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Download'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (confirmed) {
+      if (isToDownloadsFolder) {
+        controller.downloadModelToDownloads(model);
+      } else {
+        controller.downloadModel(model);
+      }
+    }
   }
 }
 

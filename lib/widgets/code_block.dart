@@ -194,6 +194,7 @@ class _CodeBlockState extends State<_CodeBlock> {
           // The parent is a horizontally scrolling SingleChildScrollView, so
           // incoming width is unbounded. Shrink-wrap and never use a flex child
           // here: a flex under unbounded width leaves the RenderFlex unlaid out.
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
@@ -209,17 +210,15 @@ class _CodeBlockState extends State<_CodeBlock> {
               ),
             ),
             const SizedBox(width: 16),
-            Expanded(
-              child: _highlightedLine(
-                lines[i],
-                lang,
-                codeColor,
-                keywordColor,
-                stringColor,
-                commentColor,
-                numberColor,
-                funcColor,
-              ),
+            _highlightedLine(
+              lines[i],
+              lang,
+              codeColor,
+              keywordColor,
+              stringColor,
+              commentColor,
+              numberColor,
+              funcColor,
             ),
           ],
         );

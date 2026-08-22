@@ -69,27 +69,23 @@ class TaskView extends GetView<TaskController> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surface : Colors.white,
+        color: isDark ? Colors.white.withValues(alpha: 0.03) : const Color(0xFFF1F5F9).withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04), blurRadius: 10, offset: const Offset(0, 4))
-        ]
       ),
       child: InkWell(
         onTap: () => controller.currentTask.value = task,
         borderRadius: BorderRadius.circular(20),
-        child: Padding(padding: const EdgeInsets.all(20), child: Row(children: [
+        child: Padding(padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16), child: Row(children: [
           Container(width: 44, height: 44,
-            decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(14)),
+            decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
             child: Icon(_statusIcon(task.status), color: statusColor, size: 22)),
           const SizedBox(width: 16),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(task.goal, style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black), maxLines: 2, overflow: TextOverflow.ellipsis),
+            Text(task.goal, style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black), maxLines: 2, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 4),
-            Text('${task.steps.length} operational steps · ${task.status.toUpperCase()}', style: GoogleFonts.plusJakartaSans(fontSize: 12, color: statusColor, fontWeight: FontWeight.w700)),
+            Text('${task.steps.length} operational steps · ${task.status.toUpperCase()}', style: GoogleFonts.plusJakartaSans(fontSize: 11, color: statusColor, fontWeight: FontWeight.w800, letterSpacing: 0.3)),
           ])),
-          IconButton(icon: Icon(Icons.delete_rounded, size: 20, color: AppColors.error.withValues(alpha: 0.5)), onPressed: () => controller.deleteTask(task.id)),
+          IconButton(icon: Icon(Icons.delete_outline_rounded, size: 20, color: AppColors.error.withValues(alpha: 0.6)), onPressed: () => controller.deleteTask(task.id)),
         ])),
       ),
     );

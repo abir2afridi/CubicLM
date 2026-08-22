@@ -159,12 +159,8 @@ class LogView extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 12),
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.surface : Colors.white,
+                      color: isDark ? Colors.white.withValues(alpha: 0.02) : const Color(0xFFF1F5F9).withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode),
-                      boxShadow: [
-                        BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04), blurRadius: 6, offset: const Offset(0, 2))
-                      ],
                     ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
@@ -188,9 +184,9 @@ class LogView extends StatelessWidget {
                           width: double.infinity,
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: isDark ? AppColors.bg : const Color(0xFFF1F5F9),
+                            color: isDark ? Colors.black.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.8),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode),
+                            border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03)),
                           ),
                           child: SelectableText(entry.details!, style: GoogleFonts.firaCode(fontSize: 11, color: isDark ? AppColors.textSecondary : const Color(0xFF475569))),
                         ),
