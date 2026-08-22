@@ -59,15 +59,23 @@ class ChatView extends GetView<ChatController> {
                   if (i == n && streaming) {
                     return _streamBubble(context, text, isDark);
                   }
+                   final msg = controller.messages[i];
+                   final hasRevisions = msg.revisions != null && msg.revisions!.isNotEmpty;
                    return ChatBubble(
-                     message: controller.messages[i],
+                     message: msg,
                      onCopy: () {
-                       Clipboard.setData(ClipboardData(text: controller.messages[i].content));
+                       Clipboard.setData(ClipboardData(text: msg.content));
                      },
-                     onRetry: () => controller.regenerateFromMessage(controller.messages[i]),
-                     onBranch: () => controller.branchNewChat(controller.messages[i]),
-                     onEdit: controller.messages[i].role == 'user'
-                         ? () => _showEditDialog(context, controller.messages[i])
+                     onRetry: () => controller.regenerateFromMessage(msg),
+                     onBranch: () => controller.branchNewChat(msg),
+                     onEdit: msg.role == 'user'
+                         ? () => _showEditDialog(context, msg)
+                         : null,
+                     onPrevRevision: hasRevisions && msg.revisionIndex > 0
+                         ? () => controller.navigateRevision(msg, -1)
+                         : null,
+                     onNextRevision: hasRevisions && msg.revisionIndex < msg.revisions!.length - 1
+                         ? () => controller.navigateRevision(msg, 1)
                          : null,
                    );
                 },
@@ -81,8 +89,21 @@ class ChatView extends GetView<ChatController> {
   }
 
   void _showEditDialog(BuildContext context, ChatMessage msg) {
+    // Safety: Clear main input when starting an edit to prevent duplicate triggers
+    controller.textController.clear();
+    controller.inputText.value = '';
+    
     final editController = TextEditingController(text: msg.content);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    void submit() {
+      final newContent = editController.text.trim();
+      if (newContent.isNotEmpty && newContent != msg.content) {
+        controller.editMessage(msg, newContent);
+      }
+      Navigator.pop(context);
+    }
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -107,6 +128,7 @@ class ChatView extends GetView<ChatController> {
               borderSide: const BorderSide(color: AppColors.primary),
             ),
           ),
+          onSubmitted: (_) => submit(),
         ),
         actions: [
           TextButton(
@@ -116,13 +138,7 @@ class ChatView extends GetView<ChatController> {
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-            onPressed: () {
-              final newContent = editController.text.trim();
-              if (newContent.isNotEmpty && newContent != msg.content) {
-                controller.editMessage(msg, newContent);
-              }
-              Navigator.pop(context);
-            },
+            onPressed: submit,
             child: Text('Send',
                 style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
           ),

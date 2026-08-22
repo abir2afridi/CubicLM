@@ -492,8 +492,7 @@ class ChatController extends GetxController {
       createNewChat();
     }
 
-    // Encode image to base64 if it's not already pre-encoded, so the message
-    // saved in history contains the image bytes and is 100% stable.
+    // Encode image to base64 if it's not already pre-encoded
     String? imgBase64 = imageBase64;
     if (imgBase64 == null && imagePath != null && !kIsWeb) {
       try {
@@ -507,7 +506,7 @@ class ChatController extends GetxController {
       chatId: currentSessionId.value,
       role: 'user',
       content: effectiveText,
-      imageBase64: imgBase64, // Always save the encoded base64 string
+      imageBase64: imgBase64,
       imagePath: imagePath,
       fileName: fileName,
       fileContent: fileContent,
@@ -518,15 +517,14 @@ class ChatController extends GetxController {
     messages.add(userMsg);
     _hive.saveMessage(userMsg.id, userMsg.toMap());
 
-    // Clear input preview UI state — but KEEP the physical file on disk 
-    // because the native inference engine needs to read it during generation.
+    // Clear input preview
     textController.clear();
     inputText.value = '';
-    clearImage(deleteFile: false); // Reset visual fields, do NOT delete file!
+    clearImage(deleteFile: false);
     clearFile();
     _scrollToBottom(force: true);
 
-    // Update session title (use first message as title)
+    // Update session title
     if (messages.where((m) => m.role == 'user').length == 1) {
       final title = visibleText.length > 40
           ? '${visibleText.substring(0, 40)}...'
@@ -539,7 +537,24 @@ class ChatController extends GetxController {
       if (idx >= 0) sessions[idx] = updated;
     }
 
-    // Start generating
+    // Generate AI Response
+    await _generateAIResponse(
+      prompt: effectiveText,
+      imagePath: imagePath,
+      imgBase64: imgBase64,
+      fileType: fileType,
+      filePath: filePath,
+    );
+  }
+
+  Future<void> _generateAIResponse({
+    required String prompt,
+    String? imagePath,
+    String? imgBase64,
+    String? fileType,
+    String? filePath,
+    int? insertAt, // Optional index to insert assistant message
+  }) async {
     final generationId = ++_generationSerial;
     isLoading.value = true;
     isStreaming.value = true;
@@ -617,16 +632,14 @@ class ChatController extends GetxController {
             steps: steps,
             sizeLabel: sizeLabel,
           );
-          print('[ChatController] Starting image generation for: $text');
+          
           final pngBytes = await localImage.generateImage(
-            prompt: text,
+            prompt: prompt,
             onProgress: (step, total) {
-              print('[ChatController] Progress callback: step=$step, total=$total');
               imageGenStep.value = step;
               imageGenTotal.value = total;
               if (step >= total && total > 0) {
                 imageGenDecoding.value = true;
-                print('[ChatController] Sampling complete, VAE decode in progress');
                 imageNotifications.decoding();
               }
               if (step > 0 && total > 0 && step < total) {
@@ -652,11 +665,10 @@ class ChatController extends GetxController {
               _scrollToBottom();
             },
           );
-          // Calculate total generation time
+          
           final genDurationMs = imageGenStartTime.value != null
               ? DateTime.now().difference(imageGenStartTime.value!).inMilliseconds
               : null;
-          print('[ChatController] generateImage returned, bytes=${pngBytes?.length}, duration=${genDurationMs}ms');
 
           if (pngBytes != null) {
             await imageNotifications.complete(durationMs: genDurationMs ?? 0);
@@ -667,19 +679,14 @@ class ChatController extends GetxController {
           }
         } else {
           final inference = Get.find<InferenceService>();
-
-          // LiteRT models can consume image/audio attachments. GGUF currently
-          // returns a clear unsupported message from the inference layer.
-
           rawResponse = await inference.generate(
-            prompt: effectiveText,
+            prompt: prompt,
             systemPrompt: _effectiveSystemPrompt,
             conversationHistory: history,
             source: 'chat',
             imagePath: imagePath,
             audioPath: fileType == 'audio' ? filePath : null,
             onToken: (token) {
-              // Real-time streaming update
               streamingResponse.value += token;
               trackThoughtTiming();
               _scrollToBottom();
@@ -694,7 +701,7 @@ class ChatController extends GetxController {
         ];
         rawResponse = await cloud.sendMessage(
           messages: apiMessages,
-          imageBase64: imgBase64, // already encoded before clearImage()
+          imageBase64: imgBase64,
           onToken: (token) {
             streamingResponse.value += token;
             trackThoughtTiming();
@@ -727,12 +734,10 @@ class ChatController extends GetxController {
         rawResponse = 'Here is your generated image:';
       }
 
-      // Calculate total generation time for image gen
       final genDurationMs = imageGenStartTime.value != null
           ? DateTime.now().difference(imageGenStartTime.value!).inMilliseconds
           : null;
 
-      // Display response directly (no command processing)
       final aiMsg = ChatMessage(
         id: _uuid.v4(),
         chatId: currentSessionId.value,
@@ -743,11 +748,15 @@ class ChatController extends GetxController {
         thoughtDurationSeconds: thoughtDurationSeconds,
         imageGenDurationMs: genDurationMs,
       );
-      messages.add(aiMsg);
+      
+      if (insertAt != null && insertAt >= 0 && insertAt <= messages.length) {
+        messages.insert(insertAt, aiMsg);
+      } else {
+        messages.add(aiMsg);
+      }
       _hive.saveMessage(aiMsg.id, aiMsg.toMap());
       imageGenStartTime.value = null;
 
-      // Update session
       final session =
           sessions.firstWhereOrNull((s) => s.id == currentSessionId.value);
       if (session != null) {
@@ -812,13 +821,54 @@ class ChatController extends GetxController {
 
   // ─── Edit / Regenerate / Branch ─────────────────────────
 
+  /// Edit a user message, saving the version history.
   void editMessage(ChatMessage msg, String newContent) {
     if (isLoading.value || isStreaming.value) return;
     if (msg.role != 'user') return;
     final idx = messages.indexWhere((m) => m.id == msg.id);
     if (idx < 0) return;
 
-    // Update the user message content
+    // Safety: Clear main input to prevent accidental double-send from background
+    textController.clear();
+    inputText.value = '';
+
+    // Grab current assistant reply if present
+    String? currentAssistantResponse;
+    if (idx + 1 < messages.length && messages[idx + 1].role == 'assistant') {
+      currentAssistantResponse = messages[idx + 1].content;
+    }
+
+    // Initialize or copy revisions list
+    final allRevisions = List<Map<String, dynamic>>.from(msg.revisions ?? []);
+    
+    // If this is the first edit, add the original version first
+    if (allRevisions.isEmpty) {
+      allRevisions.add({
+        'content': msg.content,
+        'response': currentAssistantResponse,
+      });
+    } else {
+      // Update the 'current' revision in the list before adding a new one
+      // because navigateRevision might have changed which one is 'active' in the UI
+      allRevisions[msg.revisionIndex] = {
+        'content': msg.content,
+        'response': currentAssistantResponse,
+      };
+    }
+
+    // Add the NEW version to the end of the list
+    allRevisions.add({
+      'content': newContent,
+      'response': null, // Response will be generated
+    });
+
+    // Remove old assistant reply from UI and Hive (it will be replaced by new generation)
+    if (idx + 1 < messages.length && messages[idx + 1].role == 'assistant') {
+      _hive.deleteMessage(messages[idx + 1].id);
+      messages.removeAt(idx + 1);
+    }
+
+    // Update user message to the new version
     final updated = ChatMessage(
       id: msg.id,
       chatId: msg.chatId,
@@ -831,25 +881,107 @@ class ChatController extends GetxController {
       filePath: msg.filePath,
       fileType: msg.fileType,
       fileSize: msg.fileSize,
-      tokensPerSec: msg.tokensPerSec,
-      thoughtDurationSeconds: msg.thoughtDurationSeconds,
-      imageGenDurationMs: msg.imageGenDurationMs,
       timestamp: msg.timestamp,
+      revisions: allRevisions,
+      revisionIndex: allRevisions.length - 1,
     );
     messages[idx] = updated;
     _hive.saveMessage(updated.id, updated.toMap());
 
-    // Delete any assistant reply that followed this message
-    if (idx + 1 < messages.length && messages[idx + 1].role == 'assistant') {
-      _hive.deleteMessage(messages[idx + 1].id);
-      messages.removeAt(idx + 1);
+    // Generate new AI Response
+    _generateAIResponse(
+      prompt: newContent,
+      imagePath: msg.imagePath,
+      imgBase64: msg.imageBase64,
+      fileType: msg.fileType,
+      filePath: msg.filePath,
+      insertAt: idx + 1, // Insert right after the edited user message
+    );
+  }
+
+  /// Navigate between different versions of a message.
+  void navigateRevision(ChatMessage msg, int direction) {
+    final revisions = msg.revisions;
+    if (revisions == null || revisions.isEmpty) return;
+    
+    final targetIdx = msg.revisionIndex + direction;
+    if (targetIdx < 0 || targetIdx >= revisions.length) return;
+
+    final msgIdx = messages.indexWhere((m) => m.id == msg.id);
+    if (msgIdx < 0) return;
+
+    // Current assistant response (if any) should be saved back to the current revision
+    String? currentResponse;
+    if (msgIdx + 1 < messages.length && messages[msgIdx + 1].role == 'assistant') {
+      currentResponse = messages[msgIdx + 1].content;
+    }
+    
+    final updatedRevisions = List<Map<String, dynamic>>.from(revisions);
+    updatedRevisions[msg.revisionIndex] = {
+      'content': msg.content,
+      'response': currentResponse,
+    };
+
+    // Get the target version
+    final targetRevision = updatedRevisions[targetIdx];
+    final targetContent = targetRevision['content'] as String;
+    final targetResponse = targetRevision['response'] as String?;
+
+    // Update the user message in UI and Hive
+    final updatedUser = ChatMessage(
+      id: msg.id,
+      chatId: msg.chatId,
+      role: msg.role,
+      content: targetContent,
+      imageBase64: msg.imageBase64,
+      imagePath: msg.imagePath,
+      fileName: msg.fileName,
+      fileContent: msg.fileContent,
+      filePath: msg.filePath,
+      fileType: msg.fileType,
+      fileSize: msg.fileSize,
+      timestamp: msg.timestamp,
+      revisions: updatedRevisions,
+      revisionIndex: targetIdx,
+    );
+    messages[msgIdx] = updatedUser;
+    _hive.saveMessage(updatedUser.id, updatedUser.toMap());
+
+    // Update or remove the assistant reply
+    if (msgIdx + 1 < messages.length && messages[msgIdx + 1].role == 'assistant') {
+      if (targetResponse != null) {
+        final oldAssistant = messages[msgIdx + 1];
+        final updatedAssistant = ChatMessage(
+          id: oldAssistant.id,
+          chatId: oldAssistant.chatId,
+          role: oldAssistant.role,
+          content: targetResponse,
+          imageBase64: oldAssistant.imageBase64,
+          imagePath: oldAssistant.imagePath,
+          tokensPerSec: oldAssistant.tokensPerSec,
+          thoughtDurationSeconds: oldAssistant.thoughtDurationSeconds,
+          timestamp: oldAssistant.timestamp,
+        );
+        messages[msgIdx + 1] = updatedAssistant;
+        _hive.saveMessage(updatedAssistant.id, updatedAssistant.toMap());
+      } else {
+        // This version has no response yet? (Shouldn't happen with current logic, but safe to handle)
+        _hive.deleteMessage(messages[msgIdx + 1].id);
+        messages.removeAt(msgIdx + 1);
+      }
+    } else if (targetResponse != null) {
+      // If assistant message was missing but we have a response in history, re-add it
+      final aiMsg = ChatMessage(
+        id: _uuid.v4(),
+        chatId: msg.chatId,
+        role: 'assistant',
+        content: targetResponse,
+      );
+      messages.insert(msgIdx + 1, aiMsg);
+      _hive.saveMessage(aiMsg.id, aiMsg.toMap());
     }
 
-    // Re-send with the edited content
-    textController.text = newContent;
-    inputText.value = newContent;
-    _scrollToBottom(force: true);
-    sendMessage();
+    messages.refresh();
   }
 
   void regenerateFromMessage(ChatMessage msg) {

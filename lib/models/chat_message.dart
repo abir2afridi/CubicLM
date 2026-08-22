@@ -20,6 +20,12 @@ class ChatMessage {
   final int? imageGenDurationMs; // Time taken to generate image locally
   final DateTime timestamp;
 
+  /// Edit history: each entry is {'content': String, 'response': String?}
+  /// revisions[0] = first version, revisions[last] = latest version
+  final List<Map<String, dynamic>>? revisions;
+  /// Index into revisions for the currently viewed version
+  final int revisionIndex;
+
   // Cache decoded bytes to prevent flickering on re-build
   Uint8List? _decodedImageBytes;
   Uint8List? get decodedImageBytes {
@@ -29,7 +35,6 @@ class ChatMessage {
   }
 
   ChatMessage({
-
     required this.id,
     required this.chatId,
     required this.role,
@@ -47,6 +52,8 @@ class ChatMessage {
     this.thoughtDurationSeconds,
     this.imageGenDurationMs,
     DateTime? timestamp,
+    this.revisions,
+    this.revisionIndex = 0,
   }) : timestamp = timestamp ?? DateTime.now();
 
   Map<String, dynamic> toMap() => {
@@ -67,6 +74,8 @@ class ChatMessage {
         'thoughtDurationSeconds': thoughtDurationSeconds,
         'imageGenDurationMs': imageGenDurationMs,
         'timestamp': timestamp.toIso8601String(),
+        'revisions': revisions,
+        'revisionIndex': revisionIndex,
       };
 
   factory ChatMessage.fromMap(Map<dynamic, dynamic> map) => ChatMessage(
@@ -94,5 +103,12 @@ class ChatMessage {
             ? (map['imageGenDurationMs'] as num).toInt()
             : null,
         timestamp: DateTime.tryParse(map['timestamp'] ?? '') ?? DateTime.now(),
+        revisions: map['revisions'] != null
+            ? List<Map<String, dynamic>>.from(
+                (map['revisions'] as List).map((e) => Map<String, dynamic>.from(e)))
+            : null,
+        revisionIndex: map['revisionIndex'] != null
+            ? (map['revisionIndex'] as num).toInt()
+            : 0,
       );
 }

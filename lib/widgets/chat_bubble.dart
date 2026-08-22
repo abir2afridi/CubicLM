@@ -16,6 +16,8 @@ class ChatBubble extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onBranch;
   final VoidCallback? onEdit;
+  final VoidCallback? onPrevRevision;
+  final VoidCallback? onNextRevision;
 
   const ChatBubble({
     super.key,
@@ -24,6 +26,8 @@ class ChatBubble extends StatelessWidget {
     this.onRetry,
     this.onBranch,
     this.onEdit,
+    this.onPrevRevision,
+    this.onNextRevision,
   });
 
   @override
@@ -215,13 +219,49 @@ class ChatBubble extends StatelessWidget {
     final iconColor = isDark
         ? AppColors.textMuted.withValues(alpha: 0.6)
         : const Color(0xFF94A3B8);
+    final mutedColor = isDark
+        ? AppColors.textMuted.withValues(alpha: 0.3)
+        : const Color(0xFFCBD5E1);
     const double iconSize = 16;
+    final revisions = message.revisions;
+    final hasRevisions = revisions != null && revisions.isNotEmpty;
+    final canPrev = hasRevisions && message.revisionIndex > 0;
+    final canNext = hasRevisions && message.revisionIndex < revisions.length - 1;
 
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // ── Revision navigation (prev/next) ──
+          if (hasRevisions) ...[
+            _actionButton(
+              icon: Icons.chevron_left_rounded,
+              tooltip: 'Previous version',
+              onTap: canPrev ? onPrevRevision! : () {},
+              color: canPrev ? iconColor : mutedColor,
+              size: iconSize + 4,
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Text(
+                '${message.revisionIndex + 1}/${revisions.length + 1}',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  color: iconColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            _actionButton(
+              icon: Icons.chevron_right_rounded,
+              tooltip: 'Next version',
+              onTap: canNext ? onNextRevision! : () {},
+              color: canNext ? iconColor : mutedColor,
+              size: iconSize + 4,
+            ),
+          ],
+
           if (isUser) ...[
             // User: Edit + Copy
             if (onEdit != null)
