@@ -21,7 +21,7 @@ import '../widgets/thought_disclosure.dart';
 import '../core/colors.dart';
 
 class ChatView extends GetView<ChatController> {
-  const ChatView({super.key});
+  ChatView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -42,46 +42,66 @@ class ChatView extends GetView<ChatController> {
             final streaming = controller.isStreaming.value;
             final text = controller.streamingResponse.value;
             final n = controller.messages.length;
-            return NotificationListener<ScrollUpdateNotification>(
-              onNotification: (note) {
-                if (note.dragDetails != null && streaming) {
-                  if ((note.scrollDelta ?? 0) < 0) {
-                    controller.pauseStreamingFollow();
-                  } else {
-                    controller.resumeStreamingFollowIfNearBottom();
-                  }
-                }
-                return false;
-              },
-              child: ListView.builder(
-                controller: controller.scrollController,
-                padding: const EdgeInsets.only(top: 12, bottom: 12),
-                itemCount: n + (streaming ? 1 : 0),
-                itemBuilder: (_, i) {
-                  if (i == n && streaming) {
-                    return _streamBubble(context, text, isDark);
-                  }
-                   final msg = controller.messages[i];
-                   final hasRevisions = msg.revisions != null && msg.revisions!.isNotEmpty;
-                   return ChatBubble(
-                     message: msg,
-                     onCopy: () {
-                       Clipboard.setData(ClipboardData(text: msg.content));
-                     },
-                     onRetry: () => controller.regenerateFromMessage(msg),
-                     onBranch: () => controller.branchNewChat(msg),
-                     onEdit: msg.role == 'user'
-                         ? () => _showEditDialog(context, msg)
-                         : null,
-                     onPrevRevision: hasRevisions && msg.revisionIndex > 0
-                         ? () => controller.navigateRevision(msg, -1)
-                         : null,
-                     onNextRevision: hasRevisions && msg.revisionIndex < msg.revisions!.length - 1
-                         ? () => controller.navigateRevision(msg, 1)
-                         : null,
-                   );
-                },
-              ),
+            return Stack(
+              children: [
+                NotificationListener<ScrollUpdateNotification>(
+                  onNotification: (note) {
+                    if (note.dragDetails != null && streaming) {
+                      if ((note.scrollDelta ?? 0) < 0) {
+                        controller.pauseStreamingFollow();
+                      } else {
+                        controller.resumeStreamingFollowIfNearBottom();
+                      }
+                    }
+                    return false;
+                  },
+                  child: ListView.builder(
+                    controller: controller.scrollController,
+                    padding: const EdgeInsets.only(top: 12, bottom: 12),
+                    itemCount: n + (streaming ? 1 : 0),
+                    itemBuilder: (_, i) {
+                      if (i == n && streaming) {
+                        return _streamBubble(context, text, isDark);
+                      }
+                       final msg = controller.messages[i];
+                       final hasRevisions = msg.revisions != null && msg.revisions!.isNotEmpty;
+                       return ChatBubble(
+                         message: msg,
+                         onCopy: () {
+                           Clipboard.setData(ClipboardData(text: msg.content));
+                         },
+                         onRetry: () => controller.regenerateFromMessage(msg),
+                         onBranch: () => controller.branchNewChat(msg),
+                         onEdit: msg.role == 'user'
+                             ? () => _showEditDialog(context, msg)
+                             : null,
+                         onPrevRevision: hasRevisions && msg.revisionIndex > 0
+                             ? () => controller.navigateRevision(msg, -1)
+                             : null,
+                         onNextRevision: hasRevisions && msg.revisionIndex < msg.revisions!.length - 1
+                             ? () => controller.navigateRevision(msg, 1)
+                             : null,
+                       );
+                    },
+                  ),
+                ),
+                Positioned(
+                  bottom: 16,
+                  right: 16,
+                  child: Obx(() => AnimatedScale(
+                        scale: controller.showScrollToBottom.value ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOutBack,
+                        child: FloatingActionButton.small(
+                          onPressed: controller.jumpToBottom,
+                          backgroundColor: isDark ? AppColors.surfaceLight : Colors.white,
+                          foregroundColor: AppColors.primary,
+                          elevation: 4,
+                          child: const Icon(Icons.arrow_downward_rounded, size: 20),
+                        ),
+                      )),
+                ),
+              ],
             );
           })),
           _inputBar(context, isDark),
@@ -282,36 +302,67 @@ class ChatView extends GetView<ChatController> {
       final inf = Get.find<InferenceService>();
       if (!inf.isLoadingModel.value) return const SizedBox.shrink();
       final pct = (inf.modelLoadProgress.value * 100).toStringAsFixed(0);
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.surface : const Color(0xFFF1F5F9),
-          border: Border(bottom: BorderSide(color: isDark ? AppColors.border : AppColors.borderLightMode, width: 1)),
+      return ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+            decoration: BoxDecoration(
+              color: (isDark ? AppColors.surface : Colors.white).withValues(alpha: 0.8),
+              border: Border(bottom: BorderSide(color: isDark ? AppColors.border : AppColors.borderLightMode, width: 1)),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: AppColors.primary)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Synchronizing Intelligence… $pct%',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                          fontWeight: FontWeight.w800)),
+                ),
+              ]),
+              const SizedBox(height: 14),
+              Stack(
+                children: [
+                  ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                          value: inf.modelLoadProgress.value,
+                          backgroundColor: isDark ? AppColors.bg : const Color(0xFFE2E8F0),
+                          color: AppColors.primary,
+                          minHeight: 6)),
+                  if (inf.modelLoadProgress.value > 0.05)
+                    Positioned.fill(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: inf.modelLoadProgress.value,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary.withValues(alpha: 0.4),
+                                  blurRadius: 10,
+                                  spreadRadius: 1,
+                                )
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ]),
+          ),
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: AppColors.primary)),
-            const SizedBox(width: 10),
-            Text('Syncing model weights… $pct%',
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
-                    fontWeight: FontWeight.w700)),
-          ]),
-          const SizedBox(height: 12),
-          ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                  value: inf.modelLoadProgress.value,
-                  backgroundColor: isDark ? AppColors.bg : const Color(0xFFE2E8F0),
-                  color: AppColors.primary,
-                  minHeight: 5)),
-        ]),
       );
     });
   }
@@ -339,33 +390,52 @@ class ChatView extends GetView<ChatController> {
       final pct = total == 0 ? 0.0 : (used / total).clamp(0.0, 1.0).toDouble();
       final warn = pct >= 0.75;
       final accent = warn ? AppColors.warning : AppColors.primary;
+      
       return Container(
-        padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-            color: isDark ? AppColors.bg.withValues(alpha: 0.5) : AppColors.bgLight.withValues(alpha: 0.5),
-            border:
-                Border(bottom: BorderSide(color: isDark ? AppColors.border : AppColors.borderLightMode, width: 0.5))),
+          color: isDark ? Colors.white.withValues(alpha: 0.04) : Colors.black.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+          ),
+        ),
         child: Row(children: [
-          Icon(Icons.auto_graph_rounded, size: 14, color: accent),
+          Icon(Icons.query_stats_rounded, size: 14, color: accent),
           const SizedBox(width: 8),
-          Text('${_fmtK(used)} / ${_fmtK(total)} tokens',
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  color: Theme.of(context).hintColor,
-                  fontWeight: FontWeight.w700)),
-          const SizedBox(width: 12),
           Expanded(
-              child: ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: LinearProgressIndicator(
-                      value: pct,
-                      backgroundColor: isDark ? AppColors.surface : const Color(0xFFE2E8F0),
-                      color: accent,
-                      minHeight: 4))),
-          const SizedBox(width: 10),
-          Text('${(pct * 100).toStringAsFixed(0)}%',
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11, color: accent, fontWeight: FontWeight.w800)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Context Usage',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10,
+                            color: Theme.of(context).hintColor,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2)),
+                    Text('${_fmtK(used)} / ${_fmtK(total)} tokens',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10,
+                            color: accent,
+                            fontWeight: FontWeight.w800)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: LinearProgressIndicator(
+                        value: pct,
+                        backgroundColor: isDark ? AppColors.surface : const Color(0xFFE2E8F0),
+                        color: accent,
+                        minHeight: 3)),
+              ],
+            ),
+          ),
         ]),
       );
     });
@@ -374,10 +444,10 @@ class ChatView extends GetView<ChatController> {
   // ── Empty State ──
   Widget _emptyState(BuildContext context, bool isDark) {
     final suggestions = [
-      {'text': 'Explain quantum computing simply', 'icon': Icons.science_rounded, 'color': Colors.blue},
-      {'text': 'Write a short poem about time', 'icon': Icons.auto_stories_rounded, 'color': Colors.purple},
-      {'text': 'Help me debug my code', 'icon': Icons.code_rounded, 'color': AppColors.secondary},
-      {'text': 'Summarize a complex topic', 'icon': Icons.summarize_rounded, 'color': Colors.orange}
+      {'text': 'Explain quantum computing simply', 'icon': Icons.auto_awesome_rounded, 'color': Colors.blue},
+      {'text': 'Write a short poem about time', 'icon': Icons.edit_note_rounded, 'color': Colors.purple},
+      {'text': 'Help me debug my code', 'icon': Icons.terminal_rounded, 'color': AppColors.secondary},
+      {'text': 'Summarize a complex topic', 'icon': Icons.psychology_rounded, 'color': Colors.orange}
     ];
     return Center(
         child: SingleChildScrollView(
@@ -894,108 +964,162 @@ class ChatView extends GetView<ChatController> {
   }
 
   // ── Sidebar Drawer ──
+  String _sidebarQuery = '';
   Widget _buildSidebar(BuildContext context, bool isDark) {
     return Drawer(
       backgroundColor: isDark ? AppColors.bg : Colors.white,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.horizontal(right: Radius.circular(24))),
       child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
-              child: Row(children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.asset(
-                    'assets/icons/CubicLM.png',
-                    width: 32, height: 32, fit: BoxFit.cover,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text('CubicLM',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 20, fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                        color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A))),
-              ]),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    side: BorderSide(color: isDark ? AppColors.border : AppColors.borderLightMode),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  icon: const Icon(Icons.add_rounded, size: 20, color: AppColors.primary),
-                  label: Text('New Chat',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
-                  onPressed: () { controller.createNewChat(); Navigator.pop(context); },
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text('RECENT',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11, fontWeight: FontWeight.w700,
-                      color: AppColors.textMuted, letterSpacing: 1.2)),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Obx(() {
-                if (controller.sessions.isEmpty) {
-                  return Center(
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.forum_outlined, size: 40,
-                          color: AppColors.textMuted.withValues(alpha: 0.3)),
-                      const SizedBox(height: 12),
-                      Text('No conversations yet',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14, fontWeight: FontWeight.w600,
-                              color: AppColors.textMuted)),
-                    ]),
-                  );
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  itemCount: controller.sessions.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 2),
-                  itemBuilder: (ctx, i) {
-                    final s = controller.sessions[i];
-                    final active = controller.currentSessionId.value == s.id;
-                    return _sidebarTile(context, s, active, isDark);
-                  },
-                );
-              }),
-            ),
-            const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-              child: Row(children: [
-                Icon(Icons.info_outline_rounded, size: 14,
-                    color: AppColors.textMuted.withValues(alpha: 0.5)),
-                const SizedBox(width: 8),
-                Text(
-                  Get.find<SettingsController>().appVersion.value.isEmpty
-                      ? 'CubicLM · Engineering Build'
-                      : 'CubicLM · v${Get.find<SettingsController>().appVersion.value}',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11, fontWeight: FontWeight.w600,
-                      color: AppColors.textMuted.withValues(alpha: 0.6)),
-                ),
-              ]),
-            ),
-          ],
+        child: StatefulBuilder(
+          builder: (context, setState) {
+            return _sidebarContent(context, isDark, setState);
+          },
         ),
       ),
+    );
+  }
+
+  Widget _sidebarContent(BuildContext context, bool isDark, StateSetter setState) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
+          child: Row(children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.asset(
+                'assets/icons/CubicLM.png',
+                width: 32, height: 32, fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text('CubicLM',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 20, fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A))),
+          ]),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                side: BorderSide(color: isDark ? AppColors.border : AppColors.borderLightMode),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: const Icon(Icons.add_rounded, size: 20, color: AppColors.primary),
+              label: Text('New Chat',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
+              onPressed: () { controller.createNewChat(); Navigator.pop(context); },
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        // ── Search ──
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: TextField(
+            onChanged: (v) => setState(() => _sidebarQuery = v.trim().toLowerCase()),
+            style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w500),
+            decoration: InputDecoration(
+              hintText: 'Search chats...',
+              hintStyle: GoogleFonts.plusJakartaSans(
+                  fontSize: 14, color: AppColors.textMuted.withValues(alpha: 0.6)),
+              prefixIcon: Icon(Icons.search_rounded, size: 20,
+                  color: AppColors.textMuted.withValues(alpha: 0.6)),
+              prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 0),
+              suffixIcon: _sidebarQuery.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(Icons.close_rounded, size: 18, color: AppColors.textMuted),
+                      onPressed: () => setState(() => _sidebarQuery = ''),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 0),
+                    )
+                  : null,
+              filled: true,
+              fillColor: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : const Color(0xFFF1F5F9),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: AppColors.primary.withValues(alpha: 0.4)),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Text('RECENT',
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11, fontWeight: FontWeight.w700,
+                  color: AppColors.textMuted, letterSpacing: 1.2)),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Obx(() {
+            final all = controller.sessions;
+            final filtered = _sidebarQuery.isEmpty
+                ? all
+                : all.where((s) =>
+                    s.title.toLowerCase().contains(_sidebarQuery) ||
+                    (s.lastMessage?.toLowerCase().contains(_sidebarQuery) ?? false))
+                .toList();
+            if (filtered.isEmpty) {
+              return Center(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(_sidebarQuery.isEmpty ? Icons.forum_outlined : Icons.search_off_rounded,
+                      size: 40, color: AppColors.textMuted.withValues(alpha: 0.3)),
+                  const SizedBox(height: 12),
+                  Text(
+                    _sidebarQuery.isEmpty ? 'No conversations yet' : 'No matches found',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textMuted)),
+                ]),
+              );
+            }
+            return ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              itemCount: filtered.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 2),
+              itemBuilder: (ctx, i) {
+                final s = filtered[i];
+                final active = controller.currentSessionId.value == s.id;
+                return _sidebarTile(context, s, active, isDark);
+              },
+            );
+          }),
+        ),
+        const Divider(height: 1),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+          child: Row(children: [
+            Icon(Icons.info_outline_rounded, size: 14,
+                color: AppColors.textMuted.withValues(alpha: 0.5)),
+            const SizedBox(width: 8),
+            Text(
+              Get.find<SettingsController>().appVersion.value.isEmpty
+                  ? 'CubicLM · Engineering Build'
+                  : 'CubicLM · v${Get.find<SettingsController>().appVersion.value}',
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11, fontWeight: FontWeight.w600,
+                  color: AppColors.textMuted.withValues(alpha: 0.6)),
+            ),
+          ]),
+        ),
+      ],
     );
   }
 
@@ -1086,16 +1210,28 @@ class ChatView extends GetView<ChatController> {
     );
   }
 
-  // ── Markdown styles ──
   MarkdownStyleSheet _streamMd(BuildContext c, bool isDark) {
     final clr = isDark ? AppColors.textPrimary : const Color(0xFF0F172A);
+    final muted = isDark ? AppColors.textSecondary : const Color(0xFF475569);
     final base = GoogleFonts.plusJakartaSans(fontSize: 15, color: clr, height: 1.6, fontWeight: FontWeight.w500);
     final codeBg = isDark ? AppColors.surfaceLight : const Color(0xFFE2E8F0);
     return MarkdownStyleSheet.fromTheme(Theme.of(c)).copyWith(
         p: base,
+        pPadding: const EdgeInsets.only(bottom: 12),
+        h1: base.copyWith(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+        h2: base.copyWith(fontSize: 18, fontWeight: FontWeight.w700),
+        h3: base.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
         strong: base.copyWith(fontWeight: FontWeight.w800),
         em: base.copyWith(fontStyle: FontStyle.italic),
         listBullet: base,
+        listIndent: 24,
+        blockquote: base.copyWith(color: muted, fontSize: 14),
+        blockquoteDecoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.03),
+          border: const Border(left: BorderSide(color: AppColors.primary, width: 3)),
+          borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+        ),
+        blockquotePadding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
         code: GoogleFonts.firaCode(
             fontSize: 13, color: clr, backgroundColor: codeBg),
         codeblockDecoration: BoxDecoration(

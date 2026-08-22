@@ -186,21 +186,42 @@ class _CodeBlockState extends State<_CodeBlock> {
     final commentColor = isDark ? const Color(0xFF6C7086) : const Color(0xFF94A3B8);
     final numberColor = isDark ? const Color(0xFFFAB387) : const Color(0xFFEA580C);
     final funcColor = isDark ? const Color(0xFF89DCEB) : const Color(0xFF2563EB);
+    final lineNumColor = isDark ? Colors.white24 : Colors.black26;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: lines.map((line) {
-        return _highlightedLine(
-          line,
-          lang,
-          codeColor,
-          keywordColor,
-          stringColor,
-          commentColor,
-          numberColor,
-          funcColor,
+      children: List.generate(lines.length, (i) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 32,
+              child: Text(
+                '${i + 1}',
+                textAlign: TextAlign.right,
+                style: GoogleFonts.firaCode(
+                  fontSize: 11,
+                  color: lineNumColor,
+                  height: 1.6,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _highlightedLine(
+                lines[i],
+                lang,
+                codeColor,
+                keywordColor,
+                stringColor,
+                commentColor,
+                numberColor,
+                funcColor,
+              ),
+            ),
+          ],
         );
-      }).toList(),
+      }),
     );
   }
 

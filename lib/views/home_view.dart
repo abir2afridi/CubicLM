@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../controllers/chat_controller.dart';
 import '../controllers/home_controller.dart';
 import '../core/colors.dart';
 import 'chat_view.dart';
@@ -48,10 +49,10 @@ class HomeView extends GetView<HomeController> {
       body: Obx(() {
         final content = IndexedStack(
           index: controller.currentTab.value,
-          children: const [
+          children: [
             ChatView(),
-            ModelView(),
-            ServerView(),
+            const ModelView(),
+            const ServerView(),
             SettingsView()
           ],
         );
@@ -153,20 +154,43 @@ class HomeView extends GetView<HomeController> {
                     decoration: BoxDecoration(
                       color: sel ? accent.withValues(alpha: 0.1) : Colors.transparent,
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: sel ? accent.withValues(alpha: 0.1) : Colors.transparent,
+                        width: 1,
+                      ),
                     ),
-                    child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(sel ? tab.activeIcon : tab.icon,
-                              color: sel ? accent : muted, size: 22),
-                          const SizedBox(height: 6),
-                          Text(tab.label,
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10,
-                                  fontWeight:
-                                      sel ? FontWeight.w800 : FontWeight.w600,
-                                  color: sel ? accent : muted)),
-                        ]),
+                    child: Stack(
+                      children: [
+                        if (sel)
+                          Positioned(
+                            left: 0,
+                            top: 20,
+                            bottom: 20,
+                            width: 3,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: accent,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ),
+                        Center(
+                          child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(sel ? tab.activeIcon : tab.icon,
+                                    color: sel ? accent : muted, size: 22),
+                                const SizedBox(height: 6),
+                                Text(tab.label,
+                                    style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10,
+                                        fontWeight:
+                                            sel ? FontWeight.w800 : FontWeight.w600,
+                                        color: sel ? accent : muted)),
+                              ]),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -174,6 +198,19 @@ class HomeView extends GetView<HomeController> {
           );
         })),
         const SizedBox(height: 20),
+        IconButton(
+          onPressed: () => Get.find<ChatController>().createNewChat(),
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.add_rounded, color: AppColors.primary, size: 22),
+          ),
+          tooltip: 'New Chat',
+        ),
+        const SizedBox(height: 24),
       ]),
     );
   }

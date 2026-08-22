@@ -80,6 +80,9 @@ class ChatController extends GetxController {
   final imageGenStartTime = Rxn<DateTime>();
   final imageGenDecoding = false.obs;
 
+  // UI state
+  final showScrollToBottom = false.obs;
+
   // Speech-to-text
   final isListening = false.obs;
   final sttAvailable = false.obs;
@@ -1086,11 +1089,21 @@ class ChatController extends GetxController {
     if (!scrollController.hasClients) return;
     final position = scrollController.position;
     final distanceFromBottom = position.maxScrollExtent - position.pixels;
+    
+    // Show button if we are more than 200px away from bottom
+    showScrollToBottom.value = distanceFromBottom > 200;
+
     if (!isStreaming.value) {
       _followStreaming = distanceFromBottom <= 180;
     } else if (distanceFromBottom <= 48) {
       _followStreaming = true;
     }
+  }
+
+  void jumpToBottom() {
+    if (!scrollController.hasClients) return;
+    _followStreaming = true;
+    _scrollToBottom(force: true);
   }
 
   void pauseStreamingFollow() {

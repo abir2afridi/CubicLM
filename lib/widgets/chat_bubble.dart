@@ -435,9 +435,14 @@ class ChatBubble extends StatelessWidget {
 
     return MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
       p: base,
+      pPadding: const EdgeInsets.only(bottom: 12),
+      h1: base.copyWith(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+      h2: base.copyWith(fontSize: 18, fontWeight: FontWeight.w700),
+      h3: base.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
       strong: base.copyWith(fontWeight: FontWeight.w700),
       em: base.copyWith(fontStyle: FontStyle.italic),
       listBullet: base,
+      listIndent: 24,
       code: GoogleFonts.firaCode(
         fontSize: 13,
         color: color,
@@ -449,21 +454,18 @@ class ChatBubble extends StatelessWidget {
         border: Border.all(color: Colors.black.withValues(alpha: 0.1), width: 0.5),
       ),
       codeblockPadding: const EdgeInsets.all(16),
-      blockquote: base.copyWith(color: muted),
+      blockquote: base.copyWith(color: muted, fontSize: 14),
       blockquoteDecoration: BoxDecoration(
         color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.03),
         border: const Border(
           left: BorderSide(
             color: AppColors.primary,
-            width: 4,
+            width: 3,
           ),
         ),
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(8),
-          bottomRight: Radius.circular(8),
-        ),
+        borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
       ),
-      blockquotePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      blockquotePadding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
     );
   }
 
