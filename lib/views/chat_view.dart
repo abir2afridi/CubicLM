@@ -630,14 +630,20 @@ class ChatView extends GetView<ChatController> {
 
   // ── Input Bar ──
   Widget _inputBar(BuildContext context, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-      decoration: BoxDecoration(
-        color: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.9),
-      ),
-      child: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+          decoration: BoxDecoration(
+            color: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.85),
+            border: Border(
+              top: BorderSide(
+                color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+                width: 1,
+              ),
+            ),
+          ),
           child: SafeArea(
               top: false,
               child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -785,8 +791,8 @@ class ChatView extends GetView<ChatController> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
-                        blurRadius: 12,
+                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                        blurRadius: 16,
                         offset: const Offset(0, 4),
                       )
                     ],
@@ -876,13 +882,6 @@ class ChatView extends GetView<ChatController> {
                           decoration: BoxDecoration(
                             color: bgColor,
                             shape: BoxShape.circle,
-                            boxShadow: (loading || listening || hasContent) ? [
-                              BoxShadow(
-                                color: bgColor.withValues(alpha: 0.4),
-                                blurRadius: 10,
-                                spreadRadius: 1,
-                              )
-                            ] : null,
                           ),
                           child: AnimatedSwitcher(
                             duration: const Duration(milliseconds: 200),
