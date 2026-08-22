@@ -1,8 +1,8 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/colors.dart';
 
 class ThoughtDisclosure extends StatefulWidget {
   final String thought;
@@ -38,12 +38,12 @@ class _ThoughtDisclosureState extends State<ThoughtDisclosure>
     _startedAt = DateTime.now();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 250),
+      duration: const Duration(milliseconds: 300),
       value: _expanded ? 1.0 : 0.0,
     );
     _expandAnimation = CurvedAnimation(
       parent: _animController,
-      curve: Curves.easeOutCubic,
+      curve: Curves.easeOutQuart,
     );
     _syncTimer();
   }
@@ -58,9 +58,8 @@ class _ThoughtDisclosureState extends State<ThoughtDisclosure>
       _liveSeconds = 0;
       _animController.forward();
     } else if (!widget.isThinking && oldWidget.isThinking) {
-      _expanded = false;
+      // Don't auto-collapse when done thinking, let user decide
       _liveSeconds = widget.durationSeconds ?? _liveSeconds;
-      _animController.reverse();
     }
 
     _syncTimer();
@@ -100,64 +99,69 @@ class _ThoughtDisclosureState extends State<ThoughtDisclosure>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = Theme.of(context).hintColor;
-    final accentColor = isDark ? const Color(0xFF0A84FF) : const Color(0xFF007AFF);
+    final accentColor = AppColors.primary;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: isDark
-            ? Colors.white.withValues(alpha: 0.04)
+            ? Colors.white.withValues(alpha: 0.03)
             : Colors.black.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? AppColors.border.withValues(alpha: 0.5) : AppColors.borderLightMode.withValues(alpha: 0.5),
+          width: 0.5,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
           InkWell(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             onTap: _toggle,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (widget.isThinking)
                     Padding(
-                      padding: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.only(right: 10),
                       child: SizedBox(
-                        width: 12,
-                        height: 12,
+                        width: 14,
+                        height: 14,
                         child: CircularProgressIndicator(
-                          strokeWidth: 1.5,
+                          strokeWidth: 2,
                           color: accentColor,
                         ),
                       ),
-                    ),
-                  if (!widget.isThinking)
+                    )
+                  else
                     Padding(
-                      padding: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.only(right: 8),
                       child: Icon(
-                        Icons.lightbulb_outline_rounded,
-                        size: 14,
+                        Icons.terminal_rounded,
+                        size: 16,
                         color: muted,
                       ),
                     ),
                   Text(
                     _label,
-                    style: GoogleFonts.inter(
-                      fontSize: 13,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
                       color: widget.isThinking ? accentColor : muted,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 6),
                   AnimatedRotation(
                     turns: _expanded ? 0.25 : 0.0,
-                    duration: const Duration(milliseconds: 200),
+                    duration: const Duration(milliseconds: 250),
                     child: Icon(
                       Icons.chevron_right_rounded,
-                      size: 16,
+                      size: 18,
                       color: muted,
                     ),
                   ),
@@ -170,7 +174,7 @@ class _ThoughtDisclosureState extends State<ThoughtDisclosure>
             sizeFactor: _expandAnimation,
             axisAlignment: -1.0,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
               child: MarkdownBody(
                 data: widget.thought.trim(),
                 selectable: true,
@@ -186,8 +190,8 @@ class _ThoughtDisclosureState extends State<ThoughtDisclosure>
   String get _label {
     final seconds = widget.durationSeconds ?? _liveSeconds;
     if (widget.isThinking) {
-      return seconds > 0 ? 'Thinking for ${seconds}s…' : 'Thinking…';
+      return seconds > 0 ? 'Analyzing Path (${seconds}s)…' : 'Initializing…';
     }
-    return seconds > 0 ? 'Thought for ${seconds}s' : 'Thought';
+    return seconds > 0 ? 'Analysis Complete (${seconds}s)' : 'Process Logs';
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/home_controller.dart';
+import '../core/colors.dart';
 import 'chat_view.dart';
 import 'model_view.dart';
 import 'server_view.dart';
@@ -13,21 +14,21 @@ class HomeView extends GetView<HomeController> {
 
   static const _tabs = [
     _NavItem(
-        icon: Icons.bubble_chart_outlined,
-        activeIcon: Icons.bubble_chart,
+        icon: Icons.chat_bubble_outline_rounded,
+        activeIcon: Icons.chat_bubble_rounded,
         label: 'Chat'),
     _NavItem(
-        icon: Icons.arrow_downward_rounded,
-        activeIcon: Icons.arrow_downward_rounded,
-        label: 'Models'),
+        icon: Icons.explore_outlined,
+        activeIcon: Icons.explore_rounded,
+        label: 'Explore'),
     _NavItem(
-        icon: Icons.dns_outlined,
-        activeIcon: Icons.dns_rounded,
-        label: 'Server'),
+        icon: Icons.lan_outlined,
+        activeIcon: Icons.lan_rounded,
+        label: 'Nodes'),
     _NavItem(
-        icon: Icons.settings_outlined,
-        activeIcon: Icons.settings,
-        label: 'Settings'),
+        icon: Icons.tune_rounded,
+        activeIcon: Icons.tune_rounded,
+        label: 'Config'),
   ];
 
   bool get _isWide {
@@ -42,7 +43,7 @@ class HomeView extends GetView<HomeController> {
       controller.checkResumeModel(context);
     });
     return Scaffold(
-      backgroundColor: isDark ? Colors.black : Colors.white,
+      backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
       body: Obx(() {
         final content = IndexedStack(
           index: controller.currentTab.value,
@@ -57,11 +58,9 @@ class HomeView extends GetView<HomeController> {
           return Row(children: [
             _buildSidebar(context, isDark),
             VerticalDivider(
-                width: 0.5,
-                thickness: 0.5,
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: 0.08)),
+                width: 1,
+                thickness: 1,
+                color: isDark ? AppColors.border : AppColors.borderLightMode),
             Expanded(child: content),
           ]);
         }
@@ -75,13 +74,11 @@ class HomeView extends GetView<HomeController> {
   Widget _buildBottomNav(BuildContext context, bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.black : Colors.white,
+        color: isDark ? AppColors.bg : AppColors.bgLight,
         border: Border(
             top: BorderSide(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.08),
-          width: 0.5,
+          color: isDark ? AppColors.border : AppColors.borderLightMode,
+          width: 1,
         )),
       ),
       child: BottomNavigationBar(
@@ -89,15 +86,18 @@ class HomeView extends GetView<HomeController> {
         onTap: controller.changeTab,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        type: BottomNavigationBarType.fixed,
+        selectedLabelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 10),
+        unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 10),
         items: [
           for (final tab in _tabs)
             BottomNavigationBarItem(
               icon: Padding(
-                padding: const EdgeInsets.only(bottom: 2),
+                padding: const EdgeInsets.only(bottom: 4),
                 child: Icon(tab.icon, size: 22),
               ),
               activeIcon: Padding(
-                padding: const EdgeInsets.only(bottom: 2),
+                padding: const EdgeInsets.only(bottom: 4),
                 child: Icon(tab.activeIcon, size: 22),
               ),
               label: tab.label,
@@ -108,20 +108,20 @@ class HomeView extends GetView<HomeController> {
   }
 
   Widget _buildSidebar(BuildContext context, bool isDark) {
-    final accent = isDark ? const Color(0xFF0A84FF) : const Color(0xFF007AFF);
+    final accent = AppColors.primary;
     final muted = Theme.of(context).hintColor;
 
     return Container(
-      width: 76,
-      color: isDark ? Colors.black : Colors.white,
+      width: 84,
+      color: isDark ? AppColors.bg : AppColors.bgLight,
       child: Column(children: [
-        // const SizedBox(height: 20),
-        // Image.asset(
-        //   'assets/icons/appicon.png',
-        //   width: 40,
-        //   height: 40,
-        // ),
-        // const SizedBox(height: 20),
+        const SizedBox(height: 24),
+        Image.asset(
+          'assets/icons/CubicLM.png',
+          width: 40,
+          height: 40,
+        ),
+        const SizedBox(height: 32),
         Expanded(child: Obx(() {
           final current = controller.currentTab.value;
           return ListView.builder(
@@ -131,37 +131,38 @@ class HomeView extends GetView<HomeController> {
               final sel = current == i;
               return Padding(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                child: Material(
-                  color:
-                      sel ? accent.withValues(alpha: 0.12) : Colors.transparent,
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () => controller.changeTab(i),
-                    child: SizedBox(
-                      height: 52,
-                      child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(sel ? tab.activeIcon : tab.icon,
-                                color: sel ? accent : muted, size: 20),
-                            const SizedBox(height: 3),
-                            Text(tab.label,
-                                style: GoogleFonts.inter(
-                                    fontSize: 10,
-                                    fontWeight:
-                                        sel ? FontWeight.w600 : FontWeight.w400,
-                                    color: sel ? accent : muted)),
-                          ]),
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => controller.changeTab(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: sel ? accent.withValues(alpha: 0.1) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      border: sel ? Border.all(color: accent.withValues(alpha: 0.2)) : null,
                     ),
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(sel ? tab.activeIcon : tab.icon,
+                              color: sel ? accent : muted, size: 22),
+                          const SizedBox(height: 6),
+                          Text(tab.label,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight:
+                                      sel ? FontWeight.w800 : FontWeight.w600,
+                                  color: sel ? accent : muted)),
+                        ]),
                   ),
                 ),
               );
             },
           );
         })),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
       ]),
     );
   }

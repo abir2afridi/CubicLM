@@ -23,7 +23,7 @@ class LogView extends StatelessWidget {
         case 'INFO':
           return AppColors.success;
         case 'DEBUG':
-          return const Color(0xFF8E8E93);
+          return const Color(0xFF94A3B8);
         default:
           return Theme.of(context).hintColor;
       }
@@ -45,22 +45,25 @@ class LogView extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.black : const Color(0xFFF2F2F7),
+      backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
       appBar: AppBar(
-        backgroundColor: isDark ? Colors.black : const Color(0xFFF2F2F7),
-        title: Text('Logs', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+        backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+        title: Text('System Logs', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 22)),
         actions: [
           IconButton(
-            tooltip: 'Share logs',
-            icon: Icon(Icons.ios_share_rounded, size: 20, color: isDark ? const Color(0xFF0A84FF) : AppColors.primary),
+            tooltip: 'Export Logs',
+            icon: const Icon(Icons.ios_share_rounded, size: 20, color: AppColors.primary),
             onPressed: () async {
               await logs.copyImportantLogs();
-              Get.snackbar('Copied', 'Important logs copied to clipboard.', snackPosition: SnackPosition.BOTTOM);
+              Get.snackbar('Logs Copied', 'Engineering logs are now in your clipboard.', 
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: AppColors.primary,
+                colorText: Colors.white);
             },
           ),
           IconButton(
-            tooltip: 'Clear logs',
-            icon: Icon(Icons.delete_outline_rounded, size: 20, color: Theme.of(context).hintColor),
+            tooltip: 'Clear',
+            icon: Icon(Icons.delete_sweep_rounded, size: 22, color: AppColors.error.withValues(alpha: 0.6)),
             onPressed: logs.clear,
           ),
         ],
@@ -69,8 +72,8 @@ class LogView extends StatelessWidget {
         children: [
           // Filter chips
           Container(
-            height: 52,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            height: 60,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Obx(() => ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: filters.length,
@@ -81,25 +84,26 @@ class LogView extends StatelessWidget {
                     ? (isDark ? Colors.white : Colors.black)
                     : levelColor(filter);
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
                   child: ChoiceChip(
                     label: Text(filter),
-                    labelStyle: GoogleFonts.inter(
+                    labelStyle: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w800,
                       color: isSelected ? Colors.white : color,
                     ),
                     selected: isSelected,
                     selectedColor: color,
-                    backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+                    backgroundColor: isDark ? AppColors.surface : Colors.white,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(12),
                       side: BorderSide(
-                        color: isSelected ? color : (isDark ? const Color(0xFF2C2C2E) : const Color(0xFFE5E5EA)),
+                        color: isSelected ? color : (isDark ? AppColors.border : AppColors.borderLightMode),
                       ),
                     ),
                     onSelected: (_) => selectedFilter.value = filter,
                     visualDensity: VisualDensity.compact,
+                    showCheckmark: false,
                   ),
                 );
               },
@@ -117,59 +121,66 @@ class LogView extends StatelessWidget {
                 return Center(
                   child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     Container(
-                      width: 56, height: 56,
+                      width: 64, height: 64,
                       decoration: BoxDecoration(
-                        color: AppColors.success.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(16),
+                        color: AppColors.success.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Icon(Icons.check_circle_outline_rounded, size: 28, color: AppColors.success),
+                      child: const Icon(Icons.verified_rounded, size: 32, color: AppColors.success),
                     ),
-                    const SizedBox(height: 16),
-                    Text('All Clear', style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black)),
-                    const SizedBox(height: 6),
-                    Text('No ${selectedFilter.value == 'ALL' ? '' : '${selectedFilter.value.toLowerCase()} '}logs captured yet.', style: GoogleFonts.inter(fontSize: 15, color: Theme.of(context).hintColor)),
+                    const SizedBox(height: 20),
+                    Text('System Nominal', style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w800, color: isDark ? Colors.white : Colors.black)),
+                    const SizedBox(height: 8),
+                    Text('No ${selectedFilter.value == 'ALL' ? '' : '${selectedFilter.value.toLowerCase()} '}logs recorded.', style: GoogleFonts.plusJakartaSans(fontSize: 14, color: Theme.of(context).hintColor, fontWeight: FontWeight.w600)),
                   ]),
                 );
               }
 
               return ListView.builder(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 itemCount: filtered.length,
                 itemBuilder: (context, index) {
                   final entry = filtered[index];
                   final color = levelColor(entry.level);
 
                   return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(14),
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-                      borderRadius: BorderRadius.circular(14),
+                      color: isDark ? AppColors.surface : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode),
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04), blurRadius: 6, offset: const Offset(0, 2))
+                      ],
                     ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
                         Container(
-                          width: 24, height: 24,
-                          decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
-                          child: Icon(levelIcon(entry.level), color: color, size: 14),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                          child: Row(children: [
+                            Icon(levelIcon(entry.level), color: color, size: 12),
+                            const SizedBox(width: 6),
+                            Text(entry.level, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w800, color: color)),
+                          ]),
                         ),
-                        const SizedBox(width: 8),
-                        Text(entry.level, style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
                         const Spacer(),
-                        Text(_formatTime(entry.timestamp), style: GoogleFonts.inter(fontSize: 12, color: Theme.of(context).hintColor)),
+                        Text(_formatTime(entry.timestamp), style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Theme.of(context).hintColor, fontWeight: FontWeight.w600)),
                       ]),
-                      const SizedBox(height: 10),
-                      SelectableText(entry.message, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black)),
+                      const SizedBox(height: 12),
+                      SelectableText(entry.message, style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600, color: isDark ? Colors.white : Colors.black, height: 1.4)),
                       if (entry.details != null && entry.details!.isNotEmpty) ...[
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
-                            borderRadius: BorderRadius.circular(8),
+                            color: isDark ? AppColors.bg : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode),
                           ),
-                          child: SelectableText(entry.details!, style: GoogleFonts.firaCode(fontSize: 11, color: Theme.of(context).hintColor)),
+                          child: SelectableText(entry.details!, style: GoogleFonts.firaCode(fontSize: 11, color: isDark ? AppColors.textSecondary : const Color(0xFF475569))),
                         ),
                       ],
                     ]),

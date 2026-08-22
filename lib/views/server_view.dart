@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
-
 import '../controllers/server_controller.dart';
 import '../core/colors.dart';
 
@@ -12,60 +11,61 @@ class ServerView extends GetView<ServerController> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isDark ? const Color(0xFF0A84FF) : AppColors.primary;
+    final accent = AppColors.primary;
 
     return Scaffold(
-      backgroundColor: isDark ? Colors.black : const Color(0xFFF2F2F7),
+      backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
       appBar: AppBar(
-        backgroundColor: isDark ? Colors.black : const Color(0xFFF2F2F7),
-        title: Text('Server',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+        backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+        title: Text('API Node',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)),
       ),
       body: Obx(() {
         final isRunning = controller.isRunning.value;
         final hasKey = controller.apiKey.value.trim().isNotEmpty;
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 96),
           children: [
             // Status
             _groupedCard(isDark, children: [
               Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   child: Row(children: [
                     Container(
-                        width: 38,
-                        height: 38,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                             color: (isRunning
                                     ? AppColors.success
                                     : Theme.of(context).hintColor)
-                                .withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10)),
+                                .withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(14)),
                         child: Icon(
                             isRunning ? Icons.dns_rounded : Icons.dns_outlined,
-                            size: 20,
+                            size: 24,
                             color: isRunning
                                 ? AppColors.success
                                 : Theme.of(context).hintColor)),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 16),
                     Expanded(
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                           Text(
                               isRunning
-                                  ? 'API Server Running'
-                                  : 'API Server Stopped',
-                              style: GoogleFonts.inter(
-                                  fontSize: 15, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 2),
+                                  ? 'Compute Active'
+                                  : 'Node Offline',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 16, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 4),
                           Text(
                               isRunning
                                   ? controller.serverStatus.value
-                                  : 'Expose your local model as an OpenAI API.',
-                              style: GoogleFonts.inter(
+                                  : 'Bridge local models to OpenAI-compatible clients.',
+                              style: GoogleFonts.plusJakartaSans(
                                   fontSize: 13,
+                                  fontWeight: FontWeight.w500,
                                   color: Theme.of(context).hintColor)),
                         ])),
                     Switch(
@@ -75,129 +75,134 @@ class ServerView extends GetView<ServerController> {
                             : (v) => controller.toggleServer(v)),
                   ])),
             ]),
-            const SizedBox(height: 12),
+            const SizedBox(height: 24),
 
-            // Model
+            // Model Information
+            _sectionLabel(context, 'CURRENT PAYLOAD'),
             _groupedCard(isDark, children: [
               Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(20),
                   child: Row(children: [
                     Container(
-                        width: 30,
-                        height: 30,
+                        width: 32,
+                        height: 32,
                         decoration: BoxDecoration(
                             color: (controller.hasLocalModel
                                     ? AppColors.success
                                     : AppColors.warning)
                                 .withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(7)),
+                            borderRadius: BorderRadius.circular(10)),
                         child: Icon(
                             controller.hasLocalModel
-                                ? Icons.check_circle_outline
-                                : Icons.info_outline,
-                            size: 16,
+                                ? Icons.verified_user_rounded
+                                : Icons.help_outline_rounded,
+                            size: 18,
                             color: controller.hasLocalModel
                                 ? AppColors.success
                                 : AppColors.warning)),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 14),
                     Expanded(
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                           Text(controller.modelName,
-                              style: GoogleFonts.inter(
-                                  fontSize: 15, fontWeight: FontWeight.w500)),
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 15, fontWeight: FontWeight.w700)),
                           const SizedBox(height: 2),
                           Text(
                               controller.hasLocalModel
-                                  ? 'Local model ready'
-                                  : 'Requires a loaded GGUF or LiteRT-LM model',
-                              style: GoogleFonts.inter(
-                                  fontSize: 13,
+                                  ? 'Active weighting engine'
+                                  : 'Requires model initialization',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
                                   color: Theme.of(context).hintColor)),
                         ])),
                   ])),
             ]),
-            const SizedBox(height: 12),
+            const SizedBox(height: 24),
 
             // Security
-            _sectionLabel(context, 'SECURITY'),
+            _sectionLabel(context, 'GATEWAY SECURITY'),
             _groupedCard(isDark, children: [
-              _switchTile(isDark,
-                  title: 'Require API key',
-                  subtitle: 'Authorization: Bearer <key>',
+              _switchTile(context, isDark,
+                  title: 'Encrypted Handshake',
+                  subtitle: 'Requires Bearer Token authentication',
                   value: controller.useApiKey.value, onChanged: (v) {
                 controller.useApiKey.value = v;
                 controller.saveSettings();
               }),
               Divider(
-                  height: 0.5,
-                  indent: 16,
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.black.withValues(alpha: 0.06)),
+                  height: 1,
+                  indent: 20,
+                  color: isDark ? AppColors.border : AppColors.borderLightMode),
               Padding(
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.all(16),
                   child: Row(children: [
                     Expanded(
                         child: TextField(
                       controller: controller.apiKeyCtrl,
                       onChanged: (v) => controller.apiKey.value = v,
                       onSubmitted: (_) => controller.saveSettings(),
+                      style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600),
                       decoration: const InputDecoration(
-                          labelText: 'API key', hintText: 'Optional'),
+                          labelText: 'Access Token', hintText: 'Optional secure key'),
                     )),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
                     IconButton(
-                        tooltip: 'Generate',
+                        tooltip: 'Rotate Key',
                         onPressed: controller.generateApiKey,
-                        icon: Icon(Icons.auto_awesome_rounded,
-                            size: 20, color: accent)),
+                        icon: Icon(Icons.refresh_rounded,
+                            size: 22, color: accent)),
                     IconButton(
                         tooltip: 'Copy',
                         onPressed: hasKey
                             ? () => controller.copyText(
                                 controller.apiKey.value, 'API key')
                             : null,
-                        icon: Icon(Icons.copy_outlined,
-                            size: 18, color: Theme.of(context).hintColor)),
+                        icon: Icon(Icons.copy_rounded,
+                            size: 20, color: Theme.of(context).hintColor)),
                   ])),
             ]),
-            const SizedBox(height: 12),
+            const SizedBox(height: 24),
 
             if (isRunning) ...[
-              _sectionLabel(context, 'ENDPOINTS'),
+              _sectionLabel(context, 'ACTIVE ENDPOINTS'),
               _groupedCard(isDark, children: [
                 Padding(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.all(18),
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _urlRow(context, isDark, 'Local',
+                          _urlRow(context, isDark, 'Host',
                               controller.localUrl.value),
-                          const SizedBox(height: 8),
-                          OutlinedButton.icon(
+                          const SizedBox(height: 12),
+                          FilledButton.icon(
                               onPressed: controller.localUrl.value == null
                                   ? null
                                   : () =>
                                       _testHealth(controller.localUrl.value!),
-                              icon: const Icon(Icons.wifi, size: 16),
-                              label: const Text('Test local')),
+                              icon: const Icon(Icons.sensors_rounded, size: 18),
+                              label: const Text('Probe Connectivity'),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.success,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                              )),
                         ])),
               ]),
-              const SizedBox(height: 12),
-              _sectionLabel(context, 'USAGE EXAMPLES'),
+              const SizedBox(height: 24),
+              _sectionLabel(context, 'IMPLEMENTATION SNIPPETS'),
               _groupedCard(isDark, children: [
                 Padding(
-                    padding: const EdgeInsets.all(14),
+                    padding: const EdgeInsets.all(18),
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _codeBlock(context, isDark, 'List models',
+                          _codeBlock(context, isDark, 'REST: Model List',
                               'curl ${controller.baseUrl}/v1/models${_authHeader()}'),
-                          _codeBlock(context, isDark, 'Chat completion',
+                          _codeBlock(context, isDark, 'REST: Completions',
                               'curl ${controller.baseUrl}/v1/chat/completions \\\n  -H "Content-Type: application/json"${_authHeader()} \\\n  -d \'{"model":"${controller.inference.loadedModelName.value}","messages":[{"role":"user","content":"Hello"}]}\''),
-                          _codeBlock(context, isDark, 'Python SDK',
+                          _codeBlock(context, isDark, 'SDK: OpenAI Python',
                               'from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${controller.baseUrl}/v1",\n    api_key="${controller.useApiKey.value ? controller.apiKey.value : "not-needed"}"\n)\n\nresponse = client.chat.completions.create(\n    model="${controller.inference.loadedModelName.value}",\n    messages=[{"role": "user", "content": "Hello"}],\n)\nprint(response.choices[0].message.content)'),
                         ])),
               ]),
@@ -206,20 +211,21 @@ class ServerView extends GetView<ServerController> {
             if (controller.lastError.value != null) ...[
               const SizedBox(height: 12),
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(14)),
+                    color: AppColors.error.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.error.withValues(alpha: 0.2))),
                 child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.error_outline_rounded,
-                          color: AppColors.error, size: 20),
-                      const SizedBox(width: 10),
+                      const Icon(Icons.error_rounded,
+                          color: AppColors.error, size: 22),
+                      const SizedBox(width: 12),
                       Expanded(
                           child: Text(controller.lastError.value!,
-                              style: GoogleFonts.inter(
-                                  fontSize: 13, color: AppColors.error))),
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13, color: AppColors.error, fontWeight: FontWeight.w600))),
                     ]),
               ),
             ],
@@ -234,8 +240,12 @@ class ServerView extends GetView<ServerController> {
   Widget _groupedCard(bool isDark, {required List<Widget> children}) {
     return Container(
       decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-          borderRadius: BorderRadius.circular(14)),
+          color: isDark ? AppColors.surface : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04), blurRadius: 10, offset: const Offset(0, 4))
+          ]),
       clipBehavior: Clip.antiAlias,
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
@@ -243,34 +253,34 @@ class ServerView extends GetView<ServerController> {
 
   Widget _sectionLabel(BuildContext context, String title) {
     return Padding(
-      padding: const EdgeInsets.only(left: 16, bottom: 6, top: 8),
+      padding: const EdgeInsets.only(left: 20, bottom: 8, top: 12),
       child: Text(title,
-          style: GoogleFonts.inter(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
+          style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
               color: Theme.of(context).hintColor)),
     );
   }
 
-  Widget _switchTile(bool isDark,
+  Widget _switchTile(BuildContext context, bool isDark,
       {required String title,
       required String subtitle,
       required bool value,
       required ValueChanged<bool> onChanged}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Row(children: [
         Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title, style: GoogleFonts.inter(fontSize: 15)),
-          const SizedBox(height: 2),
+          Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
           Text(subtitle,
-              style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: isDark
-                      ? const Color(0xFF8E8E93)
-                      : const Color(0xFF8E8E93)),
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: Theme.of(context).hintColor),
               maxLines: 2,
               overflow: TextOverflow.ellipsis),
         ])),
@@ -281,53 +291,55 @@ class ServerView extends GetView<ServerController> {
 
   Widget _urlRow(BuildContext context, bool isDark, String label, String? url) {
     return Padding(
-        padding: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.only(bottom: 12),
         child: Row(children: [
           SizedBox(
               width: 54,
               child: Text(label,
-                  style: GoogleFonts.inter(
-                      fontSize: 13, fontWeight: FontWeight.w600))),
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13, fontWeight: FontWeight.w700))),
           Expanded(
-              child: SelectableText(url ?? 'Not available',
+              child: SelectableText(url ?? 'Detecting node...',
                   maxLines: 1,
                   style: GoogleFonts.firaCode(
-                      fontSize: 12, color: Theme.of(context).hintColor))),
+                      fontSize: 12, fontWeight: FontWeight.w500, color: Theme.of(context).hintColor))),
           IconButton(
               tooltip: 'Copy',
               onPressed: url == null
                   ? null
                   : () => controller.copyText(url, '$label URL'),
-              icon: Icon(Icons.copy_outlined,
-                  size: 16, color: Theme.of(context).hintColor)),
+              icon: Icon(Icons.copy_rounded,
+                  size: 18, color: Theme.of(context).hintColor)),
         ]));
   }
 
   Widget _codeBlock(
       BuildContext context, bool isDark, String title, String code) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF2C2C2E) : const Color(0xFFF2F2F7),
-          borderRadius: BorderRadius.circular(10)),
+          color: isDark ? AppColors.bg : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
               child: Text(title,
-                  style: GoogleFonts.inter(
-                      fontSize: 13, fontWeight: FontWeight.w600))),
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary))),
           IconButton(
               tooltip: 'Copy',
               onPressed: () => controller.copyText(code, title),
-              icon: Icon(Icons.copy_outlined,
+              icon: Icon(Icons.content_copy_rounded,
                   size: 16, color: Theme.of(context).hintColor)),
         ]),
+        const SizedBox(height: 8),
         SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Text(code,
                 style: GoogleFonts.firaCode(
-                    fontSize: 12, color: Theme.of(context).hintColor))),
+                    fontSize: 11, fontWeight: FontWeight.w500, color: isDark ? AppColors.textSecondary : const Color(0xFF475569)))),
       ]),
     );
   }
@@ -344,9 +356,15 @@ class ServerView extends GetView<ServerController> {
       final r = await http
           .get(Uri.parse('${baseUrl.replaceAll(RegExp(r'/$'), '')}/health'))
           .timeout(const Duration(seconds: 8));
-      Get.snackbar('Health check', 'Status ${r.statusCode}');
+      Get.snackbar('Node Signal', 'Engine responded with status ${r.statusCode}',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.success,
+        colorText: Colors.white);
     } catch (e) {
-      Get.snackbar('Health failed', '$e');
+      Get.snackbar('Connection Refused', 'Probe failed: $e',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error,
+        colorText: Colors.white);
     }
   }
 }

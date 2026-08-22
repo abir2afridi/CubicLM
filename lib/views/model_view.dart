@@ -18,8 +18,8 @@ class ModelView extends GetView<ModelController> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Models',
-            style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+        title: Text('Model Hub',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)),
         actions: [
           Obx(() {
             if (controller.modelScope.value != 'local') {
@@ -68,7 +68,7 @@ class ModelView extends GetView<ModelController> {
                     children: [
                       Text(
                         'LOCAL MODELS (${controller.filteredDisplayedModels.length})',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           color: Theme.of(context).hintColor,
@@ -94,7 +94,7 @@ class ModelView extends GetView<ModelController> {
                                 controller.sortSmallestFirst.value
                                     ? 'Size'
                                     : 'Name',
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.plusJakartaSans(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                   color: Theme.of(context).hintColor,
@@ -221,7 +221,7 @@ class ModelView extends GetView<ModelController> {
                       ],
                       Text(
                         entry.value,
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                           color: selected == entry.key
@@ -265,7 +265,7 @@ class ModelView extends GetView<ModelController> {
           const SizedBox(height: 10),
           Text(
             title,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 15,
               fontWeight: FontWeight.w700,
               color: Theme.of(context).colorScheme.onSurface,
@@ -275,7 +275,7 @@ class ModelView extends GetView<ModelController> {
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 12,
               color: Theme.of(context).hintColor,
             ),
@@ -362,7 +362,7 @@ class ModelView extends GetView<ModelController> {
                   children: [
                     Text(
                       'Active Image Model',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.plusJakartaSans(
                         fontSize: 11,
                         color: Theme.of(context).hintColor,
                         fontWeight: FontWeight.w500,
@@ -370,7 +370,7 @@ class ModelView extends GetView<ModelController> {
                     ),
                     Text(
                       localImage.loadedModelName.value,
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: Theme.of(context).colorScheme.onSurface,
@@ -443,7 +443,7 @@ class ModelView extends GetView<ModelController> {
                 children: [
                   Text(
                     'Active Model',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       color: Theme.of(context).hintColor,
                       fontWeight: FontWeight.w500,
@@ -451,7 +451,7 @@ class ModelView extends GetView<ModelController> {
                   ),
                   Text(
                     inference.loadedModelName.value,
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: Theme.of(context).colorScheme.onSurface,
@@ -521,7 +521,7 @@ class ModelView extends GetView<ModelController> {
               children: [
                 Text(
                   'CLOUD · $providerName',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     color: Theme.of(context).hintColor,
                     fontWeight: FontWeight.w700,
@@ -531,7 +531,7 @@ class ModelView extends GetView<ModelController> {
                 const SizedBox(height: 3),
                 Text(
                   hasSelectedModel ? model : 'No online model selected',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: Theme.of(context).colorScheme.onSurface,
@@ -589,7 +589,7 @@ class ModelView extends GetView<ModelController> {
                 const SizedBox(width: 10),
                 Text(
                   'Loading into memory',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                     color: AppColors.secondary,
@@ -600,7 +600,7 @@ class ModelView extends GetView<ModelController> {
             const SizedBox(height: 6),
             Text(
               model.filename,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 11,
                 color: Theme.of(context).hintColor,
                 fontWeight: FontWeight.w500,
@@ -671,7 +671,7 @@ class ModelView extends GetView<ModelController> {
                                   .contains('download')
                               ? 'Downloading'
                               : 'Importing',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w700,
                             color: AppColors.secondary,
@@ -701,7 +701,7 @@ class ModelView extends GetView<ModelController> {
                   const SizedBox(height: 4),
                   Text(
                     '${controller.importStatus.value} ${controller.importFileName.value}',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 12,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
@@ -728,18 +728,18 @@ class ModelView extends GetView<ModelController> {
                     children: [
                       Text(
                         '${DownloadService.formatWholeMb(copied)} / ${DownloadService.formatWholeMb(total)}',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.plusJakartaSans(
                             fontSize: 11, color: Theme.of(context).hintColor),
                       ),
                       Text(
                         '${DownloadService.formatWholeMb(remaining)} left',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.plusJakartaSans(
                             fontSize: 11, color: Theme.of(context).hintColor),
                       ),
                       Text(
                         DownloadService.formatSpeed(
                             controller.importBytesPerSecond.value),
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.plusJakartaSans(
                             fontSize: 11, color: Theme.of(context).hintColor),
                       ),
                     ],
@@ -781,7 +781,7 @@ class ModelView extends GetView<ModelController> {
                 Expanded(
                   child: Text(
                     'Downloading ${dp.filename}',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -792,7 +792,7 @@ class ModelView extends GetView<ModelController> {
                 TextButton(
                   onPressed: () => controller.pauseDownload(dp.filename),
                   child: Text('Pause',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.plusJakartaSans(
                           fontSize: 12, color: AppColors.warning)),
                 ),
               ],
@@ -811,7 +811,7 @@ class ModelView extends GetView<ModelController> {
             const SizedBox(height: 6),
             Text(
               '${DownloadService.formatWholeMb(dp.downloadedBytes.value)} / ${DownloadService.formatWholeMb(dp.totalBytes.value)} · ${(dp.progress.value * 100).toStringAsFixed(1)}%',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 11,
                 color: Theme.of(context).hintColor,
               ),
@@ -830,7 +830,7 @@ class ModelView extends GetView<ModelController> {
         children: [
           Text(
             'PROVIDERS',
-            style: GoogleFonts.inter(
+            style: GoogleFonts.plusJakartaSans(
               fontSize: 11,
               fontWeight: FontWeight.w700,
               color: Theme.of(context).hintColor,
@@ -909,7 +909,7 @@ class ModelView extends GetView<ModelController> {
                               Expanded(
                                 child: Text(
                                   name.isEmpty ? provider.name : name,
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.plusJakartaSans(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w800,
                                     color:
@@ -929,7 +929,7 @@ class ModelView extends GetView<ModelController> {
                           const SizedBox(height: 4),
                           Text(
                             modelLabel,
-                            style: GoogleFonts.inter(
+                            style: GoogleFonts.plusJakartaSans(
                               fontSize: 12,
                               fontWeight: hasSelectedModel
                                   ? FontWeight.w700
@@ -1057,14 +1057,14 @@ class ModelView extends GetView<ModelController> {
                           children: [
                             Text(
                               name.isEmpty ? provider.name : name,
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.plusJakartaSans(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
                             Text(
                               model.isEmpty ? provider.description : model,
-                              style: GoogleFonts.inter(
+                              style: GoogleFonts.plusJakartaSans(
                                 fontSize: 14,
                                 color: Theme.of(context).hintColor,
                               ),
@@ -1087,7 +1087,7 @@ class ModelView extends GetView<ModelController> {
                       leading: const Icon(Icons.key_outlined, size: 26),
                       title: Text(
                         configured ? 'Update API key' : 'Add API key',
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.plusJakartaSans(
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                         ),
@@ -1113,7 +1113,7 @@ class ModelView extends GetView<ModelController> {
                         size: 26),
                     title: Text(
                       isCustom ? 'Configure and select' : 'Select model',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.plusJakartaSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1203,7 +1203,7 @@ class ModelView extends GetView<ModelController> {
                     children: [
                       Text(
                         providerName.isEmpty ? provider.name : providerName,
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.plusJakartaSans(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: Theme.of(context).colorScheme.onSurface,
@@ -1212,7 +1212,7 @@ class ModelView extends GetView<ModelController> {
                       const SizedBox(height: 2),
                       Text(
                         hasModel ? activeModel : provider.description,
-                        style: GoogleFonts.inter(
+                        style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           color: hasModel
                               ? Theme.of(context).colorScheme.onSurface
@@ -1300,14 +1300,14 @@ class ModelView extends GetView<ModelController> {
               children: [
                 Text(
                   provider.name,
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 Text(
                   'API key required',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
                     color: Theme.of(context).hintColor,
@@ -1361,7 +1361,7 @@ class ModelView extends GetView<ModelController> {
             }),
             Text(
               'Save the key to verify it and load live models.',
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 color: Theme.of(context).hintColor,
                 height: 1.35,
@@ -1424,12 +1424,12 @@ class ModelView extends GetView<ModelController> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Custom Provider',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                         fontSize: 24, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 4),
                 Text(
                   'Use any OpenAI-compatible endpoint. Enter the base URL without /chat/completions.',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
                     height: 1.35,
                     color: Theme.of(context).hintColor,
@@ -1573,7 +1573,7 @@ class ModelView extends GetView<ModelController> {
                           cloud.customProfileIndex >= 0
                               ? 'Remove selected provider'
                               : 'Clear form',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: AppColors.error,
@@ -1675,7 +1675,7 @@ class ModelView extends GetView<ModelController> {
                       Expanded(
                         child: Text(
                           'Select ${provider.name} Model',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 22,
                             fontWeight: FontWeight.w800,
                           ),
@@ -1691,7 +1691,7 @@ class ModelView extends GetView<ModelController> {
                   TextField(
                     onChanged: (value) =>
                         cloud.searchByProvider[provider.id] = value,
-                    style: GoogleFonts.inter(fontSize: 15),
+                    style: GoogleFonts.plusJakartaSans(fontSize: 15),
                     decoration: const InputDecoration(
                       hintText: 'Search models...',
                       prefixIcon: Icon(Icons.search, size: 23),
@@ -1707,7 +1707,7 @@ class ModelView extends GetView<ModelController> {
                       Expanded(
                         child: Text(
                           '${models.length} models - ${cloud.fetchedLabel(provider.id)}',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             color: Theme.of(context).hintColor,
                           ),
@@ -1797,7 +1797,7 @@ class ModelView extends GetView<ModelController> {
       child: Text(
         'No models loaded. Add an API key to update the live list, or use a custom model ID.',
         textAlign: TextAlign.center,
-        style: GoogleFonts.inter(
+        style: GoogleFonts.plusJakartaSans(
           fontSize: 12,
           color: Theme.of(context).hintColor,
         ),
@@ -1814,7 +1814,7 @@ class ModelView extends GetView<ModelController> {
         TextEditingController(text: cloud.activeModelFor(provider.id));
     Get.dialog(AlertDialog(
       title: Text('Custom ${provider.name} Model',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
       content: TextField(
         controller: textController,
         style: GoogleFonts.firaCode(fontSize: 12),
@@ -1946,7 +1946,7 @@ class ModelView extends GetView<ModelController> {
       ),
       child: Text(
         label,
-        style: GoogleFonts.inter(
+        style: GoogleFonts.plusJakartaSans(
           fontSize: 9,
           fontWeight: FontWeight.w900,
           color: color,
@@ -1969,7 +1969,7 @@ class ModelView extends GetView<ModelController> {
       ),
       child: Text(
         label,
-        style: GoogleFonts.inter(
+        style: GoogleFonts.plusJakartaSans(
           fontSize: 10,
           fontWeight: FontWeight.w800,
           color: color,
@@ -1989,7 +1989,7 @@ class ModelView extends GetView<ModelController> {
       ),
       child: Text(
         error,
-        style: GoogleFonts.inter(
+        style: GoogleFonts.plusJakartaSans(
           fontSize: 11,
           color: AppColors.error,
           fontWeight: FontWeight.w500,
@@ -2015,7 +2015,7 @@ class ModelView extends GetView<ModelController> {
           Expanded(
             child: Text(
               message,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 11,
                 color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.w500,
@@ -2069,7 +2069,7 @@ class ModelView extends GetView<ModelController> {
             ),
             child: Text(
               badge.label,
-              style: GoogleFonts.inter(
+              style: GoogleFonts.plusJakartaSans(
                 fontSize: 9,
                 fontWeight: FontWeight.w800,
                 color: badge.color,
@@ -2098,7 +2098,7 @@ class ModelView extends GetView<ModelController> {
             Expanded(
               child: Text(
                 isToDownloadsFolder ? 'Save to Downloads' : 'Download Model',
-                style: GoogleFonts.inter(fontWeight: FontWeight.w700),
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
               ),
             ),
           ],
@@ -2112,7 +2112,7 @@ class ModelView extends GetView<ModelController> {
                   ? 'You are about to save ${model.name} to your phone\'s public Downloads folder.'
                   : 'You are about to download ${model.name} for use in the app.',
               style:
-                  GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600),
+                  GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
             Container(
@@ -2128,7 +2128,7 @@ class ModelView extends GetView<ModelController> {
                   const SizedBox(width: 8),
                   Text(
                     'Size: ${controller.modelSizeLabel(model)}',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                         fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ],
@@ -2150,7 +2150,7 @@ class ModelView extends GetView<ModelController> {
                   Expanded(
                     child: Text(
                       'A Wi-Fi connection is highly recommended. Please keep the app open during the download.',
-                      style: GoogleFonts.inter(
+                      style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         color: Theme.of(context).brightness == Brightness.dark
                             ? const Color(
@@ -2170,7 +2170,7 @@ class ModelView extends GetView<ModelController> {
             onPressed: () => Navigator.of(ctx).pop(),
             child: Text(
               'Cancel',
-              style: GoogleFonts.inter(color: Theme.of(context).hintColor),
+              style: GoogleFonts.plusJakartaSans(color: Theme.of(context).hintColor),
             ),
           ),
           FilledButton(
@@ -2274,7 +2274,7 @@ class ModelView extends GetView<ModelController> {
                       children: [
                         Text(
                           model.name,
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             color: Theme.of(context).colorScheme.onSurface,
@@ -2285,7 +2285,7 @@ class ModelView extends GetView<ModelController> {
                         const SizedBox(height: 6),
                         Text(
                           model.description,
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             color:
                                 Theme.of(context).textTheme.bodyMedium?.color ??
@@ -2297,7 +2297,7 @@ class ModelView extends GetView<ModelController> {
                         const SizedBox(height: 6),
                         Text(
                           controller.modelSizeLabel(model),
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             color: Theme.of(context).hintColor,
                             fontWeight: FontWeight.w600,
@@ -2472,18 +2472,18 @@ class ModelView extends GetView<ModelController> {
             children: [
               Text(
                 '${DownloadService.formatWholeMb(dp.downloadedBytes.value)} / $totalLabel',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                     fontSize: 11, color: Theme.of(context).hintColor),
               ),
               if (dp.totalBytes.value > 0)
                 Text(
                   '${DownloadService.formatWholeMb(remaining)} left',
-                  style: GoogleFonts.inter(
+                  style: GoogleFonts.plusJakartaSans(
                       fontSize: 11, color: Theme.of(context).hintColor),
                 ),
               Text(
                 'ETA: ${DownloadService.formatDuration(dp.eta)}',
-                style: GoogleFonts.inter(
+                style: GoogleFonts.plusJakartaSans(
                     fontSize: 11, color: Theme.of(context).hintColor),
               ),
             ],
@@ -2742,7 +2742,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                       children: [
                         Text(
                           'Add Model URL',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                             color: isDark ? Colors.white : Colors.black87,
@@ -2751,7 +2751,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                         const SizedBox(height: 2),
                         Text(
                           'Download a GGUF or LiteRT model from any URL',
-                          style: GoogleFonts.inter(
+                          style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             color: isDark
                                 ? AppColors.textSecondary
@@ -2822,7 +2822,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                               Expanded(
                                 child: Text(
                                   _urlError.value,
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.plusJakartaSans(
                                     fontSize: 11,
                                     color: AppColors.error,
                                     fontWeight: FontWeight.w500,
@@ -2843,7 +2843,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                               Expanded(
                                 child: Text(
                                   _urlWarning.value,
-                                  style: GoogleFonts.inter(
+                                  style: GoogleFonts.plusJakartaSans(
                                     fontSize: 11,
                                     color: Colors.orange,
                                     fontWeight: FontWeight.w500,
@@ -2935,7 +2935,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                                   borderRadius: BorderRadius.circular(14)),
                             ),
                             child: Text('Cancel',
-                                style: GoogleFonts.inter(
+                                style: GoogleFonts.plusJakartaSans(
                                     fontWeight: FontWeight.w600, fontSize: 14)),
                           ),
                         ),
@@ -2977,7 +2977,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                                       const SizedBox(width: 8),
                                       Text(
                                         'Add Model',
-                                        style: GoogleFonts.inter(
+                                        style: GoogleFonts.plusJakartaSans(
                                           color: Colors.white,
                                           fontWeight: FontWeight.w700,
                                           fontSize: 14,
@@ -3018,7 +3018,7 @@ class _SectionLabel extends StatelessWidget {
         : color;
     return Text(
       label,
-      style: GoogleFonts.inter(
+      style: GoogleFonts.plusJakartaSans(
         fontSize: 10,
         fontWeight: FontWeight.w700,
         letterSpacing: 1.4,
@@ -3061,13 +3061,13 @@ class _SheetTextField extends StatelessWidget {
         controller: controller,
         keyboardType: keyboardType,
         maxLines: maxLines,
-        style: GoogleFonts.inter(
+        style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             color: isDark ? Colors.white : Colors.black87,
             fontWeight: FontWeight.w400),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: GoogleFonts.inter(
+          hintStyle: GoogleFonts.plusJakartaSans(
               fontSize: 13,
               color: isDark ? AppColors.textMuted : const Color(0xFF94A3B8)),
           prefixIcon: Icon(prefixIcon,
@@ -3254,7 +3254,7 @@ class _VisionToggle extends StatelessWidget {
                 children: [
                   Text(
                     'Vision Model',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: titleColor,
@@ -3262,7 +3262,7 @@ class _VisionToggle extends StatelessWidget {
                   ),
                   Text(
                     'Supports image input (multimodal)',
-                    style: GoogleFonts.inter(
+                    style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       color: isDark
                           ? AppColors.textMuted
