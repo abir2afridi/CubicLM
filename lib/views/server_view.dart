@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,7 +17,13 @@ class ServerView extends GetView<ServerController> {
     return Scaffold(
       backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
       appBar: AppBar(
-        backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+        backgroundColor: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
+        flexibleSpace: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
         title: Text('API Node',
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)),
       ),
@@ -32,21 +39,7 @@ class ServerView extends GetView<ServerController> {
               Padding(
                   padding: const EdgeInsets.all(20),
                   child: Row(children: [
-                    Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                            color: (isRunning
-                                    ? AppColors.success
-                                    : Theme.of(context).hintColor)
-                                .withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(14)),
-                        child: Icon(
-                            isRunning ? Icons.dns_rounded : Icons.dns_outlined,
-                            size: 24,
-                            color: isRunning
-                                ? AppColors.success
-                                : Theme.of(context).hintColor)),
+                    _StatusIcon(isRunning: isRunning),
                     const SizedBox(width: 16),
                     Expanded(
                         child: Column(
@@ -57,7 +50,7 @@ class ServerView extends GetView<ServerController> {
                                   ? 'Compute Active'
                                   : 'Node Offline',
                               style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 16, fontWeight: FontWeight.w700)),
+                                  fontSize: 16, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 4),
                           Text(
                               isRunning
@@ -75,7 +68,7 @@ class ServerView extends GetView<ServerController> {
                             : (v) => controller.toggleServer(v)),
                   ])),
             ]),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
 
             // Model Information
             _sectionLabel(context, 'CURRENT PAYLOAD'),
@@ -84,8 +77,8 @@ class ServerView extends GetView<ServerController> {
                   padding: const EdgeInsets.all(20),
                   child: Row(children: [
                     Container(
-                        width: 32,
-                        height: 32,
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
                             color: (controller.hasLocalModel
                                     ? AppColors.success
@@ -100,14 +93,15 @@ class ServerView extends GetView<ServerController> {
                             color: controller.hasLocalModel
                                 ? AppColors.success
                                 : AppColors.warning)),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 16),
                     Expanded(
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                           Text(controller.modelName,
                               style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 15, fontWeight: FontWeight.w700)),
+                                  fontSize: 15, fontWeight: FontWeight.w700,
+                                  color: isDark ? Colors.white : Colors.black)),
                           const SizedBox(height: 2),
                           Text(
                               controller.hasLocalModel
@@ -120,7 +114,7 @@ class ServerView extends GetView<ServerController> {
                         ])),
                   ])),
             ]),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
 
             // Security
             _sectionLabel(context, 'GATEWAY SECURITY'),
@@ -366,5 +360,83 @@ class ServerView extends GetView<ServerController> {
         backgroundColor: AppColors.error,
         colorText: Colors.white);
     }
+  }
+}
+
+class _StatusIcon extends StatefulWidget {
+  final bool isRunning;
+  const _StatusIcon({required this.isRunning});
+
+  @override
+  State<_StatusIcon> createState() => _StatusIconState();
+}
+
+class _StatusIconState extends State<_StatusIcon> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    );
+    _animation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+    if (widget.isRunning) _controller.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(_StatusIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isRunning && !oldWidget.isRunning) {
+      _controller.repeat(reverse: true);
+    } else if (!widget.isRunning && oldWidget.isRunning) {
+      _controller.stop();
+      _controller.reset();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.isRunning ? AppColors.success : Theme.of(context).hintColor;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        if (widget.isRunning)
+          ScaleTransition(
+            scale: _animation,
+            child: Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withValues(alpha: 0.2),
+              ),
+            ),
+          ),
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(
+            widget.isRunning ? Icons.dns_rounded : Icons.dns_outlined,
+            size: 24,
+            color: color,
+          ),
+        ),
+      ],
+    );
   }
 }

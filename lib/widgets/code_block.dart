@@ -155,7 +155,6 @@ class _CodeBlockState extends State<_CodeBlock> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon,
                 size: 13,
@@ -192,6 +191,9 @@ class _CodeBlockState extends State<_CodeBlock> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: List.generate(lines.length, (i) {
         return Row(
+          // The parent is a horizontally scrolling SingleChildScrollView, so
+          // incoming width is unbounded. Shrink-wrap and never use a flex child
+          // here: a flex under unbounded width leaves the RenderFlex unlaid out.
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -22,7 +23,13 @@ class SettingsView extends GetView<SettingsController> {
     return Scaffold(
       backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
       appBar: AppBar(
-        backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+        backgroundColor: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
+        flexibleSpace: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
         title: Text('Settings',
             style:
                 GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -1)),

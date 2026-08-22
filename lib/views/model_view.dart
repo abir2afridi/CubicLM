@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -16,8 +17,17 @@ class ModelView extends GetView<ModelController> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
       appBar: AppBar(
+        backgroundColor: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
+        flexibleSpace: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
         title: Text('Model Hub',
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)),
         actions: [
@@ -29,7 +39,7 @@ class ModelView extends GetView<ModelController> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.add_link),
+                  icon: const Icon(Icons.add_link_rounded),
                   tooltip: 'Add Model URL',
                   onPressed: () => _showAddUrlDialog(context),
                 ),
@@ -318,6 +328,7 @@ class ModelView extends GetView<ModelController> {
 
   Widget _buildActiveModelBanner(BuildContext context) {
     return Obx(() {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
       if (controller.modelScope.value == 'online') {
         return _buildActiveCloudBanner(context);
       }
@@ -325,157 +336,88 @@ class ModelView extends GetView<ModelController> {
       final inference = Get.find<InferenceService>();
       final localImage = Get.find<LocalImageService>();
 
-      // Image model loaded
-      if (localImage.isModelLoaded.value) {
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                AppColors.primary.withValues(alpha: 0.15),
-                AppColors.secondary.withValues(alpha: 0.1),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  localImage.isUsingGpu.value ? Icons.bolt : Icons.memory,
-                  color: localImage.isUsingGpu.value
-                      ? AppColors.warning
-                      : AppColors.primary,
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Active Image Model',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        color: Theme.of(context).hintColor,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Text(
-                      localImage.loadedModelName.value,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      localImage.isUsingGpu.value
-                          ? '⚡ GPU Accelerated'
-                          : '🖥 CPU Mode',
-                      style: GoogleFonts.firaCode(
-                        fontSize: 10,
-                        color: localImage.isUsingGpu.value
-                            ? AppColors.success
-                            : Theme.of(context).hintColor,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.check_circle,
-                  color: AppColors.success, size: 20),
-            ],
-          ),
-        );
-      }
+      final bool isImage = localImage.isModelLoaded.value;
+      final bool isText = inference.isModelLoaded.value;
 
-      // Text model loaded
-      if (!inference.isModelLoaded.value) {
-        return const SizedBox.shrink();
-      }
+      if (!isImage && !isText) return const SizedBox.shrink();
+
+      final String name = isImage ? localImage.loadedModelName.value : inference.loadedModelName.value;
+      final bool useGpu = isImage ? localImage.isUsingGpu.value : inference.isGpuAccelerated.value;
+      final String subtitle = isImage 
+          ? (useGpu ? '⚡ GPU Accelerated Rendering' : '🖥 CPU Image Synthesis')
+          : (useGpu ? '⚡ GPU: ${inference.gpuName.value}' : '🖥 CPU Neural Engine');
 
       return Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.primary.withValues(alpha: 0.15),
-              AppColors.secondary.withValues(alpha: 0.1),
-            ],
+          color: isDark ? AppColors.surface : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.3),
+            width: 1.5,
           ),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            )
+          ],
         ),
         child: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(
-                inference.isGpuAccelerated.value ? Icons.bolt : Icons.memory,
-                color: inference.isGpuAccelerated.value
-                    ? AppColors.warning
-                    : AppColors.primary,
-                size: 20,
+                useGpu ? Icons.bolt_rounded : Icons.memory_rounded,
+                color: useGpu ? AppColors.warning : AppColors.primary,
+                size: 24,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Active Model',
+                    isImage ? 'ACTIVE IMAGE ENGINE' : 'ACTIVE INTELLIGENCE',
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      color: Theme.of(context).hintColor,
-                      fontWeight: FontWeight.w500,
+                      fontSize: 10,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
                     ),
                   ),
+                  const SizedBox(height: 4),
                   Text(
-                    inference.loadedModelName.value,
+                    name,
                     style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.onSurface,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : Colors.black,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (inference.isGpuAccelerated.value) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      '⚡ GPU: ${inference.gpuName.value}',
-                      style: GoogleFonts.firaCode(
-                        fontSize: 10,
-                        color: AppColors.success,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.firaCode(
+                      fontSize: 11,
+                      color: useGpu ? AppColors.success : Theme.of(context).hintColor,
+                      fontWeight: FontWeight.w600,
                     ),
-                  ],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
             ),
-            const Icon(Icons.check_circle, color: AppColors.success, size: 20),
+            const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 24),
           ],
         ),
       );

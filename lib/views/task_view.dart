@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -14,7 +15,13 @@ class TaskView extends GetView<TaskController> {
     return Scaffold(
       backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
       appBar: AppBar(
-        backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+        backgroundColor: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
+        flexibleSpace: ClipRRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+            child: Container(color: Colors.transparent),
+          ),
+        ),
         title: Text('Autonomous Agent', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)),
       ),
       body: Obx(() {
