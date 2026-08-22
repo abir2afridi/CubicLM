@@ -989,16 +989,28 @@ class ChatController extends GetxController {
     final idx = messages.indexWhere((m) => m.id == msg.id);
     if (idx < 0) return;
 
-    final prevUserMsg = idx > 0 ? messages[idx - 1] : null;
-    if (prevUserMsg == null || prevUserMsg.role != 'user') return;
+    final userMsg = idx > 0 ? messages[idx - 1] : null;
+    if (userMsg == null || userMsg.role != 'user') return;
 
+    // Safety: Clear main input
+    textController.clear();
+    inputText.value = '';
+
+    // Remove the old assistant message
     _hive.deleteMessage(msg.id);
     messages.removeAt(idx);
 
-    textController.text = prevUserMsg.content;
-    inputText.value = prevUserMsg.content;
     _scrollToBottom(force: true);
-    sendMessage();
+
+    // Trigger AI response without adding a new user message
+    _generateAIResponse(
+      prompt: userMsg.content,
+      imagePath: userMsg.imagePath,
+      imgBase64: userMsg.imageBase64,
+      fileType: userMsg.fileType,
+      filePath: userMsg.filePath,
+      insertAt: idx, // Insert where the old assistant message was
+    );
   }
 
   void branchNewChat(ChatMessage msg) {
@@ -1006,11 +1018,14 @@ class ChatController extends GetxController {
     final idx = messages.indexWhere((m) => m.id == msg.id);
     if (idx < 0) return;
 
-    createNewChat();
-    final prevMsgs = messages.sublist(0, idx).where(
+    // Capture history BEFORE creating new chat and clearing 'messages'
+    final historyToCopy = messages.sublist(0, idx).where(
       (m) => m.role == 'user' || m.role == 'assistant',
     ).toList();
-    for (final m in prevMsgs) {
+
+    createNewChat();
+    
+    for (final m in historyToCopy) {
       final copied = ChatMessage(
         id: _uuid.v4(),
         chatId: currentSessionId.value,

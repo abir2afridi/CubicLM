@@ -165,10 +165,19 @@ class SettingsView extends GetView<SettingsController> {
                         width: 50,
                         height: 50,
                         decoration: BoxDecoration(
-                            gradient: AppColors.userGradient,
-                            borderRadius: BorderRadius.circular(15)),
-                        child: const Icon(Icons.auto_awesome_mosaic_rounded,
-                            color: Colors.white, size: 26)),
+                            borderRadius: BorderRadius.circular(15),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]),
+                        clipBehavior: Clip.antiAlias,
+                        child: Image.asset(
+                          'assets/icons/CubicLM.png',
+                          fit: BoxFit.cover,
+                        )),
                     const SizedBox(width: 16),
                     Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
