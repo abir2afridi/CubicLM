@@ -371,11 +371,16 @@ class SettingsView extends GetView<SettingsController> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(soc == platform_info.SocFamily.unknown && device.socHardware.value.isNotEmpty
-                        ? device.socHardware.value
-                        : soc.displayName,
+                  Text(soc.displayName,
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 15, fontWeight: FontWeight.w700)),
+                  if (device.socHardware.value.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(device.socHardware.value,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12, fontWeight: FontWeight.w500,
+                            color: Theme.of(context).hintColor)),
+                  ],
                   const SizedBox(height: 4),
                   Text('Recommendation: ${soc.recommendedQuant}',
                       style: GoogleFonts.plusJakartaSans(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/cloud_model_controller.dart';
+import '../controllers/home_controller.dart';
 import '../controllers/model_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
@@ -651,9 +652,16 @@ class ModelView extends GetView<ModelController> {
                   child: Obx(() {
                     final configured = cloudModels.isConfigured(provider.id);
                     return FilledButton.tonal(
-                      onPressed: isSelected || !configured
-                          ? null
-                          : () => settings.setCloudProvider(provider.id),
+                      onPressed: () {
+                        if (isSelected && configured) return;
+                        if (configured) {
+                          settings.setCloudProvider(provider.id);
+                        } else {
+                          // Open Settings tab to configure API key
+                          final home = Get.find<HomeController>();
+                          home.currentTab.value = 3;
+                        }
+                      },
                       style: FilledButton.styleFrom(
                         backgroundColor: isSelected && configured
                             ? AppColors.success.withValues(alpha: 0.2)
@@ -666,7 +674,7 @@ class ModelView extends GetView<ModelController> {
                           ? 'Active Provider'
                           : configured
                               ? 'Set as Active'
-                              : 'Configuration Required'),
+                              : 'Add API Key'),
                     );
                   }),
                 ),
