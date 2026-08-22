@@ -59,7 +59,7 @@ class ChatBubble extends StatelessWidget {
         );
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -70,28 +70,29 @@ class ChatBubble extends StatelessWidget {
                 onLongPress: () => _showContextMenu(context, isUser),
                 child: Container(
                   constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.82,
+                    maxWidth: MediaQuery.of(context).size.width * (isUser ? 0.82 : 0.92),
                   ),
-                  decoration: BoxDecoration(
-                    gradient: isUser ? AppColors.userGradient : null,
-                    color: isUser ? null : (isDark ? AppColors.surface : const Color(0xFFF1F5F9)),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(24),
-                      topRight: const Radius.circular(24),
-                      bottomLeft: Radius.circular(isUser ? 24 : 8),
-                      bottomRight: Radius.circular(isUser ? 8 : 24),
+                  decoration: isUser ? BoxDecoration(
+                    gradient: AppColors.userGradient,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(24),
+                      topRight: Radius.circular(24),
+                      bottomLeft: Radius.circular(24),
+                      bottomRight: Radius.circular(8),
                     ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(24),
-                      topRight: const Radius.circular(24),
-                      bottomLeft: Radius.circular(isUser ? 24 : 8),
-                      bottomRight: Radius.circular(isUser ? 8 : 24),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                      child: Column(
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      )
+                    ],
+                  ) : null,
+                  child: Padding(
+                    padding: isUser 
+                        ? const EdgeInsets.symmetric(horizontal: 18, vertical: 14)
+                        : const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Image attachment
@@ -207,15 +208,14 @@ class ChatBubble extends StatelessWidget {
                 ),
               ),
             ),
-          ),
 
-          // Inline action bar
-          _buildActionBar(context, isUser, isDark),
-        ],
+            // Inline action bar
+            _buildActionBar(context, isUser, isDark),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   // ── Inline action bar below message ──
   Widget _buildActionBar(BuildContext context, bool isUser, bool isDark) {

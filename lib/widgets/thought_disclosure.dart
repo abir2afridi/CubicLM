@@ -101,89 +101,89 @@ class _ThoughtDisclosureState extends State<ThoughtDisclosure>
     final muted = Theme.of(context).hintColor;
     const accentColor = AppColors.primary;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.03)
-            : Colors.black.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark ? AppColors.border.withValues(alpha: 0.5) : AppColors.borderLightMode.withValues(alpha: 0.5),
-          width: 0.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: _toggle,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (widget.isThinking)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 10),
-                      child: SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: accentColor,
-                        ),
-                      ),
-                    )
-                  else
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Icon(
-                        Icons.terminal_rounded,
-                        size: 16,
-                        color: muted,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: _toggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.isThinking)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10),
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: accentColor,
                       ),
                     ),
-                  Text(
-                    _label,
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      color: widget.isThinking ? accentColor : muted,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  AnimatedRotation(
-                    turns: _expanded ? 0.25 : 0.0,
-                    duration: const Duration(milliseconds: 250),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
                     child: Icon(
-                      Icons.chevron_right_rounded,
-                      size: 18,
-                      color: muted,
+                      Icons.terminal_rounded,
+                      size: 16,
+                      color: muted.withValues(alpha: 0.7),
                     ),
                   ),
-                ],
-              ),
+                Text(
+                  _label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: widget.isThinking ? accentColor : muted.withValues(alpha: 0.8),
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                AnimatedRotation(
+                  turns: _expanded ? 0.25 : 0.0,
+                  duration: const Duration(milliseconds: 250),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 18,
+                    color: muted.withValues(alpha: 0.5),
+                  ),
+                ),
+              ],
             ),
           ),
-          // Content
-          SizeTransition(
-            sizeFactor: _expandAnimation,
-            axisAlignment: -1.0,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: MarkdownBody(
-                data: widget.thought.trim(),
-                selectable: true,
-                styleSheet: widget.styleSheet,
+        ),
+        // Content
+        SizeTransition(
+          sizeFactor: _expandAnimation,
+          axisAlignment: -1.0,
+          child: Container(
+            margin: const EdgeInsets.only(top: 4, bottom: 12),
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.03)
+                  : Colors.black.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(12),
+              border: Border(
+                left: BorderSide(
+                  color: accentColor.withValues(alpha: 0.3),
+                  width: 2,
+                ),
               ),
             ),
+            child: MarkdownBody(
+              data: widget.thought.trim(),
+              selectable: true,
+              styleSheet: widget.styleSheet,
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
