@@ -75,11 +75,6 @@ class HomeView extends GetView<HomeController> {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? AppColors.bg : AppColors.bgLight,
-        border: Border(
-            top: BorderSide(
-          color: isDark ? AppColors.border : AppColors.borderLightMode,
-          width: 1,
-        )),
       ),
       child: BottomNavigationBar(
         currentIndex: controller.currentTab.value,
@@ -141,7 +136,6 @@ class HomeView extends GetView<HomeController> {
                     decoration: BoxDecoration(
                       color: sel ? accent.withValues(alpha: 0.1) : Colors.transparent,
                       borderRadius: BorderRadius.circular(16),
-                      border: sel ? Border.all(color: accent.withValues(alpha: 0.2)) : null,
                     ),
                     child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,

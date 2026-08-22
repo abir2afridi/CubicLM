@@ -472,15 +472,7 @@ class ChatView extends GetView<ChatController> {
         constraints: const BoxConstraints(maxWidth: 220),
         decoration: BoxDecoration(
           color: isDark ? AppColors.surface : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            )
-          ],
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Text(text,
             style: GoogleFonts.plusJakartaSans(
@@ -512,18 +504,10 @@ class ChatView extends GetView<ChatController> {
           decoration: BoxDecoration(
             color: isDark ? AppColors.surface : const Color(0xFFF1F5F9),
             borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(22),
-                topRight: Radius.circular(22),
-                bottomRight: Radius.circular(22),
-                bottomLeft: Radius.circular(6)),
-            border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode, width: 0.5),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              )
-            ],
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+                bottomLeft: Radius.circular(8)),
           ),
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -601,7 +585,6 @@ class ChatView extends GetView<ChatController> {
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
       decoration: BoxDecoration(
         color: isDark ? AppColors.bg : AppColors.bgLight,
-        border: Border(top: BorderSide(color: isDark ? AppColors.border : AppColors.borderLightMode, width: 1)),
       ),
       child: SafeArea(
           top: false,
@@ -764,14 +747,6 @@ class ChatView extends GetView<ChatController> {
                 decoration: BoxDecoration(
                   color: isDark ? AppColors.surface : Colors.white,
                   borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    )
-                  ],
                 ),
                 child: TextField(
                   controller: controller.textController,
@@ -831,25 +806,12 @@ class ChatView extends GetView<ChatController> {
                   onTap: onTap,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 250),
-                    // Non-overshooting curve: elasticOut drives t past 1.0, which
-                    // lerps boxShadow.blurRadius below zero and trips the
-                    // "blur radius should be non-negative" assert in Shadow.
                     curve: Curves.easeOutCubic,
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
                       color: bgColor,
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: bgColor.withValues(
-                              alpha: (loading || listening || hasContent)
-                                  ? 0.4
-                                  : 0.0),
-                          blurRadius:
-                              (loading || listening || hasContent) ? 12 : 0,
-                        ),
-                      ],
                     ),
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 200),
@@ -900,7 +862,6 @@ class ChatView extends GetView<ChatController> {
                   const Spacer(),
                 ],
               )),
-          Divider(height: 1, color: isDark ? AppColors.border : AppColors.borderLightMode),
           Flexible(child: Obx(() {
             if (controller.sessions.isEmpty) {
               return Padding(

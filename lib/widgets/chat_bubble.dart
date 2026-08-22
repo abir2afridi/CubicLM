@@ -63,29 +63,18 @@ class ChatBubble extends StatelessWidget {
                   gradient: isUser ? AppColors.userGradient : null,
                   color: isUser ? null : (isDark ? AppColors.surface : const Color(0xFFF1F5F9)),
                   borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(22),
-                    topRight: const Radius.circular(22),
-                    bottomLeft: Radius.circular(isUser ? 22 : 6),
-                    bottomRight: Radius.circular(isUser ? 6 : 22),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                  border: isUser ? null : Border.all(
-                    color: isDark ? AppColors.border : AppColors.borderLightMode,
-                    width: 0.5,
+                    topLeft: const Radius.circular(24),
+                    topRight: const Radius.circular(24),
+                    bottomLeft: Radius.circular(isUser ? 24 : 8),
+                    bottomRight: Radius.circular(isUser ? 8 : 24),
                   ),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(22),
-                    topRight: const Radius.circular(22),
-                    bottomLeft: Radius.circular(isUser ? 22 : 6),
-                    bottomRight: Radius.circular(isUser ? 6 : 22),
+                    topLeft: const Radius.circular(24),
+                    topRight: const Radius.circular(24),
+                    bottomLeft: Radius.circular(isUser ? 24 : 8),
+                    bottomRight: Radius.circular(isUser ? 8 : 24),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
