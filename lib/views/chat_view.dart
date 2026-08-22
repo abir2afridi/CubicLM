@@ -630,23 +630,12 @@ class ChatView extends GetView<ChatController> {
 
   // ── Input Bar ──
   Widget _inputBar(BuildContext context, bool isDark) {
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-          decoration: BoxDecoration(
-            color: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.85),
-            border: Border(
-              top: BorderSide(
-                color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
-                width: 1,
-              ),
-            ),
-          ),
-          child: SafeArea(
-              top: false,
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      color: Colors.transparent,
+      child: SafeArea(
+          top: false,
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
                 // Attachment preview
                 Obx(() {
                   final name = controller.selectedFileName.value;
@@ -898,8 +887,6 @@ class ChatView extends GetView<ChatController> {
                   ]),
                 ),
               ])),
-        ),
-      ),
     );
   }
 

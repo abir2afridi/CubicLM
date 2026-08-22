@@ -74,35 +74,24 @@ class ChatBubble extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     gradient: isUser ? AppColors.userGradient : null,
-                    color: isUser ? null : (isDark ? AppColors.surface : Colors.white),
+                    color: isUser ? null : (isDark ? AppColors.surface : const Color(0xFFF1F5F9)),
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(24),
                       topRight: const Radius.circular(24),
-                      bottomLeft: Radius.circular(isUser ? 24 : 6),
-                      bottomRight: Radius.circular(isUser ? 6 : 24),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      )
-                    ],
-                    border: isUser ? null : Border.all(
-                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
-                      width: 1,
+                      bottomLeft: Radius.circular(isUser ? 24 : 8),
+                      bottomRight: Radius.circular(isUser ? 8 : 24),
                     ),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(24),
                       topRight: const Radius.circular(24),
-                      bottomLeft: Radius.circular(isUser ? 24 : 6),
-                      bottomRight: Radius.circular(isUser ? 6 : 24),
+                      bottomLeft: Radius.circular(isUser ? 24 : 8),
+                      bottomRight: Radius.circular(isUser ? 8 : 24),
                     ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    child: Column(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Image attachment
