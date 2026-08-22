@@ -228,6 +228,26 @@ class ChatController extends GetxController {
     }
   }
 
+  Future<void> takePhoto() async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: _visionImageMaxSide.toDouble(),
+      maxHeight: _visionImageMaxSide.toDouble(),
+      imageQuality: _visionImageJpegQuality,
+    );
+    if (file != null) {
+      selectedImagePath.value = file.path;
+      selectedImageBase64.value = null;
+      selectedFileName.value = file.name;
+      selectedFilePath.value = file.path;
+      selectedFileType.value = 'image';
+      selectedFileSize.value = await file.length();
+      selectedFileContent.value = null;
+      _checkVisionSupport();
+    }
+  }
+
   void clearImage({bool deleteFile = true}) {
     final path = selectedImagePath.value;
     selectedImagePath.value = null;
@@ -788,6 +808,57 @@ class ChatController extends GetxController {
     imageGenDecoding.value = false;
     unawaited(Get.find<InferenceService>().stopGeneration());
     Get.find<LocalImageService>().cancelGeneration();
+  }
+
+  // ─── Regenerate / Branch ─────────────────────────
+
+  void regenerateFromMessage(ChatMessage msg) {
+    if (isLoading.value || isStreaming.value) return;
+    final idx = messages.indexWhere((m) => m.id == msg.id);
+    if (idx < 0) return;
+
+    final prevUserMsg = idx > 0 ? messages[idx - 1] : null;
+    if (prevUserMsg == null || prevUserMsg.role != 'user') return;
+
+    _hive.deleteMessage(msg.id);
+    messages.removeAt(idx);
+
+    textController.text = prevUserMsg.content;
+    inputText.value = prevUserMsg.content;
+    _scrollToBottom(force: true);
+    sendMessage();
+  }
+
+  void branchNewChat(ChatMessage msg) {
+    if (isLoading.value || isStreaming.value) return;
+    final idx = messages.indexWhere((m) => m.id == msg.id);
+    if (idx < 0) return;
+
+    createNewChat();
+    final prevMsgs = messages.sublist(0, idx).where(
+      (m) => m.role == 'user' || m.role == 'assistant',
+    ).toList();
+    for (final m in prevMsgs) {
+      final copied = ChatMessage(
+        id: _uuid.v4(),
+        chatId: currentSessionId.value,
+        role: m.role,
+        content: m.content,
+        imageBase64: m.imageBase64,
+        imagePath: m.imagePath,
+        fileName: m.fileName,
+        fileContent: m.fileContent,
+        filePath: m.filePath,
+        fileType: m.fileType,
+        fileSize: m.fileSize,
+        tokensPerSec: m.tokensPerSec,
+        thoughtDurationSeconds: m.thoughtDurationSeconds,
+        timestamp: m.timestamp,
+      );
+      _hive.saveMessage(copied.id, copied.toMap());
+      messages.add(copied);
+    }
+    _scrollToBottom(force: true);
   }
 
   void _saveAssistantMessage({

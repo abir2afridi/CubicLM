@@ -72,11 +72,11 @@ class AppConstants {
 
   // System Prompt (compact for small context models)
   static const String systemPrompt =
-      '''You are AI Chat, a helpful and friendly assistant. Be concise, accurate, and conversational. Answer questions directly without unnecessary preamble.''';
+      '''You are CubicLM AI Chat, a helpful and friendly assistant. Be concise, accurate, and conversational. Answer questions directly without unnecessary preamble.''';
 
   // System Prompt for Uncensored Models
   static const String uncensoredSystemPrompt =
-      '''You are AI Chat running with an uncensored local model. Be direct, mature, and conversational. Avoid moralizing or unnecessary disclaimers, but keep answers accurate and do not help with real-world harm, abuse, or illegal activity.''';
+      '''You are CubicLM AI Chat running with an uncensored local model. Be direct, mature, and conversational. Avoid moralizing or unnecessary disclaimers, but keep answers accurate and do not help with real-world harm, abuse, or illegal activity.''';
 
   static bool isUncensoredModelName(String value) {
     final lower = value.toLowerCase();
@@ -270,8 +270,7 @@ class AppConstants {
       'url':
           'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q8_0.gguf',
       'size': '0.68 GB',
-      'description':
-          'Tiny 0.5B model with max-quality Q8 quant — blazing fast',
+      'description': 'Tiny 0.5B model with max-quality Q8 quant — blazing fast',
       'template': 'chatml',
     },
     {

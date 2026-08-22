@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -57,7 +58,14 @@ class ChatView extends GetView<ChatController> {
                   if (i == n && streaming) {
                     return _streamBubble(context, text, isDark);
                   }
-                  return ChatBubble(message: controller.messages[i]);
+                   return ChatBubble(
+                     message: controller.messages[i],
+                     onCopy: () {
+                       Clipboard.setData(ClipboardData(text: controller.messages[i].content));
+                     },
+                     onRetry: () => controller.regenerateFromMessage(controller.messages[i]),
+                     onBranch: () => controller.branchNewChat(controller.messages[i]),
+                   );
                 },
               ),
             );
@@ -673,6 +681,7 @@ class ChatView extends GetView<ChatController> {
                 return _AttachButton(
                   isDark: isDark,
                   isCloud: isCloud,
+                  onCamera: controller.takePhoto,
                   onImage: controller.pickImage,
                   onFile: controller.pickFile,
                   context: context,
@@ -758,8 +767,14 @@ class ChatView extends GetView<ChatController> {
                       color: bgColor,
                       shape: BoxShape.circle,
                       boxShadow: [
-                        if (loading || listening || hasContent)
-                          BoxShadow(color: bgColor.withValues(alpha: 0.4), blurRadius: 12)
+                        BoxShadow(
+                          color: bgColor.withValues(
+                              alpha: (loading || listening || hasContent)
+                                  ? 0.4
+                                  : 0.0),
+                          blurRadius:
+                              (loading || listening || hasContent) ? 12 : 0,
+                        ),
                       ],
                     ),
                     child: AnimatedSwitcher(
@@ -953,6 +968,7 @@ class ChatView extends GetView<ChatController> {
 class _AttachButton extends StatelessWidget {
   final bool isDark;
   final bool isCloud;
+  final VoidCallback onCamera;
   final VoidCallback onImage;
   final VoidCallback onFile;
   final BuildContext context;
@@ -960,6 +976,7 @@ class _AttachButton extends StatelessWidget {
   const _AttachButton({
     required this.isDark,
     required this.isCloud,
+    required this.onCamera,
     required this.onImage,
     required this.onFile,
     required this.context,
@@ -1013,22 +1030,34 @@ class _AttachButton extends StatelessWidget {
               const SizedBox(height: 24),
               Row(children: [
                 _SheetTile(
-                  icon: Icons.image_rounded,
+                  icon: Icons.camera_alt_rounded,
+                  color: AppColors.warning,
+                  label: 'Camera',
+                  sub: 'Take a photo',
+                  isDark: isDarkSheet,
+                  onTap: () {
+                    Navigator.pop(_);
+                    onCamera();
+                  },
+                ),
+                const SizedBox(width: 12),
+                _SheetTile(
+                  icon: Icons.photo_library_rounded,
                   color: AppColors.success,
-                  label: 'Gallery',
-                  sub: 'Visual context',
+                  label: 'Photos',
+                  sub: 'Pick from gallery',
                   isDark: isDarkSheet,
                   onTap: () {
                     Navigator.pop(_);
                     onImage();
                   },
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 _SheetTile(
-                  icon: Icons.file_present_rounded,
+                  icon: Icons.attach_file_rounded,
                   color: AppColors.primary,
-                  label: 'Document',
-                  sub: 'Text analysis',
+                  label: 'Files',
+                  sub: 'Documents & more',
                   isDark: isDarkSheet,
                   onTap: () {
                     Navigator.pop(_);

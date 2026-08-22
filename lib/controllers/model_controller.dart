@@ -442,6 +442,14 @@ class ModelController extends GetxController {
     _download.pauseDownload(filename);
   }
 
+  void resumeDownload(String filename) {
+    _download.resumeDownload(filename);
+  }
+
+  void cancelDownload(String filename) {
+    _download.cancelDownload(filename);
+  }
+
   Future<void> deleteModel(String filename) async {
     await _download.deleteModel(filename);
     await refreshDownloaded();

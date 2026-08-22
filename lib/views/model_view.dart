@@ -790,10 +790,22 @@ class ModelView extends GetView<ModelController> {
                   ),
                 ),
                 TextButton(
-                  onPressed: () => controller.pauseDownload(dp.filename),
-                  child: Text('Pause',
+                  onPressed: dp.isPaused.value
+                      ? () => controller.resumeDownload(dp.filename)
+                      : () => controller.pauseDownload(dp.filename),
+                  child: Text(dp.isPaused.value ? 'Resume' : 'Pause',
                       style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12, color: AppColors.warning)),
+                          fontSize: 12,
+                          color: dp.isPaused.value
+                              ? AppColors.success
+                              : AppColors.warning)),
+                ),
+                const SizedBox(width: 4),
+                TextButton(
+                  onPressed: () => controller.cancelDownload(dp.filename),
+                  child: Text('Cancel',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12, color: AppColors.error)),
                 ),
               ],
             ),
@@ -2457,8 +2469,23 @@ class ModelView extends GetView<ModelController> {
                 ),
               ),
               const Spacer(),
+              if (dp.isPaused.value)
+                TextButton.icon(
+                  onPressed: () => controller.resumeDownload(model.filename),
+                  icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                  label: const Text('Resume'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.success),
+                )
+              else
+                TextButton.icon(
+                  onPressed: () => controller.pauseDownload(model.filename),
+                  icon: const Icon(Icons.pause_rounded, size: 16),
+                  label: const Text('Pause'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.warning),
+                ),
+              const SizedBox(width: 4),
               TextButton.icon(
-                onPressed: () => controller.pauseDownload(model.filename),
+                onPressed: () => controller.cancelDownload(model.filename),
                 icon: const Icon(Icons.close, size: 16),
                 label: const Text('Cancel'),
                 style: TextButton.styleFrom(foregroundColor: AppColors.error),

@@ -17,8 +17,10 @@ class DownloadProgress {
   final RxDouble bytesPerSecond = 0.0.obs;
   final RxBool isPaused = false.obs;
   final DateTime startedAt = DateTime.now();
+  String? url;
+  String? authToken;
 
-  DownloadProgress({required this.filename});
+  DownloadProgress({required this.filename, this.url, this.authToken});
 
   Duration? get eta {
     final speed = bytesPerSecond.value;
@@ -222,7 +224,11 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
   }) async {
     if (kIsWeb) return 'ERROR: Downloading models is not supported on web.';
 
-    final downloadProgress = DownloadProgress(filename: filename);
+    final downloadProgress = DownloadProgress(
+      filename: filename,
+      url: url,
+      authToken: authToken,
+    );
     activeDownloads[filename] = downloadProgress;
 
     if (Platform.isAndroid) {
@@ -280,12 +286,53 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
     if (nativeId != null && Platform.isAndroid) {
       platform_dl.cancelNativeDownload(
           downloadId: nativeId, filename: filename);
-      activeDownloads.remove(filename);
       _nativeDownloadIds.remove(filename);
+      activeDownloads[filename]?.isPaused.value = true;
     } else {
       platform_dl.pauseDownload(filename);
       activeDownloads[filename]?.isPaused.value = true;
     }
+  }
+
+  Future<void> resumeDownload(String filename) async {
+    final dp = activeDownloads[filename];
+    if (dp == null || dp.url == null) return;
+
+    dp.isPaused.value = false;
+    dp.bytesPerSecond.value = 0;
+    dp.progress.value = dp.totalBytes.value > 0
+        ? dp.downloadedBytes.value / dp.totalBytes.value
+        : 0;
+
+    if (Platform.isAndroid) {
+      try {
+        final modelsDirectory = await modelsDir;
+        final result = await platform_dl.startNativeDownload(
+          url: dp.url!,
+          filename: filename,
+          modelsDir: modelsDirectory,
+        );
+        if (result != null) {
+          final id = result['downloadId'] as int;
+          _nativeDownloadIds[filename] = id;
+        }
+      } catch (e) {
+        dp.isPaused.value = true;
+        print('[DownloadService] Resume failed: $e');
+      }
+    }
+  }
+
+  void cancelDownload(String filename) {
+    final nativeId = _nativeDownloadIds[filename];
+    if (nativeId != null && Platform.isAndroid) {
+      platform_dl.cancelNativeDownload(
+          downloadId: nativeId, filename: filename);
+      _nativeDownloadIds.remove(filename);
+    } else {
+      platform_dl.pauseDownload(filename);
+    }
+    activeDownloads.remove(filename);
   }
 
   Future<void> deleteModel(String filename) async {
