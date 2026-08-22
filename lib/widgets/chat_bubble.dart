@@ -45,37 +45,61 @@ class ChatBubble extends StatelessWidget {
         
     final answerContent = isUser ? visibleContent : thoughtParts.answer.trim();
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          Align(
-            alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-            child: GestureDetector(
-              onLongPress: () => _showContextMenu(context, isUser),
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.82,
-                ),
-                decoration: BoxDecoration(
-                  gradient: isUser ? AppColors.userGradient : null,
-                  color: isUser ? null : (isDark ? AppColors.surface : const Color(0xFFF1F5F9)),
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(24),
-                    topRight: const Radius.circular(24),
-                    bottomLeft: Radius.circular(isUser ? 24 : 8),
-                    bottomRight: Radius.circular(isUser ? 8 : 24),
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      tween: Tween(begin: 0.0, end: 1.0),
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 10 * (1 - value)),
+            child: child,
+          ),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            Align(
+              alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+              child: GestureDetector(
+                onLongPress: () => _showContextMenu(context, isUser),
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.82,
                   ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(24),
-                    topRight: const Radius.circular(24),
-                    bottomLeft: Radius.circular(isUser ? 24 : 8),
-                    bottomRight: Radius.circular(isUser ? 8 : 24),
+                  decoration: BoxDecoration(
+                    gradient: isUser ? AppColors.userGradient : null,
+                    color: isUser ? null : (isDark ? AppColors.surface : Colors.white),
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(24),
+                      topRight: const Radius.circular(24),
+                      bottomLeft: Radius.circular(isUser ? 24 : 6),
+                      bottomRight: Radius.circular(isUser ? 6 : 24),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.06),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      )
+                    ],
+                    border: isUser ? null : Border.all(
+                      color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+                      width: 1,
+                    ),
                   ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(24),
+                      topRight: const Radius.circular(24),
+                      bottomLeft: Radius.circular(isUser ? 24 : 6),
+                      bottomRight: Radius.circular(isUser ? 6 : 24),
+                    ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                     child: Column(
@@ -200,8 +224,9 @@ class ChatBubble extends StatelessWidget {
           _buildActionBar(context, isUser, isDark),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ── Inline action bar below message ──
   Widget _buildActionBar(BuildContext context, bool isUser, bool isDark) {

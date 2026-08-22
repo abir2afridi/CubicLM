@@ -48,7 +48,7 @@ class AppTheme {
 
       // ── AppBar ──
       appBarTheme: AppBarTheme(
-        backgroundColor: bg,
+        backgroundColor: bg.withValues(alpha: 0.8),
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
@@ -70,19 +70,22 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
-          side: BorderSide.none,
+          side: BorderSide(
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+            width: 1,
+          ),
         ),
       ),
 
       // ── Bottom Nav ──
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: bg,
+        backgroundColor: Colors.transparent,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: textMuted,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
-        selectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600),
-        unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w400),
+        selectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800),
+        unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600),
       ),
 
       // ── Input ──

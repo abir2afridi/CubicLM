@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
 import 'package:image/image.dart' as img;
@@ -474,6 +475,9 @@ class ChatController extends GetxController {
     final hasAttachment =
         selectedImagePath.value != null || selectedFileName.value != null;
     if (text.isEmpty && !hasAttachment) return;
+    
+    unawaited(HapticFeedback.lightImpact());
+    
     final fileName = selectedFileName.value;
     final fileContent = selectedFileContent.value;
     final filePath = selectedFilePath.value;
@@ -765,6 +769,7 @@ class ChatController extends GetxController {
         final idx = sessions.indexWhere((s) => s.id == updated.id);
         if (idx >= 0) sessions[idx] = updated;
       }
+      unawaited(HapticFeedback.mediumImpact());
     } catch (e) {
       if (generationId != _generationSerial) return;
       isStreaming.value = false;
@@ -786,6 +791,7 @@ class ChatController extends GetxController {
       );
       messages.add(errorMsg);
       _hive.saveMessage(errorMsg.id, errorMsg.toMap());
+      unawaited(HapticFeedback.heavyImpact());
     }
 
     if (generationId == _generationSerial) {

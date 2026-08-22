@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -150,7 +151,13 @@ class ChatView extends GetView<ChatController> {
   // ── AppBar ──
   PreferredSizeWidget _appBar(BuildContext context, bool isDark) {
     return AppBar(
-      backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+      backgroundColor: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
+      flexibleSpace: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: Container(color: Colors.transparent),
+        ),
+      ),
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       titleSpacing: 0,
@@ -364,10 +371,10 @@ class ChatView extends GetView<ChatController> {
   // ── Empty State ──
   Widget _emptyState(BuildContext context, bool isDark) {
     final suggestions = [
-      'Explain quantum computing simply',
-      'Write a short poem about time',
-      'Help me debug my code',
-      'Summarize a complex topic'
+      {'text': 'Explain quantum computing simply', 'icon': Icons.science_rounded, 'color': Colors.blue},
+      {'text': 'Write a short poem about time', 'icon': Icons.auto_stories_rounded, 'color': Colors.purple},
+      {'text': 'Help me debug my code', 'icon': Icons.code_rounded, 'color': AppColors.secondary},
+      {'text': 'Summarize a complex topic', 'icon': Icons.summarize_rounded, 'color': Colors.orange}
     ];
     return Center(
         child: SingleChildScrollView(
@@ -379,86 +386,103 @@ class ChatView extends GetView<ChatController> {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: AppColors.primary.withValues(alpha: isDark ? 0.2 : 0.1),
-                blurRadius: 40,
-                spreadRadius: 10,
+                color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.15),
+                blurRadius: 60,
+                spreadRadius: 20,
               )
             ],
           ),
-          child: Image.asset(
-            'assets/icons/CubicLM.png',
-            width: 100,
-            height: 100,
+          child: Hero(
+            tag: 'app_logo',
+            child: Image.asset(
+              'assets/icons/CubicLM.png',
+              width: 120,
+              height: 120,
+            ),
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 40),
         Text('Curious to learn?',
             style: GoogleFonts.plusJakartaSans(
-                fontSize: 28,
+                fontSize: 32,
                 fontWeight: FontWeight.w800,
-                letterSpacing: -1,
+                letterSpacing: -1.2,
                 color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A))),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Text('Select a topic or start typing below.',
             style: GoogleFonts.plusJakartaSans(
-                fontSize: 15,
+                fontSize: 16,
                 color: Theme.of(context).hintColor,
                 fontWeight: FontWeight.w500)),
-        const SizedBox(height: 40),
+        const SizedBox(height: 48),
         Obx(() {
           final settings = Get.find<SettingsController>();
           final models = Get.find<ModelController>();
           final isLocal = settings.inferenceMode.value == 'local';
           if (isLocal && models.downloadedCount == 0) {
             return Container(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
                 color: AppColors.warning.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: AppColors.warning.withValues(alpha: 0.2)),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.2), width: 1.5),
               ),
               child: Column(children: [
                 const Icon(Icons.cloud_download_rounded,
-                    color: AppColors.warning, size: 40),
+                    color: AppColors.warning, size: 48),
                 const SizedBox(height: 16),
                 Text('No Local Models Found',
                     style: GoogleFonts.plusJakartaSans(
-                        fontSize: 18,
+                        fontSize: 20,
                         fontWeight: FontWeight.w700,
                         color: isDark ? Colors.white : Colors.black)),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Text(
                     'Download a model to enable offline AI processing on your device.',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14, color: Theme.of(context).hintColor)),
-                const SizedBox(height: 24),
+                        fontSize: 14, color: Theme.of(context).hintColor, height: 1.5)),
+                const SizedBox(height: 28),
                 FilledButton.icon(
                   onPressed: () => Get.find<HomeController>().changeTab(1),
-                  icon: const Icon(Icons.arrow_right_alt_rounded, size: 20),
+                  icon: const Icon(Icons.arrow_right_alt_rounded, size: 22),
                   label: const Text('Go to Model Hub'),
                   style: FilledButton.styleFrom(
                       backgroundColor: AppColors.warning,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 28, vertical: 14)),
+                          horizontal: 32, vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
                 ),
               ]),
             );
           }
-          return Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            alignment: WrapAlignment.center,
-            children: suggestions
-                .map((s) => _suggestionChip(context, s, isDark))
-                .toList(),
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 1.5,
+            ),
+            itemCount: suggestions.length,
+            itemBuilder: (ctx, i) {
+              final s = suggestions[i];
+              return _suggestionCard(
+                context, 
+                s['text'] as String, 
+                s['icon'] as IconData, 
+                s['color'] as Color,
+                isDark
+              );
+            },
           );
         }),
       ]),
     ));
   }
 
-  Widget _suggestionChip(BuildContext context, String text, bool isDark) {
+  Widget _suggestionCard(BuildContext context, String text, IconData icon, Color color, bool isDark) {
     return InkWell(
       onTap: () {
         controller.createNewChat();
@@ -466,20 +490,45 @@ class ChatView extends GetView<ChatController> {
         controller.inputText.value = text;
         controller.sendMessage();
       },
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(24),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        constraints: const BoxConstraints(maxWidth: 220),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: isDark ? AppColors.surface : Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
         ),
-        child: Text(text,
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
-                fontWeight: FontWeight.w600,
-                height: 1.4)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            Text(text,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                    fontWeight: FontWeight.w700,
+                    height: 1.3),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
+          ],
+        ),
       ),
     );
   }
@@ -582,251 +631,276 @@ class ChatView extends GetView<ChatController> {
   // ── Input Bar ──
   Widget _inputBar(BuildContext context, bool isDark) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.bg : AppColors.bgLight,
+        color: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.9),
       ),
-      child: SafeArea(
-          top: false,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // Attachment preview
-            Obx(() {
-              final name = controller.selectedFileName.value;
-              if (name == null) return const SizedBox.shrink();
-              return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AttachmentPreview(
-                    fileName: name,
-                    fileType: controller.selectedFileType.value,
-                    fileSize: controller.selectedFileSize.value > 0
-                        ? controller.selectedFileSize.value
-                        : null,
-                    imagePath: controller.selectedImagePath.value,
-                    imageBase64: controller.selectedImageBase64.value,
-                    onRemove: () {
-                      controller.clearImage();
-                      controller.clearFile();
-                    },
-                  ));
-            }),
-            // STT listening indicator
-            Obx(() {
-              if (!controller.isListening.value) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const _PulsingDot(),
-                    const SizedBox(width: 10),
-                    Text('System listening… tap to end',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            color: AppColors.error,
-                            fontWeight: FontWeight.w700)),
-                  ]),
-                ),
-              );
-            }),
-            // Image Gen Settings
-            Obx(() {
-              final settings = Get.find<SettingsController>();
-              final localImage = Get.find<LocalImageService>();
-              if (settings.inferenceMode.value != 'local' ||
-                  !localImage.isModelLoaded.value) {
-                return const SizedBox.shrink();
-              }
-              final steps = settings.imageSteps.value;
-              final size = settings.imageGenSize.value;
-              final sizeLabel = size == 0 ? 'Auto' : '${size}px';
-              final backend = localImage.currentBackend.value;
-              final backendLabel = backend == Backend.cpu
-                  ? 'CPU'
-                  : backend.displayName.split(' ').first.toUpperCase();
-              final accent = backend == Backend.cpu
-                  ? AppColors.warning
-                  : AppColors.success;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: accent.withValues(alpha: 0.2)),
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: SafeArea(
+              top: false,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                // Attachment preview
+                Obx(() {
+                  final name = controller.selectedFileName.value;
+                  if (name == null) return const SizedBox.shrink();
+                  return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: AttachmentPreview(
+                        fileName: name,
+                        fileType: controller.selectedFileType.value,
+                        fileSize: controller.selectedFileSize.value > 0
+                            ? controller.selectedFileSize.value
+                            : null,
+                        imagePath: controller.selectedImagePath.value,
+                        imageBase64: controller.selectedImageBase64.value,
+                        onRemove: () {
+                          controller.clearImage();
+                          controller.clearFile();
+                        },
+                      ));
+                }),
+                // STT listening indicator
+                Obx(() {
+                  if (!controller.isListening.value) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        const _PulsingDot(),
+                        const SizedBox(width: 10),
+                        Text('System listening… tap to end',
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                color: AppColors.error,
+                                fontWeight: FontWeight.w700)),
+                      ]),
+                    ),
+                  );
+                }),
+                // Image Gen Settings
+                Obx(() {
+                  final settings = Get.find<SettingsController>();
+                  final localImage = Get.find<LocalImageService>();
+                  if (settings.inferenceMode.value != 'local' ||
+                      !localImage.isModelLoaded.value) {
+                    return const SizedBox.shrink();
+                  }
+                  final steps = settings.imageSteps.value;
+                  final size = settings.imageGenSize.value;
+                  final sizeLabel = size == 0 ? 'Auto' : '${size}px';
+                  final backend = localImage.currentBackend.value;
+                  final backendLabel = backend == Backend.cpu
+                      ? 'CPU'
+                      : backend.displayName.split(' ').first.toUpperCase();
+                  final accent = backend == Backend.cpu
+                      ? AppColors.warning
+                      : AppColors.success;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: accent.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: accent.withValues(alpha: 0.2)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.auto_awesome_rounded,
+                                    size: 14, color: accent),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    'Generation Mode · $steps steps · $sizeLabel · $backendLabel',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      color: accent,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.auto_awesome_rounded,
-                                size: 14, color: accent),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                'Generation Mode · $steps steps · $sizeLabel · $backendLabel',
-                                overflow: TextOverflow.ellipsis,
+                        const SizedBox(width: 10),
+                        Container(
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: isDark ? AppColors.surface : Colors.white,
+                            borderRadius: BorderRadius.circular(17),
+                            border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _StepButton(
+                                icon: Icons.remove_rounded,
+                                enabled: steps > 1,
+                                onTap: () => settings.setImageSteps(steps - 1),
+                              ),
+                              Text(
+                                steps.toString(),
                                 style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11,
-                                  color: accent,
+                                  fontSize: 12,
+                                  color: isDark ? Colors.white : Colors.black,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                            ),
-                          ],
+                              _StepButton(
+                                icon: Icons.add_rounded,
+                                enabled: steps < 20,
+                                onTap: () => settings.setImageSteps(steps + 1),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 10),
-                    Container(
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: isDark ? AppColors.surface : Colors.white,
-                        borderRadius: BorderRadius.circular(17),
-                        border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _StepButton(
-                            icon: Icons.remove_rounded,
-                            enabled: steps > 1,
-                            onTap: () => settings.setImageSteps(steps - 1),
-                          ),
-                          Text(
-                            steps.toString(),
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12,
-                              color: isDark ? Colors.white : Colors.black,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          _StepButton(
-                            icon: Icons.add_rounded,
-                            enabled: steps < 20,
-                            onTap: () => settings.setImageSteps(steps + 1),
-                          ),
-                        ],
-                      ),
+                  );
+                }),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.surface : Colors.white,
+                    borderRadius: BorderRadius.circular(32),
+                    border: Border.all(
+                      color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.08),
+                      width: 1.5,
                     ),
-                  ],
-                ),
-              );
-            }),
-            Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-              // Attach button
-              Obx(() {
-                final s = Get.find<SettingsController>();
-                final inf = Get.find<InferenceService>();
-                final isCloud = s.inferenceMode.value == 'cloud';
-                final isLocalVision = s.inferenceMode.value == 'local' &&
-                    inf.loadedModelRuntime.value == 'litert' &&
-                    inf.isVisionLoaded.value;
-                if (!isCloud && !isLocalVision) return const SizedBox.shrink();
-                return _AttachButton(
-                  isDark: isDark,
-                  isCloud: isCloud,
-                  onCamera: controller.takePhoto,
-                  onImage: controller.pickImage,
-                  onFile: controller.pickFile,
-                  context: context,
-                );
-              }),
-              // Text field with floating container
-              Expanded(
-                  child: Container(
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.surface : Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                ),
-                child: TextField(
-                  controller: controller.textController,
-                  onChanged: (v) => controller.inputText.value = v,
-                  maxLines: 5,
-                  minLines: 1,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
-                      fontWeight: FontWeight.w500),
-                  decoration: InputDecoration(
-                    hintText: 'Enter your request…',
-                    hintStyle: GoogleFonts.plusJakartaSans(
-                        fontSize: 15, color: Theme.of(context).hintColor, fontWeight: FontWeight.w500),
-                    border: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    isDense: true,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      )
+                    ],
                   ),
-                  onSubmitted: (_) => controller.sendMessage(),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    // Attach button
+                    Obx(() {
+                      final s = Get.find<SettingsController>();
+                      final inf = Get.find<InferenceService>();
+                      final isCloud = s.inferenceMode.value == 'cloud';
+                      final isLocalVision = s.inferenceMode.value == 'local' &&
+                          inf.loadedModelRuntime.value == 'litert' &&
+                          inf.isVisionLoaded.value;
+                      if (!isCloud && !isLocalVision) return const SizedBox.shrink();
+                      return _AttachButton(
+                        isDark: isDark,
+                        isCloud: isCloud,
+                        onCamera: controller.takePhoto,
+                        onImage: controller.pickImage,
+                        onFile: controller.pickFile,
+                        context: context,
+                      );
+                    }),
+                    // Text field with floating container
+                    Expanded(
+                        child: TextField(
+                          controller: controller.textController,
+                          onChanged: (v) => controller.inputText.value = v,
+                          maxLines: 5,
+                          minLines: 1,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                              fontWeight: FontWeight.w500),
+                          decoration: InputDecoration(
+                            hintText: 'Enter your request…',
+                            hintStyle: GoogleFonts.plusJakartaSans(
+                                fontSize: 15, color: Theme.of(context).hintColor, fontWeight: FontWeight.w500),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 10),
+                            isDense: true,
+                            fillColor: Colors.transparent,
+                          ),
+                          onSubmitted: (_) => controller.sendMessage(),
+                        )),
+                    const SizedBox(width: 8),
+                    // Main Action Button
+                    Obx(() {
+                      final loading = controller.isLoading.value;
+                      final listening = controller.isListening.value;
+                      final hasContent = controller.inputText.value.isNotEmpty ||
+                          controller.selectedFileName.value != null ||
+                          controller.selectedImagePath.value != null;
+
+                      final Color bgColor;
+                      final IconData iconData;
+                      final VoidCallback? onTap;
+
+                      if (loading) {
+                        bgColor = AppColors.error;
+                        iconData = Icons.stop_rounded;
+                        onTap = controller.stopGenerating;
+                      } else if (listening) {
+                        bgColor = AppColors.error;
+                        iconData = Icons.stop_rounded;
+                        onTap = controller.toggleListening;
+                      } else if (hasContent) {
+                        bgColor = AppColors.primary;
+                        iconData = Icons.arrow_upward_rounded;
+                        onTap = controller.sendMessage;
+                      } else {
+                        bgColor = isDark ? AppColors.surfaceLight : const Color(0xFFE2E8F0);
+                        iconData = Icons.mic_rounded;
+                        onTap = controller.toggleListening;
+                      }
+
+                      return GestureDetector(
+                        onTap: onTap,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOutCubic,
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: bgColor,
+                            shape: BoxShape.circle,
+                            boxShadow: (loading || listening || hasContent) ? [
+                              BoxShadow(
+                                color: bgColor.withValues(alpha: 0.4),
+                                blurRadius: 10,
+                                spreadRadius: 1,
+                              )
+                            ] : null,
+                          ),
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(iconData,
+                                key: ValueKey(iconData),
+                                color: (loading || listening || hasContent)
+                                    ? Colors.white
+                                    : Theme.of(context).hintColor,
+                                size: 24),
+                          ),
+                        ),
+                      );
+                    }),
+                  ]),
                 ),
-              )),
-              const SizedBox(width: 8),
-              // Main Action Button
-              Obx(() {
-                final loading = controller.isLoading.value;
-                final listening = controller.isListening.value;
-                final hasContent = controller.inputText.value.isNotEmpty ||
-                    controller.selectedFileName.value != null ||
-                    controller.selectedImagePath.value != null;
-
-                final Color bgColor;
-                final IconData iconData;
-                final VoidCallback? onTap;
-
-                if (loading) {
-                  bgColor = AppColors.error;
-                  iconData = Icons.stop_rounded;
-                  onTap = controller.stopGenerating;
-                } else if (listening) {
-                  bgColor = AppColors.error;
-                  iconData = Icons.stop_rounded;
-                  onTap = controller.toggleListening;
-                } else if (hasContent) {
-                  bgColor = AppColors.primary;
-                  iconData = Icons.arrow_upward_rounded;
-                  onTap = controller.sendMessage;
-                } else {
-                  bgColor = isDark ? AppColors.surfaceLight : const Color(0xFFE2E8F0);
-                  iconData = Icons.mic_rounded;
-                  onTap = controller.toggleListening;
-                }
-
-                return GestureDetector(
-                  onTap: onTap,
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    curve: Curves.easeOutCubic,
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: bgColor,
-                      shape: BoxShape.circle,
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Icon(iconData,
-                          key: ValueKey(iconData),
-                          color: (loading || listening || hasContent)
-                              ? Colors.white
-                              : Theme.of(context).hintColor,
-                          size: 22),
-                    ),
-                  ),
-                );
-              }),
-            ]),
-          ])),
+              ])),
+        ),
+      ),
     );
   }
 

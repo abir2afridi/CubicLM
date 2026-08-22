@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -73,31 +74,47 @@ class HomeView extends GetView<HomeController> {
 
   Widget _buildBottomNav(BuildContext context, bool isDark) {
     return Container(
+      height: 72 + MediaQuery.of(context).padding.bottom,
       decoration: BoxDecoration(
-        color: isDark ? AppColors.bg : AppColors.bgLight,
+        color: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
+        border: Border(
+          top: BorderSide(
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
+            width: 1,
+          ),
+        ),
       ),
-      child: BottomNavigationBar(
-        currentIndex: controller.currentTab.value,
-        onTap: controller.changeTab,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        type: BottomNavigationBarType.fixed,
-        selectedLabelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 10),
-        unselectedLabelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600, fontSize: 10),
-        items: [
-          for (final tab in _tabs)
-            BottomNavigationBarItem(
-              icon: Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Icon(tab.icon, size: 22),
-              ),
-              activeIcon: Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Icon(tab.activeIcon, size: 22),
-              ),
-              label: tab.label,
-            ),
-        ],
+      child: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: BottomNavigationBar(
+            currentIndex: controller.currentTab.value,
+            onTap: controller.changeTab,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            type: BottomNavigationBarType.fixed,
+            selectedLabelStyle: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800, fontSize: 10, letterSpacing: 0.2),
+            unselectedLabelStyle: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w600, fontSize: 10, letterSpacing: 0.2),
+            items: [
+              for (final tab in _tabs)
+                BottomNavigationBarItem(
+                  icon: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Icon(tab.icon, size: 22),
+                  ),
+                  activeIcon: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Icon(tab.activeIcon, size: 22),
+                  ),
+                  label: tab.label,
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

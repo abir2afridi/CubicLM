@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../services/hive_service.dart';
 import '../services/inference_service.dart';
@@ -11,7 +12,10 @@ class HomeController extends GetxController {
   bool _resumeDialogShown = false;
 
   void changeTab(int index) {
-    currentTab.value = index;
+    if (currentTab.value != index) {
+      HapticFeedback.lightImpact();
+      currentTab.value = index;
+    }
   }
 
   /// Shows a one-time dialog on startup asking if the user wants to reload

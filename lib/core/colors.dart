@@ -34,6 +34,12 @@ class AppColors {
     end: Alignment.bottomRight,
   );
   
+  static const LinearGradient glassGradient = LinearGradient(
+    colors: [Colors.white10, Color(0x0DFFFFFF)], // 0x0D is roughly 5% opacity
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  
   static const Color aiBubble = Color(0xFF1E293B);
   static const Color cmdBubble = Color(0xFF064E3B); // Dark Emerald
 
@@ -44,5 +50,20 @@ class AppColors {
   // Light Mode (Optional mapping or separate class)
   static const Color bgLight = Color(0xFFF8FAFC);
   static const Color surfaceLightMode = Color(0xFFFFFFFF);
+  static const Color surfaceHighLightMode = Color(0xFFF1F5F9);
   static const Color borderLightMode = Color(0xFFE2E8F0);
+
+  // Glass Styles
+  static BoxDecoration glassDecoration(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return BoxDecoration(
+      color: isDark ? bg.withValues(alpha: 0.7) : bgLight.withValues(alpha: 0.7),
+      border: Border(
+        top: BorderSide(
+          color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05),
+          width: 0.5,
+        ),
+      ),
+    );
+  }
 }
