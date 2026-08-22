@@ -1,0 +1,100 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.mvn/
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code
+.history/
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+.metadata
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android build artifacts
+/android/build/
+/android/app/build/
+/android/.cxx/
+
+# Keystores and signing
+*.jks
+*.keystore
+key.properties
+/android/key.properties
+
+# Firebase & API configs (safety)
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+lib/firebase_options.dart
+
+# Local env / secrets
+.env
+.env.*
+*.secret
+secrets/
+
+# iOS
+/ios/Pods/
+/ios/.symlinks/
+/ios/Flutter/Flutter.podspec
+
+# macOS
+/macos/Flutter/ephemeral/
+/macos/Pods/
+
+# Linux
+/linux/flutter/ephemeral/
+
+# Windows
+/windows/flutter/ephemeral/
+
+# Web
+/web/firebase-config.js
+
+# Firebase hosting cache
+.firebase/
+
+# Native libraries (build artifacts - but keep prebuilt jniLibs)
+*.so
+!**/jniLibs/**/*.so
+
+# Local plugin build artifacts / downloaded dependencies
+local_plugins/**/android/src/main/cpp/vulkan-headers/
+local_plugins/**/ios/sd_cpp_src/
+local_plugins/**/android/.cxx/
+local_plugins/**/android/build/
+local_plugins/**/example/android/local.properties
+
+# Reference
+reference_local_diffusion/

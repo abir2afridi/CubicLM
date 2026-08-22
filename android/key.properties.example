@@ -1,0 +1,6 @@
+# Copy this file to android/key.properties and keep the real values private.
+# Every published update must use the same keystore and alias.
+storeFile=/absolute/path/to/cubiclm-release.jks
+storePassword=change-me
+keyAlias=cubiclm
+keyPassword=change-me
