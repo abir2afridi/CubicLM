@@ -361,34 +361,34 @@ class SettingsView extends GetView<SettingsController> {
                             fontSize: 13, fontWeight: FontWeight.w500, color: Theme.of(context).hintColor)),
                   ])),
             ])),
-        if (soc != platform_info.SocFamily.unknown) ...[
-          Divider(height: 1, indent: 20, endIndent: 20, color: isDark ? AppColors.border : AppColors.borderLightMode),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            child: Row(children: [
-              _iconBox(AppColors.secondary, Icons.memory_rounded),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(soc.displayName,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Text('Recommendation: ${soc.recommendedQuant}',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: quantWarning != null
-                                ? AppColors.warning
-                                : Theme.of(context).hintColor)),
-                  ],
-                ),
+        Divider(height: 1, indent: 20, endIndent: 20, color: isDark ? AppColors.border : AppColors.borderLightMode),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(children: [
+            _iconBox(AppColors.secondary, Icons.memory_rounded),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(soc == platform_info.SocFamily.unknown && device.socHardware.value.isNotEmpty
+                        ? device.socHardware.value
+                        : soc.displayName,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text('Recommendation: ${soc.recommendedQuant}',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: quantWarning != null
+                              ? AppColors.warning
+                              : Theme.of(context).hintColor)),
+                ],
               ),
-            ]),
-          ),
-        ],
+            ),
+          ]),
+        ),
         if (quantWarning != null) ...[
           Container(
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),

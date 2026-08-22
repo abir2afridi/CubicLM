@@ -648,12 +648,27 @@ class ModelView extends GetView<ModelController> {
                 ],
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.tonal(
-                    onPressed: isSelected
-                        ? null
-                        : () => settings.setCloudProvider(provider.id),
-                    child: Text(isSelected ? 'Active Provider' : 'Set as Active'),
-                  ),
+                  child: Obx(() {
+                    final configured = cloudModels.isConfigured(provider.id);
+                    return FilledButton.tonal(
+                      onPressed: isSelected || !configured
+                          ? null
+                          : () => settings.setCloudProvider(provider.id),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: isSelected && configured
+                            ? AppColors.success.withValues(alpha: 0.2)
+                            : null,
+                        foregroundColor: isSelected && configured
+                            ? AppColors.success
+                            : null,
+                      ),
+                      child: Text(isSelected && configured
+                          ? 'Active Provider'
+                          : configured
+                              ? 'Set as Active'
+                              : 'Configuration Required'),
+                    );
+                  }),
                 ),
               ],
             ),
