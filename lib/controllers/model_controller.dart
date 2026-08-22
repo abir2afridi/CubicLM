@@ -14,7 +14,7 @@ import '../models/ai_model.dart';
 import '../core/constants.dart';
 import 'settings_controller.dart';
 
-enum _ModelLoadAction { cancel, unload, continueLoad }
+enum _ModelLoadAction { cancel, continueLoad }
 
 class ModelController extends GetxController {
   final DownloadService _download = Get.find<DownloadService>();
@@ -536,11 +536,13 @@ class ModelController extends GetxController {
       isLiteRt: isLiteRt,
     );
     if (loadAction == _ModelLoadAction.cancel) return;
-    if (loadAction == _ModelLoadAction.unload) {
-      await unloadModel();
-      return;
-    }
     if (isLiteRt && !await _confirmLiteRtGpuWarning()) return;
+
+    // Switching models mid-reply is allowed: stop the in-flight generation
+    // first so the swap does not stall behind it.
+    if (_inference.isGenerating.value) {
+      await _inference.stopGeneration();
+    }
 
     if (isImageModel(model ??
         AiModel(
@@ -773,7 +775,8 @@ class ModelController extends GetxController {
         content: Text(
           'You already used $currentLabel in this app session. '
           'Switching to $targetLabel without restarting can crash the native runtime.\n\n'
-          'Restart the app, then load this model.',
+          'Restart the app, then load this model. Switching between two '
+          '$currentLabel models never needs a restart.',
         ),
         actions: [
           TextButton(
@@ -889,6 +892,11 @@ class ModelController extends GetxController {
     }
   }
 
+  /// Gate a local model load on available memory.
+  ///
+  /// Switching models is a one-tap action: the previously loaded model is freed
+  /// automatically, so no dialog is shown for an ordinary swap. A prompt only
+  /// appears when memory is genuinely too tight to load safely.
   Future<_ModelLoadAction> _confirmModelLoadSafety({
     required String filename,
     required int fileBytes,
@@ -897,6 +905,14 @@ class ModelController extends GetxController {
     final availableRamGb = await _refreshAvailableRamGb();
 
     final availableBytes = (availableRamGb * 1024 * 1024 * 1024).round();
+    final hasMeasuredMemory = availableBytes > 0 && fileBytes > 0;
+    final isCriticallyLow = hasMeasuredMemory &&
+        (availableBytes < fileBytes || _isLowMemoryBytes(availableBytes));
+
+    // Enough headroom (or nothing measurable to warn about) — load straight
+    // away. Any resident model is freed by InferenceService.loadModel.
+    if (!isCriticallyLow) return _ModelLoadAction.continueLoad;
+
     final modelLabel = fileBytes > 0
         ? DownloadService.formatWholeMb(fileBytes)
         : 'Unknown size';
@@ -904,22 +920,6 @@ class ModelController extends GetxController {
         ? DownloadService.formatWholeMb(availableBytes)
         : 'Unknown';
     final lower = filename.toLowerCase();
-    final hasMeasuredMemory = availableBytes > 0 && fileBytes > 0;
-    final isCriticallyLow = hasMeasuredMemory &&
-        (availableBytes < fileBytes || _isLowMemoryBytes(availableBytes));
-    final isLargeForRam =
-        availableBytes > 0 && fileBytes > 0 && availableBytes < fileBytes * 2;
-    final isLowRam = availableBytes > 0 && _isLowMemoryBytes(availableBytes);
-    final String warning;
-    if (isCriticallyLow) {
-      warning =
-          'Available RAM is lower than recommended. This can crash the app if Android cannot reserve enough memory.';
-    } else if (isLargeForRam || isLowRam || isLiteRt) {
-      warning =
-          'This can crash the app if Android cannot reserve enough memory for the model.';
-    } else {
-      warning = 'Loading local models can use more memory than the file size.';
-    }
     final runtimeLabel = isLiteRt
         ? 'LiteRT-LM'
         : lower.endsWith('.gguf')
@@ -927,14 +927,10 @@ class ModelController extends GetxController {
             : lower.endsWith('.safetensors')
                 ? 'Image model'
                 : 'Local model';
-    final loadedName = _inference.loadedModelName.value;
-    final hasLoadedModel =
-        _inference.isModelLoaded.value && loadedName.isNotEmpty;
-    final isSameModelLoaded = hasLoadedModel && loadedName == filename;
 
     final result = await Get.dialog<_ModelLoadAction>(
       AlertDialog(
-        title: Text(isCriticallyLow ? 'Restart recommended' : 'Load model?'),
+        title: const Text('Restart recommended'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -944,18 +940,10 @@ class ModelController extends GetxController {
             Text('Runtime: $runtimeLabel'),
             Text('Available RAM: $ramLabel'),
             Text('Model size: $modelLabel'),
-            if (hasLoadedModel) ...[
-              const SizedBox(height: 12),
-              Text(
-                isSameModelLoaded
-                    ? 'This model is already loaded.'
-                    : 'Already loaded: $loadedName',
-              ),
-              if (!isSameModelLoaded)
-                const Text('Unload it before loading another model.'),
-            ],
             const SizedBox(height: 12),
-            Text(warning),
+            const Text(
+              'Available RAM is lower than recommended. This can crash the app if Android cannot reserve enough memory.',
+            ),
           ],
         ),
         actions: [
@@ -963,29 +951,23 @@ class ModelController extends GetxController {
             onPressed: () => Get.back(result: _ModelLoadAction.cancel),
             child: const Text('Cancel'),
           ),
-          if (hasLoadedModel)
-            TextButton(
-              onPressed: () => Get.back(result: _ModelLoadAction.unload),
-              child: const Text('Unload'),
-            ),
-          if (isCriticallyLow)
-            TextButton(
-              onPressed: () async {
-                Get.back(result: _ModelLoadAction.cancel);
-                try {
-                  await _androidImportChannel.invokeMethod('restartApp');
-                } catch (_) {
-                  SystemNavigator.pop();
-                }
-              },
-              child: const Text('Restart app'),
-            ),
+          TextButton(
+            onPressed: () async {
+              Get.back(result: _ModelLoadAction.cancel);
+              try {
+                await _androidImportChannel.invokeMethod('restartApp');
+              } catch (_) {
+                SystemNavigator.pop();
+              }
+            },
+            child: const Text('Restart app'),
+          ),
           ElevatedButton(
             onPressed: () async {
               await _refreshAvailableRamGb();
               Get.back(result: _ModelLoadAction.continueLoad);
             },
-            child: const Text('Continue'),
+            child: const Text('Load anyway'),
           ),
         ],
       ),

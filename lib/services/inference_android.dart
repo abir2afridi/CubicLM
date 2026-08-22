@@ -36,7 +36,6 @@ class InferenceEngine {
   void Function()? _onStop;
   bool _isLiteRt = false;
   bool _disposed = false;
-  bool _hasLoadedModel = false;
   String? _liteConversationSystemPrompt;
   double? _liteConversationTemperature;
   bool _liteConversationHasMessages = false;
@@ -139,13 +138,17 @@ class InferenceEngine {
     } catch (_) {}
 
     // ── Load ──
+    // No "did the load succeed?" flag is tracked here on purpose. The Kotlin
+    // side flips its own isModelLoaded during this call, so a load that throws
+    // partway (OOM, corrupt file, GPU fallback) leaves a model resident that
+    // Dart never saw succeed. dispose() therefore always frees natively, and
+    // LlamaController.loadModel frees any resident model before loading.
     await _controller!.loadModel(
       modelPath: modelPath,
       threads: threads,
       contextSize: contextSize,
       gpuLayers: gpuLayers,
     );
-    _hasLoadedModel = true;
 
     final accel = gpuLayers > 0
         ? 'GPU ($gpuLayers layers, $gpuNameStr)'
@@ -203,7 +206,6 @@ class InferenceEngine {
         backend: backend,
         enableVision: enableVision,
       );
-      _hasLoadedModel = true;
       onProgress?.call(0.92);
       print(
           '[Inference] LiteRT-LM loaded with $backendLabel backend, ctx=$contextSize');
@@ -236,7 +238,6 @@ class InferenceEngine {
             backend: backend,
             enableVision: false,
           );
-          _hasLoadedModel = true;
           onProgress?.call(0.92);
           return LoadResult(
             success: true,
@@ -663,11 +664,13 @@ class InferenceEngine {
     if (_disposed) return;
     await stop();
     _disposed = true;
-    if (_hasLoadedModel) {
-      try {
-        await _controller?.dispose();
-      } catch (_) {}
-    }
+    // Always attempt the native free: the Kotlin/C++ side can hold a model this
+    // object never saw succeed (a load that threw partway still leaves g_model
+    // resident), and skipping the free is what blocks all later loads until the
+    // process restarts.
+    try {
+      await _controller?.dispose();
+    } catch (_) {}
     try {
       await _liteConversation?.dispose();
     } catch (_) {}
@@ -680,7 +683,6 @@ class InferenceEngine {
     _liteConversation = null;
     _liteEngine = null;
     _isLiteRt = false;
-    _hasLoadedModel = false;
     _liteConversationSystemPrompt = null;
     _liteConversationTemperature = null;
     _liteConversationHasMessages = false;

@@ -121,8 +121,8 @@ class InferenceService extends GetxService {
       final isTensorSoC = _getIsTensorSoC();
 
       final requestedModelName = modelName ?? modelPath.split('/').last;
-      var activeModelName = requestedModelName;
-      var result = await _loadModelOnEngine(
+      final activeModelName = requestedModelName;
+      final result = await _loadModelOnEngine(
         modelPath: modelPath,
         modelRuntime: modelRuntime,
         contextSize: finalContextSize,
@@ -137,25 +137,11 @@ class InferenceService extends GetxService {
         enableLiteRtVision: enableLiteRtVision,
       );
 
-      if (!result.success &&
-          result.message.toLowerCase().contains('model already loaded')) {
-        final savedModelName =
-            _hive.getSetting<String>(AppConstants.keyLocalModelName) ?? '';
-        final adoptedModelName =
-            savedModelName.isNotEmpty ? savedModelName : requestedModelName;
-        activeModelName = adoptedModelName;
-        result = platform.LoadResult(
-          success: true,
-          message: savedModelName == requestedModelName
-              ? 'Model already loaded.'
-              : 'A native model is already loaded. Unload it before loading another model.',
-          runtime: modelRuntime ??
-              _hive.getSetting<String>(AppConstants.keyLocalModelRuntime) ??
-              '',
-          backend:
-              _hive.getSetting<String>(AppConstants.keyLocalModelBackend) ?? '',
-        );
-      }
+      // Note: there is deliberately no "model already loaded" recovery path
+      // here. The native layer now frees any resident model before loading
+      // (LlamaController.loadModel), so that error should not occur — and
+      // reporting success for a load that never happened would leave the UI
+      // naming one model while inference ran another.
 
       if (!result.success) {
         isModelLoaded.value = false;
@@ -237,7 +223,9 @@ class InferenceService extends GetxService {
     gpuName.value = '';
     contextTokensUsed.value = 0;
     contextTokensTotal.value = 0;
-    _sessionNativeRuntime = '';
+    // _sessionNativeRuntime is intentionally NOT cleared. Unloading frees the
+    // model, but the runtime's .so files stay loaded in the process for its
+    // lifetime, so the cross-runtime guard must keep firing after an unload.
   }
 
   Future<String> generate({

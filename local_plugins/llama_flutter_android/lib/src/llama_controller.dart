@@ -26,8 +26,15 @@ class LlamaController implements LlamaFlutterApi {
     int? gpuLayers,
   }) async {
     if (_isLoading) throw StateError('Already loading');
-    final loaded = await _safeIsModelLoaded();
-    if (loaded) throw StateError('Model already loaded');
+
+    // Loading is idempotent: if a model is still resident natively — either
+    // because the caller is swapping models or because an earlier load failed
+    // partway and left `g_model` alive — free it and continue. Throwing here
+    // used to wedge the process permanently, since the C++ statics can only be
+    // cleared by nativeFreeModel() or by the process dying.
+    if (await _safeIsModelLoaded()) {
+      await _freeResidentModel();
+    }
 
     _isLoading = true;
     try {
@@ -118,6 +125,30 @@ class LlamaController implements LlamaFlutterApi {
       }
       rethrow;
     }
+  }
+
+  /// Free the natively-resident model without tearing this controller down.
+  ///
+  /// Unlike [dispose], the progress controller stays open, so the same
+  /// controller instance can load another model straight afterwards. Every step
+  /// is best-effort: the native free must run even if stopping fails, because
+  /// skipping it is what leaves `g_model` alive and blocks all later loads.
+  Future<void> _freeResidentModel() async {
+    try {
+      if (_isGenerating) {
+        await _api.stop();
+      }
+    } catch (_) {
+      // Ignore: the free below is the part that matters.
+    }
+    _isGenerating = false;
+    try {
+      await _tokenController?.close();
+    } catch (_) {
+      // Ignore: an already-closed controller is fine.
+    }
+    _tokenController = null;
+    await _api.dispose();
   }
 
   /// Get list of supported chat templates

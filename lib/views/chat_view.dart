@@ -17,6 +17,7 @@ import '../ffi/sd_ffi_bindings.dart';
 import '../utils/thought_parser.dart';
 import '../widgets/attachment_preview.dart';
 import '../widgets/chat_bubble.dart';
+import '../widgets/model_switcher_sheet.dart';
 import '../widgets/thought_disclosure.dart';
 import '../core/colors.dart';
 
@@ -187,9 +188,13 @@ class ChatView extends GetView<ChatController> {
         final settings = Get.find<SettingsController>();
         final inf = Get.find<InferenceService>();
         final isLocal = settings.inferenceMode.value == 'local';
+        final localImage = Get.find<LocalImageService>();
+        // A loaded image model counts as "ready" too — otherwise the dot shows
+        // the warning colour while an image engine is happily resident.
+        final isLocalReady =
+            inf.isModelLoaded.value || localImage.isModelLoaded.value;
         String model;
         if (isLocal) {
-          final localImage = Get.find<LocalImageService>();
           if (inf.isModelLoaded.value) {
             model = inf.loadedModelName.value
                 .replaceAll('.gguf', '')
@@ -205,26 +210,16 @@ class ChatView extends GetView<ChatController> {
           }
           if (model.length > 24) model = '${model.substring(0, 24)}…';
         } else {
-          final p = settings.cloudProvider.value;
-          model = p == 'openai'
-              ? settings.openaiModel.value
-              : p == 'anthropic'
-                  ? settings.anthropicModel.value
-                  : p == 'google'
-                      ? settings.googleModel.value
-                      : p == 'stability'
-                          ? settings.stabilityModel.value
-                          : p == 'nvidia'
-                              ? settings.nvidiaModel.value
-                              : p == 'openrouter'
-                                  ? settings.openRouterModel.value
-                                  : p == 'custom'
-                                      ? settings.customCloudModel.value
-                                      : settings.kimiModel.value;
-          if (p == 'custom' && model.isNotEmpty) {
+          // Single source of truth for the cloud label, shared with the model
+          // switcher sheet so the two can't drift.
+          model = settings.selectedCloudModelName;
+          if (settings.cloudProvider.value == 'custom' && model.isNotEmpty) {
             model = '${settings.customCloudName.value}: $model';
           }
         }
+        final statusColor = isLocal
+            ? (isLocalReady ? AppColors.success : AppColors.warning)
+            : AppColors.primary;
         final title = sid.isEmpty
             ? 'CubicLM'
             : controller.sessions.firstWhereOrNull((s) => s.id == sid)?.title ??
@@ -241,32 +236,35 @@ class ChatView extends GetView<ChatController> {
                     color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A)),
                 overflow: TextOverflow.ellipsis),
             const SizedBox(height: 3),
-            Row(children: [
-              Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: (isLocal ? (inf.isModelLoaded.value ? AppColors.success : AppColors.warning) : AppColors.primary).withValues(alpha: 0.4),
-                          blurRadius: 4,
-                        )
-                      ],
-                      color: isLocal
-                          ? (inf.isModelLoaded.value
-                              ? AppColors.success
-                              : AppColors.warning)
-                          : AppColors.primary)),
-              const SizedBox(width: 6),
-              Flexible(
-                  child: Text('$model · ${isLocal ? "Local" : "Cloud"}',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          color: Theme.of(context).hintColor,
-                          fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis)),
-            ]),
+            InkWell(
+              onTap: () => showModelSwitcherSheet(context),
+              borderRadius: BorderRadius.circular(8),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: statusColor.withValues(alpha: 0.4),
+                            blurRadius: 4,
+                          )
+                        ],
+                        color: statusColor)),
+                const SizedBox(width: 6),
+                Flexible(
+                    child: Text('$model · ${isLocal ? "Local" : "Cloud"}',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: Theme.of(context).hintColor,
+                            fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis)),
+                const SizedBox(width: 2),
+                Icon(Icons.expand_more_rounded,
+                    size: 16, color: Theme.of(context).hintColor),
+              ]),
+            ),
           ]),
         );
       }),

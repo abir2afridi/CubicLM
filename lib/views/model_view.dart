@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/cloud_model_controller.dart';
-import '../controllers/home_controller.dart';
 import '../controllers/model_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
@@ -657,9 +656,7 @@ class ModelView extends GetView<ModelController> {
                         if (configured) {
                           settings.setCloudProvider(provider.id);
                         } else {
-                          // Open Settings tab to configure API key
-                          final home = Get.find<HomeController>();
-                          home.currentTab.value = 3;
+                          _showProviderKeyDialog(context, cloudModels, provider, openModelsAfterSave: true);
                         }
                       },
                       style: FilledButton.styleFrom(
@@ -1065,6 +1062,180 @@ class ModelView extends GetView<ModelController> {
         controller.downloadModel(model);
       }
     }
+  }
+
+  Color _providerAccent(String provider) {
+    switch (provider) {
+      case 'openrouter':
+        return AppColors.success;
+      case 'deepseek':
+        return const Color(0xFF00B8A9);
+      case 'google':
+        return AppColors.warning;
+      case 'nvidia':
+        return const Color(0xFF76B900);
+      case 'custom':
+        return AppColors.info;
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  Widget _buildErrorBox(BuildContext context, String error) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        error,
+        style: GoogleFonts.plusJakartaSans(
+          fontSize: 11,
+          color: AppColors.error,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
+  }
+
+  void _showProviderKeyDialog(
+    BuildContext context,
+    CloudModelController cloud,
+    CloudProviderInfo provider, {
+    bool openModelsAfterSave = false,
+  }) {
+    final keyController = cloud.apiKeyControllerFor(provider.id);
+    final obscureKey = true.obs;
+    final isVerifying = false.obs;
+    final accent = _providerAccent(provider.id);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    Get.dialog(AlertDialog(
+      backgroundColor: isDark ? AppColors.surface : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      titlePadding: const EdgeInsets.fromLTRB(26, 26, 22, 0),
+      contentPadding: const EdgeInsets.fromLTRB(26, 20, 26, 10),
+      actionsPadding: const EdgeInsets.fromLTRB(22, 10, 22, 22),
+      title: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(provider.icon, color: accent, size: 29),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  provider.name,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  'API key required',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: Theme.of(context).hintColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Obx(
+              () => TextField(
+                controller: keyController,
+                obscureText: obscureKey.value,
+                style: GoogleFonts.firaCode(fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'API key',
+                  hintText: 'Paste ${provider.name} key',
+                  prefixIcon: const Icon(Icons.key_outlined, size: 23),
+                  suffixIcon: IconButton(
+                    tooltip: obscureKey.value ? 'Show API key' : 'Hide API key',
+                    onPressed: () => obscureKey.value = !obscureKey.value,
+                    icon: Icon(
+                      obscureKey.value
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      size: 24,
+                    ),
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 20, horizontal: 18),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Obx(() {
+              final error = cloud.errorByProvider[provider.id];
+              if (error == null || error.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildErrorBox(context, error),
+              );
+            }),
+            Text(
+              'Save the key to verify it and load live models.',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                color: Theme.of(context).hintColor,
+                height: 1.35,
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Get.back(closeOverlays: false),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          ),
+          child: Text('Cancel',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            final value = keyController.text.trim();
+            if (value.isEmpty || isVerifying.value) return;
+            isVerifying.value = true;
+            await cloud.saveApiKey(provider.id, value);
+            await cloud.refreshModels(provider.id);
+            isVerifying.value = false;
+            if ((cloud.errorByProvider[provider.id] ?? '').isNotEmpty) {
+              return;
+            }
+            Get.back(closeOverlays: false);
+          },
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+          ),
+          child:
+              Obx(() => Text(isVerifying.value ? 'Verifying...' : 'Save Key')),
+        ),
+      ],
+    ));
   }
 }
 
