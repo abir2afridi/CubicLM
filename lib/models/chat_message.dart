@@ -18,6 +18,7 @@ class ChatMessage {
   final double? tokensPerSec;
   final int? thoughtDurationSeconds;
   final int? imageGenDurationMs; // Time taken to generate image locally
+  final int? generationDurationMs; // Total time taken for text response
   final DateTime timestamp;
 
   /// Edit history: each entry is {'content': String, 'response': String?}
@@ -51,6 +52,7 @@ class ChatMessage {
     this.tokensPerSec,
     this.thoughtDurationSeconds,
     this.imageGenDurationMs,
+    this.generationDurationMs,
     DateTime? timestamp,
     this.revisions,
     this.revisionIndex = 0,
@@ -73,6 +75,7 @@ class ChatMessage {
         'tokensPerSec': tokensPerSec,
         'thoughtDurationSeconds': thoughtDurationSeconds,
         'imageGenDurationMs': imageGenDurationMs,
+        'generationDurationMs': generationDurationMs,
         'timestamp': timestamp.toIso8601String(),
         'revisions': revisions,
         'revisionIndex': revisionIndex,
@@ -101,6 +104,9 @@ class ChatMessage {
             : null,
         imageGenDurationMs: map['imageGenDurationMs'] != null
             ? (map['imageGenDurationMs'] as num).toInt()
+            : null,
+        generationDurationMs: map['generationDurationMs'] != null
+            ? (map['generationDurationMs'] as num).toInt()
             : null,
         timestamp: DateTime.tryParse(map['timestamp'] ?? '') ?? DateTime.now(),
         revisions: map['revisions'] != null

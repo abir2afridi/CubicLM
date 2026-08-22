@@ -656,23 +656,53 @@ class ChatView extends GetView<ChatController> {
             if (hasText && !isImageGen)
               Obx(() {
                 final inf = Get.find<InferenceService>();
-                if (inf.tokensPerSecond.value <= 0) {
+                final tps = inf.tokensPerSecond.value;
+                final duration = controller.generationLiveDurationSecs.value;
+                if (tps <= 0 && duration <= 0) {
                   return const SizedBox.shrink();
                 }
                 return Padding(
                     padding: const EdgeInsets.only(top: 10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                          '${inf.tokensPerSecond.value.toStringAsFixed(1)} tok/s',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10,
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w700)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (tps > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                                '${tps.toStringAsFixed(1)} tok/s',
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 10,
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.w700)),
+                          ),
+                        if (tps > 0 && duration > 0) const SizedBox(width: 8),
+                        if (duration > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _PulsingTimerDot(),
+                                const SizedBox(width: 4),
+                                Text(
+                                    '${duration}s',
+                                    style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 10,
+                                        color: AppColors.primary,
+                                        fontWeight: FontWeight.w800)),
+                              ],
+                            ),
+                          ),
+                      ],
                     ));
               }),
           ]),
@@ -1505,6 +1535,45 @@ class _PulsingDotState extends State<_PulsingDot>
         height: 10,
         decoration: const BoxDecoration(
             color: AppColors.error, shape: BoxShape.circle),
+      ),
+    );
+  }
+}
+
+class _PulsingTimerDot extends StatefulWidget {
+  const _PulsingTimerDot();
+
+  @override
+  State<_PulsingTimerDot> createState() => _PulsingTimerDotState();
+}
+
+class _PulsingTimerDotState extends State<_PulsingTimerDot>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1000))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _c,
+      child: Container(
+        width: 6,
+        height: 6,
+        decoration: const BoxDecoration(
+            color: AppColors.primary, shape: BoxShape.circle),
       ),
     );
   }

@@ -193,6 +193,12 @@ class SettingsView extends GetView<SettingsController> {
                               style: GoogleFonts.plusJakartaSans(
                                   fontSize: 18, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 2),
+                          Text('Developed by Abir Hasan Siam (CodeCraftedStudio)',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary.withValues(alpha: 0.7))),
+                          const SizedBox(height: 1),
                           Text(
                               controller.appVersion.value.isEmpty
                                    ? 'Engineering Build'

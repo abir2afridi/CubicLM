@@ -72,6 +72,9 @@ class ChatController extends GetxController {
   final streamingResponse = ''.obs;
   final isStreaming = false.obs;
   final streamingAttachmentType = Rxn<String>();
+  final generationStartTime = Rxn<DateTime>();
+  final generationLiveDurationSecs = 0.obs;
+  Timer? _generationTimer;
 
   // Image generation progress (lightweight, replaces text-heavy updates)
   final imageGenStep = 0.obs;
@@ -568,6 +571,15 @@ class ChatController extends GetxController {
     streamingAttachmentType.value =
         (imagePath != null || fileType == 'audio') ? fileType : null;
     streamingResponse.value = '';
+    generationStartTime.value = DateTime.now();
+    generationLiveDurationSecs.value = 0;
+    _generationTimer?.cancel();
+    _generationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (generationStartTime.value != null) {
+        generationLiveDurationSecs.value =
+            DateTime.now().difference(generationStartTime.value!).inSeconds;
+      }
+    });
     _followStreaming = true;
     _scrollToBottom(force: true);
 
@@ -724,13 +736,25 @@ class ChatController extends GetxController {
 
       if (generationId != _generationSerial) return;
 
-      // Stop streaming UI
       final tps = inferenceMode == 'local'
           ? Get.find<InferenceService>().tokensPerSecond.value
           : null;
+      
+      final totalDurationMs = generationStartTime.value != null
+          ? DateTime.now().difference(generationStartTime.value!).inMilliseconds
+          : null;
+      
+      final imageDurationMs = imageGenStartTime.value != null
+          ? DateTime.now().difference(imageGenStartTime.value!).inMilliseconds
+          : null;
+
+      _generationTimer?.cancel();
+      _generationTimer = null;
       isStreaming.value = false;
       streamingAttachmentType.value = null;
       streamingResponse.value = '';
+      generationStartTime.value = null;
+      generationLiveDurationSecs.value = 0;
       imageGenStep.value = 0;
       imageGenTotal.value = 0;
       imageGenDecoding.value = false;
@@ -741,10 +765,6 @@ class ChatController extends GetxController {
         rawResponse = 'Here is your generated image:';
       }
 
-      final genDurationMs = imageGenStartTime.value != null
-          ? DateTime.now().difference(imageGenStartTime.value!).inMilliseconds
-          : null;
-
       final aiMsg = ChatMessage(
         id: _uuid.v4(),
         chatId: currentSessionId.value,
@@ -753,7 +773,8 @@ class ChatController extends GetxController {
         imageBase64: outImageBase64,
         tokensPerSec: tps,
         thoughtDurationSeconds: thoughtDurationSeconds,
-        imageGenDurationMs: genDurationMs,
+        imageGenDurationMs: imageDurationMs,
+        generationDurationMs: totalDurationMs,
       );
       
       if (insertAt != null && insertAt >= 0 && insertAt <= messages.length) {
@@ -806,18 +827,28 @@ class ChatController extends GetxController {
   void stopGenerating() {
     if (!isLoading.value && !isStreaming.value) return;
     final partialResponse = streamingResponse.value.trim();
+    
+    final genDurationMs = generationStartTime.value != null
+        ? DateTime.now().difference(generationStartTime.value!).inMilliseconds
+        : null;
+
     if (partialResponse.isNotEmpty) {
       final tps = Get.find<InferenceService>().tokensPerSecond.value;
       _saveAssistantMessage(
         content: partialResponse,
         tokensPerSec: tps > 0 ? tps : null,
+        generationDurationMs: genDurationMs,
       );
     }
     _generationSerial++;
+    _generationTimer?.cancel();
+    _generationTimer = null;
     isLoading.value = false;
     isStreaming.value = false;
     streamingAttachmentType.value = null;
     streamingResponse.value = '';
+    generationStartTime.value = null;
+    generationLiveDurationSecs.value = 0;
     Get.find<ImageGenerationNotificationService>().cancel();
     imageGenStep.value = 0;
     imageGenTotal.value = 0;
@@ -1062,6 +1093,7 @@ class ChatController extends GetxController {
     String? imageBase64,
     double? tokensPerSec,
     int? thoughtDurationSeconds,
+    int? generationDurationMs,
   }) {
     final aiMsg = ChatMessage(
       id: _uuid.v4(),
@@ -1071,6 +1103,7 @@ class ChatController extends GetxController {
       imageBase64: imageBase64,
       tokensPerSec: tokensPerSec,
       thoughtDurationSeconds: thoughtDurationSeconds,
+      generationDurationMs: generationDurationMs,
     );
     messages.add(aiMsg);
     _hive.saveMessage(aiMsg.id, aiMsg.toMap());

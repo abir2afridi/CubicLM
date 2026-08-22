@@ -190,6 +190,16 @@ class ChatBubble extends StatelessWidget {
                                   context,
                                 ),
                               ),
+                            if (message.generationDurationMs != null && message.generationDurationMs! > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: _infoBadge(
+                                  _formatGenTime(message.generationDurationMs!),
+                                  isUser,
+                                  context,
+                                  icon: Icons.timer_outlined,
+                                ),
+                              ),
                             Text(
                               _formatTime(message.timestamp),
                               style: GoogleFonts.plusJakartaSans(
@@ -406,7 +416,7 @@ class ChatBubble extends StatelessWidget {
     );
   }
 
-  Widget _infoBadge(String label, bool isUser, BuildContext context) {
+  Widget _infoBadge(String label, bool isUser, BuildContext context, {IconData? icon}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -415,13 +425,22 @@ class ChatBubble extends StatelessWidget {
             : AppColors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(
-        label,
-        style: GoogleFonts.plusJakartaSans(
-          fontSize: 9,
-          color: isUser ? Colors.white : AppColors.primary,
-          fontWeight: FontWeight.w700,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 10, color: isUser ? Colors.white : AppColors.primary),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 9,
+              color: isUser ? Colors.white : AppColors.primary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
