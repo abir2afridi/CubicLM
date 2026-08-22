@@ -99,7 +99,7 @@ class _ThoughtDisclosureState extends State<ThoughtDisclosure>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final muted = Theme.of(context).hintColor;
-    final accentColor = AppColors.primary;
+    const accentColor = AppColors.primary;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),

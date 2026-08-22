@@ -235,6 +235,46 @@ class AppConstants {
       'template': 'llama3',
     },
     {
+      'name': 'Qwen 3.8 27B (IQ2_S)',
+      'filename': 'Qwen3.8-27B-UD-IQ2_S.gguf',
+      'url':
+          'https://huggingface.co/unsloth/Qwen3.8-27B-GGUF/resolve/main/Qwen3.8-27B-UD-IQ2_S.gguf',
+      'size': '8.37 GB',
+      'description':
+          'Massive 27B model with ultra-deficiency 2-bit quant — needs ~10 GB RAM',
+      'template': 'chatml',
+    },
+    {
+      'name': 'SmolLM2 360M Instruct (F16)',
+      'filename': 'SmolLM2-360M-Instruct-f16.gguf',
+      'url':
+          'https://huggingface.co/bartowski/SmolLM2-360M-Instruct-GGUF/resolve/main/SmolLM2-360M-Instruct-f16.gguf',
+      'size': '0.73 GB',
+      'description':
+          'Extremely compact 360M model in full F16 precision — ultra-fast',
+      'template': 'chatml',
+    },
+    {
+      'name': 'LiquidAI LFM2.5 230M (Q4_K_M)',
+      'filename': 'LFM2.5-230M-Q4_K_M.gguf',
+      'url':
+          'https://huggingface.co/LiquidAI/LFM2.5-230M-GGUF/resolve/main/LFM2.5-230M-Q4_K_M.gguf',
+      'size': '153 MB',
+      'description':
+          'Hybrid edge-AI model by Liquid AI — optimized for on-device speed',
+      'template': 'chatml',
+    },
+    {
+      'name': 'Qwen2.5 0.5B Instruct (Q8_0)',
+      'filename': 'qwen2.5-0.5b-instruct-q8_0.gguf',
+      'url':
+          'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q8_0.gguf',
+      'size': '0.68 GB',
+      'description':
+          'Tiny 0.5B model with max-quality Q8 quant — blazing fast',
+      'template': 'chatml',
+    },
+    {
       'name': 'DreamShaper 8 LCM (SD 1.5)',
       'filename': 'DreamShaper8_LCM.safetensors',
       'url':

@@ -465,7 +465,7 @@ class ChatView extends GetView<ChatController> {
                           data: answer,
                           selectable: true,
                           styleSheet: _streamMd(context, isDark))),
-                  _BlinkingCursor(color: AppColors.primary),
+                  const _BlinkingCursor(color: AppColors.primary),
                 ]),
             ],
             if (hasText && !isImageGen)

@@ -198,7 +198,7 @@ class TaskView extends GetView<TaskController> {
 
   Widget _stepStatusIcon(BuildContext context, String status, bool isDark) {
     switch (status) {
-      case 'running': return SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary));
+      case 'running': return const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary));
       case 'done': return const Icon(Icons.check_circle_rounded, size: 20, color: AppColors.success);
       case 'failed': return const Icon(Icons.error_rounded, size: 20, color: AppColors.error);
       default: return Icon(Icons.circle_outlined, size: 20, color: Theme.of(context).hintColor);

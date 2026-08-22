@@ -59,7 +59,7 @@ class AppTheme {
           color: textPrimary,
           letterSpacing: -0.5,
         ),
-        iconTheme: IconThemeData(color: AppColors.primary),
+        iconTheme: const IconThemeData(color: AppColors.primary),
         systemOverlayStyle: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
       ),
 
