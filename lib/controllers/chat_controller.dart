@@ -810,7 +810,47 @@ class ChatController extends GetxController {
     Get.find<LocalImageService>().cancelGeneration();
   }
 
-  // ─── Regenerate / Branch ─────────────────────────
+  // ─── Edit / Regenerate / Branch ─────────────────────────
+
+  void editMessage(ChatMessage msg, String newContent) {
+    if (isLoading.value || isStreaming.value) return;
+    if (msg.role != 'user') return;
+    final idx = messages.indexWhere((m) => m.id == msg.id);
+    if (idx < 0) return;
+
+    // Update the user message content
+    final updated = ChatMessage(
+      id: msg.id,
+      chatId: msg.chatId,
+      role: msg.role,
+      content: newContent,
+      imageBase64: msg.imageBase64,
+      imagePath: msg.imagePath,
+      fileName: msg.fileName,
+      fileContent: msg.fileContent,
+      filePath: msg.filePath,
+      fileType: msg.fileType,
+      fileSize: msg.fileSize,
+      tokensPerSec: msg.tokensPerSec,
+      thoughtDurationSeconds: msg.thoughtDurationSeconds,
+      imageGenDurationMs: msg.imageGenDurationMs,
+      timestamp: msg.timestamp,
+    );
+    messages[idx] = updated;
+    _hive.saveMessage(updated.id, updated.toMap());
+
+    // Delete any assistant reply that followed this message
+    if (idx + 1 < messages.length && messages[idx + 1].role == 'assistant') {
+      _hive.deleteMessage(messages[idx + 1].id);
+      messages.removeAt(idx + 1);
+    }
+
+    // Re-send with the edited content
+    textController.text = newContent;
+    inputText.value = newContent;
+    _scrollToBottom(force: true);
+    sendMessage();
+  }
 
   void regenerateFromMessage(ChatMessage msg) {
     if (isLoading.value || isStreaming.value) return;

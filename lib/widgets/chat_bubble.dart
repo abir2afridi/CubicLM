@@ -15,6 +15,7 @@ class ChatBubble extends StatelessWidget {
   final VoidCallback? onCopy;
   final VoidCallback? onRetry;
   final VoidCallback? onBranch;
+  final VoidCallback? onEdit;
 
   const ChatBubble({
     super.key,
@@ -22,6 +23,7 @@ class ChatBubble extends StatelessWidget {
     this.onCopy,
     this.onRetry,
     this.onBranch,
+    this.onEdit,
   });
 
   @override
@@ -41,159 +43,248 @@ class ChatBubble extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Align(
-        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-        child: GestureDetector(
-          onLongPress: () => _showContextMenu(context, isUser),
-          child: Container(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.82,
-            ),
-            decoration: BoxDecoration(
-              gradient: isUser ? AppColors.userGradient : null,
-              color: isUser ? null : (isDark ? AppColors.surface : const Color(0xFFF1F5F9)),
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(22),
-                topRight: const Radius.circular(22),
-                bottomLeft: Radius.circular(isUser ? 22 : 6),
-                bottomRight: Radius.circular(isUser ? 6 : 22),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Align(
+            alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+            child: GestureDetector(
+              onLongPress: () => _showContextMenu(context, isUser),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.82,
                 ),
-              ],
-              border: isUser ? null : Border.all(
-                color: isDark ? AppColors.border : AppColors.borderLightMode,
-                width: 0.5,
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.only(
-                topLeft: const Radius.circular(22),
-                topRight: const Radius.circular(22),
-                bottomLeft: Radius.circular(isUser ? 22 : 6),
-                bottomRight: Radius.circular(isUser ? 6 : 22),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Image attachment
-                    if (message.decodedImageBytes != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: GestureDetector(
-                          onTap: () => ImageViewer.show(context, message.imageBase64!),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: Image.memory(
-                              message.decodedImageBytes!,
-                              width: double.infinity,
-                              height: 220,
-                              fit: BoxFit.cover,
-                              gaplessPlayback: true,
-                              errorBuilder: (_, __, ___) => Container(
-                                height: 100,
-                                decoration: BoxDecoration(
-                                  color: isDark
-                                      ? Colors.white.withValues(alpha: 0.05)
-                                      : Colors.black.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(16),
+                decoration: BoxDecoration(
+                  gradient: isUser ? AppColors.userGradient : null,
+                  color: isUser ? null : (isDark ? AppColors.surface : const Color(0xFFF1F5F9)),
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(22),
+                    topRight: const Radius.circular(22),
+                    bottomLeft: Radius.circular(isUser ? 22 : 6),
+                    bottomRight: Radius.circular(isUser ? 6 : 22),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                  border: isUser ? null : Border.all(
+                    color: isDark ? AppColors.border : AppColors.borderLightMode,
+                    width: 0.5,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(22),
+                    topRight: const Radius.circular(22),
+                    bottomLeft: Radius.circular(isUser ? 22 : 6),
+                    bottomRight: Radius.circular(isUser ? 6 : 22),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Image attachment
+                        if (message.decodedImageBytes != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: GestureDetector(
+                              onTap: () => ImageViewer.show(context, message.imageBase64!),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(16),
+                                child: Image.memory(
+                                  message.decodedImageBytes!,
+                                  width: double.infinity,
+                                  height: 220,
+                                  fit: BoxFit.cover,
+                                  gaplessPlayback: true,
+                                  errorBuilder: (_, __, ___) => Container(
+                                    height: 100,
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.05)
+                                          : Colors.black.withValues(alpha: 0.05),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: const Center(child: Icon(Icons.broken_image_rounded, size: 28)),
+                                  ),
                                 ),
-                                child: const Center(child: Icon(Icons.broken_image_rounded, size: 28)),
                               ),
                             ),
                           ),
-                        ),
-                      ),
 
-                    // Thought disclosure
-                    if (!isUser && thoughtParts.hasThought)
-                      ThoughtDisclosure(
-                        thought: thoughtParts.thought,
-                        durationSeconds: message.thoughtDurationSeconds,
-                        styleSheet: _thoughtMarkdownStyle(context),
-                      ),
+                        // Thought disclosure
+                        if (!isUser && thoughtParts.hasThought)
+                          ThoughtDisclosure(
+                            thought: thoughtParts.thought,
+                            durationSeconds: message.thoughtDurationSeconds,
+                            styleSheet: _thoughtMarkdownStyle(context),
+                          ),
 
-                    // Message content
-                    if (isUser)
-                      SelectableText(
-                        visibleContent,
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          color: Colors.white,
-                          height: 1.5,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      )
-                    else if (answerContent.isNotEmpty)
-                      MarkdownBody(
-                        data: answerContent,
-                        selectable: true,
-                        styleSheet: _markdownStyle(context),
-                        builders: {
-                          'code': CodeBlockBuilder(context),
-                          'pre': CodeBlockBuilder(context),
-                        },
-                      ),
-
-                    // File attachment
-                    if (message.fileName != null) ...[
-                      const SizedBox(height: 12),
-                      AttachmentPreview(
-                        fileName: message.fileName!,
-                        fileType: message.fileType,
-                        fileSize: message.fileSize,
-                        imageBase64: message.imageBase64,
-                        imagePath: message.imagePath,
-                        compact: true,
-                      ),
-                    ],
-
-                    // Footer info
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (message.tokensPerSec != null && message.tokensPerSec! > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 10),
-                            child: _infoBadge(
-                              '${message.tokensPerSec!.toStringAsFixed(1)} tok/s',
-                              isUser,
-                              context,
+                        // Message content
+                        if (isUser)
+                          SelectableText(
+                            visibleContent,
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15,
+                              color: Colors.white,
+                              height: 1.5,
+                              fontWeight: FontWeight.w500,
                             ),
+                          )
+                        else if (answerContent.isNotEmpty)
+                          MarkdownBody(
+                            data: answerContent,
+                            selectable: true,
+                            styleSheet: _markdownStyle(context),
+                            builders: {
+                              'code': CodeBlockBuilder(context),
+                              'pre': CodeBlockBuilder(context),
+                            },
                           ),
-                        if (message.imageGenDurationMs != null && message.imageGenDurationMs! > 0)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 10),
-                            child: _infoBadge(
-                              _formatGenTime(message.imageGenDurationMs!),
-                              isUser,
-                              context,
+
+                        // File attachment
+                        if (message.fileName != null) ...[
+                          const SizedBox(height: 12),
+                          AttachmentPreview(
+                            fileName: message.fileName!,
+                            fileType: message.fileType,
+                            fileSize: message.fileSize,
+                            imageBase64: message.imageBase64,
+                            imagePath: message.imagePath,
+                            compact: true,
+                          ),
+                        ],
+
+                        // Footer info
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (message.tokensPerSec != null && message.tokensPerSec! > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: _infoBadge(
+                                  '${message.tokensPerSec!.toStringAsFixed(1)} tok/s',
+                                  isUser,
+                                  context,
+                                ),
+                              ),
+                            if (message.imageGenDurationMs != null && message.imageGenDurationMs! > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: _infoBadge(
+                                  _formatGenTime(message.imageGenDurationMs!),
+                                  isUser,
+                                  context,
+                                ),
+                              ),
+                            Text(
+                              _formatTime(message.timestamp),
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                color: isUser
+                                    ? Colors.white.withValues(alpha: 0.6)
+                                    : AppColors.textMuted.withValues(alpha: 0.7),
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                        Text(
-                          _formatTime(message.timestamp),
-                          style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10,
-                            color: isUser
-                                ? Colors.white.withValues(alpha: 0.6)
-                                : AppColors.textMuted.withValues(alpha: 0.7),
-                            fontWeight: FontWeight.w500,
-                          ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
+
+          // Inline action bar
+          _buildActionBar(context, isUser, isDark),
+        ],
+      ),
+    );
+  }
+
+  // ── Inline action bar below message ──
+  Widget _buildActionBar(BuildContext context, bool isUser, bool isDark) {
+    final iconColor = isDark
+        ? AppColors.textMuted.withValues(alpha: 0.6)
+        : const Color(0xFF94A3B8);
+    const double iconSize = 16;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isUser) ...[
+            // User: Edit + Copy
+            if (onEdit != null)
+              _actionButton(
+                icon: Icons.edit_outlined,
+                tooltip: 'Edit',
+                onTap: onEdit!,
+                color: iconColor,
+                size: iconSize,
+              ),
+            _actionButton(
+              icon: Icons.copy_rounded,
+              tooltip: 'Copy',
+              onTap: () => Clipboard.setData(ClipboardData(text: message.content)),
+              color: iconColor,
+              size: iconSize,
+            ),
+          ] else ...[
+            // Assistant: Copy + Regenerate + Branch
+            _actionButton(
+              icon: Icons.copy_rounded,
+              tooltip: 'Copy',
+              onTap: () => Clipboard.setData(ClipboardData(text: message.content)),
+              color: iconColor,
+              size: iconSize,
+            ),
+            if (onRetry != null)
+              _actionButton(
+                icon: Icons.refresh_rounded,
+                tooltip: 'Regenerate',
+                onTap: onRetry!,
+                color: iconColor,
+                size: iconSize,
+              ),
+            if (onBranch != null)
+              _actionButton(
+                icon: Icons.call_split_rounded,
+                tooltip: 'Branch in new chat',
+                onTap: onBranch!,
+                color: iconColor,
+                size: iconSize,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _actionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+    required Color color,
+    required double size,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Icon(icon, size: size, color: color),
         ),
       ),
     );

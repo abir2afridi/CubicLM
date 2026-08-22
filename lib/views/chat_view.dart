@@ -6,6 +6,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/chat_controller.dart';
+import '../models/chat_message.dart';
 import '../controllers/settings_controller.dart';
 import '../controllers/model_controller.dart';
 import '../controllers/home_controller.dart';
@@ -65,12 +66,66 @@ class ChatView extends GetView<ChatController> {
                      },
                      onRetry: () => controller.regenerateFromMessage(controller.messages[i]),
                      onBranch: () => controller.branchNewChat(controller.messages[i]),
+                     onEdit: controller.messages[i].role == 'user'
+                         ? () => _showEditDialog(context, controller.messages[i])
+                         : null,
                    );
                 },
               ),
             );
           })),
           _inputBar(context, isDark),
+        ],
+      ),
+    );
+  }
+
+  void _showEditDialog(BuildContext context, ChatMessage msg) {
+    final editController = TextEditingController(text: msg.content);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: isDark ? AppColors.surface : Colors.white,
+        title: Text('Edit message',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+        content: TextField(
+          controller: editController,
+          maxLines: null,
+          minLines: 3,
+          autofocus: true,
+          style: GoogleFonts.plusJakartaSans(fontSize: 15),
+          decoration: InputDecoration(
+            hintText: 'Edit your message...',
+            hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.textMuted),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.primary),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel',
+                style: GoogleFonts.plusJakartaSans(color: AppColors.textMuted)),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: () {
+              final newContent = editController.text.trim();
+              if (newContent.isNotEmpty && newContent != msg.content) {
+                controller.editMessage(msg, newContent);
+              }
+              Navigator.pop(context);
+            },
+            child: Text('Send',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+          ),
         ],
       ),
     );
