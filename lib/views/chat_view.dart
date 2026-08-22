@@ -831,7 +831,10 @@ class ChatView extends GetView<ChatController> {
                   onTap: onTap,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 250),
-                    curve: Curves.elasticOut,
+                    // Non-overshooting curve: elasticOut drives t past 1.0, which
+                    // lerps boxShadow.blurRadius below zero and trips the
+                    // "blur radius should be non-negative" assert in Shadow.
+                    curve: Curves.easeOutCubic,
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(

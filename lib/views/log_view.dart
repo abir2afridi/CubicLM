@@ -74,12 +74,16 @@ class LogView extends StatelessWidget {
           Container(
             height: 60,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Obx(() => ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: filters.length,
-              itemBuilder: (context, index) {
-                final filter = filters[index];
-                final isSelected = selectedFilter.value == filter;
+            child: Obx(() {
+              // Read the observable eagerly: itemBuilder runs during layout,
+              // after Obx has already checked for registered observables.
+              final current = selectedFilter.value;
+              return ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: filters.length,
+                itemBuilder: (context, index) {
+                  final filter = filters[index];
+                  final isSelected = current == filter;
                 final color = filter == 'ALL'
                     ? (isDark ? Colors.white : Colors.black)
                     : levelColor(filter);
@@ -107,7 +111,8 @@ class LogView extends StatelessWidget {
                   ),
                 );
               },
-            )),
+              );
+            }),
           ),
           // Log list
           Expanded(
