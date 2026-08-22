@@ -446,14 +446,9 @@ class ChatBubble extends StatelessWidget {
       code: GoogleFonts.firaCode(
         fontSize: 13,
         color: color,
-        backgroundColor: codeBlockBg,
       ),
-      codeblockDecoration: BoxDecoration(
-        color: codeBlockBg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.1), width: 0.5),
-      ),
-      codeblockPadding: const EdgeInsets.all(16),
+      codeblockDecoration: const BoxDecoration(),
+      codeblockPadding: EdgeInsets.zero,
       blockquote: base.copyWith(color: muted, fontSize: 14),
       blockquoteDecoration: BoxDecoration(
         color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.03),

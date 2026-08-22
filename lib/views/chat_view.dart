@@ -1233,9 +1233,9 @@ class ChatView extends GetView<ChatController> {
         ),
         blockquotePadding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
         code: GoogleFonts.firaCode(
-            fontSize: 13, color: clr, backgroundColor: codeBg),
-        codeblockDecoration: BoxDecoration(
-            color: codeBg, borderRadius: BorderRadius.circular(14)));
+            fontSize: 13, color: clr),
+        codeblockDecoration: const BoxDecoration(),
+        codeblockPadding: EdgeInsets.zero);
   }
 
   MarkdownStyleSheet _thoughtMd(BuildContext c, bool isDark) {
