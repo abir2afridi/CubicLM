@@ -146,7 +146,7 @@ class ServerView extends GetView<ServerController> {
                     IconButton(
                         tooltip: 'Rotate Key',
                         onPressed: controller.generateApiKey,
-                        icon: Icon(Icons.refresh_rounded,
+                        icon: const Icon(Icons.refresh_rounded,
                             size: 22, color: accent)),
                     IconButton(
                         tooltip: 'Copy',

@@ -784,6 +784,120 @@ class ModelView extends GetView<ModelController> {
     if (confirmed) await controller.deleteModel(filename);
   }
 
+  void _confirmDownload(BuildContext context, AiModel model,
+      {bool isToDownloadsFolder = false}) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(
+              isToDownloadsFolder
+                  ? Icons.save_alt
+                  : Icons.cloud_download_outlined,
+              color: AppColors.primary,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                isToDownloadsFolder ? 'Save to Downloads' : 'Download Model',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isToDownloadsFolder
+                  ? 'You are about to save ${model.name} to your phone\'s public Downloads folder.'
+                  : 'You are about to download ${model.name} for use in the app.',
+              style:
+                  GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.sd_storage_outlined, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Size: ${controller.modelSizeLabel(model)}',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border:
+                    Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.wifi, color: AppColors.warning, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'A Wi-Fi connection is highly recommended. Please keep the app open during the download.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        color: Theme.of(ctx).brightness == Brightness.dark
+                            ? const Color(0xFFFFD60A)
+                            : AppColors.warning,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.plusJakartaSans(color: Theme.of(ctx).hintColor),
+            ),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              if (isToDownloadsFolder) {
+                controller.downloadModelToDownloads(model);
+              } else {
+                controller.downloadModel(model);
+              }
+            },
+            style: FilledButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+            ),
+            child: Text(isToDownloadsFolder ? 'Save Now' : 'Download Now',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildModelCard(BuildContext context, AiModel model) {
     return Obx(() {
       final isDownloaded = controller.isDownloaded(model.filename);
@@ -905,9 +1019,19 @@ class ModelView extends GetView<ModelController> {
                         ),
                       )
                     else if (!isCurrentlyDownloading && !isDownloaded)
-                      const Padding(
-                        padding: EdgeInsets.only(left: 12, top: 12),
-                        child: Icon(Icons.cloud_download_rounded, size: 20, color: AppColors.primary),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12, top: 4),
+                        child: IconButton(
+                          tooltip: 'Download model',
+                          onPressed: disableActions
+                              ? null
+                              : () => _confirmDownload(context, model),
+                          icon: const Icon(
+                            Icons.cloud_download_rounded,
+                            size: 22,
+                            color: AppColors.primary,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -1029,39 +1153,6 @@ class ModelView extends GetView<ModelController> {
         ],
       );
     });
-  }
-
-  Future<void> _confirmDownload(BuildContext context, AiModel model, {bool isToDownloadsFolder = false}) async {
-    final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: Text('Download model?',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-            content: Text(
-                isToDownloadsFolder 
-                  ? 'Download ${model.name} to your device downloads folder?' 
-                  : 'Download ${model.name} for local inference?',
-                style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Download'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
-    if (confirmed) {
-      if (isToDownloadsFolder) {
-        controller.downloadModelToDownloads(model);
-      } else {
-        controller.downloadModel(model);
-      }
-    }
   }
 
   Color _providerAccent(String provider) {
@@ -1779,7 +1870,6 @@ class _SheetTextField extends StatelessWidget {
   final String hint;
   final IconData prefixIcon;
   final TextInputType? keyboardType;
-  final int maxLines;
   final Color bg;
   final Color border;
 
@@ -1788,7 +1878,6 @@ class _SheetTextField extends StatelessWidget {
     required this.hint,
     required this.prefixIcon,
     this.keyboardType,
-    this.maxLines = 1,
     required this.bg,
     required this.border,
   });
@@ -1805,7 +1894,7 @@ class _SheetTextField extends StatelessWidget {
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
-        maxLines: maxLines,
+        maxLines: 1,
         style: GoogleFonts.plusJakartaSans(
             fontSize: 14,
             color: isDark ? Colors.white : Colors.black87,

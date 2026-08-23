@@ -8,6 +8,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../core/constants.dart';
 import '../services/hive_service.dart';
 import '../services/app_log_service.dart';
+import '../services/inference_service.dart';
+import '../services/download_service.dart';
 import '../services/local_image_service.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import 'package:sd_flutter_android/sd_flutter_android.dart';
@@ -125,6 +127,7 @@ class SettingsController extends GetxController {
     customCloudModelController.dispose();
     _apiKeyDebounceTimer?.cancel();
     _modelDebounceTimer?.cancel();
+    _contextReloadTimer?.cancel();
     super.onClose();
   }
 
@@ -659,6 +662,64 @@ class SettingsController extends GetxController {
   Future<void> setContextSize(int value) async {
     contextSize.value = value;
     await _hive.setSetting(AppConstants.keyContextSize, value);
+    _scheduleContextReload();
+  }
+
+  Timer? _contextReloadTimer;
+  bool _isReloadingForContext = false;
+
+  /// Context size is baked into the model at load time, so a live reload is
+  /// required for the change to take effect. Debounced because the slider
+  /// fires onChanged continuously while dragging.
+  void _scheduleContextReload() {
+    if (_isReloadingForContext) return;
+    _contextReloadTimer?.cancel();
+    _contextReloadTimer = Timer(const Duration(milliseconds: 900), () {
+      _reloadTextModelForContextSize();
+    });
+  }
+
+  Future<void> _reloadTextModelForContextSize() async {
+    try {
+      if (!Get.isRegistered<InferenceService>()) return;
+      final inference = Get.find<InferenceService>();
+      if (!inference.isModelLoaded.value ||
+          inference.isLoadingModel.value ||
+          inference.isGenerating.value ||
+          _isReloadingForContext) {
+        // No model resident (or busy): the saved value applies on next load.
+        return;
+      }
+      final path =
+          _hive.getSetting<String>(AppConstants.keyLocalModelPath) ?? '';
+      if (path.isEmpty) return;
+      final name =
+          _hive.getSetting<String>(AppConstants.keyLocalModelName) ?? '';
+      final runtime =
+          _hive.getSetting<String>(AppConstants.keyLocalModelRuntime) ?? '';
+      final wasVision = inference.isVisionLoaded.value;
+
+      _isReloadingForContext = true;
+      Get.snackbar(
+        'Context Size',
+        'Reloading ${name.isNotEmpty ? name : 'model'} to apply the new context window…',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+      );
+      await inference.loadModel(
+        path,
+        modelName: name.isEmpty ? null : name,
+        modelRuntime: runtime.isEmpty ? null : runtime,
+        enableLiteRtVision: wasVision,
+      );
+      _isReloadingForContext = false;
+    } catch (e) {
+      _isReloadingForContext = false;
+      Get.find<AppLogService>().error(
+        'Context-size reload failed',
+        details: e.toString(),
+      );
+    }
   }
 
   Future<void> setLiteRtPerformanceMode(String mode) async {
@@ -741,8 +802,58 @@ class SettingsController extends GetxController {
     await _hive.setSetting(AppConstants.keyImageGenBackend, backend.index);
     await _hive.setSetting(
         AppConstants.keyImageGenForceCpu, imageGenForceCpu.value);
-    if (Get.isRegistered<LocalImageService>()) {
-      Get.find<LocalImageService>().setBackend(backend);
+    if (!Get.isRegistered<LocalImageService>()) return;
+    final image = Get.find<LocalImageService>();
+    final previous = image.currentBackend.value;
+    image.setBackend(backend);
+    // The backend only takes effect at load time — reload a resident image
+    // model immediately so the toggle is not silently ignored.
+    if (image.isModelLoaded.value &&
+        !image.isLoadingModel.value &&
+        !image.isGenerating.value &&
+        previous != backend) {
+      await _reloadImageModelForBackend();
+    }
+  }
+
+  Future<void> _reloadImageModelForBackend() async {
+    try {
+      final image = Get.find<LocalImageService>();
+      final path =
+          _hive.getSetting<String>(AppConstants.keyImageModelPath) ?? '';
+      final name =
+          _hive.getSetting<String>(AppConstants.keyImageModelName) ?? '';
+      if (path.isEmpty) return;
+      Get.snackbar(
+        'Compute Backend',
+        'Reloading ${name.isNotEmpty ? name : 'image model'} on ${imageGenBackend.value == Backend.cpu ? 'CPU' : 'GPU'}…',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2),
+      );
+      String? taesdPath;
+      try {
+        if (Get.isRegistered<DownloadService>() &&
+            await Get.find<DownloadService>()
+                .isModelDownloaded('taesd.safetensors')) {
+          taesdPath = await Get.find<DownloadService>()
+              .modelPath('taesd.safetensors');
+        }
+      } catch (_) {}
+      await image.unloadModel();
+      final result = await image.loadModel(path,
+          modelName: name.isEmpty ? null : name, taesdPath: taesdPath);
+      final ok = image.isModelLoaded.value;
+      Get.snackbar(
+        ok ? 'Compute Backend' : 'Reload Failed',
+        result,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: Duration(seconds: ok ? 2 : 6),
+      );
+    } catch (e) {
+      Get.find<AppLogService>().error(
+        'Backend reload failed',
+        details: e.toString(),
+      );
     }
   }
 

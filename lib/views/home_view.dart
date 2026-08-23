@@ -53,7 +53,7 @@ class HomeView extends GetView<HomeController> {
             ChatView(),
             const ModelView(),
             const ServerView(),
-            SettingsView()
+            const SettingsView()
           ],
         );
         if (_isWide) {

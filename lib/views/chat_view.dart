@@ -144,7 +144,7 @@ class ChatView extends GetView<ChatController> {
             hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.textMuted),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppColors.border),
+              borderSide: const BorderSide(color: AppColors.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -689,7 +689,7 @@ class ChatView extends GetView<ChatController> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                _PulsingTimerDot(),
+                                const _PulsingTimerDot(),
                                 const SizedBox(width: 4),
                                 Text(
                                     '${duration}s',
@@ -992,7 +992,7 @@ class ChatView extends GetView<ChatController> {
   }
 
   // ── Sidebar Drawer ──
-  String _sidebarQuery = '';
+  final RxString _sidebarQuery = ''.obs;
   Widget _buildSidebar(BuildContext context, bool isDark) {
     return Drawer(
       backgroundColor: isDark ? AppColors.bg : Colors.white,
@@ -1054,7 +1054,7 @@ class ChatView extends GetView<ChatController> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: TextField(
-            onChanged: (v) => setState(() => _sidebarQuery = v.trim().toLowerCase()),
+              onChanged: (v) => setState(() => _sidebarQuery.value = v.trim().toLowerCase()),
             style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w500),
             decoration: InputDecoration(
               hintText: 'Search chats...',
@@ -1063,10 +1063,10 @@ class ChatView extends GetView<ChatController> {
               prefixIcon: Icon(Icons.search_rounded, size: 20,
                   color: AppColors.textMuted.withValues(alpha: 0.6)),
               prefixIconConstraints: const BoxConstraints(minWidth: 36, minHeight: 0),
-              suffixIcon: _sidebarQuery.isNotEmpty
+              suffixIcon: _sidebarQuery.value.isNotEmpty
                   ? IconButton(
-                      icon: Icon(Icons.close_rounded, size: 18, color: AppColors.textMuted),
-                      onPressed: () => setState(() => _sidebarQuery = ''),
+                      icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.textMuted),
+                      onPressed: () => setState(() => _sidebarQuery.value = ''),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(minWidth: 36, minHeight: 0),
                     )
@@ -1099,20 +1099,20 @@ class ChatView extends GetView<ChatController> {
         Expanded(
           child: Obx(() {
             final all = controller.sessions;
-            final filtered = _sidebarQuery.isEmpty
+            final filtered = _sidebarQuery.value.isEmpty
                 ? all
                 : all.where((s) =>
-                    s.title.toLowerCase().contains(_sidebarQuery) ||
-                    (s.lastMessage?.toLowerCase().contains(_sidebarQuery) ?? false))
+                    s.title.toLowerCase().contains(_sidebarQuery.value) ||
+                    (s.lastMessage?.toLowerCase().contains(_sidebarQuery.value) ?? false))
                 .toList();
             if (filtered.isEmpty) {
               return Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(_sidebarQuery.isEmpty ? Icons.forum_outlined : Icons.search_off_rounded,
+                  Icon(_sidebarQuery.value.isEmpty ? Icons.forum_outlined : Icons.search_off_rounded,
                       size: 40, color: AppColors.textMuted.withValues(alpha: 0.3)),
                   const SizedBox(height: 12),
                   Text(
-                    _sidebarQuery.isEmpty ? 'No conversations yet' : 'No matches found',
+                    _sidebarQuery.value.isEmpty ? 'No conversations yet' : 'No matches found',
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textMuted)),
                 ]),
@@ -1163,7 +1163,7 @@ class ChatView extends GetView<ChatController> {
           color: AppColors.error.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 20),
+        child: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 20),
       ),
       confirmDismiss: (_) async {
         return await showDialog<bool>(
@@ -1242,7 +1242,6 @@ class ChatView extends GetView<ChatController> {
     final clr = isDark ? AppColors.textPrimary : const Color(0xFF0F172A);
     final muted = isDark ? AppColors.textSecondary : const Color(0xFF475569);
     final base = GoogleFonts.plusJakartaSans(fontSize: 15, color: clr, height: 1.6, fontWeight: FontWeight.w500);
-    final codeBg = isDark ? AppColors.surfaceLight : const Color(0xFFE2E8F0);
     return MarkdownStyleSheet.fromTheme(Theme.of(c)).copyWith(
         p: base,
         pPadding: const EdgeInsets.only(bottom: 12),

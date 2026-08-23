@@ -371,8 +371,8 @@ class LocalImageService extends GetxService {
         return null;
       }
 
-      // Convert raw RGB to PNG
-      // TODO: switch to ui.decodeImageFromPixels for GPU-accelerated decode
+      // Convert raw RGB to PNG (future optimization: ui.decodeImageFromPixels
+      // for GPU-accelerated decode)
       print(
           '[LocalImageService] Encoding ${result.width}x${result.height} RGB to PNG...');
       final image = img.Image.fromBytes(

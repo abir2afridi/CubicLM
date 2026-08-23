@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show File;
 import 'package:get/get.dart';
 import 'hive_service.dart';
 import '../core/constants.dart';
@@ -65,6 +66,34 @@ class InferenceService extends GetxService {
 
     if (modelPath.toLowerCase().endsWith('.safetensors')) {
       return 'ERROR: Cannot load image generation models (.safetensors) into the local text engine. Native local image generation requires the upcoming stable-diffusion engine update. Use Cloud Stability AI for now.';
+    }
+
+    // Pre-flight: never hand a missing/empty file to the native layer — it
+    // responds with an opaque "GGUF model file is missing or unreadable".
+    final modelFile = File(modelPath);
+    var fileOk = false;
+    try {
+      fileOk = modelFile.existsSync() && modelFile.lengthSync() > 0;
+    } catch (_) {
+      fileOk = false;
+    }
+    if (!fileOk) {
+      final savedPath =
+          _hive.getSetting<String>(AppConstants.keyLocalModelPath) ?? '';
+      if (savedPath == modelPath) {
+        // Stale pointer from a previous install/cleared storage — clear it so
+        // the resume flow stops offering this model.
+        await _hive.setSetting(AppConstants.keyLocalModelPath, '');
+        await _hive.setSetting(AppConstants.keyLocalModelName, '');
+        await _hive.setSetting(AppConstants.keyLocalModelRuntime, '');
+        await _hive.setSetting(AppConstants.keyLocalModelBackend, '');
+      }
+      Get.find<AppLogService>().error(
+        'Model file missing',
+        details: 'path=$modelPath',
+      );
+      return
+          'ERROR: "${modelName ?? modelPath.split('/').last}" is not on this device. Open the Models tab and download it first.';
     }
 
     try {

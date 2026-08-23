@@ -17,6 +17,13 @@ A cross-platform AI chat application with local on-device inference and multi-pr
 - **GPU crash recovery** — automatic CPU fallback if GPU backend fails
 - **Device-tier auto-configuration** — adjusts context size and max tokens based on detected RAM
 
+### Inference Parameters (live-tunable from Settings)
+- **Inference temperature** and **output token limit** — applied on every generation, local and cloud
+- **Context window size** — auto-reloads the resident model after the slider settles
+- **Sampling steps** and **synthesis resolution** for image generation (Auto mode scales by available RAM)
+- **Compute backend toggle** (CPU / Vulkan / OpenCL) for image generation with automatic model reload
+- Safety rails warn when values exceed the device's recommended limits
+
 ### Cloud AI Providers
 - **OpenAI** (GPT-5.2, GPT-4o, etc.)
 - **Anthropic** (Claude Sonnet 4)
@@ -34,13 +41,15 @@ A cross-platform AI chat application with local on-device inference and multi-pr
 - Use local models from any OpenAI-compatible client on your network
 
 ### Additional
-- Multi-session chat with history (Hive persistence)
-- Document extraction (PDF, text, code files) for context-aware chat
+- Multi-session chat with history (Hive persistence) and a searchable sidebar drawer with swipe-to-delete
+- **Message actions** — copy, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
+- **Code blocks** with syntax highlighting, one-tap copy, and export/share
+- Attachments from camera, gallery, or files (PDF/text extraction)
 - Image sharing and export
 - Dark/light theme with adjustable font scale
 - Firebase Crashlytics integration
 - Background service and boot persistence
-- In-app model download and file import
+- In-app model download with pause / resume / cancel, plus file import
 
 ## Supported Models
 
@@ -97,7 +106,7 @@ lib/
 │   └── theme.dart               # Light/dark theme
 ├── models/
 │   ├── ai_model.dart            # AI model data class
-│   ├── chat_message.dart        # Chat message model
+│   ├── chat_message.dart        # Chat message model (with revision history)
 │   ├── chat_session.dart        # Chat session model
 │   └── task_model.dart          # Automated task model
 ├── controllers/
@@ -111,8 +120,9 @@ lib/
 ├── services/
 │   ├── cloud_service.dart       # Multi-provider cloud API
 │   ├── inference_service.dart   # Cross-platform inference orchestrator
+│   ├── inference_android.dart   # Android llama.cpp / LiteRT engine bridge
 │   ├── openai_server_service.dart   # Built-in OpenAI-compatible server
-│   ├── download_service.dart    # Model download manager
+│   ├── download_service.dart    # Model download manager (pause/resume/cancel)
 │   ├── hive_service.dart        # Local persistence
 │   ├── device_info_service.dart # RAM/tier detection
 │   ├── execution_service.dart   # Task execution engine
@@ -124,14 +134,16 @@ lib/
 │   └── crash_reporting_service.dart  # Firebase Crashlytics
 ├── views/
 │   ├── home_view.dart           # Main navigation scaffold
-│   ├── chat_view.dart           # Chat interface
+│   ├── chat_view.dart           # Chat interface with sidebar drawer
 │   ├── model_view.dart          # Model browser/manager
 │   ├── server_view.dart         # Local API server UI
 │   ├── settings_view.dart       # Settings panel
 │   ├── log_view.dart            # App logs viewer
 │   └── task_view.dart           # Automated tasks
 ├── widgets/
-│   ├── chat_bubble.dart         # Message bubble widget
+│   ├── chat_bubble.dart         # Message bubble with inline actions + revisions
+│   ├── code_block.dart          # Syntax-highlighted code blocks (copy/export)
+│   ├── model_switcher_sheet.dart    # Quick model switcher
 │   ├── attachment_preview.dart  # File/image attachment preview
 │   ├── image_viewer.dart        # Full-screen image viewer
 │   ├── thought_disclosure.dart  # Reasoning/thought tag expansion
@@ -184,11 +196,11 @@ Or set `CUBICLM_ALLOW_DEBUG_RELEASE_SIGNING=true` to skip keystore validation du
 
 ### Cloud API Keys
 
-Configure cloud providers in **Settings** > **Cloud Provider**. Each provider requires its API key and model selection.
+Configure cloud providers in **Settings** > **Cloud Provider**, or tap **Add API Key** directly on any provider card in the Models tab — the key is verified and the live model list loads on save.
 
 ### Local Models
 
-Download models from the **Models** tab or import `.gguf` / `.litertlm` / `.safetensors` files via the file picker. Models are stored in app-private storage.
+Download models from the **Models** tab (with pause / resume / cancel support) or import `.gguf` / `.litertlm` / `.safetensors` files via the file picker. Models are stored in app-private storage. Loading is guarded — missing or corrupted files are detected before reaching the native engine, and stale download pointers are cleaned up automatically.
 
 ### Local API Server
 

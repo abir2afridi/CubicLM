@@ -114,8 +114,8 @@ class _ThoughtDisclosureState extends State<ThoughtDisclosure>
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (widget.isThinking)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 10),
+                  const Padding(
+                    padding: EdgeInsets.only(right: 10),
                     child: SizedBox(
                       width: 14,
                       height: 14,

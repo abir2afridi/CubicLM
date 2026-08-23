@@ -1,10 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../services/hive_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
-import '../services/download_service.dart';
 import '../core/constants.dart';
 
 class HomeController extends GetxController {
@@ -25,26 +26,42 @@ class HomeController extends GetxController {
     _resumeDialogShown = true;
 
     final hive = Get.find<HiveService>();
-    final downloadService = Get.find<DownloadService>();
+
+    // The saved absolute path must still point at a real, non-empty file.
+    // After reinstalls or storage cleanup the path can go stale while the
+    // model name remains in settings — loading it then crashes natively.
+    bool savedPathExists(String? p) {
+      if (p == null || p.isEmpty) return false;
+      try {
+        final f = File(p);
+        return f.existsSync() && f.lengthSync() > 0;
+      } catch (_) {
+        return false;
+      }
+    }
 
     // Check text model
     final textName = hive.getSetting<String>(AppConstants.keyLocalModelName);
     final textPath = hive.getSetting<String>(AppConstants.keyLocalModelPath);
     final textRuntime = hive.getSetting<String>(AppConstants.keyLocalModelRuntime);
-    bool hasText = textName != null &&
-        textName.isNotEmpty &&
-        textPath != null &&
-        textPath.isNotEmpty &&
-        await downloadService.isModelDownloaded(textName);
+    final hasText =
+        textName != null && textName.isNotEmpty && savedPathExists(textPath);
+    if ((textName?.isNotEmpty ?? false) && !hasText) {
+      await hive.setSetting(AppConstants.keyLocalModelPath, '');
+      await hive.setSetting(AppConstants.keyLocalModelName, '');
+      await hive.setSetting(AppConstants.keyLocalModelRuntime, '');
+      await hive.setSetting(AppConstants.keyLocalModelBackend, '');
+    }
 
     // Check image model
     final imageName = hive.getSetting<String>(AppConstants.keyImageModelName);
     final imagePath = hive.getSetting<String>(AppConstants.keyImageModelPath);
-    bool hasImage = imageName != null &&
-        imageName.isNotEmpty &&
-        imagePath != null &&
-        imagePath.isNotEmpty &&
-        await downloadService.isModelDownloaded(imageName);
+    final hasImage =
+        imageName != null && imageName.isNotEmpty && savedPathExists(imagePath);
+    if ((imageName?.isNotEmpty ?? false) && !hasImage) {
+      await hive.setSetting(AppConstants.keyImageModelPath, '');
+      await hive.setSetting(AppConstants.keyImageModelName, '');
+    }
 
     if (!hasText && !hasImage) return;
     if (!context.mounted) return;
@@ -82,11 +99,11 @@ class HomeController extends GetxController {
             onPressed: () {
               Navigator.of(context).pop();
               if (hasText) {
-                Get.find<InferenceService>().loadModel(textPath,
+                Get.find<InferenceService>().loadModel(textPath!,
                     modelName: textName, modelRuntime: textRuntime);
               }
               if (hasImage) {
-                Get.find<LocalImageService>().loadModel(imagePath,
+                Get.find<LocalImageService>().loadModel(imagePath!,
                     modelName: imageName);
               }
             },

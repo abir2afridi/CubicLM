@@ -476,6 +476,19 @@ class ModelController extends GetxController {
       );
       return;
     }
+    // Guard: the file must actually exist on this device. Without this the
+    // catalog size fallback in _modelFileBytes lets a never-downloaded or
+    // deleted model reach the native loader, which fails with an opaque
+    // "GGUF model file is missing or unreadable".
+    if (!await File(path).exists()) {
+      Get.snackbar(
+        'Not Downloaded',
+        '$filename is not on this device. Download it from the Models tab first.',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 5),
+      );
+      return;
+    }
     final isLiteRt = filename.toLowerCase().endsWith('.litertlm') ||
         model?.runtime == AiModel.runtimeLiteRt;
     final targetRuntime =

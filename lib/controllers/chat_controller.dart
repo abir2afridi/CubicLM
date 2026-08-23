@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -714,6 +713,7 @@ class ChatController extends GetxController {
         }
       } else {
         final cloud = Get.find<CloudService>();
+        final settings = Get.find<SettingsController>();
         final apiMessages = [
           {'role': 'system', 'content': _effectiveSystemPrompt},
           ...history,
@@ -721,6 +721,8 @@ class ChatController extends GetxController {
         rawResponse = await cloud.sendMessage(
           messages: apiMessages,
           imageBase64: imgBase64,
+          temperature: settings.temperature.value,
+          maxTokens: settings.maxTokens.value,
           onToken: (token) {
             streamingResponse.value += token;
             trackThoughtTiming();
