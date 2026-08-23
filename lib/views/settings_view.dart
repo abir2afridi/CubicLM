@@ -13,14 +13,17 @@ import '../services/device_info_service.dart';
 import '../services/device_info_native.dart' as platform_info;
 import '../ffi/sd_ffi_bindings.dart';
 import 'log_view.dart';
-import 'app_settings_view.dart';
 
 class SettingsView extends GetView<SettingsController> {
-  const SettingsView({super.key});
+  /// When true, renders just the scrollable config sections without its
+  /// own Scaffold — used inside the Nodes page's Config tab.
+  final bool embedded;
+  const SettingsView({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    if (embedded) return _configBody(context);
     return Scaffold(
       backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
       appBar: AppBar(
@@ -31,31 +34,22 @@ class SettingsView extends GetView<SettingsController> {
             child: Container(color: Colors.transparent),
           ),
         ),
-        title: Text('Settings',
+        title: Text('Config',
             style:
                 GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -1)),
         toolbarHeight: 70,
         centerTitle: false,
       ),
-      body: Obx(() => ListView(
+      body: _configBody(context),
+    );
+  }
+
+  Widget _configBody(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Obx(() => ListView(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             children: [
-              const SizedBox(height: 12),
-              _sectionLabel(context, 'GENERAL'),
-              _appleGroupedCard(context, isDark, children: [
-                _appleListTile(
-                  context,
-                  isDark,
-                  leading: _iconBox(AppColors.primary, Icons.palette_rounded),
-                  title: 'App Settings',
-                  subtitle: 'Theme, typography & about',
-                  trailing:
-                      const Icon(Icons.chevron_right_rounded, size: 20),
-                  showDivider: false,
-                  onTap: () => Get.to(() => const AppSettingsView()),
-                ),
-              ]),
-              const SizedBox(height: 28),
+              const SizedBox(height: 16),
               _sectionLabel(context, 'DIAGNOSTICS'),
               _appleGroupedCard(context, isDark, children: [
                 _appleListTile(
@@ -155,8 +149,7 @@ class SettingsView extends GetView<SettingsController> {
               _buildImageGenerationCard(context, isDark),
               const SizedBox(height: 50),
             ],
-          )),
-    );
+          ));
   }
 
   // ── Apple grouped card container ──

@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import '../controllers/server_controller.dart';
 import '../core/colors.dart';
+import 'settings_view.dart';
 
 class ServerView extends GetView<ServerController> {
   const ServerView({super.key});
@@ -14,7 +15,9 @@ class ServerView extends GetView<ServerController> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const accent = AppColors.primary;
 
-    return Scaffold(
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
       backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
       appBar: AppBar(
         backgroundColor: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
@@ -24,10 +27,27 @@ class ServerView extends GetView<ServerController> {
             child: Container(color: Colors.transparent),
           ),
         ),
-        title: Text('API Node',
+        title: Text('Nodes',
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)),
+        bottom: TabBar(
+          indicatorColor: accent,
+          indicatorSize: TabBarIndicatorSize.label,
+          labelColor: accent,
+          unselectedLabelColor: Theme.of(context).hintColor,
+          dividerColor: Colors.transparent,
+          labelStyle: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.w800, fontSize: 13),
+          unselectedLabelStyle: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.w700, fontSize: 13),
+          tabs: const [
+            Tab(text: 'Node'),
+            Tab(text: 'Config'),
+          ],
+        ),
       ),
-      body: Obx(() {
+      body: TabBarView(
+        children: [
+          Obx(() {
         final isRunning = controller.isRunning.value;
         final hasKey = controller.apiKey.value.trim().isNotEmpty;
 
@@ -225,7 +245,11 @@ class ServerView extends GetView<ServerController> {
             ],
           ],
         );
-      }),
+          }),
+          const SettingsView(embedded: true),
+        ],
+      ),
+      ),
     );
   }
 

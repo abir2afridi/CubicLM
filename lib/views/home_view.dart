@@ -9,7 +9,7 @@ import '../core/colors.dart';
 import 'chat_view.dart';
 import 'model_view.dart';
 import 'server_view.dart';
-import 'settings_view.dart';
+import 'app_settings_view.dart';
 
 class HomeView extends GetView<HomeController> {
   const HomeView({super.key});
@@ -28,9 +28,9 @@ class HomeView extends GetView<HomeController> {
         activeIcon: Icons.lan_rounded,
         label: 'Nodes'),
     _NavItem(
-        icon: Icons.tune_rounded,
-        activeIcon: Icons.tune_rounded,
-        label: 'Config'),
+        icon: Icons.palette_outlined,
+        activeIcon: Icons.palette_rounded,
+        label: 'App Settings'),
   ];
 
   bool get _isWide {
@@ -53,7 +53,7 @@ class HomeView extends GetView<HomeController> {
             ChatView(),
             const ModelView(),
             const ServerView(),
-            const SettingsView()
+            const AppSettingsView()
           ],
         );
         if (_isWide) {
