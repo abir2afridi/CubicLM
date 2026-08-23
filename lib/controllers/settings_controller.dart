@@ -29,6 +29,7 @@ class SettingsController extends GetxController {
   final nvidiaKey = ''.obs;
   final openRouterKey = ''.obs;
   final deepSeekKey = ''.obs;
+  final zaiKey = ''.obs;
   final customCloudName = 'Custom API'.obs;
   final customCloudBaseUrl = ''.obs;
   final customCloudKey = ''.obs;
@@ -42,6 +43,7 @@ class SettingsController extends GetxController {
   final nvidiaModel = 'meta/llama-3.1-8b-instruct'.obs;
   final openRouterModel = 'openai/gpt-4o-mini'.obs;
   final deepSeekModel = 'deepseek-v4-flash'.obs;
+  final zaiModel = 'glm-4.7-flash'.obs;
   final customCloudModel = ''.obs;
   final globalSystemPrompt = AppConstants.systemPrompt.obs;
   final nvidiaModels = <String>[].obs;
@@ -68,6 +70,7 @@ class SettingsController extends GetxController {
   final nvidiaKeyController = TextEditingController();
   final openRouterKeyController = TextEditingController();
   final deepSeekKeyController = TextEditingController();
+  final zaiKeyController = TextEditingController();
   final customCloudNameController = TextEditingController();
   final customCloudBaseUrlController = TextEditingController();
   final customCloudKeyController = TextEditingController();
@@ -81,6 +84,7 @@ class SettingsController extends GetxController {
   final nvidiaModelController = TextEditingController();
   final openRouterModelController = TextEditingController();
   final deepSeekModelController = TextEditingController();
+  final zaiModelController = TextEditingController();
   final customCloudModelController = TextEditingController();
 
   Timer? _apiKeyDebounceTimer;
@@ -112,6 +116,7 @@ class SettingsController extends GetxController {
     nvidiaKeyController.dispose();
     openRouterKeyController.dispose();
     deepSeekKeyController.dispose();
+    zaiKeyController.dispose();
     customCloudNameController.dispose();
     customCloudBaseUrlController.dispose();
     customCloudKeyController.dispose();
@@ -124,6 +129,7 @@ class SettingsController extends GetxController {
     nvidiaModelController.dispose();
     openRouterModelController.dispose();
     deepSeekModelController.dispose();
+    zaiModelController.dispose();
     customCloudModelController.dispose();
     _apiKeyDebounceTimer?.cancel();
     _modelDebounceTimer?.cancel();
@@ -148,6 +154,7 @@ class SettingsController extends GetxController {
     nvidiaKey.value = _hive.getSetting(AppConstants.keyNvidiaKey) ?? '';
     openRouterKey.value = _hive.getSetting(AppConstants.keyOpenRouterKey) ?? '';
     deepSeekKey.value = _hive.getSetting(AppConstants.keyDeepSeekKey) ?? '';
+    zaiKey.value = _hive.getSetting(AppConstants.keyZaiKey) ?? '';
     customCloudName.value = _hive.getSetting(AppConstants.keyCustomCloudName,
             defaultValue: 'Custom API') ??
         'Custom API';
@@ -179,6 +186,9 @@ class SettingsController extends GetxController {
     deepSeekModel.value = _hive.getSetting(AppConstants.keyDeepSeekModel,
             defaultValue: 'deepseek-v4-flash') ??
         'deepseek-v4-flash';
+    zaiModel.value = _hive.getSetting(AppConstants.keyZaiModel,
+            defaultValue: 'glm-4.7-flash') ??
+        'glm-4.7-flash';
     customCloudModel.value =
         _hive.getSetting(AppConstants.keyCustomCloudModel) ?? '';
     _loadCustomCloudProfiles();
@@ -238,6 +248,7 @@ class SettingsController extends GetxController {
     nvidiaKeyController.text = nvidiaKey.value;
     openRouterKeyController.text = openRouterKey.value;
     deepSeekKeyController.text = deepSeekKey.value;
+    zaiKeyController.text = zaiKey.value;
     customCloudNameController.text = customCloudName.value;
     customCloudBaseUrlController.text = customCloudBaseUrl.value;
     customCloudKeyController.text = customCloudKey.value;
@@ -251,6 +262,7 @@ class SettingsController extends GetxController {
     nvidiaModelController.text = nvidiaModel.value;
     openRouterModelController.text = openRouterModel.value;
     deepSeekModelController.text = deepSeekModel.value;
+    zaiModelController.text = zaiModel.value;
     customCloudModelController.text = customCloudModel.value;
   }
 
@@ -270,6 +282,8 @@ class SettingsController extends GetxController {
         return openRouterKeyController;
       case 'deepseek':
         return deepSeekKeyController;
+      case 'zai':
+        return zaiKeyController;
       case 'custom':
         return customCloudKeyController;
       default:
@@ -293,6 +307,8 @@ class SettingsController extends GetxController {
         return openRouterModelController;
       case 'deepseek':
         return deepSeekModelController;
+      case 'zai':
+        return zaiModelController;
       case 'custom':
         return customCloudModelController;
       default:
@@ -316,6 +332,8 @@ class SettingsController extends GetxController {
         return openRouterModel.value;
       case 'deepseek':
         return deepSeekModel.value;
+      case 'zai':
+        return zaiModel.value;
       case 'custom':
         return customCloudModel.value;
       default:
@@ -377,6 +395,11 @@ class SettingsController extends GetxController {
         deepSeekKeyController.text = trimmed;
         await _hive.setSetting(AppConstants.keyDeepSeekKey, trimmed);
         break;
+      case 'zai':
+        zaiKey.value = trimmed;
+        zaiKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyZaiKey, trimmed);
+        break;
       case 'custom':
         customCloudKey.value = trimmed;
         customCloudKeyController.text = trimmed;
@@ -394,6 +417,10 @@ class SettingsController extends GetxController {
 
   void cancelApiKeyDebounce() {
     _apiKeyDebounceTimer?.cancel();
+  }
+
+  Future<void> removeApiKey(String provider) async {
+    await setApiKey(provider, '');
   }
 
   Future<void> setCloudModel(String provider, String model) async {
@@ -437,6 +464,11 @@ class SettingsController extends GetxController {
         deepSeekModel.value = model;
         deepSeekModelController.text = model;
         await _hive.setSetting(AppConstants.keyDeepSeekModel, model);
+        break;
+      case 'zai':
+        zaiModel.value = model;
+        zaiModelController.text = model;
+        await _hive.setSetting(AppConstants.keyZaiModel, model);
         break;
       case 'custom':
         customCloudModel.value = model;

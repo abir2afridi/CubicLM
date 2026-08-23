@@ -38,6 +38,10 @@ class HiveService extends GetxService {
     await _settingsBox.put(key, value);
   }
 
+  Future<void> deleteSetting(String key) async {
+    await _settingsBox.delete(key);
+  }
+
   // ─── Chat Sessions ─────────────────────────────
 
   List<Map<dynamic, dynamic>> getAllSessions() {

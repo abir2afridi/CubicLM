@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/cloud_model_controller.dart';
@@ -662,6 +663,15 @@ class ModelView extends GetView<ModelController> {
                     decoration: InputDecoration(
                       hintText: 'Search models...',
                       prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                      suffixIcon: Obx(() => (cloudModels.searchByProvider[provider.id] ?? '').isNotEmpty
+                          ? IconButton(
+                              tooltip: 'Clear',
+                              onPressed: () {
+                                cloudModels.searchByProvider[provider.id] = '';
+                              },
+                              icon: const Icon(Icons.close_rounded, size: 18),
+                            )
+                          : const SizedBox.shrink()),
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(vertical: 10),
                       fillColor: isDark ? Colors.black.withValues(alpha: 0.2) : const Color(0xFFF1F5F9),
@@ -699,6 +709,7 @@ class ModelView extends GetView<ModelController> {
                           final isFree = cloudModels.isFreeModel(provider.id, model);
                           return _modelListTile(
                             context, cloudModels, provider.id,
+                            index: index,
                             model: model,
                             isActive: isActive,
                             isFree: isFree,
@@ -721,7 +732,9 @@ class ModelView extends GetView<ModelController> {
                         Expanded(
                           child: FilledButton.tonal(
                             onPressed: () {
-                              if (configured) {
+                              if (isReallyActive) {
+                                settings.setCloudProvider('');
+                              } else if (configured) {
                                 settings.setCloudProvider(provider.id);
                               } else if (provider.id == 'custom') {
                                 _showCustomProviderDialog(context, cloudModels);
@@ -738,7 +751,7 @@ class ModelView extends GetView<ModelController> {
                                   : null,
                             ),
                             child: Text(isReallyActive
-                                ? 'Active Provider'
+                                ? 'Active Provider ✓'
                                 : configured
                                     ? 'Set as Active'
                                     : provider.id == 'custom'
@@ -846,6 +859,7 @@ class ModelView extends GetView<ModelController> {
     BuildContext context,
     CloudModelController cloud,
     String providerId, {
+    required int index,
     required String model,
     required bool isActive,
     required bool isFree,
@@ -865,6 +879,19 @@ class ModelView extends GetView<ModelController> {
         ),
         child: Row(
           children: [
+            SizedBox(
+              width: 22,
+              child: Text(
+                '${index + 1}',
+                style: GoogleFonts.firaCode(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).hintColor,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(width: 8),
             Container(
               width: 6, height: 6,
               decoration: BoxDecoration(
@@ -1389,10 +1416,10 @@ class ModelView extends GetView<ModelController> {
     CloudModelController cloud,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final nameCtrl = cloud.customNameController;
-    final baseUrlCtrl = cloud.customBaseUrlController;
-    final apiKeyCtrl = cloud.customApiKeyController;
-    final modelCtrl = cloud.customModelController;
+    final nameCtrl = TextEditingController();
+    final baseUrlCtrl = TextEditingController();
+    final apiKeyCtrl = TextEditingController();
+    final modelCtrl = TextEditingController();
     final obscureKey = true.obs;
     final error = ''.obs;
     final isVerifying = false.obs;
@@ -1496,7 +1523,14 @@ class ModelView extends GetView<ModelController> {
                     }
                     error.value = '';
                     isVerifying.value = true;
-                    await cloud.saveCustomProvider();
+                    final settings = Get.find<SettingsController>();
+                    await settings.setCustomCloudConfig(
+                      name: nameCtrl.text.trim(),
+                      baseUrl: baseUrlCtrl.text.trim(),
+                      apiKey: apiKeyCtrl.text.trim(),
+                      model: modelCtrl.text.trim(),
+                    );
+                    await cloud.selectModel('custom', modelCtrl.text.trim(), showSnackbar: false);
                     await cloud.refreshCustomModels();
                     isVerifying.value = false;
                     final models = cloud.modelsByProvider['custom'] ?? [];
@@ -1669,6 +1703,7 @@ class ModelView extends GetView<ModelController> {
     final isVerifying = false.obs;
     final accent = _providerAccent(provider.id);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasExistingKey = cloud.apiKeyFor(provider.id).isNotEmpty;
     Get.dialog(AlertDialog(
       backgroundColor: isDark ? AppColors.surface : Colors.white,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
@@ -1699,7 +1734,7 @@ class ModelView extends GetView<ModelController> {
                   ),
                 ),
                 Text(
-                  'API key required',
+                  hasExistingKey ? 'Edit API key' : 'API key required',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
@@ -1726,15 +1761,33 @@ class ModelView extends GetView<ModelController> {
                   labelText: 'API key',
                   hintText: 'Paste ${provider.name} key',
                   prefixIcon: const Icon(Icons.key_outlined, size: 23),
-                  suffixIcon: IconButton(
-                    tooltip: obscureKey.value ? 'Show API key' : 'Hide API key',
-                    onPressed: () => obscureKey.value = !obscureKey.value,
-                    icon: Icon(
-                      obscureKey.value
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                      size: 24,
-                    ),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Paste from clipboard',
+                        onPressed: () async {
+                          final data = await Clipboard.getData('text/plain');
+                          if (data?.text != null) {
+                            keyController.text = data!.text!;
+                            keyController.selection = TextSelection.fromPosition(
+                              TextPosition(offset: keyController.text.length),
+                            );
+                          }
+                        },
+                        icon: const Icon(Icons.paste_rounded, size: 20),
+                      ),
+                      IconButton(
+                        tooltip: obscureKey.value ? 'Show API key' : 'Hide API key',
+                        onPressed: () => obscureKey.value = !obscureKey.value,
+                        icon: Icon(
+                          obscureKey.value
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          size: 20,
+                        ),
+                      ),
+                    ],
                   ),
                   contentPadding:
                       const EdgeInsets.symmetric(vertical: 20, horizontal: 18),
@@ -1764,6 +1817,25 @@ class ModelView extends GetView<ModelController> {
         ),
       ),
       actions: [
+        if (hasExistingKey)
+          TextButton(
+            onPressed: () async {
+              await cloud.removeApiKey(provider.id);
+              keyController.clear();
+              Get.back(closeOverlays: false);
+              Get.snackbar(
+                'Key Removed',
+                '${provider.name} API key deleted',
+                snackPosition: SnackPosition.BOTTOM,
+              );
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            ),
+            child: Text('Remove Key',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+          ),
         TextButton(
           onPressed: () => Get.back(closeOverlays: false),
           style: TextButton.styleFrom(

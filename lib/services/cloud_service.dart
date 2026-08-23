@@ -29,6 +29,8 @@ class CloudService extends GetxService {
         return _hive.getSetting(AppConstants.keyOpenRouterKey) ?? '';
       case 'deepseek':
         return _hive.getSetting(AppConstants.keyDeepSeekKey) ?? '';
+      case 'zai':
+        return _hive.getSetting(AppConstants.keyZaiKey) ?? '';
       case 'custom':
         return _hive.getSetting(AppConstants.keyCustomCloudKey) ?? '';
       default:
@@ -58,6 +60,8 @@ class CloudService extends GetxService {
       case 'deepseek':
         return _hive.getSetting(AppConstants.keyDeepSeekModel) ??
             'deepseek-v4-flash';
+      case 'zai':
+        return _hive.getSetting(AppConstants.keyZaiModel) ?? 'glm-5.3';
       case 'custom':
         return _hive.getSetting(AppConstants.keyCustomCloudModel) ?? '';
       default:
@@ -122,6 +126,15 @@ class CloudService extends GetxService {
         case 'deepseek':
           return await _sendDeepSeek(
               messages, imageBase64, temperature, maxTokens);
+        case 'zai':
+          return await _sendOpenAICompatible(
+            endpoint: '${AppConstants.zaiEndpoint}/chat/completions',
+            providerLabel: 'Z.AI',
+            messages: messages,
+            imageBase64: imageBase64,
+            temperature: temperature,
+            maxTokens: maxTokens,
+          );
         case 'custom':
           return await _sendCustomOpenAICompatible(
               messages, imageBase64, temperature, maxTokens);
@@ -140,6 +153,7 @@ class CloudService extends GetxService {
       _provider == 'nvidia' ||
       _provider == 'openrouter' ||
       _provider == 'deepseek' ||
+      _provider == 'zai' ||
       _provider == 'custom' ||
       _provider == 'kimi';
 
@@ -151,6 +165,8 @@ class CloudService extends GetxService {
         return '${AppConstants.openRouterEndpoint}/chat/completions';
       case 'deepseek':
         return '${AppConstants.deepSeekEndpoint}/chat/completions';
+      case 'zai':
+        return '${AppConstants.zaiEndpoint}/chat/completions';
       case 'custom':
         final baseUrl =
             (_hive.getSetting(AppConstants.keyCustomCloudBaseUrl) ?? '')
@@ -172,6 +188,8 @@ class CloudService extends GetxService {
         return 'OpenRouter';
       case 'deepseek':
         return 'DeepSeek';
+      case 'zai':
+        return 'Z.AI';
       case 'custom':
         return _hive.getSetting(AppConstants.keyCustomCloudName) ??
             'Custom API';
