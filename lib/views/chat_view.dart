@@ -444,8 +444,8 @@ class ChatView extends GetView<ChatController> {
     final suggestions = [
       {'text': 'Explain quantum computing simply', 'icon': Icons.auto_awesome_rounded, 'color': Colors.blue},
       {'text': 'Write a short poem about time', 'icon': Icons.edit_note_rounded, 'color': Colors.purple},
-      {'text': 'Help me debug my code', 'icon': Icons.terminal_rounded, 'color': AppColors.secondary},
-      {'text': 'Summarize a complex topic', 'icon': Icons.psychology_rounded, 'color': Colors.orange}
+      {'text': 'What makes the Northern Lights happen?', 'icon': Icons.light_mode_rounded, 'color': Colors.teal},
+      {'text': 'Give me a 5-minute healthy breakfast recipe', 'icon': Icons.restaurant_rounded, 'color': Colors.orange},
     ];
     return Center(
         child: SingleChildScrollView(
