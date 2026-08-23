@@ -429,13 +429,24 @@ class _LocalModelList extends StatelessWidget {
           final model = entries[index];
           final isActive = model.filename == activeName;
           final isLoading = model.filename == loadingName;
+          final isResident = !models.isLiteRtModel(model) &&
+              inference.isResident(model.filename);
           return _ModelRow(
             title: model.name,
             subtitle: _localSubtitle(models, model),
             isActive: isActive,
             isLoading: isLoading,
             progress: isLoading ? inference.modelLoadProgress.value : null,
-            badge: models.isLiteRtModel(model) ? 'LiteRT' : 'GGUF',
+            badge: models.isLiteRtModel(model)
+                ? 'LiteRT'
+                : isResident
+                    ? 'In memory · instant'
+                    : 'GGUF',
+            badgeColor: models.isLiteRtModel(model)
+                ? AppColors.secondary
+                : isResident
+                    ? AppColors.success
+                    : null,
             isDark: isDark,
             // Any load while one is in flight is dropped by ModelController, so
             // disable the rows rather than let taps silently no-op.

@@ -491,15 +491,9 @@ class ModelController extends GetxController {
     }
     final isLiteRt = filename.toLowerCase().endsWith('.litertlm') ||
         model?.runtime == AiModel.runtimeLiteRt;
-    final targetRuntime =
-        model?.runtime ?? AiModel.runtimeFromFilename(filename);
-    if (_inference.requiresAppRestartForRuntime(targetRuntime)) {
-      await _showRuntimeRestartDialog(
-        currentRuntime: _inference.sessionNativeRuntime,
-        targetRuntime: targetRuntime,
-      );
-      return;
-    }
+    // Cross-runtime switches are allowed in-place now: the llama.cpp slot
+    // pool and the LiteRT session live side by side, and generation picks
+    // the engine matching the active model's runtime.
     final fileBytes = await _modelFileBytes(filename, path, model);
     if (model != null && _isIncompleteCatalogFile(model, fileBytes)) {
       final actual = DownloadService.formatBytes(fileBytes);
@@ -773,54 +767,6 @@ class ModelController extends GetxController {
           ),
         );
       }
-    }
-  }
-
-  Future<void> _showRuntimeRestartDialog({
-    required String currentRuntime,
-    required String targetRuntime,
-  }) async {
-    final currentLabel = _runtimeLabel(currentRuntime);
-    final targetLabel = _runtimeLabel(targetRuntime);
-    await Get.dialog<void>(
-      AlertDialog(
-        title: const Text('Restart required'),
-        content: Text(
-          'You already used $currentLabel in this app session. '
-          'Switching to $targetLabel without restarting can crash the native runtime.\n\n'
-          'Restart the app, then load this model. Switching between two '
-          '$currentLabel models never needs a restart.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Get.back();
-              try {
-                await _androidImportChannel.invokeMethod('restartApp');
-              } catch (_) {
-                SystemNavigator.pop();
-              }
-            },
-            child: const Text('Restart app'),
-          ),
-        ],
-      ),
-      barrierDismissible: false,
-    );
-  }
-
-  String _runtimeLabel(String runtime) {
-    switch (runtime.toLowerCase()) {
-      case AiModel.runtimeLiteRt:
-        return 'LiteRT';
-      case AiModel.runtimeLlama:
-        return 'GGUF';
-      default:
-        return 'local model';
     }
   }
 

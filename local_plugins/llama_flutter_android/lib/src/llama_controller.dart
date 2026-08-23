@@ -5,9 +5,10 @@ import 'llama_api.dart';
 /// User-friendly controller for llama.cpp
 class LlamaController implements LlamaFlutterApi {
   final _api = LlamaHostApi();
+  final _multiChannel = const MethodChannel('llama_flutter_android/multimodel');
   StreamController<String>? _tokenController;
   final _progressController = StreamController<double>.broadcast();
-  
+
   bool _isLoading = false;
   bool _isGenerating = false;
 
@@ -18,7 +19,11 @@ class LlamaController implements LlamaFlutterApi {
     );
   }
 
-  /// Load a GGUF model
+  /// Load a GGUF model into the native multi-model pool.
+  ///
+  /// If the model is already resident natively, this becomes an INSTANT
+  /// switch (no reload). Otherwise it loads into a free slot, evicting the
+  /// least-recently-used non-active model when the pool is full.
   Future<void> loadModel({
     required String modelPath,
     int threads = 4,
@@ -27,13 +32,10 @@ class LlamaController implements LlamaFlutterApi {
   }) async {
     if (_isLoading) throw StateError('Already loading');
 
-    // Loading is idempotent: if a model is still resident natively — either
-    // because the caller is swapping models or because an earlier load failed
-    // partway and left `g_model` alive — free it and continue. Throwing here
-    // used to wedge the process permanently, since the C++ statics can only be
-    // cleared by nativeFreeModel() or by the process dying.
-    if (await _safeIsModelLoaded()) {
-      await _freeResidentModel();
+    // Stop any in-flight generation first: switching models mid-reply is
+    // allowed but the tokens of the old run must not leak into the new one.
+    if (_isGenerating) {
+      await stop();
     }
 
     _isLoading = true;
@@ -46,6 +48,55 @@ class LlamaController implements LlamaFlutterApi {
       ));
     } finally {
       _isLoading = false;
+    }
+  }
+
+  /// Paths of all GGUF models currently resident in the native pool.
+  Future<List<String>> residentModels() async {
+    try {
+      final res = await _multiChannel.invokeListMethod<dynamic>('residentModels');
+      return res?.cast<String>() ?? const <String>[];
+    } on MissingPluginException {
+      return const [];
+    }
+  }
+
+  /// Instantly make an already-resident model active. Returns false when the
+  /// model is not resident (caller should fall back to [loadModel]).
+  Future<bool> switchTo(String modelPath) async {
+    try {
+      return await _multiChannel.invokeMethod<bool>(
+            'switchTo',
+            {'path': modelPath},
+          ) ??
+          false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  /// Free one resident model by path (frees all when omitted).
+  Future<void> freeByPath([String? modelPath]) async {
+    try {
+      if (modelPath == null) {
+        await _api.dispose();
+      } else {
+        await _multiChannel.invokeMethod<void>(
+          'freeByPath',
+          {'path': modelPath},
+        );
+      }
+    } on MissingPluginException {
+      // ignore
+    }
+  }
+
+  /// Path of the currently active (generation-target) model.
+  Future<String?> activeModel() async {
+    try {
+      return await _multiChannel.invokeMethod<String>('activeModel');
+    } on MissingPluginException {
+      return null;
     }
   }
 
@@ -115,41 +166,6 @@ class LlamaController implements LlamaFlutterApi {
 
   /// Check if model is loaded
   Future<bool> isModelLoaded() async => await _api.isModelLoaded();
-
-  Future<bool> _safeIsModelLoaded() async {
-    try {
-      return await _api.isModelLoaded();
-    } on PlatformException catch (e) {
-      if (e.code == 'channel-error') {
-        return false;
-      }
-      rethrow;
-    }
-  }
-
-  /// Free the natively-resident model without tearing this controller down.
-  ///
-  /// Unlike [dispose], the progress controller stays open, so the same
-  /// controller instance can load another model straight afterwards. Every step
-  /// is best-effort: the native free must run even if stopping fails, because
-  /// skipping it is what leaves `g_model` alive and blocks all later loads.
-  Future<void> _freeResidentModel() async {
-    try {
-      if (_isGenerating) {
-        await _api.stop();
-      }
-    } catch (_) {
-      // Ignore: the free below is the part that matters.
-    }
-    _isGenerating = false;
-    try {
-      await _tokenController?.close();
-    } catch (_) {
-      // Ignore: an already-closed controller is fine.
-    }
-    _tokenController = null;
-    await _api.dispose();
-  }
 
   /// Get list of supported chat templates
   Future<List<String>> getSupportedTemplates() async => await _api.getSupportedTemplates();

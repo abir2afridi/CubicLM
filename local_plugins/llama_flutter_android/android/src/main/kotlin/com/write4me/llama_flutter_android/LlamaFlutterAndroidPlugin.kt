@@ -6,7 +6,10 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.content.ContextCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicBoolean
 
 class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
@@ -14,13 +17,41 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
     private lateinit var flutterApi: LlamaFlutterApi
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var generationJob: Job? = null
-    private val isModelLoaded = AtomicBoolean(false)
     private val isStopping = AtomicBoolean(false)
-    private var currentModelPath: String? = null
+    private val loadMutex = Mutex()
     private var nativeLoadError: Throwable? = null
 
+    // ── Multi-model residency bookkeeping ────────────────────────────────────
+    // The C++ layer keeps MAX_SLOTS models resident; this map tracks which
+    // path lives in which slot so repeat loads become instant switches.
     companion object {
         private const val TAG = "LlamaFlutterPlugin"
+        private const val MAX_SLOTS = 2
+        private const val MULTI_CHANNEL = "llama_flutter_android/multimodel"
+    }
+    private val slotPaths = arrayOfNulls<String?>(MAX_SLOTS)
+    private val lruOrder = mutableListOf<String>()   // least → most recently used
+    @Volatile private var activePath: String? = null
+    private lateinit var multiChannel: MethodChannel
+
+    private fun slotIndexOf(path: String): Int =
+        slotPaths.indexOfFirst { it == path }
+
+    private fun touchLru(path: String) {
+        lruOrder.remove(path)
+        lruOrder.add(path)
+    }
+
+    private fun removeFromLru(path: String) {
+        lruOrder.remove(path)
+    }
+
+    /// True only when the tracked active path maps to a genuinely loaded
+    /// native slot. Repairs bookkeeping when the two layers disagree.
+    private fun activeSlotValid(): Boolean {
+        val p = activePath ?: return false
+        val s = slotIndexOf(p)
+        return s >= 0 && nativeIsSlotLoaded(s)
     }
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
@@ -28,11 +59,60 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
         context = binding.applicationContext
         flutterApi = LlamaFlutterApi(binding.binaryMessenger)
         LlamaHostApi.setUp(binding.binaryMessenger, this)
+
+        // Plain MethodChannel for multi-model residency control (kept outside
+        // the Pigeon API so the generated interfaces stay untouched).
+        multiChannel = MethodChannel(binding.binaryMessenger, MULTI_CHANNEL)
+        multiChannel.setMethodCallHandler { call, result ->
+            try {
+                when (call.method) {
+                    "residentModels" -> result.success(slotPaths.filterNotNull())
+                    "activeModel" -> result.success(activePath)
+                    "switchTo" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.error("invalid_args", "path is required", null)
+                            return@setMethodCallHandler
+                        }
+                        // Only succeed when the model is genuinely resident —
+                        // never claim success for an unknown path, or Dart
+                        // will skip the real load and native will throw.
+                        val slot = slotIndexOf(path)
+                        if (slot >= 0 && nativeIsSlotLoaded(slot) && nativeSelectSlot(slot)) {
+                            activePath = path
+                            touchLru(path)
+                            result.success(true)
+                        } else {
+                            result.success(false)
+                        }
+                    }
+                    "freeByPath" -> {
+                        val path = call.argument<String>("path")
+                        if (path == null) {
+                            result.error("invalid_args", "path is required", null)
+                            return@setMethodCallHandler
+                        }
+                        val slot = slotIndexOf(path)
+                        if (slot >= 0) {
+                            nativeFreeSlot(slot)
+                            slotPaths[slot] = null
+                            removeFromLru(path)
+                            if (activePath == path) activePath = null
+                        }
+                        result.success(true)
+                    }
+                    else -> result.notImplemented()
+                }
+            } catch (t: Throwable) {
+                result.error("multi_model_error", t.message, null)
+            }
+        }
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         scope.cancel()
-        if (isModelLoaded.get()) {
+        multiChannel.setMethodCallHandler(null)
+        if (slotPaths.any { it != null }) {
             nativeFreeModel()
         }
         LlamaHostApi.setUp(binding.binaryMessenger, null)
@@ -46,30 +126,65 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
 
         scope.launch {
             try {
-                // Start foreground service for long-running task
-                val intent = Intent(context, InferenceService::class.java)
-                ContextCompat.startForegroundService(context, intent)
+                loadMutex.withLock {
+                    val requestedPath = config.modelPath
 
-                // Load model with progress callback
-                nativeLoadModel(
-                    config.modelPath,
-                    config.nThreads,
-                    config.contextSize,
-                    config.nGpuLayers ?: 0L
-                ) { progress ->
-                    scope.launch {
+                    // ── Instant switch: model already resident ───────────
+                    val residentSlot = slotIndexOf(requestedPath)
+                    if (residentSlot >= 0 && nativeIsSlotLoaded(residentSlot)) {
+                        nativeSelectSlot(residentSlot)
+                        activePath = requestedPath
+                        touchLru(requestedPath)
+                        Log.i(TAG, "Instant switch to resident slot $residentSlot: $requestedPath")
                         withContext(Dispatchers.Main) {
-                            flutterApi.onLoadProgress(progress) { result ->
-                                // Handle result if needed
+                            callback(Result.success(Unit))
+                        }
+                        return@launch
+                    }
+
+                    // Start foreground service for long-running task
+                    val intent = Intent(context, InferenceService::class.java)
+                    ContextCompat.startForegroundService(context, intent)
+
+                    // ── Pick a slot: existing mapping → empty → LRU victim ──
+                    var slot = slotIndexOf(requestedPath)
+                    if (slot < 0) {
+                        slot = slotPaths.indexOfFirst { it == null }
+                        if (slot < 0) {
+                            // Evict least-recently-used, never the active one
+                            val victim = lruOrder.firstOrNull { it != activePath }
+                                ?: lruOrder.firstOrNull()
+                            slot = if (victim != null) slotIndexOf(victim) else 0
+                            Log.i(TAG, "Pool full — evicting '$victim' from slot $slot")
+                        }
+                        if (slot < 0) slot = 0
+                    }
+
+                    // Load into the chosen slot; C++ frees that slot first.
+                    // Other slots stay resident.
+                    nativeLoadModel(
+                        config.modelPath,
+                        config.nThreads,
+                        config.contextSize,
+                        config.nGpuLayers ?: 0L,
+                        slot
+                    ) { progress ->
+                        scope.launch {
+                            withContext(Dispatchers.Main) {
+                                flutterApi.onLoadProgress(progress) { result ->
+                                    // Handle result if needed
+                                }
                             }
                         }
                     }
-                }
 
-                currentModelPath = config.modelPath
-                isModelLoaded.set(true)
-                withContext(Dispatchers.Main) {
-                    callback(Result.success(Unit))
+                    slotPaths[slot] = requestedPath
+                    activePath = requestedPath
+                    touchLru(requestedPath)
+
+                    withContext(Dispatchers.Main) {
+                        callback(Result.success(Unit))
+                    }
                 }
             } catch (e: Exception) {
                 scope.launch {
@@ -90,7 +205,9 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
             return
         }
 
-        if (!isModelLoaded.get()) {
+        if (!activeSlotValid()) {
+            // Bookkeeping/native desync — repair instead of letting native throw.
+            activePath = null
             callback(Result.failure(IllegalStateException("Model not loaded")))
             return
         }
@@ -168,15 +285,17 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
         scope.launch {
             try {
                 stop { }
-                if (isModelLoaded.get()) {
+                if (slotPaths.any { it != null }) {
                     nativeFreeModel()
-                    isModelLoaded.set(false)
+                    slotPaths.fill(null)
+                    lruOrder.clear()
+                    activePath = null
                 }
-                
+
                 // Stop foreground service
                 val intent = Intent(context, InferenceService::class.java)
                 context.stopService(intent)
-                
+
                 withContext(Dispatchers.Main) {
                     callback(Result.success(Unit))
                 }
@@ -194,7 +313,9 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
             return
         }
 
-        if (!isModelLoaded.get()) {
+        if (!activeSlotValid()) {
+            // Bookkeeping/native desync — repair instead of letting native throw.
+            activePath = null
             callback(Result.failure(IllegalStateException("Model not loaded")))
             return
         }
@@ -206,7 +327,7 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
                 val formattedPrompt = ChatTemplateManager.formatMessages(
                     request.messages.map { msg -> TemplateChatMessage(msg.role, msg.content) },
                     request.template,
-                    currentModelPath
+                    activePath
                 )
 
                 nativeGenerate(
@@ -271,7 +392,7 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
     }
 
     override fun isModelLoaded(): Boolean {
-        return isModelLoaded.get()
+        return activePath != null
     }
 
     override fun getContextInfo(): ContextInfo {
@@ -421,6 +542,7 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
         nThreads: Long,
         contextSize: Long,
         nGpuLayers: Long,
+        slot: Int,
         progressCallback: (Double) -> Unit
     )
 
@@ -446,6 +568,9 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
 
     private external fun nativeStop()
     private external fun nativeFreeModel()
+    private external fun nativeSelectSlot(slot: Int): Boolean
+    private external fun nativeIsSlotLoaded(slot: Int): Boolean
+    private external fun nativeFreeSlot(slot: Int)
     private external fun nativeGetTokensUsed(): Int
     private external fun nativeGetContextSize(): Int
     private external fun nativeClearContext()

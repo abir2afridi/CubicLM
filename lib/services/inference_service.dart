@@ -37,6 +37,26 @@ class InferenceService extends GetxService {
   final loadedModelRuntime = ''.obs;
   final loadedBackend = ''.obs;
 
+  /// GGUF models currently resident in the native multi-model pool
+  /// (file names, not full paths). Used by the in-chat switcher to mark
+  /// models that can be activated instantly.
+  final residentTextModels = <String>[].obs;
+
+  /// Re-query the native pool for resident model paths.
+  Future<void> refreshResidency() async {
+    try {
+      final paths = await _engine?.residentModels() ?? const <String>[];
+      residentTextModels.value = paths
+          .map((p) => p.split('/').last)
+          .toList(growable: false);
+    } catch (_) {
+      // Pool info is best-effort; never block loading on it.
+    }
+  }
+
+  /// True when [filename] can be switched to without any loading.
+  bool isResident(String filename) => residentTextModels.contains(filename);
+
   /// Whether the current platform supports local inference.
   bool get supportsLocalInference => platform.supportsLocalInference;
 
@@ -126,12 +146,62 @@ class InferenceService extends GetxService {
       final shouldTryLiteRtGpu =
           isLiteRt && !forceLiteRtCpu && liteRtMode != 'cpu_safe';
 
-      await unloadModel();
+      final contextSizeSetting = _hive.getSetting<int>(
+            AppConstants.keyContextSize,
+            defaultValue: AppConstants.defaultContextSize,
+          ) ??
+          AppConstants.defaultContextSize;
+
+      // ── Instant switch: GGUF already resident in the native pool ────────
+      // No unload, no reload — just make it the active slot. Only valid when
+      // the requested context size matches what the resident slot was loaded
+      // with; otherwise fall through to a real load so the new size applies.
+      if (!isLiteRt) {
+        _engine ??= platform.InferenceEngine();
+        final lastLoadedCtx =
+            _hive.getSetting<int>('last_loaded_context_size') ?? 0;
+        final residentMatchesCtx =
+            lastLoadedCtx == 0 || lastLoadedCtx == contextSizeSetting;
+        if (residentMatchesCtx) {
+          final switched = await _engine!.switchActiveModel(modelPath);
+          if (switched) {
+            final requestedName = modelName ?? modelPath.split('/').last;
+            isModelLoaded.value = true;
+            isLoadingModel.value = false;
+            loadingModelName.value = '';
+            modelLoadProgress.value = 1.0;
+            loadedModelName.value = requestedName;
+            loadedModelRuntime.value = 'llama';
+            _sessionNativeRuntime = 'llama';
+            isVisionLoaded.value = false;
+            contextTokensUsed.value = 0;
+            contextTokensTotal.value = contextSizeSetting;
+            await _hive.setSetting(AppConstants.keyLocalModelPath, modelPath);
+            await _hive.setSetting(
+                AppConstants.keyLocalModelName, loadedModelName.value);
+            await _hive.setSetting(
+                AppConstants.keyLocalModelRuntime, 'llama');
+            Get.find<AppLogService>()
+                .info('Instant switch to resident model: $requestedName');
+            refreshResidency();
+            return 'Switched to $requestedName instantly (no reload).';
+          }
+        }
+      }
+
+      // Pool-aware load for GGUF: the native layer frees only the target
+      // slot, so other resident models stay loaded. LiteRT is single-session:
+      // a litert→litert swap still needs the old one freed first, but a
+      // llama→litert switch keeps the GGUF pool resident for instant return.
+      final previousRuntime = loadedModelRuntime.value;
+      if (isLiteRt && previousRuntime == 'litert') {
+        await unloadModel();
+      }
       isLoadingModel.value = true;
       loadingModelName.value = modelName ?? modelPath.split('/').last;
       modelLoadProgress.value = 0.0;
 
-      _engine = platform.InferenceEngine();
+      _engine ??= platform.InferenceEngine();
 
       final contextSize = _hive.getSetting<int>(
             AppConstants.keyContextSize,
@@ -218,9 +288,11 @@ class InferenceService extends GetxService {
       await _hive.setSetting(
           AppConstants.keyLocalModelBackend, loadedBackend.value);
 
-      if (isLiteRt) {
-        await _hive.setSetting('last_loaded_context_size', finalContextSize);
-      }
+      // Track loaded context size across ALL runtimes so the instant-switch
+      // path can tell when a resident slot predates a context-size change.
+      await _hive.setSetting('last_loaded_context_size', finalContextSize);
+
+      refreshResidency();
 
       return result.message;
     } catch (e) {
@@ -252,6 +324,7 @@ class InferenceService extends GetxService {
     gpuName.value = '';
     contextTokensUsed.value = 0;
     contextTokensTotal.value = 0;
+    residentTextModels.clear();
     // _sessionNativeRuntime is intentionally NOT cleared. Unloading frees the
     // model, but the runtime's .so files stay loaded in the process for its
     // lifetime, so the cross-runtime guard must keep firing after an unload.

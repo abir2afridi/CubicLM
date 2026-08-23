@@ -12,15 +12,48 @@
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-static llama_model* g_model = nullptr;
-static llama_context* g_ctx = nullptr;
-static const llama_vocab* g_vocab = nullptr;
-static llama_sampler* g_sampler = nullptr;
+// ── Multi-model slot registry ────────────────────────────────────────────────
+// Multiple GGUF models can stay resident at once; generation always targets
+// the ACTIVE slot. Kotlin picks the slot index and owns residency bookkeeping.
+#define MAX_SLOTS 2
+
+struct ModelSlot {
+    llama_model* model = nullptr;
+    llama_context* ctx = nullptr;
+    const llama_vocab* vocab = nullptr;
+    llama_sampler* sampler = nullptr;
+    int n_past = 0;
+};
+
+static ModelSlot g_slots[MAX_SLOTS];
+static std::atomic<int> g_active_slot{-1};
 static std::atomic<bool> g_stop_flag{false};
-static int g_n_past = 0;  // Track the number of tokens already in KV cache
 static std::mutex g_load_log_mutex;
 static std::string g_load_error;
 static bool g_capture_load_error = false;
+
+static ModelSlot* activeSlot() {
+    const int i = g_active_slot.load(std::memory_order_acquire);
+    if (i < 0 || i >= MAX_SLOTS) return nullptr;
+    return &g_slots[i];
+}
+
+static void freeSlotContents(ModelSlot& s) {
+    if (s.sampler) {
+        llama_sampler_free(s.sampler);
+        s.sampler = nullptr;
+    }
+    if (s.ctx) {
+        llama_free(s.ctx);
+        s.ctx = nullptr;
+    }
+    if (s.model) {
+        llama_model_free(s.model);
+        s.model = nullptr;
+    }
+    s.vocab = nullptr;
+    s.n_past = 0;
+}
 
 static void androidLlamaLog(ggml_log_level level, const char* text, void*) {
     if (!text) return;
@@ -210,8 +243,12 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeLoadModel(
     JNIEnv* env, jobject thiz,
     jstring path, jlong n_threads, jlong ctx_size, jlong n_gpu_layers,
-    jobject progress_callback) {
-    
+    jint slot, jobject progress_callback) {
+
+    if (slot < 0 || slot >= MAX_SLOTS) {
+        throwLoadError(env, "Invalid model slot");
+        return;
+    }
     if (!path) {
         throwLoadError(env, "GGUF model path is missing");
         return;
@@ -222,7 +259,7 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeLoadMo
         throwLoadError(env, "Could not read the GGUF model path");
         return;
     }
-    LOGI("Loading model: %s", model_path);
+    LOGI("Loading model into slot %d: %s", slot, model_path);
 
     std::ifstream model_file(model_path, std::ios::binary | std::ios::ate);
     if (!model_file) {
@@ -256,12 +293,16 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeLoadMo
         g_load_error.clear();
         g_capture_load_error = true;
     }
-    
+
+    // Loading overwrites the whole target slot; other slots stay resident.
+    ModelSlot& target = g_slots[slot];
+    freeSlotContents(target);
+
     // Load model
-    g_model = llama_model_load_from_file(model_path, model_params);
+    target.model = llama_model_load_from_file(model_path, model_params);
     env->ReleaseStringUTFChars(path, model_path);
-    
-    if (!g_model) {
+
+    if (!target.model) {
         const std::string detail = consumeLoadError();
         const std::string message = detail.empty()
             ? "Failed to load GGUF model; check model compatibility and available RAM"
@@ -276,36 +317,37 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeLoadMo
     ctx_params.n_ctx = ctx_size;
     ctx_params.n_threads = n_threads;
     ctx_params.n_threads_batch = n_threads;
-    
+
     // Memory optimization: reduce memory usage by limiting batch processing
     ctx_params.n_batch = 512;  // Process smaller batches to reduce memory spikes
 
     // Create context (using new API)
-    g_ctx = llama_init_from_model(g_model, ctx_params);
-    if (!g_ctx) {
-        llama_model_free(g_model);
-        g_model = nullptr;
+    target.ctx = llama_init_from_model(target.model, ctx_params);
+    if (!target.ctx) {
+        llama_model_free(target.model);
+        target.model = nullptr;
         jclass exception = env->FindClass("java/lang/RuntimeException");
         env->ThrowNew(exception, "Failed to create context");
         return;
     }
 
     // Get vocab for tokenization
-    g_vocab = llama_model_get_vocab(g_model);
-    LOGI("Vocab initialized: %p", (void*)g_vocab);
-    
-    if (!g_vocab) {
-        llama_free(g_ctx);
-        llama_model_free(g_model);
-        g_ctx = nullptr;
-        g_model = nullptr;
+    target.vocab = llama_model_get_vocab(target.model);
+    LOGI("Vocab initialized: %p", (void*)target.vocab);
+
+    if (!target.vocab) {
+        llama_free(target.ctx);
+        llama_model_free(target.model);
+        target.ctx = nullptr;
+        target.model = nullptr;
         jclass exception = env->FindClass("java/lang/RuntimeException");
         env->ThrowNew(exception, "Failed to get vocab from model");
         return;
     }
-    
+
     // Reset KV cache position counter for new model
-    g_n_past = 0;
+    target.n_past = 0;
+    g_active_slot.store(slot, std::memory_order_release);
 
     // Report progress completion
     if (progress_callback) {
@@ -342,12 +384,17 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
         g_token_callback = nullptr;
     }
     g_token_callback = env->NewGlobalRef(token_callback);
-    
+
+    ModelSlot* S = activeSlot();
+    llama_model* g_model = S ? S->model : nullptr;
+    llama_context* g_ctx = S ? S->ctx : nullptr;
+    const llama_vocab* g_vocab = S ? S->vocab : nullptr;
     if (!g_model || !g_ctx || !g_vocab) {
         jclass exception = env->FindClass("java/lang/IllegalStateException");
         env->ThrowNew(exception, "Model not loaded");
         return;
     }
+    int& g_n_past = S->n_past;
 
     // Clear memory from previous generation to start fresh
     const char* prompt_str = env->GetStringUTFChars(prompt, nullptr);
@@ -443,32 +490,32 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
     g_n_past += tokens.size();
 
     // Create sampler chain with all parameters
-    if (g_sampler) {
-        llama_sampler_free(g_sampler);
+    if (S->sampler) {
+        llama_sampler_free(S->sampler);
     }
-    
+
     // Use seed or current time
     uint32_t sampler_seed = (seed >= 0) ? static_cast<uint32_t>(seed) : static_cast<uint32_t>(time(nullptr));
-    
+
     llama_sampler_chain_params sparams = llama_sampler_chain_default_params();
-    g_sampler = llama_sampler_chain_init(sparams);
-    
+    S->sampler = llama_sampler_chain_init(sparams);
+
     // Add penalties first (applied to logits before sampling)
     if (repeat_penalty != 1.0f || frequency_penalty != 0.0f || presence_penalty != 0.0f) {
-        llama_sampler_chain_add(g_sampler, llama_sampler_init_penalties(
+        llama_sampler_chain_add(S->sampler, llama_sampler_init_penalties(
             repeat_last_n,              // penalty_last_n
             repeat_penalty,             // penalty_repeat
             frequency_penalty,          // penalty_freq
             presence_penalty            // penalty_present
         ));
     }
-    
+
     // Temperature sampling
-    llama_sampler_chain_add(g_sampler, llama_sampler_init_temp(temperature));
-    
+    llama_sampler_chain_add(S->sampler, llama_sampler_init_temp(temperature));
+
     // Add advanced samplers if enabled
     if (mirostat == 1) {
-        llama_sampler_chain_add(g_sampler, llama_sampler_init_mirostat(
+        llama_sampler_chain_add(S->sampler, llama_sampler_init_mirostat(
             llama_vocab_n_tokens(g_vocab),  // Use the vocab to get n_vocab
             sampler_seed,
             mirostat_tau,
@@ -476,7 +523,7 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
             100  // m parameter
         ));
     } else if (mirostat == 2) {
-        llama_sampler_chain_add(g_sampler, llama_sampler_init_mirostat_v2(
+        llama_sampler_chain_add(S->sampler, llama_sampler_init_mirostat_v2(
             sampler_seed,
             mirostat_tau,
             mirostat_eta
@@ -484,24 +531,24 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
     } else {
         // Standard sampling chain (only if mirostat is disabled)
         if (min_p > 0.0f && min_p < 1.0f) {
-            llama_sampler_chain_add(g_sampler, llama_sampler_init_min_p(min_p, 1));
+            llama_sampler_chain_add(S->sampler, llama_sampler_init_min_p(min_p, 1));
         }
-        
+
         if (typical_p < 1.0f) {
-            llama_sampler_chain_add(g_sampler, llama_sampler_init_typical(typical_p, 1));
+            llama_sampler_chain_add(S->sampler, llama_sampler_init_typical(typical_p, 1));
         }
-        
+
         if (top_k > 0) {
-            llama_sampler_chain_add(g_sampler, llama_sampler_init_top_k(top_k));
+            llama_sampler_chain_add(S->sampler, llama_sampler_init_top_k(top_k));
         }
-        
+
         if (top_p < 1.0f) {
-            llama_sampler_chain_add(g_sampler, llama_sampler_init_top_p(top_p, 1));
+            llama_sampler_chain_add(S->sampler, llama_sampler_init_top_p(top_p, 1));
         }
     }
-    
+
     // Final distribution sampler
-    llama_sampler_chain_add(g_sampler, llama_sampler_init_dist(sampler_seed));
+    llama_sampler_chain_add(S->sampler, llama_sampler_init_dist(sampler_seed));
 
     // Get callback method
     jclass callbackClass = env->GetObjectClass(token_callback);
@@ -512,7 +559,7 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
     for (int i = 0; i < max_tokens && !g_stop_flag; i++) {
         // Sample next token
         LOGI("Sampling token %d, g_n_past=%d", i + 1, g_n_past);
-        llama_token new_token_id = llama_sampler_sample(g_sampler, g_ctx, -1);
+        llama_token new_token_id = llama_sampler_sample(S->sampler, g_ctx, -1);
         LOGI("Sampled token: %d", new_token_id);
 
         // Check for end of generation (EOS/EOD tokens)
@@ -579,50 +626,71 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeStop(
 extern "C" JNIEXPORT void JNICALL
 Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeFreeModel(
     JNIEnv* env, jobject thiz) {
-    
-    if (g_sampler) {
-        llama_sampler_free(g_sampler);
-        g_sampler = nullptr;
+
+    for (int i = 0; i < MAX_SLOTS; i++) {
+        freeSlotContents(g_slots[i]);
     }
-    if (g_ctx) {
-        llama_free(g_ctx);
-        g_ctx = nullptr;
+    g_active_slot.store(-1, std::memory_order_release);
+
+    LOGI("All model slots freed");
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeSelectSlot(
+    JNIEnv* env, jobject thiz, jint slot) {
+    if (slot < 0 || slot >= MAX_SLOTS) return JNI_FALSE;
+    if (!g_slots[slot].model || !g_slots[slot].ctx) return JNI_FALSE;
+    g_active_slot.store(slot, std::memory_order_release);
+    LOGI("Active slot switched to %d", slot);
+    return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeIsSlotLoaded(
+    JNIEnv* env, jobject thiz, jint slot) {
+    if (slot < 0 || slot >= MAX_SLOTS) return JNI_FALSE;
+    return (g_slots[slot].model && g_slots[slot].ctx) ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeFreeSlot(
+    JNIEnv* env, jobject thiz, jint slot) {
+    if (slot < 0 || slot >= MAX_SLOTS) return;
+    freeSlotContents(g_slots[slot]);
+    if (g_active_slot.load(std::memory_order_acquire) == slot) {
+        g_active_slot.store(-1, std::memory_order_release);
     }
-    if (g_model) {
-        llama_model_free(g_model);
-        g_model = nullptr;
-    }
-    g_vocab = nullptr;
-    g_n_past = 0;  // Reset position counter
-    
-    LOGI("Model freed");
+    LOGI("Slot %d freed", slot);
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGetTokensUsed(
     JNIEnv* env, jobject thiz) {
-    return g_n_past;
+    ModelSlot* S = activeSlot();
+    return S ? S->n_past : 0;
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGetContextSize(
     JNIEnv* env, jobject thiz) {
-    return g_ctx ? llama_n_ctx(g_ctx) : 0;
+    ModelSlot* S = activeSlot();
+    return (S && S->ctx) ? llama_n_ctx(S->ctx) : 0;
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeClearContext(
     JNIEnv* env, jobject thiz) {
-    if (!g_ctx) {
+    ModelSlot* S = activeSlot();
+    if (!S || !S->ctx) {
         LOGE("Cannot clear context: context is null");
         return;
     }
-    
-    llama_memory_t mem = llama_get_memory(g_ctx);
+
+    llama_memory_t mem = llama_get_memory(S->ctx);
     if (mem) {
         llama_memory_seq_rm(mem, 0, 0, -1);
-        g_n_past = 0;
-        LOGI("Context cleared, g_n_past reset to 0");
+        S->n_past = 0;
+        LOGI("Context cleared, n_past reset to 0");
     } else {
         LOGE("Failed to get memory object from context");
     }

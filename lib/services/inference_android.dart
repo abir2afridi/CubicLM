@@ -40,6 +40,51 @@ class InferenceEngine {
   double? _liteConversationTemperature;
   bool _liteConversationHasMessages = false;
 
+  /// ONE shared LlamaController per process.
+  ///
+  /// Every LlamaController constructor registers itself as the global
+  /// Flutter-side token/error handler. Constructing throwaway instances
+  /// (e.g. for utility queries) silently steals that handler from the
+  /// controller a live generation is streaming on, so tokens vanish and
+  /// generation hangs until timeout. Always reuse this instance.
+  static final LlamaController _sharedLlama = LlamaController();
+
+  /// Instantly activate an already-resident GGUF model in the native pool.
+  /// Returns false when [modelPath] is not resident (caller falls back to a
+  /// full load).
+  Future<bool> switchActiveModel(String modelPath) async {
+    try {
+      // Assign the persistent controller so subsequent generate() calls run
+      // on the llama path. Skipping this left _controller null after an
+      // instant switch and generation failed with "No model loaded".
+      final ctl = _controller ??= _sharedLlama;
+      final ok = await ctl.switchTo(modelPath);
+      if (ok) {
+        _isLiteRt = false;
+        _idleTimer?.cancel();
+      }
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Paths of GGUF models currently resident in the native pool.
+  Future<List<String>> residentModels() async {
+    try {
+      return await _sharedLlama.residentModels();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Free one specific resident GGUF model (all slots stay otherwise).
+  Future<void> freeResidentModel(String modelPath) async {
+    try {
+      await _sharedLlama.freeByPath(modelPath);
+    } catch (_) {}
+  }
+
   Future<LoadResult> loadModel({
     required String modelPath,
     String? modelRuntime,
@@ -67,7 +112,7 @@ class InferenceEngine {
     }
 
     _isLiteRt = false;
-    _controller = LlamaController();
+    _controller ??= _sharedLlama;
 
     // ── GPU Detection ──
     int gpuLayers = 0;
