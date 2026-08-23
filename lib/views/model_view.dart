@@ -621,7 +621,7 @@ class ModelView extends GetView<ModelController> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: cloudModels.modelsByProvider[provider.id]!.map((model) {
+                    children: (cloudModels.modelsByProvider[provider.id] ?? []).map((model) {
                       final activeModel = cloudModels.activeModelFor(provider.id);
                       final isActive = activeModel == model;
                       return ChoiceChip(
@@ -650,28 +650,48 @@ class ModelView extends GetView<ModelController> {
                   width: double.infinity,
                   child: Obx(() {
                     final configured = cloudModels.isConfigured(provider.id);
-                    return FilledButton.tonal(
-                      onPressed: () {
-                        if (isSelected && configured) return;
-                        if (configured) {
-                          settings.setCloudProvider(provider.id);
-                        } else {
-                          _showProviderKeyDialog(context, cloudModels, provider, openModelsAfterSave: true);
-                        }
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: isSelected && configured
-                            ? AppColors.success.withValues(alpha: 0.2)
-                            : null,
-                        foregroundColor: isSelected && configured
-                            ? AppColors.success
-                            : null,
-                      ),
-                      child: Text(isSelected && configured
-                          ? 'Active Provider'
-                          : configured
-                              ? 'Set as Active'
-                              : 'Add API Key'),
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.tonal(
+                            onPressed: () {
+                              if (configured) {
+                                settings.setCloudProvider(provider.id);
+                              } else if (provider.id == 'custom') {
+                                _showCustomProviderDialog(context, cloudModels);
+                              } else {
+                                _showProviderKeyDialog(context, cloudModels, provider, openModelsAfterSave: true);
+                              }
+                            },
+                            style: FilledButton.styleFrom(
+                              backgroundColor: isSelected && configured
+                                  ? AppColors.success.withValues(alpha: 0.2)
+                                  : null,
+                              foregroundColor: isSelected && configured
+                                  ? AppColors.success
+                                  : null,
+                            ),
+                            child: Text(isSelected && configured
+                                ? 'Active Provider'
+                                : configured
+                                    ? 'Set as Active'
+                                    : provider.id == 'custom'
+                                        ? 'Configure Endpoint'
+                                        : 'Add API Key'),
+                          ),
+                        ),
+                        if (configured && provider.id == 'custom') ...[
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            height: 40,
+                            child: IconButton(
+                              tooltip: 'Edit Config',
+                              icon: Icon(Icons.edit_rounded, size: 18, color: Theme.of(context).hintColor),
+                              onPressed: () => _showCustomProviderDialog(context, cloudModels),
+                            ),
+                          ),
+                        ],
+                      ],
                     );
                   }),
                 ),
@@ -1190,6 +1210,142 @@ class ModelView extends GetView<ModelController> {
         ),
       ),
     );
+  }
+
+  void _showCustomProviderDialog(
+    BuildContext context,
+    CloudModelController cloud,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final nameCtrl = cloud.customNameController;
+    final baseUrlCtrl = cloud.customBaseUrlController;
+    final apiKeyCtrl = cloud.customApiKeyController;
+    final modelCtrl = cloud.customModelController;
+    final obscureKey = true.obs;
+    final error = ''.obs;
+
+    Get.dialog(AlertDialog(
+      backgroundColor: isDark ? AppColors.surface : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      titlePadding: const EdgeInsets.fromLTRB(26, 26, 22, 0),
+      contentPadding: const EdgeInsets.fromLTRB(26, 20, 26, 10),
+      actionsPadding: const EdgeInsets.fromLTRB(22, 10, 22, 22),
+      title: Row(
+        children: [
+          Container(
+            width: 58, height: 58,
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(Icons.tune, color: AppColors.secondary, size: 29),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Custom API', style: GoogleFonts.plusJakartaSans(fontSize: 20, fontWeight: FontWeight.w800)),
+                Text('OpenAI-compatible endpoint', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500, color: Theme.of(context).hintColor)),
+              ],
+            ),
+          ),
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                decoration: const InputDecoration(
+                  labelText: 'Profile name (optional)',
+                  hintText: 'e.g. My Local Server',
+                  prefixIcon: Icon(Icons.label_outline_rounded, size: 22),
+                  contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 18),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: baseUrlCtrl,
+                style: GoogleFonts.firaCode(fontSize: 13),
+                decoration: const InputDecoration(
+                  labelText: 'Base URL',
+                  hintText: 'http://192.168.1.100:8080',
+                  prefixIcon: Icon(Icons.link_rounded, size: 22),
+                  contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 18),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Obx(() => TextField(
+                controller: apiKeyCtrl,
+                obscureText: obscureKey.value,
+                style: GoogleFonts.firaCode(fontSize: 13),
+                decoration: InputDecoration(
+                  labelText: 'API key',
+                  hintText: 'sk-... or leave empty for no auth',
+                  prefixIcon: const Icon(Icons.key_outlined, size: 22),
+                  suffixIcon: IconButton(
+                    tooltip: obscureKey.value ? 'Show' : 'Hide',
+                    onPressed: () => obscureKey.value = !obscureKey.value,
+                    icon: Icon(obscureKey.value ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 22),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 18, horizontal: 18),
+                ),
+              )),
+              const SizedBox(height: 12),
+              TextField(
+                controller: modelCtrl,
+                style: GoogleFonts.firaCode(fontSize: 13),
+                decoration: const InputDecoration(
+                  labelText: 'Model ID',
+                  hintText: 'e.g. llama-3.1-8b-instruct',
+                  prefixIcon: Icon(Icons.smart_toy_outlined, size: 22),
+                  contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 18),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Obx(() {
+                if (error.isEmpty) return const SizedBox.shrink();
+                return _buildErrorBox(context, error.value);
+              }),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Get.back(closeOverlays: false),
+          child: Text('Cancel', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            final baseUrl = baseUrlCtrl.text.trim();
+            final model = modelCtrl.text.trim();
+            if (baseUrl.isEmpty) { error.value = 'Base URL is required.'; return; }
+            final uri = Uri.tryParse(baseUrl);
+            if (uri == null || !uri.hasScheme || (uri.scheme != 'https' && uri.scheme != 'http') || uri.host.isEmpty) {
+              error.value = 'Enter a valid URL (http:// or https://).'; return;
+            }
+            if (model.isEmpty) { error.value = 'Model ID is required.'; return; }
+            error.value = '';
+            await cloud.saveCustomProvider();
+            await cloud.selectModel('custom', model, showSnackbar: false);
+            Get.back(closeOverlays: false);
+            Get.snackbar('Custom API Saved', '${nameCtrl.text.isEmpty ? "Custom API" : nameCtrl.text} · $model',
+                snackPosition: SnackPosition.BOTTOM);
+          },
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+          ),
+          child: Text('Save', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+        ),
+      ],
+    ));
   }
 
   void _showProviderKeyDialog(
