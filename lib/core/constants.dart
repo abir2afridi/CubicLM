@@ -20,6 +20,14 @@ class AppConstants {
   static const String keyOpenRouterKey = 'openrouter_api_key';
   static const String keyDeepSeekKey = 'deepseek_api_key';
   static const String keyZaiKey = 'zai_api_key';
+  static const String keyGroqKey = 'groq_api_key';
+  static const String keyMistralKey = 'mistral_api_key';
+  static const String keyTogetherKey = 'together_api_key';
+  static const String keyXaiKey = 'xai_api_key';
+  static const String keyPerplexityKey = 'perplexity_api_key';
+  static const String keyCerebrasKey = 'cerebras_api_key';
+  static const String keyFireworksKey = 'fireworks_api_key';
+  static const String keyCohereKey = 'cohere_api_key';
   static const String keyCustomCloudName = 'custom_cloud_name';
   static const String keyCustomCloudBaseUrl = 'custom_cloud_base_url';
   static const String keyCustomCloudKey = 'custom_cloud_api_key';
@@ -34,6 +42,14 @@ class AppConstants {
   static const String keyOpenRouterModel = 'openrouter_model';
   static const String keyDeepSeekModel = 'deepseek_model';
   static const String keyZaiModel = 'zai_model';
+  static const String keyGroqModel = 'groq_model';
+  static const String keyMistralModel = 'mistral_model';
+  static const String keyTogetherModel = 'together_model';
+  static const String keyXaiModel = 'xai_model';
+  static const String keyPerplexityModel = 'perplexity_model';
+  static const String keyCerebrasModel = 'cerebras_model';
+  static const String keyFireworksModel = 'fireworks_model';
+  static const String keyCohereModel = 'cohere_model';
   static const String keyCustomCloudModel = 'custom_cloud_model';
   static const String keyGlobalSystemPrompt = 'global_system_prompt';
   static const String keyLocalModelPath = 'local_model_path';
@@ -338,4 +354,14 @@ class AppConstants {
   static const String openRouterEndpoint = 'https://openrouter.ai/api/v1';
   static const String deepSeekEndpoint = 'https://api.deepseek.com';
   static const String zaiEndpoint = 'https://api.z.ai/api/paas/v4';
+  static const String groqEndpoint = 'https://api.groq.com/openai/v1';
+  static const String mistralEndpoint = 'https://api.mistral.ai/v1';
+  static const String togetherEndpoint = 'https://api.together.xyz/v1';
+  static const String xaiEndpoint = 'https://api.x.ai/v1';
+  static const String perplexityEndpoint = 'https://api.perplexity.ai';
+  static const String cerebrasEndpoint = 'https://api.cerebras.ai/v1';
+  static const String fireworksEndpoint =
+      'https://api.fireworks.ai/inference/v1';
+  static const String cohereEndpoint =
+      'https://api.cohere.ai/compatibility/v1';
 }

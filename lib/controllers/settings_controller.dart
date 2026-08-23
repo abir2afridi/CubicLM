@@ -30,6 +30,14 @@ class SettingsController extends GetxController {
   final openRouterKey = ''.obs;
   final deepSeekKey = ''.obs;
   final zaiKey = ''.obs;
+  final groqKey = ''.obs;
+  final mistralKey = ''.obs;
+  final togetherKey = ''.obs;
+  final xaiKey = ''.obs;
+  final perplexityKey = ''.obs;
+  final cerebrasKey = ''.obs;
+  final fireworksKey = ''.obs;
+  final cohereKey = ''.obs;
   final customCloudName = 'Custom API'.obs;
   final customCloudBaseUrl = ''.obs;
   final customCloudKey = ''.obs;
@@ -44,6 +52,15 @@ class SettingsController extends GetxController {
   final openRouterModel = 'openai/gpt-4o-mini'.obs;
   final deepSeekModel = 'deepseek-v4-flash'.obs;
   final zaiModel = 'glm-4.7-flash'.obs;
+  final groqModel = 'llama-3.3-70b-versatile'.obs;
+  final mistralModel = 'mistral-large-latest'.obs;
+  final togetherModel = 'meta-llama/Llama-3.3-70B-Instruct-Turbo'.obs;
+  final xaiModel = 'grok-4-fast'.obs;
+  final perplexityModel = 'sonar-pro'.obs;
+  final cerebrasModel = 'llama-3.3-70b'.obs;
+  final fireworksModel = 'accounts/fireworks/models/llama-v3p3-70b-instruct'
+      .obs;
+  final cohereModel = 'command-a-03-2025'.obs;
   final customCloudModel = ''.obs;
   final globalSystemPrompt = AppConstants.systemPrompt.obs;
   final nvidiaModels = <String>[].obs;
@@ -71,6 +88,14 @@ class SettingsController extends GetxController {
   final openRouterKeyController = TextEditingController();
   final deepSeekKeyController = TextEditingController();
   final zaiKeyController = TextEditingController();
+  final groqKeyController = TextEditingController();
+  final mistralKeyController = TextEditingController();
+  final togetherKeyController = TextEditingController();
+  final xaiKeyController = TextEditingController();
+  final perplexityKeyController = TextEditingController();
+  final cerebrasKeyController = TextEditingController();
+  final fireworksKeyController = TextEditingController();
+  final cohereKeyController = TextEditingController();
   final customCloudNameController = TextEditingController();
   final customCloudBaseUrlController = TextEditingController();
   final customCloudKeyController = TextEditingController();
@@ -85,6 +110,14 @@ class SettingsController extends GetxController {
   final openRouterModelController = TextEditingController();
   final deepSeekModelController = TextEditingController();
   final zaiModelController = TextEditingController();
+  final groqModelController = TextEditingController();
+  final mistralModelController = TextEditingController();
+  final togetherModelController = TextEditingController();
+  final xaiModelController = TextEditingController();
+  final perplexityModelController = TextEditingController();
+  final cerebrasModelController = TextEditingController();
+  final fireworksModelController = TextEditingController();
+  final cohereModelController = TextEditingController();
   final customCloudModelController = TextEditingController();
 
   Timer? _apiKeyDebounceTimer;
@@ -155,6 +188,15 @@ class SettingsController extends GetxController {
     openRouterKey.value = _hive.getSetting(AppConstants.keyOpenRouterKey) ?? '';
     deepSeekKey.value = _hive.getSetting(AppConstants.keyDeepSeekKey) ?? '';
     zaiKey.value = _hive.getSetting(AppConstants.keyZaiKey) ?? '';
+    groqKey.value = _hive.getSetting(AppConstants.keyGroqKey) ?? '';
+    mistralKey.value = _hive.getSetting(AppConstants.keyMistralKey) ?? '';
+    togetherKey.value = _hive.getSetting(AppConstants.keyTogetherKey) ?? '';
+    xaiKey.value = _hive.getSetting(AppConstants.keyXaiKey) ?? '';
+    perplexityKey.value =
+        _hive.getSetting(AppConstants.keyPerplexityKey) ?? '';
+    cerebrasKey.value = _hive.getSetting(AppConstants.keyCerebrasKey) ?? '';
+    fireworksKey.value = _hive.getSetting(AppConstants.keyFireworksKey) ?? '';
+    cohereKey.value = _hive.getSetting(AppConstants.keyCohereKey) ?? '';
     customCloudName.value = _hive.getSetting(AppConstants.keyCustomCloudName,
             defaultValue: 'Custom API') ??
         'Custom API';
@@ -189,6 +231,31 @@ class SettingsController extends GetxController {
     zaiModel.value = _hive.getSetting(AppConstants.keyZaiModel,
             defaultValue: 'glm-4.7-flash') ??
         'glm-4.7-flash';
+    groqModel.value = _hive.getSetting(AppConstants.keyGroqModel,
+            defaultValue: 'llama-3.3-70b-versatile') ??
+        'llama-3.3-70b-versatile';
+    mistralModel.value = _hive.getSetting(AppConstants.keyMistralModel,
+            defaultValue: 'mistral-large-latest') ??
+        'mistral-large-latest';
+    togetherModel.value = _hive.getSetting(AppConstants.keyTogetherModel,
+            defaultValue: 'meta-llama/Llama-3.3-70B-Instruct-Turbo') ??
+        'meta-llama/Llama-3.3-70B-Instruct-Turbo';
+    xaiModel.value = _hive.getSetting(AppConstants.keyXaiModel,
+            defaultValue: 'grok-4-fast') ??
+        'grok-4-fast';
+    perplexityModel.value = _hive.getSetting(AppConstants.keyPerplexityModel,
+            defaultValue: 'sonar-pro') ??
+        'sonar-pro';
+    cerebrasModel.value = _hive.getSetting(AppConstants.keyCerebrasModel,
+            defaultValue: 'llama-3.3-70b') ??
+        'llama-3.3-70b';
+    fireworksModel.value = _hive.getSetting(AppConstants.keyFireworksModel,
+            defaultValue:
+                'accounts/fireworks/models/llama-v3p3-70b-instruct') ??
+        'accounts/fireworks/models/llama-v3p3-70b-instruct';
+    cohereModel.value = _hive.getSetting(AppConstants.keyCohereModel,
+            defaultValue: 'command-a-03-2025') ??
+        'command-a-03-2025';
     customCloudModel.value =
         _hive.getSetting(AppConstants.keyCustomCloudModel) ?? '';
     _loadCustomCloudProfiles();
@@ -249,6 +316,14 @@ class SettingsController extends GetxController {
     openRouterKeyController.text = openRouterKey.value;
     deepSeekKeyController.text = deepSeekKey.value;
     zaiKeyController.text = zaiKey.value;
+    groqKeyController.text = groqKey.value;
+    mistralKeyController.text = mistralKey.value;
+    togetherKeyController.text = togetherKey.value;
+    xaiKeyController.text = xaiKey.value;
+    perplexityKeyController.text = perplexityKey.value;
+    cerebrasKeyController.text = cerebrasKey.value;
+    fireworksKeyController.text = fireworksKey.value;
+    cohereKeyController.text = cohereKey.value;
     customCloudNameController.text = customCloudName.value;
     customCloudBaseUrlController.text = customCloudBaseUrl.value;
     customCloudKeyController.text = customCloudKey.value;
@@ -263,6 +338,14 @@ class SettingsController extends GetxController {
     openRouterModelController.text = openRouterModel.value;
     deepSeekModelController.text = deepSeekModel.value;
     zaiModelController.text = zaiModel.value;
+    groqModelController.text = groqModel.value;
+    mistralModelController.text = mistralModel.value;
+    togetherModelController.text = togetherModel.value;
+    xaiModelController.text = xaiModel.value;
+    perplexityModelController.text = perplexityModel.value;
+    cerebrasModelController.text = cerebrasModel.value;
+    fireworksModelController.text = fireworksModel.value;
+    cohereModelController.text = cohereModel.value;
     customCloudModelController.text = customCloudModel.value;
   }
 
@@ -284,6 +367,22 @@ class SettingsController extends GetxController {
         return deepSeekKeyController;
       case 'zai':
         return zaiKeyController;
+      case 'groq':
+        return groqKeyController;
+      case 'mistral':
+        return mistralKeyController;
+      case 'together':
+        return togetherKeyController;
+      case 'xai':
+        return xaiKeyController;
+      case 'perplexity':
+        return perplexityKeyController;
+      case 'cerebras':
+        return cerebrasKeyController;
+      case 'fireworks':
+        return fireworksKeyController;
+      case 'cohere':
+        return cohereKeyController;
       case 'custom':
         return customCloudKeyController;
       default:
@@ -309,6 +408,22 @@ class SettingsController extends GetxController {
         return deepSeekModelController;
       case 'zai':
         return zaiModelController;
+      case 'groq':
+        return groqModelController;
+      case 'mistral':
+        return mistralModelController;
+      case 'together':
+        return togetherModelController;
+      case 'xai':
+        return xaiModelController;
+      case 'perplexity':
+        return perplexityModelController;
+      case 'cerebras':
+        return cerebrasModelController;
+      case 'fireworks':
+        return fireworksModelController;
+      case 'cohere':
+        return cohereModelController;
       case 'custom':
         return customCloudModelController;
       default:
@@ -334,6 +449,22 @@ class SettingsController extends GetxController {
         return deepSeekModel.value;
       case 'zai':
         return zaiModel.value;
+      case 'groq':
+        return groqModel.value;
+      case 'mistral':
+        return mistralModel.value;
+      case 'together':
+        return togetherModel.value;
+      case 'xai':
+        return xaiModel.value;
+      case 'perplexity':
+        return perplexityModel.value;
+      case 'cerebras':
+        return cerebrasModel.value;
+      case 'fireworks':
+        return fireworksModel.value;
+      case 'cohere':
+        return cohereModel.value;
       case 'custom':
         return customCloudModel.value;
       default:
@@ -399,6 +530,46 @@ class SettingsController extends GetxController {
         zaiKey.value = trimmed;
         zaiKeyController.text = trimmed;
         await _hive.setSetting(AppConstants.keyZaiKey, trimmed);
+        break;
+      case 'groq':
+        groqKey.value = trimmed;
+        groqKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyGroqKey, trimmed);
+        break;
+      case 'mistral':
+        mistralKey.value = trimmed;
+        mistralKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyMistralKey, trimmed);
+        break;
+      case 'together':
+        togetherKey.value = trimmed;
+        togetherKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyTogetherKey, trimmed);
+        break;
+      case 'xai':
+        xaiKey.value = trimmed;
+        xaiKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyXaiKey, trimmed);
+        break;
+      case 'perplexity':
+        perplexityKey.value = trimmed;
+        perplexityKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyPerplexityKey, trimmed);
+        break;
+      case 'cerebras':
+        cerebrasKey.value = trimmed;
+        cerebrasKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyCerebrasKey, trimmed);
+        break;
+      case 'fireworks':
+        fireworksKey.value = trimmed;
+        fireworksKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyFireworksKey, trimmed);
+        break;
+      case 'cohere':
+        cohereKey.value = trimmed;
+        cohereKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyCohereKey, trimmed);
         break;
       case 'custom':
         customCloudKey.value = trimmed;
@@ -469,6 +640,46 @@ class SettingsController extends GetxController {
         zaiModel.value = model;
         zaiModelController.text = model;
         await _hive.setSetting(AppConstants.keyZaiModel, model);
+        break;
+      case 'groq':
+        groqModel.value = model;
+        groqModelController.text = model;
+        await _hive.setSetting(AppConstants.keyGroqModel, model);
+        break;
+      case 'mistral':
+        mistralModel.value = model;
+        mistralModelController.text = model;
+        await _hive.setSetting(AppConstants.keyMistralModel, model);
+        break;
+      case 'together':
+        togetherModel.value = model;
+        togetherModelController.text = model;
+        await _hive.setSetting(AppConstants.keyTogetherModel, model);
+        break;
+      case 'xai':
+        xaiModel.value = model;
+        xaiModelController.text = model;
+        await _hive.setSetting(AppConstants.keyXaiModel, model);
+        break;
+      case 'perplexity':
+        perplexityModel.value = model;
+        perplexityModelController.text = model;
+        await _hive.setSetting(AppConstants.keyPerplexityModel, model);
+        break;
+      case 'cerebras':
+        cerebrasModel.value = model;
+        cerebrasModelController.text = model;
+        await _hive.setSetting(AppConstants.keyCerebrasModel, model);
+        break;
+      case 'fireworks':
+        fireworksModel.value = model;
+        fireworksModelController.text = model;
+        await _hive.setSetting(AppConstants.keyFireworksModel, model);
+        break;
+      case 'cohere':
+        cohereModel.value = model;
+        cohereModelController.text = model;
+        await _hive.setSetting(AppConstants.keyCohereModel, model);
         break;
       case 'custom':
         customCloudModel.value = model;

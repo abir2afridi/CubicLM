@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../core/constants.dart';
 import '../services/app_log_service.dart';
 import '../services/hive_service.dart';
+import '../services/cloud/cloud_provider_registry.dart';
 import 'settings_controller.dart';
 
 class CloudProviderInfo {
@@ -183,6 +184,79 @@ class CloudModelController extends GetxController {
       'glm-ocr',
       'glm-4.6v-flashx',
     ],
+    'anthropic': [
+      'claude-sonnet-4-5',
+      'claude-opus-4-1',
+      'claude-haiku-4-5',
+      'claude-3-7-sonnet-latest',
+      'claude-3-5-haiku-latest',
+    ],
+    'kimi': [
+      'kimi-k2.6',
+      'kimi-k2-turbo-preview',
+      'kimi-k2-0905-preview',
+      'moonshot-v1-128k',
+    ],
+    'groq': [
+      'llama-3.3-70b-versatile',
+      'llama-3.1-8b-instant',
+      'meta-llama/llama-4-scout-17b-16e-instruct',
+      'openai/gpt-oss-120b',
+      'qwen/qwen3-32b',
+      'deepseek-r1-distill-llama-70b',
+      'moonshotai/kimi-k2-instruct',
+      'gemma2-9b-it',
+    ],
+    'mistral': [
+      'mistral-large-latest',
+      'mistral-medium-latest',
+      'mistral-small-latest',
+      'magistral-medium-latest',
+      'codestral-latest',
+      'pixtral-large-latest',
+      'ministral-8b-latest',
+      'open-mistral-nemo',
+    ],
+    'together': [
+      'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+      'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
+      'deepseek-ai/DeepSeek-V3',
+      'Qwen/Qwen2.5-72B-Instruct-Turbo',
+      'mistralai/Mixtral-8x7B-Instruct-v0.1',
+      'lgai/exaone-3-5-32b-instruct',
+    ],
+    'xai': [
+      'grok-4',
+      'grok-4-fast',
+      'grok-code-fast-1',
+      'grok-3',
+      'grok-3-mini',
+      'grok-2-vision-1212',
+    ],
+    'perplexity': [
+      'sonar-pro',
+      'sonar',
+      'sonar-reasoning-pro',
+      'sonar-deep-research',
+    ],
+    'cerebras': [
+      'llama-3.3-70b',
+      'llama3.1-8b',
+      'qwen-3-32b',
+      'gpt-oss-120b',
+    ],
+    'fireworks': [
+      'accounts/fireworks/models/llama-v3p3-70b-instruct',
+      'accounts/fireworks/models/deepseek-v3',
+      'accounts/fireworks/models/qwen2p5-72b-instruct',
+      'accounts/fireworks/models/mixtral-8x22b-instruct',
+    ],
+    'cohere': [
+      'command-a-03-2025',
+      'command-r-plus-08-2024',
+      'command-r-08-2024',
+      'aya-expanse-8b',
+    ],
   };
 
   final allProviders = <CloudProviderInfo>[].obs;
@@ -220,16 +294,28 @@ class CloudModelController extends GetxController {
   }
 
   void _initProviders() {
-    const builtIn = [
-      CloudProviderInfo(id: 'openrouter', name: 'OpenRouter', description: 'Free model list · OpenAI compatible', icon: Icons.hub_outlined),
-      CloudProviderInfo(id: 'openai', name: 'OpenAI', description: 'Native OpenAI chat models', icon: Icons.auto_awesome),
-      CloudProviderInfo(id: 'deepseek', name: 'DeepSeek', description: 'OpenAI compatible V4 models', icon: Icons.psychology_alt_outlined),
-      CloudProviderInfo(id: 'google', name: 'Google Gemini', description: 'Gemini native API models', icon: Icons.diamond_outlined),
-      CloudProviderInfo(id: 'nvidia', name: 'NVIDIA NIM', description: 'OpenAI compatible hosted NIM models', icon: Icons.memory_outlined),
-      CloudProviderInfo(id: 'zai', name: 'Z.AI', description: 'GLM series models · OpenAI compatible', icon: Icons.auto_awesome_outlined),
-      CloudProviderInfo(id: 'custom', name: 'Custom API', description: 'Manual OpenAI-compatible endpoint', icon: Icons.tune, supportsFetch: false),
-    ];
-    allProviders.addAll(builtIn);
+    // Build-in providers from registry
+    for (final provider in CloudProviderRegistry.all) {
+      allProviders.add(CloudProviderInfo(
+        id: provider.id,
+        name: provider.name,
+        description: provider.description,
+        icon: provider.icon,
+        requiresKeyForList: provider.requiresKeyForList,
+        supportsFetch: provider.supportsFetch,
+      ));
+    }
+
+    // Custom provider (special case)
+    if (!allProviders.any((p) => p.id == 'custom')) {
+      allProviders.add(const CloudProviderInfo(
+        id: 'custom',
+        name: 'Custom API',
+        description: 'Manual OpenAI-compatible endpoint',
+        icon: Icons.tune,
+        supportsFetch: false,
+      ));
+    }
 
     final discovered = _loadDiscoveredProviders();
     for (final p in discovered) {
@@ -267,7 +353,7 @@ class CloudModelController extends GetxController {
   }
 
   bool _isBuiltInProvider(String id) {
-    return const ['openrouter', 'openai', 'deepseek', 'google', 'nvidia', 'zai', 'custom'].contains(id);
+    return CloudProviderRegistry.contains(id) || id == 'custom';
   }
 
   void autoDetectProvidersFromModels(String sourceProvider, List<String> modelIds) {
@@ -334,14 +420,34 @@ class CloudModelController extends GetxController {
     switch (provider) {
       case 'openrouter':
         return _settings.openRouterModel.value;
+      case 'anthropic':
+        return _settings.anthropicModel.value;
       case 'deepseek':
         return _settings.deepSeekModel.value;
       case 'google':
         return _settings.googleModel.value;
+      case 'kimi':
+        return _settings.kimiModel.value;
       case 'nvidia':
         return _settings.nvidiaModel.value;
       case 'zai':
         return _settings.zaiModel.value;
+      case 'groq':
+        return _settings.groqModel.value;
+      case 'mistral':
+        return _settings.mistralModel.value;
+      case 'together':
+        return _settings.togetherModel.value;
+      case 'xai':
+        return _settings.xaiModel.value;
+      case 'perplexity':
+        return _settings.perplexityModel.value;
+      case 'cerebras':
+        return _settings.cerebrasModel.value;
+      case 'fireworks':
+        return _settings.fireworksModel.value;
+      case 'cohere':
+        return _settings.cohereModel.value;
       case 'custom':
         return _settings.customCloudModel.value;
       default:
@@ -356,14 +462,34 @@ class CloudModelController extends GetxController {
     switch (provider) {
       case 'openrouter':
         return _settings.openRouterKey.value;
+      case 'anthropic':
+        return _settings.anthropicKey.value;
       case 'deepseek':
         return _settings.deepSeekKey.value;
       case 'google':
         return _settings.googleKey.value;
+      case 'kimi':
+        return _settings.kimiKey.value;
       case 'nvidia':
         return _settings.nvidiaKey.value;
       case 'zai':
         return _settings.zaiKey.value;
+      case 'groq':
+        return _settings.groqKey.value;
+      case 'mistral':
+        return _settings.mistralKey.value;
+      case 'together':
+        return _settings.togetherKey.value;
+      case 'xai':
+        return _settings.xaiKey.value;
+      case 'perplexity':
+        return _settings.perplexityKey.value;
+      case 'cerebras':
+        return _settings.cerebrasKey.value;
+      case 'fireworks':
+        return _settings.fireworksKey.value;
+      case 'cohere':
+        return _settings.cohereKey.value;
       case 'custom':
         return _settings.customCloudKey.value;
       default:
@@ -624,16 +750,18 @@ class CloudModelController extends GetxController {
 
     try {
       final candidates = _modelListUrlCandidates(provider);
+      final cloudProvider = CloudProviderRegistry.getById(provider);
+      final headers = cloudProvider?.buildAuthHeaders(apiKeyFor(provider)) ??
+          {'Authorization': 'Bearer ${apiKeyFor(provider)}'};
       http.Response? response;
       String? workingUrl;
 
       for (final url in candidates) {
         try {
-          final resp = await http
-              .get(Uri.parse(url), headers: {
-                'Authorization': 'Bearer ${apiKeyFor(provider)}',
-              })
-              .timeout(const Duration(seconds: 15));
+          final resp =
+              await http.get(Uri.parse(url), headers: headers).timeout(
+                    const Duration(seconds: 15),
+                  );
           if (resp.statusCode == 200) {
             final ids = _parseModelIds(provider, resp.body);
             if (ids.isNotEmpty) {
@@ -782,41 +910,16 @@ class CloudModelController extends GetxController {
 
   List<String> _modelListUrlCandidates(String provider) {
     final key = apiKeyFor(provider);
+    final cloudProvider = CloudProviderRegistry.getById(provider);
+    if (cloudProvider != null) {
+      return cloudProvider.getModelListCandidates(key);
+    }
+
+    // Fallback for providers not in registry
     switch (provider) {
-      case 'openai':
-        return [
-          'https://api.openai.com/v1/models',
-          'https://api.openai.com/models',
-        ];
-      case 'anthropic':
-        return [
-          'https://api.anthropic.com/v1/models',
-        ];
-      case 'deepseek':
-        return [
-          '${AppConstants.deepSeekEndpoint}/models',
-          '${AppConstants.deepSeekEndpoint}/v1/models',
-        ];
       case 'google':
         return [
           '${AppConstants.googleEndpoint}?key=$key',
-        ];
-      case 'nvidia':
-        return [
-          '${AppConstants.nvidiaEndpoint}/models',
-          'https://integrate.api.nvidia.com/models',
-        ];
-      case 'openrouter':
-        return [
-          '${AppConstants.openRouterEndpoint}/models',
-          'https://openrouter.ai/api/v1/models',
-        ];
-      case 'zai':
-        return [
-          '${AppConstants.zaiEndpoint}/models',
-          '${AppConstants.zaiEndpoint}/model/list',
-          'https://api.z.ai/api/paas/v4/models',
-          'https://api.z.ai/api/paas/v3/models',
         ];
       default:
         return ['https://api.openai.com/v1/models'];

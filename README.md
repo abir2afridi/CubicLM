@@ -25,15 +25,26 @@ A cross-platform AI chat application with local on-device inference and multi-pr
 - Safety rails warn when values exceed the device's recommended limits
 
 ### Cloud AI Providers
+- **OpenRouter** (multi-provider gateway — hundreds of models, free tier)
 - **OpenAI** (GPT-5.2, GPT-4o, etc.)
 - **Anthropic** (Claude Sonnet 4)
 - **Google Gemini** (Gemini 2.5 Flash)
+- **DeepSeek** (deepseek-v4-flash)
+- **Z.AI** (GLM-5.3 series + free GLM Flash models)
+- **Groq** (ultra-fast LPU inference — Llama, Qwen, DeepSeek)
+- **Mistral AI** (Large, Codestral, Pixtral)
+- **Together AI** (Llama, DeepSeek, Qwen turbo)
+- **xAI Grok** (Grok-4, Grok-3, vision)
+- **Perplexity** (Sonar — web-grounded answers)
+- **Cerebras** (fastest inference — Llama, Qwen, GPT-OSS)
+- **Fireworks AI** (production open-model hosting)
+- **Cohere** (Command-A, Command-R, Aya)
 - **Kimi / Moonshot AI** (kimi-k2.6)
 - **NVIDIA NIM** (Llama 3.1, etc.)
-- **OpenRouter** (multi-provider gateway)
-- **DeepSeek** (deepseek-v4-flash)
 - **Stability AI** (SD3.5 Flash cloud image generation)
 - **Custom OpenAI-compatible** endpoints with multiple profile support
+
+All providers share a unified plugin architecture (`lib/services/cloud/providers/`) — each provider implements the `CloudProvider` interface and registers in `CloudProviderRegistry`. Model lists auto-fetch from each provider's API on key save/refresh (with catalog fallback for providers without a `/models` endpoint), with FREE model tagging and filtering where supported.
 
 ### Built-in OpenAI-Compatible API Server
 - Expose local models as an OpenAI-compatible API on port 8080
@@ -127,7 +138,30 @@ lib/
 │   ├── settings_controller.dart # App settings
 │   └── task_controller.dart     # Automated task execution
 ├── services/
-│   ├── cloud_service.dart       # Multi-provider cloud API
+│   ├── cloud_service.dart       # Multi-provider cloud API (delegates to providers)
+│   ├── cloud/                   # Cloud provider plugin architecture
+│   │   ├── cloud_provider.dart          # Abstract CloudProvider interface
+│   │   ├── cloud_provider_registry.dart # Provider registry (ID → instance)
+│   │   └── providers/                   # One file per provider
+│   │       ├── openai_compatible_provider.dart  # Shared OpenAI-format base
+│   │       ├── openai_provider.dart
+│   │       ├── anthropic_provider.dart          # Native Messages API
+│   │       ├── google_provider.dart             # Native Gemini API
+│   │       ├── deepseek_provider.dart
+│   │       ├── zai_provider.dart                # GLM catalog models
+│   │       ├── groq_provider.dart
+│   │       ├── mistral_provider.dart
+│   │       ├── together_provider.dart
+│   │       ├── xai_provider.dart
+│   │       ├── perplexity_provider.dart
+│   │       ├── cerebras_provider.dart
+│   │       ├── fireworks_provider.dart
+│   │       ├── cohere_provider.dart
+│   │       ├── kimi_provider.dart
+│   │       ├── nvidia_provider.dart
+│   │       ├── openrouter_provider.dart         # FREE tag parsing
+│   │       ├── stability_provider.dart          # Image generation
+│   │       └── custom_provider.dart             # User-defined endpoint
 │   ├── inference_service.dart   # Cross-platform inference orchestrator
 │   ├── inference_android.dart   # Android llama.cpp / LiteRT engine bridge
 │   ├── openai_server_service.dart   # Built-in OpenAI-compatible server
