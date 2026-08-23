@@ -16,6 +16,9 @@ import 'providers/perplexity_provider.dart';
 import 'providers/cerebras_provider.dart';
 import 'providers/fireworks_provider.dart';
 import 'providers/cohere_provider.dart';
+import 'providers/huggingface_provider.dart';
+import 'providers/xkiro_provider.dart';
+import 'providers/tokenrouter_provider.dart';
 
 /// Registry of all cloud AI providers.
 ///
@@ -41,6 +44,9 @@ class CloudProviderRegistry {
     'cerebras': CerebrasProvider(),
     'fireworks': FireworksProvider(),
     'cohere': CohereProvider(),
+    'huggingface': HuggingFaceProvider(),
+    'xkiro': XkiroProvider(),
+    'tokenrouter': TokenRouterProvider(),
   };
 
   /// Get a provider by its ID.

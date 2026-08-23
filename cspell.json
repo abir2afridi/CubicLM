@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+  "version": "0.2",
+  "words": [
+    "abliterated",
+    "Cerebras",
+    "Codestral",
+    "CUBICLM",
+    "deepseek",
+    "gguf",
+    "Groq",
+    "huggingface",
+    "Kiro",
+    "kimi",
+    "litert",
+    "litertlm",
+    "openrouter",
+    "Pixtral",
+    "Qwen",
+    "safetensors",
+    "Smol",
+    "tokenrouter",
+    "xkiro"
+  ],
+  "ignorePaths": [
+    ".git/**",
+    "build/**",
+    "node_modules/**"
+  ]
+}

@@ -28,6 +28,9 @@ class AppConstants {
   static const String keyCerebrasKey = 'cerebras_api_key';
   static const String keyFireworksKey = 'fireworks_api_key';
   static const String keyCohereKey = 'cohere_api_key';
+  static const String keyHuggingFaceKey = 'huggingface_api_key';
+  static const String keyXkiroKey = 'xkiro_api_key';
+  static const String keyTokenRouterKey = 'tokenrouter_api_key';
   static const String keyCustomCloudName = 'custom_cloud_name';
   static const String keyCustomCloudBaseUrl = 'custom_cloud_base_url';
   static const String keyCustomCloudKey = 'custom_cloud_api_key';
@@ -50,6 +53,9 @@ class AppConstants {
   static const String keyCerebrasModel = 'cerebras_model';
   static const String keyFireworksModel = 'fireworks_model';
   static const String keyCohereModel = 'cohere_model';
+  static const String keyHuggingFaceModel = 'huggingface_model';
+  static const String keyXkiroModel = 'xkiro_model';
+  static const String keyTokenRouterModel = 'tokenrouter_model';
   static const String keyCustomCloudModel = 'custom_cloud_model';
   static const String keyGlobalSystemPrompt = 'global_system_prompt';
   static const String keyLocalModelPath = 'local_model_path';
@@ -364,4 +370,7 @@ class AppConstants {
       'https://api.fireworks.ai/inference/v1';
   static const String cohereEndpoint =
       'https://api.cohere.ai/compatibility/v1';
+  static const String huggingFaceEndpoint = 'https://router.huggingface.co/v1';
+  static const String xkiroEndpoint = 'https://api.xkiro.com/v1';
+  static const String tokenRouterEndpoint = 'https://api.tokenrouter.com/v1';
 }

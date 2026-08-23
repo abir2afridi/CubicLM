@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -7,6 +8,8 @@ import 'package:http/http.dart' as http;
 import '../core/constants.dart';
 import '../services/app_log_service.dart';
 import '../services/hive_service.dart';
+import '../services/inference_service.dart';
+import '../services/local_image_service.dart';
 import '../services/cloud/cloud_provider_registry.dart';
 import 'settings_controller.dart';
 
@@ -257,6 +260,31 @@ class CloudModelController extends GetxController {
       'command-r-08-2024',
       'aya-expanse-8b',
     ],
+    'huggingface': [
+      'meta-llama/Llama-3.3-70B-Instruct',
+      'deepseek-ai/DeepSeek-V3',
+      'Qwen/Qwen2.5-72B-Instruct',
+      'mistralai/Mistral-Small-24B-Instruct-2501',
+      'moonshotai/Kimi-K2-Instruct',
+    ],
+    'xkiro': [
+      'openai/gpt-5.2',
+      'anthropic/claude-sonnet-4.6',
+      'google/gemini-3-flash-preview',
+      'deepseek/deepseek-v3.2',
+      'z-ai/glm-4.7',
+      'qwen/qwen3.7-max',
+    ],
+    'tokenrouter': [
+      'openai/gpt-5.2',
+      'anthropic/claude-opus-4.8',
+      'z-ai/glm-5.3',
+      'deepseek/deepseek-v4-pro',
+      'xiaomi/mimo-v2.5',
+      'nvidia/nemotron-3-super-120b-a12b',
+      'moonshotai/kimi-k2.6',
+      'minimax/minimax-m2.7',
+    ],
   };
 
   final allProviders = <CloudProviderInfo>[].obs;
@@ -268,6 +296,7 @@ class CloudModelController extends GetxController {
   final isLoadingProvider = <String, bool>{}.obs;
   final errorByProvider = <String, String>{}.obs;
   final searchByProvider = <String, String>{}.obs;
+  final companyFilterByProvider = <String, String>{}.obs;
   final freeFirstByProvider = <String, bool>{}.obs;
   final modelTagsByProvider = <String, Map<String, List<String>>>{}.obs;
   final customProviderError = ''.obs;
@@ -448,7 +477,12 @@ class CloudModelController extends GetxController {
         return _settings.fireworksModel.value;
       case 'cohere':
         return _settings.cohereModel.value;
-      case 'custom':
+      case 'huggingface':
+        return _settings.huggingfaceModel.value;
+      case 'xkiro':
+        return _settings.xkiroModel.value;
+      case 'tokenrouter':
+        return _settings.tokenrouterModel.value;      case 'custom':
         return _settings.customCloudModel.value;
       default:
         return _settings.openaiModel.value;
@@ -490,7 +524,12 @@ class CloudModelController extends GetxController {
         return _settings.fireworksKey.value;
       case 'cohere':
         return _settings.cohereKey.value;
-      case 'custom':
+      case 'huggingface':
+        return _settings.huggingfaceKey.value;
+      case 'xkiro':
+        return _settings.xkiroKey.value;
+      case 'tokenrouter':
+        return _settings.tokenrouterKey.value;      case 'custom':
         return _settings.customCloudKey.value;
       default:
         return _settings.openaiKey.value;
@@ -528,10 +567,16 @@ class CloudModelController extends GetxController {
 
   List<String> filteredModelsFor(String provider) {
     final query = (searchByProvider[provider] ?? '').toLowerCase().trim();
+    final company = companyFilterByProvider[provider];
     final active = activeModelFor(provider);
-    final source = [...(modelsByProvider[provider] ?? const <String>[])];
+    var source = [...(modelsByProvider[provider] ?? const <String>[])];
     if (active.isNotEmpty && !source.contains(active)) {
       source.insert(0, active);
+    }
+    if (company != null && company.isNotEmpty) {
+      source = source
+          .where((id) => id.toLowerCase().startsWith('$company/'))
+          .toList();
     }
     final filtered = query.isEmpty
         ? source
@@ -588,6 +633,38 @@ class CloudModelController extends GetxController {
     freeFirstByProvider[provider] = !(freeFirstByProvider[provider] ?? false);
   }
 
+  /// Auto-detect company prefixes from model IDs (e.g. 'openai' from
+  /// 'openai/gpt-5.2'). Used to build the company filter chips for
+  /// aggregator providers like OpenRouter — no hardcoding needed.
+  List<String> availableCompaniesFor(String provider) {
+    final models = modelsByProvider[provider] ?? const <String>[];
+    final set = <String>{};
+    for (final m in models) {
+      final slash = m.indexOf('/');
+      if (slash <= 0) continue;
+      set.add(m.substring(0, slash));
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  bool hasCompanyFilterFor(String provider) =>
+      availableCompaniesFor(provider).length >= 2;
+
+  String companyDisplayName(String prefix) =>
+      _knownCompanyNames[prefix.toLowerCase()] ?? _capitalise(prefix);
+
+  IconData? companyIcon(String prefix) =>
+      _knownCompanyIcons[prefix.toLowerCase()];
+
+  void setCompanyFilter(String provider, String? prefix) {
+    if (prefix == null || prefix.isEmpty) {
+      companyFilterByProvider.remove(provider);
+    } else {
+      companyFilterByProvider[provider] = prefix;
+    }
+  }
+
   Future<void> saveApiKey(String provider, String value) async {
     await _settings.setApiKey(provider, value);
     if (value.isNotEmpty) {
@@ -605,6 +682,7 @@ class CloudModelController extends GetxController {
     fetchedAtByProvider.remove(provider);
     isLoadingProvider.remove(provider);
     errorByProvider.remove(provider);
+    companyFilterByProvider.remove(provider);
     await _hive.deleteSetting('$_cachePrefix$provider');
     await _hive.deleteSetting('$_cacheTimePrefix$provider');
     await _hive.deleteSetting('$_workingUrlPrefix$provider');
@@ -660,6 +738,88 @@ class CloudModelController extends GetxController {
     if (!showSnackbar) return;
     Get.snackbar('Cloud Model Active', '$provider · $normalized',
         snackPosition: SnackPosition.BOTTOM);
+  }
+
+  /// Deactivates the active cloud provider: switches inference back to
+  /// local mode and auto-loads the last downloaded local model so chat
+  /// keeps working without any cloud API.
+  Future<void> deactivateCloudProvider() async {
+    // Reset to a neutral provider so nothing reads an empty ID.
+    await _settings.setCloudProvider('openrouter');
+    // Switch back to local inference immediately.
+    await _settings.setInferenceMode('local');
+
+    final inference = Get.find<InferenceService>();
+    final imageService = Get.find<LocalImageService>();
+
+    // If a local model is already resident we're done.
+    if (inference.isModelLoaded.value || imageService.isModelLoaded.value) {
+      Get.snackbar(
+          'Cloud Deactivated', 'Using local model · ${inference.loadedModelName.value.isEmpty ? 'ready' : inference.loadedModelName.value}',
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+
+    // Auto-load the last downloaded local text model (path validated —
+    // same guards as the startup resume dialog).
+    String? textName =
+        _hive.getSetting<String>(AppConstants.keyLocalModelName);
+    String? textPath = _hive.getSetting<String>(AppConstants.keyLocalModelPath);
+    String? textRuntime =
+        _hive.getSetting<String>(AppConstants.keyLocalModelRuntime);
+
+    bool pathOk(String? p) {
+      if (p == null || p.isEmpty) return false;
+      try {
+        final f = File(p);
+        return f.existsSync() && f.lengthSync() > 0;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    if (!pathOk(textPath)) {
+      // Clean stale pointers like the resume dialog does.
+      await _hive.setSetting(AppConstants.keyLocalModelPath, '');
+      await _hive.setSetting(AppConstants.keyLocalModelName, '');
+      await _hive.setSetting(AppConstants.keyLocalModelRuntime, '');
+      await _hive.setSetting(AppConstants.keyLocalModelBackend, '');
+      textName = null;
+      textPath = null;
+      textRuntime = null;
+    }
+
+    if (textName != null && textName.isNotEmpty && pathOk(textPath)) {
+      Get.snackbar('Cloud Deactivated', 'Loading local model… $textName',
+          snackPosition: SnackPosition.BOTTOM);
+      try {
+        await inference.loadModel(
+          textPath!,
+          modelName: textName,
+          modelRuntime: textRuntime,
+        );
+      } catch (_) {}
+      return;
+    }
+
+    // Fall back to a downloaded image model if no text model exists.
+    final imageName =
+        _hive.getSetting<String>(AppConstants.keyImageModelName);
+    final imagePath = _hive.getSetting<String>(AppConstants.keyImageModelPath);
+    if (imageName != null && imageName.isNotEmpty && pathOk(imagePath)) {
+      Get.snackbar('Cloud Deactivated', 'Loading local model… $imageName',
+          snackPosition: SnackPosition.BOTTOM);
+      try {
+        await Get.find<LocalImageService>().loadModel(imagePath!,
+            modelName: imageName);
+      } catch (_) {}
+      return;
+    }
+
+    Get.snackbar('Cloud Deactivated',
+        'No local model downloaded — download one from Local Models',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 4));
   }
 
   Future<void> saveCustomProvider() async {
@@ -735,6 +895,7 @@ class CloudModelController extends GetxController {
 
     isLoadingProvider[provider] = true;
     errorByProvider.remove(provider);
+    companyFilterByProvider.remove(provider);
 
     if (provider == 'zai') {
       final defaults = _defaultModelsByProvider[provider] ?? const [];

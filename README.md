@@ -1,14 +1,16 @@
+<!-- markdownlint-disable-file md033 md041 -->
 <p align="center">
   <img src="assets/icons/CubicLM.png" alt="CubicLM" width="128" />
 </p>
 
 # CubicLM
 
-A cross-platform AI chat application with local on-device inference and multi-provider cloud AI support. Runs LLMs directly on your Android device via GPU-accelerated llama.cpp and Google's LiteRT-LM runtime, with an optional built-in OpenAI-compatible API server.
+> 📱⚡ A cross-platform AI chat application with local on-device inference and multi-provider cloud AI support. Runs LLMs directly on your Android device via GPU-accelerated llama.cpp 🦙 and Google's LiteRT-LM runtime ⚡, with an optional built-in OpenAI-compatible API server 🔌.
 
-## Features
+## ✨ Features
 
-### Local AI Inference
+### 🧠 Local AI Inference
+
 - **LLM inference** via llama.cpp (GGUF models) with GPU acceleration (Vulkan / OpenCL)
 - **LiteRT-LM inference** via Google's LiteRT-LM runtime (.litertlm models)
 - **Stable Diffusion 1.5** on-device image generation (safetensors)
@@ -17,15 +19,20 @@ A cross-platform AI chat application with local on-device inference and multi-pr
 - **GPU crash recovery** — automatic CPU fallback if GPU backend fails
 - **Device-tier auto-configuration** — adjusts context size and max tokens based on detected RAM
 
-### Inference Parameters (live-tunable from Settings)
+### 🎛️ Inference Parameters (live-tunable from Settings)
+
 - **Inference temperature** and **output token limit** — applied on every generation, local and cloud
 - **Context window size** — auto-reloads the resident model after the slider settles
 - **Sampling steps** and **synthesis resolution** for image generation (Auto mode scales by available RAM)
 - **Compute backend toggle** (CPU / Vulkan / OpenCL) for image generation with automatic model reload
 - Safety rails warn when values exceed the device's recommended limits
 
-### Cloud AI Providers
+### ☁️ Cloud AI Providers
+
 - **OpenRouter** (multi-provider gateway — hundreds of models, free tier)
+- **Hugging Face** (Inference Providers router — dozens of upstream vendors)
+- **xKiro** (smart-routing gateway, free tier, all vendors)
+- **TokenRouter** (unified hub — 100+ vendor models)
 - **OpenAI** (GPT-5.2, GPT-4o, etc.)
 - **Anthropic** (Claude Sonnet 4)
 - **Google Gemini** (Gemini 2.5 Flash)
@@ -39,19 +46,24 @@ A cross-platform AI chat application with local on-device inference and multi-pr
 - **Cerebras** (fastest inference — Llama, Qwen, GPT-OSS)
 - **Fireworks AI** (production open-model hosting)
 - **Cohere** (Command-A, Command-R, Aya)
-- **Kimi / Moonshot AI** (kimi-k2.6)
 - **NVIDIA NIM** (Llama 3.1, etc.)
 - **Stability AI** (SD3.5 Flash cloud image generation)
 - **Custom OpenAI-compatible** endpoints with multiple profile support
 
 All providers share a unified plugin architecture (`lib/services/cloud/providers/`) — each provider implements the `CloudProvider` interface and registers in `CloudProviderRegistry`. Model lists auto-fetch from each provider's API on key save/refresh (with catalog fallback for providers without a `/models` endpoint), with FREE model tagging and filtering where supported.
 
-### Built-in OpenAI-Compatible API Server
+#### 🏷️ Auto-Detected Company Filter
+
+For aggregator providers that host multiple companies' models under `vendor/model` IDs (OpenRouter, Hugging Face, xKiro, TokenRouter, NVIDIA NIM, Together AI, Fireworks…), a company filter chip row appears automatically above the model list. Chips are **derived from the fetched model IDs themselves** — when a vendor releases new models or a brand-new company appears on the aggregator, its filter chip shows up on the next refresh with zero app changes. Known vendor names/icons are prettified automatically; unknown ones fall back to capitalized IDs.
+
+### 🔌 Built-in OpenAI-Compatible API Server
+
 - Expose local models as an OpenAI-compatible API on port 8080
 - Optional API key authentication
 - Use local models from any OpenAI-compatible client on your network
 
-### Additional
+### 🧩 Additional
+
 - Multi-session chat with history (Hive persistence) and a searchable sidebar drawer with swipe-to-delete
 - **Message actions** — copy, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
 - **Code blocks** with syntax highlighting, one-tap copy, and export/share
@@ -62,7 +74,8 @@ All providers share a unified plugin architecture (`lib/services/cloud/providers
 - Background service and boot persistence
 - In-app model download with pause / resume / cancel, plus file import
 
-### System Diagnostics (Settings > System Logs)
+### 🩺 System Diagnostics (Settings > System Logs)
+
 - **Health dashboard** — auto-detects 10 crash patterns: model file missing, context overflow, model load failure, GPU error, cloud API error, out of memory, generation hang, stale multi-model slot, import failure, Firebase init
 - **Category filters** — System, Model, Cloud, Chat, Server, Image
 - **Full-text search** across log messages and details
@@ -71,20 +84,22 @@ All providers share a unified plugin architecture (`lib/services/cloud/providers
 - **Export** — copies full diagnostic report (health summary + all logs) to clipboard
 - **Crash pattern details** — occurrence count, last-seen timestamp, and fix suggestion for each detected issue
 
-## Supported Models
+## 🤖 Supported Models
 
-### LiteRT-LM (on-device)
+### ⚡ LiteRT-LM (on-device)
+
 | Model | Size | Description |
-|-------|------|-------------|
+| ----- | ---- | ----------- |
 | Qwen3-0.6B | 586 MB | Smallest chat model for low-RAM phones |
 | Qwen2.5-1.5B Instruct | 1.49 GB | Balanced int8 quantized chat model |
 | DeepSeek-R1-Distill-Qwen-1.5B | 1.71 GB | Reasoning-focused model |
 | Gemma 4 E2B Instruct | 2.46 GB | Google Gemma vision + chat |
 | Gemma 4 E4B Instruct | 3.40 GB | Highest quality LiteRT option |
 
-### GGUF (llama.cpp)
+### 🐫 GGUF (llama.cpp)
+
 | Model | Size | Description |
-|-------|------|-------------|
+| ----- | ---- | ----------- |
 | Kimi Moonlight 16B-A3B (Q3_K_S) | 7.1 GB | MoE, 3B active params |
 | Qwen2.5-3B Instruct (Q4_K_M) | 2.1 GB | Best mobile speed/quality |
 | Qwen2-VL-2B (Q4_K_M) | 1.5 GB | Vision-capable |
@@ -94,16 +109,17 @@ All providers share a unified plugin architecture (`lib/services/cloud/providers
 | Llama-3.2-1B Instruct | 0.8 GB | Ultra-lightweight |
 | + uncensored/abliterated variants | — | Dolphin, SmolLM2, Gemma abliterated |
 
-### Image Generation (Stable Diffusion 1.5)
+### 🎨 Image Generation (Stable Diffusion 1.5)
+
 | Model | Size | Description |
-|-------|------|-------------|
+| ----- | ---- | ----------- |
 | DreamShaper 8 LCM | 2.0 GB | Fast 4-step generation |
 | CyberRealistic V8 FP16 | 2.0 GB | Photorealistic, uncensored |
 | Realistic Vision V5.1 FP16 | 2.0 GB | Popular portrait/scene model |
 | AbsoluteReality 1.8.1 | 2.0 GB | General-purpose photorealistic |
 | AnyLoRA | 2.0 GB | Anime / stylized |
 
-## Tech Stack
+## 🛠️ Tech Stack
 
 - **Framework:** Flutter 3.x
 - **Language:** Dart, Kotlin, C++ (native plugins)
@@ -114,9 +130,9 @@ All providers share a unified plugin architecture (`lib/services/cloud/providers
 - **Cloud:** Firebase Core, Firebase Messaging, Firebase Crashlytics
 - **Other:** google_fonts, flutter_markdown, image_picker, share_plus, permission_handler, speech_to_text
 
-## Project Structure
+## 📂 Project Structure
 
-```
+```text
 lib/
 ├── main.dart                    # App entry point
 ├── core/
@@ -157,6 +173,9 @@ lib/
 │   │       ├── cerebras_provider.dart
 │   │       ├── fireworks_provider.dart
 │   │       ├── cohere_provider.dart
+│   │       ├── huggingface_provider.dart        # HF Inference Providers router
+│   │       ├── xkiro_provider.dart              # Smart-routing gateway
+│   │       ├── tokenrouter_provider.dart        # Unified vendor hub
 │   │       ├── kimi_provider.dart
 │   │       ├── nvidia_provider.dart
 │   │       ├── openrouter_provider.dart         # FREE tag parsing
@@ -202,14 +221,14 @@ local_plugins/
 └── sd_flutter_android/         # Stable Diffusion Flutter plugin
 ```
 
-## Requirements
+## 📋 Requirements
 
 - **Flutter** 3.3.0+
 - **Android SDK** (minSdk 28 / Android 9+)
 - **Java 17**
 - For release builds: a keystore configured at `android/key.properties` (see `android/key.properties.example`)
 
-## Getting Started
+## 🚀 Getting Started
 
 ```bash
 # Clone the repository
@@ -223,7 +242,7 @@ flutter pub get
 flutter run
 ```
 
-### Release Build
+### 📦 Release Build
 
 1. Copy `android/key.properties.example` to `android/key.properties`
 2. Fill in your keystore credentials and path
@@ -235,20 +254,20 @@ flutter build apk --release
 
 Or set `CUBICLM_ALLOW_DEBUG_RELEASE_SIGNING=true` to skip keystore validation during development.
 
-## Configuration
+## ⚙️ Configuration
 
-### Cloud API Keys
+### 🔑 Cloud API Keys
 
 Configure cloud providers in **Settings** > **Cloud Provider**, or tap **Add API Key** directly on any provider card in the Models tab — the key is verified and the live model list loads on save.
 
-### Local Models
+### 💾 Local Models
 
 Download models from the **Models** tab (with pause / resume / cancel support) or import `.gguf` / `.litertlm` / `.safetensors` files via the file picker. Models are stored in app-private storage. Loading is guarded — missing or corrupted files are detected before reaching the native engine, and stale download pointers are cleaned up automatically.
 
-### Local API Server
+### 🌐 Local API Server
 
 Start the built-in server from the **Server** tab. Once running, point any OpenAI-compatible client at `http://<device-ip>:8080` to use your local models programmatically.
 
-## License
+## 📄 License
 
 MIT License. See [LICENSE](LICENSE) for details.

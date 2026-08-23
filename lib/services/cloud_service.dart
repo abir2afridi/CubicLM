@@ -140,7 +140,12 @@ class CloudService extends GetxService {
         return _hive.getSetting(AppConstants.keyFireworksKey) ?? '';
       case 'cohere':
         return _hive.getSetting(AppConstants.keyCohereKey) ?? '';
-      case 'custom':
+      case 'huggingface':
+        return _hive.getSetting(AppConstants.keyHuggingFaceKey) ?? '';
+      case 'xkiro':
+        return _hive.getSetting(AppConstants.keyXkiroKey) ?? '';
+      case 'tokenrouter':
+        return _hive.getSetting(AppConstants.keyTokenRouterKey) ?? '';      case 'custom':
         return _hive.getSetting(AppConstants.keyCustomCloudKey) ?? '';
       default:
         return _hive.getSetting(AppConstants.keyOpenaiKey) ?? '';
@@ -194,7 +199,14 @@ class CloudService extends GetxService {
       case 'cohere':
         return _hive.getSetting(AppConstants.keyCohereModel) ??
             'command-a-03-2025';
-      case 'custom':
+      case 'huggingface':
+        return _hive.getSetting(AppConstants.keyHuggingFaceModel) ??
+            'meta-llama/Llama-3.3-70B-Instruct';
+      case 'xkiro':
+        return _hive.getSetting(AppConstants.keyXkiroModel) ?? 'openai/gpt-5.2';
+      case 'tokenrouter':
+        return _hive.getSetting(AppConstants.keyTokenRouterModel) ??
+            'openai/gpt-5.2';      case 'custom':
         return _hive.getSetting(AppConstants.keyCustomCloudModel) ?? '';
       default:
         return _hive.getSetting(AppConstants.keyOpenaiModel) ?? 'gpt-5.2';

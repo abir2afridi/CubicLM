@@ -678,6 +678,50 @@ class ModelView extends GetView<ModelController> {
                     ),
                   ),
                   const SizedBox(height: 10),
+                  // ── Auto-detected company filter (aggregator providers) ──
+                  Obx(() {
+                    final companies =
+                        cloudModels.availableCompaniesFor(provider.id);
+                    if (companies.length < 2) return const SizedBox.shrink();
+                    final selected =
+                        cloudModels.companyFilterByProvider[provider.id];
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _companyChip(
+                                context,
+                                'All',
+                                Icons.apps,
+                                selected == null || selected.isEmpty,
+                                () => cloudModels.setCompanyFilter(
+                                    provider.id, null),
+                                isDark,
+                              ),
+                              for (final c in companies)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 6),
+                                  child: _companyChip(
+                                    context,
+                                    cloudModels.companyDisplayName(c),
+                                    cloudModels.companyIcon(c) ??
+                                        Icons.cloud_outlined,
+                                    selected == c,
+                                    () => cloudModels.setCompanyFilter(
+                                        provider.id, c),
+                                    isDark,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                    );
+                  }),
                   // ── Compact model list ──
                   Container(
                     constraints: const BoxConstraints(maxHeight: 280),
@@ -733,7 +777,7 @@ class ModelView extends GetView<ModelController> {
                           child: FilledButton.tonal(
                             onPressed: () {
                               if (isReallyActive) {
-                                settings.setCloudProvider('');
+                                cloudModels.deactivateCloudProvider();
                               } else if (configured) {
                                 settings.setCloudProvider(provider.id);
                               } else if (provider.id == 'custom') {
@@ -803,6 +847,55 @@ class ModelView extends GetView<ModelController> {
         if (model.template == 'llama3') _badge(context, 'Llama 3', Colors.blue),
         if (model.template == 'gemma') _badge(context, 'Gemma', Colors.cyan),
       ],
+    );
+  }
+
+  Widget _companyChip(
+    BuildContext context,
+    String label,
+    IconData icon,
+    bool selected,
+    VoidCallback onTap,
+    bool isDark,
+  ) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.primary.withValues(alpha: 0.15)
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : const Color(0xFFF1F5F9)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? AppColors.primary : Colors.transparent,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 13,
+              color: selected ? AppColors.primary : Theme.of(context).hintColor,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11.5,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                color: selected
+                    ? AppColors.primary
+                    : Theme.of(context).hintColor,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -38,6 +38,9 @@ class SettingsController extends GetxController {
   final cerebrasKey = ''.obs;
   final fireworksKey = ''.obs;
   final cohereKey = ''.obs;
+  final huggingfaceKey = ''.obs;
+  final xkiroKey = ''.obs;
+  final tokenrouterKey = ''.obs;
   final customCloudName = 'Custom API'.obs;
   final customCloudBaseUrl = ''.obs;
   final customCloudKey = ''.obs;
@@ -61,6 +64,9 @@ class SettingsController extends GetxController {
   final fireworksModel = 'accounts/fireworks/models/llama-v3p3-70b-instruct'
       .obs;
   final cohereModel = 'command-a-03-2025'.obs;
+  final huggingfaceModel = 'meta-llama/Llama-3.3-70B-Instruct'.obs;
+  final xkiroModel = 'openai/gpt-5.2'.obs;
+  final tokenrouterModel = 'openai/gpt-5.2'.obs;
   final customCloudModel = ''.obs;
   final globalSystemPrompt = AppConstants.systemPrompt.obs;
   final nvidiaModels = <String>[].obs;
@@ -96,6 +102,9 @@ class SettingsController extends GetxController {
   final cerebrasKeyController = TextEditingController();
   final fireworksKeyController = TextEditingController();
   final cohereKeyController = TextEditingController();
+  final huggingfaceKeyController = TextEditingController();
+  final xkiroKeyController = TextEditingController();
+  final tokenrouterKeyController = TextEditingController();
   final customCloudNameController = TextEditingController();
   final customCloudBaseUrlController = TextEditingController();
   final customCloudKeyController = TextEditingController();
@@ -118,6 +127,9 @@ class SettingsController extends GetxController {
   final cerebrasModelController = TextEditingController();
   final fireworksModelController = TextEditingController();
   final cohereModelController = TextEditingController();
+  final huggingfaceModelController = TextEditingController();
+  final xkiroModelController = TextEditingController();
+  final tokenrouterModelController = TextEditingController();
   final customCloudModelController = TextEditingController();
 
   Timer? _apiKeyDebounceTimer;
@@ -197,6 +209,11 @@ class SettingsController extends GetxController {
     cerebrasKey.value = _hive.getSetting(AppConstants.keyCerebrasKey) ?? '';
     fireworksKey.value = _hive.getSetting(AppConstants.keyFireworksKey) ?? '';
     cohereKey.value = _hive.getSetting(AppConstants.keyCohereKey) ?? '';
+    huggingfaceKey.value =
+        _hive.getSetting(AppConstants.keyHuggingFaceKey) ?? '';
+    xkiroKey.value = _hive.getSetting(AppConstants.keyXkiroKey) ?? '';
+    tokenrouterKey.value =
+        _hive.getSetting(AppConstants.keyTokenRouterKey) ?? '';
     customCloudName.value = _hive.getSetting(AppConstants.keyCustomCloudName,
             defaultValue: 'Custom API') ??
         'Custom API';
@@ -324,6 +341,9 @@ class SettingsController extends GetxController {
     cerebrasKeyController.text = cerebrasKey.value;
     fireworksKeyController.text = fireworksKey.value;
     cohereKeyController.text = cohereKey.value;
+    huggingfaceKeyController.text = huggingfaceKey.value;
+    xkiroKeyController.text = xkiroKey.value;
+    tokenrouterKeyController.text = tokenrouterKey.value;
     customCloudNameController.text = customCloudName.value;
     customCloudBaseUrlController.text = customCloudBaseUrl.value;
     customCloudKeyController.text = customCloudKey.value;
@@ -346,6 +366,9 @@ class SettingsController extends GetxController {
     cerebrasModelController.text = cerebrasModel.value;
     fireworksModelController.text = fireworksModel.value;
     cohereModelController.text = cohereModel.value;
+    huggingfaceModelController.text = huggingfaceModel.value;
+    xkiroModelController.text = xkiroModel.value;
+    tokenrouterModelController.text = tokenrouterModel.value;
     customCloudModelController.text = customCloudModel.value;
   }
 
@@ -383,6 +406,12 @@ class SettingsController extends GetxController {
         return fireworksKeyController;
       case 'cohere':
         return cohereKeyController;
+      case 'huggingface':
+        return huggingfaceKeyController;
+      case 'xkiro':
+        return xkiroKeyController;
+      case 'tokenrouter':
+        return tokenrouterKeyController;
       case 'custom':
         return customCloudKeyController;
       default:
@@ -424,6 +453,12 @@ class SettingsController extends GetxController {
         return fireworksModelController;
       case 'cohere':
         return cohereModelController;
+      case 'huggingface':
+        return huggingfaceModelController;
+      case 'xkiro':
+        return xkiroModelController;
+      case 'tokenrouter':
+        return tokenrouterModelController;
       case 'custom':
         return customCloudModelController;
       default:
@@ -465,6 +500,12 @@ class SettingsController extends GetxController {
         return fireworksModel.value;
       case 'cohere':
         return cohereModel.value;
+      case 'huggingface':
+        return huggingfaceModel.value;
+      case 'xkiro':
+        return xkiroModel.value;
+      case 'tokenrouter':
+        return tokenrouterModel.value;
       case 'custom':
         return customCloudModel.value;
       default:
@@ -571,7 +612,21 @@ class SettingsController extends GetxController {
         cohereKeyController.text = trimmed;
         await _hive.setSetting(AppConstants.keyCohereKey, trimmed);
         break;
-      case 'custom':
+      case 'huggingface':
+        huggingfaceKey.value = trimmed;
+        huggingfaceKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyHuggingFaceKey, trimmed);
+        break;
+      case 'xkiro':
+        xkiroKey.value = trimmed;
+        xkiroKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyXkiroKey, trimmed);
+        break;
+      case 'tokenrouter':
+        tokenrouterKey.value = trimmed;
+        tokenrouterKeyController.text = trimmed;
+        await _hive.setSetting(AppConstants.keyTokenRouterKey, trimmed);
+        break;      case 'custom':
         customCloudKey.value = trimmed;
         customCloudKeyController.text = trimmed;
         await _hive.setSetting(AppConstants.keyCustomCloudKey, trimmed);
@@ -681,7 +736,21 @@ class SettingsController extends GetxController {
         cohereModelController.text = model;
         await _hive.setSetting(AppConstants.keyCohereModel, model);
         break;
-      case 'custom':
+      case 'huggingface':
+        huggingfaceModel.value = model;
+        huggingfaceModelController.text = model;
+        await _hive.setSetting(AppConstants.keyHuggingFaceModel, model);
+        break;
+      case 'xkiro':
+        xkiroModel.value = model;
+        xkiroModelController.text = model;
+        await _hive.setSetting(AppConstants.keyXkiroModel, model);
+        break;
+      case 'tokenrouter':
+        tokenrouterModel.value = model;
+        tokenrouterModelController.text = model;
+        await _hive.setSetting(AppConstants.keyTokenRouterModel, model);
+        break;      case 'custom':
         customCloudModel.value = model;
         customCloudModelController.text = model;
         await _hive.setSetting(AppConstants.keyCustomCloudModel, model);
