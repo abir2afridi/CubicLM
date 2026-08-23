@@ -78,7 +78,7 @@ class ServerController extends GetxController {
     } catch (e) {
       lastError.value = '$e';
       serverStatus.value = 'Server failed';
-      Get.find<AppLogService>().error('API server failed', details: e);
+      Get.find<AppLogService>().error('API server failed', details: e, category: LogCategory.server);
       Get.snackbar('Server failed', '$e');
     } finally {
       isStarting.value = false;

@@ -384,6 +384,7 @@ class CloudModelController extends GetxController {
         Get.find<AppLogService>().warning(
           'Model list request failed for $provider',
           details: detail,
+          category: LogCategory.cloud,
         );
         return;
       }
@@ -401,6 +402,7 @@ class CloudModelController extends GetxController {
       Get.find<AppLogService>().warning(
         'Model list request failed for $provider',
         details: e,
+        category: LogCategory.cloud,
       );
     } finally {
       isLoadingProvider[provider] = false;

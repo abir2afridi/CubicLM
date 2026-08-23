@@ -250,13 +250,15 @@ class LocalImageService extends GetxService {
         'Image model load failed',
         details:
             'All backend candidates failed. model=${modelName ?? modelPath.split('/').last}, vendor=$vendor, sizeMb=$modelSizeMb',
+        category: LogCategory.image,
       );
       return 'Could not load this model. Try CyberRealistic, Realistic Vision, or AbsoluteReality - these work reliably on most devices.\n\nTechnical detail: All backend candidates failed.';
     } catch (e) {
       isModelLoaded.value = false;
       isLoadingModel.value = false;
       Get.find<AppLogService>().error('Image model load exception',
-          details: 'model=${modelName ?? modelPath.split('/').last}, error=$e');
+          details: 'model=${modelName ?? modelPath.split('/').last}, error=$e',
+          category: LogCategory.image);
       return 'Could not load this model. Try CyberRealistic, Realistic Vision, or AbsoluteReality - these work reliably on most devices.\n\nTechnical detail: $e';
     }
   }
@@ -366,6 +368,7 @@ class LocalImageService extends GetxService {
           'Local image generation failed',
           details:
               'backend=${currentBackend.value.displayName}, model=${loadedModelName.value}, error=${result.error ?? "empty image bytes"}',
+          category: LogCategory.image,
         );
         isGenerating.value = false;
         return null;
@@ -394,7 +397,8 @@ class LocalImageService extends GetxService {
       print('[LocalImageService] Stack: $stack');
       Get.find<AppLogService>().error('Local image generation exception',
           details:
-              'backend=${currentBackend.value.displayName}, model=${loadedModelName.value}, error=$e');
+              'backend=${currentBackend.value.displayName}, model=${loadedModelName.value}, error=$e',
+          category: LogCategory.image);
       return null;
     }
   }

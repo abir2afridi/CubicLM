@@ -51,6 +51,15 @@ A cross-platform AI chat application with local on-device inference and multi-pr
 - Background service and boot persistence
 - In-app model download with pause / resume / cancel, plus file import
 
+### System Diagnostics (Settings > System Logs)
+- **Health dashboard** — auto-detects 10 crash patterns: model file missing, context overflow, model load failure, GPU error, cloud API error, out of memory, generation hang, stale multi-model slot, import failure, Firebase init
+- **Category filters** — System, Model, Cloud, Chat, Server, Image
+- **Full-text search** across log messages and details
+- **Level filters** — ALL, ERROR, WARNING, INFO, DEBUG
+- **Log persistence** — logs survive app restarts (saved to JSON, max 500 entries)
+- **Export** — copies full diagnostic report (health summary + all logs) to clipboard
+- **Crash pattern details** — occurrence count, last-seen timestamp, and fix suggestion for each detected issue
+
 ## Supported Models
 
 ### LiteRT-LM (on-device)
@@ -130,7 +139,7 @@ lib/
 │   ├── local_image_service.dart # Stable Diffusion inference
 │   ├── sd_isolate_processor.dart    # SD processing in isolates
 │   ├── image_generation_notification_service.dart  # Image gen notifications
-│   ├── app_log_service.dart     # App logging
+│   ├── app_log_service.dart     # App logging with categories, search, crash pattern detection
 │   └── crash_reporting_service.dart  # Firebase Crashlytics
 ├── views/
 │   ├── home_view.dart           # Main navigation scaffold
@@ -138,7 +147,7 @@ lib/
 │   ├── model_view.dart          # Model browser/manager
 │   ├── server_view.dart         # Local API server UI
 │   ├── settings_view.dart       # Settings panel
-│   ├── log_view.dart            # App logs viewer
+│   ├── log_view.dart            # System diagnostics viewer (health dashboard, search, categories)
 │   └── task_view.dart           # Automated tasks
 ├── widgets/
 │   ├── chat_bubble.dart         # Message bubble with inline actions + revisions

@@ -621,6 +621,7 @@ class SettingsController extends GetxController {
         Get.find<AppLogService>().warning(
           'NVIDIA model list request failed',
           details: '${response.statusCode}: ${response.body}',
+          category: LogCategory.cloud,
         );
         return;
       }
@@ -632,7 +633,7 @@ class SettingsController extends GetxController {
           .toList();
     } catch (e) {
       Get.find<AppLogService>()
-          .warning('NVIDIA model list request failed', details: e);
+          .warning('NVIDIA model list request failed', details: e, category: LogCategory.cloud);
     } finally {
       isLoadingNvidiaModels.value = false;
     }
@@ -718,6 +719,7 @@ class SettingsController extends GetxController {
       Get.find<AppLogService>().error(
         'Context-size reload failed',
         details: e.toString(),
+        category: LogCategory.model,
       );
     }
   }
@@ -853,6 +855,7 @@ class SettingsController extends GetxController {
       Get.find<AppLogService>().error(
         'Backend reload failed',
         details: e.toString(),
+        category: LogCategory.model,
       );
     }
   }

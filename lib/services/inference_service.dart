@@ -111,6 +111,7 @@ class InferenceService extends GetxService {
       Get.find<AppLogService>().error(
         'Model file missing',
         details: 'path=$modelPath',
+        category: LogCategory.model,
       );
       return
           'ERROR: "${modelName ?? modelPath.split('/').last}" is not on this device. Open the Models tab and download it first.';
@@ -182,7 +183,7 @@ class InferenceService extends GetxService {
             await _hive.setSetting(
                 AppConstants.keyLocalModelRuntime, 'llama');
             Get.find<AppLogService>()
-                .info('Instant switch to resident model: $requestedName');
+                .info('Instant switch to resident model: $requestedName', category: LogCategory.model);
             refreshResidency();
             return 'Switched to $requestedName instantly (no reload).';
           }
@@ -257,6 +258,7 @@ class InferenceService extends GetxService {
           'Local model load failed',
           details:
               'model=$requestedModelName, runtime=$runtime, backend=${result.backend}, message=${result.message}',
+          category: LogCategory.model,
         );
         return result.message;
       }
@@ -301,7 +303,7 @@ class InferenceService extends GetxService {
       loadingModelName.value = '';
       modelLoadProgress.value = 0.0;
       loadedBackend.value = '';
-      Get.find<AppLogService>().error('Failed to load local model', details: e);
+      Get.find<AppLogService>().error('Failed to load local model', details: e, category: LogCategory.model);
       return 'ERROR: Failed to load model — $e';
     }
   }
@@ -446,7 +448,7 @@ class InferenceService extends GetxService {
       streamingText.value = '';
       tokenFlushTimer?.cancel();
       flushTokenBuffer();
-      Get.find<AppLogService>().error('Local generation failed', details: e);
+      Get.find<AppLogService>().error('Local generation failed', details: e, category: LogCategory.model);
       return 'ERROR: $e';
     }
   }

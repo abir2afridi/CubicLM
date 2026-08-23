@@ -130,7 +130,7 @@ class CloudService extends GetxService {
               messages, imageBase64, temperature, maxTokens);
       }
     } catch (e) {
-      Get.find<AppLogService>().error('Cloud API request failed', details: e);
+      Get.find<AppLogService>().error('Cloud API request failed', details: e, category: LogCategory.cloud);
       return 'ERROR: Cloud API request failed — $e';
     }
   }

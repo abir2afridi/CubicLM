@@ -363,7 +363,7 @@ class ModelController extends GetxController {
       );
       await refreshDownloaded();
     } catch (e) {
-      Get.find<AppLogService>().error('Model download failed', details: e);
+      Get.find<AppLogService>().error('Model download failed', details: e, category: LogCategory.model);
       Get.snackbar('Download Failed', '$e',
           snackPosition: SnackPosition.BOTTOM);
     }
@@ -411,6 +411,7 @@ class ModelController extends GetxController {
       Get.find<AppLogService>().error(
         'Download to Downloads failed',
         details: '${e.code}: ${e.message}',
+        category: LogCategory.model,
       );
       Get.snackbar('Download Failed', e.message ?? e.code,
           snackPosition: SnackPosition.BOTTOM);
@@ -430,7 +431,7 @@ class ModelController extends GetxController {
       try {
         await _androidImportChannel.invokeMethod('cancelDownloadToDownloads', {'downloadId': id});
       } catch (e) {
-        Get.find<AppLogService>().error('Cancel download failed', details: e);
+        Get.find<AppLogService>().error('Cancel download failed', details: e, category: LogCategory.model);
       }
       externalDownloadId.value = null;
       isImporting.value = false;
@@ -499,8 +500,8 @@ class ModelController extends GetxController {
       final actual = DownloadService.formatBytes(fileBytes);
       Get.find<AppLogService>().error(
         'Incomplete model file blocked',
-        details:
-            '$filename is $actual, expected about ${model.size}',
+        details: '$filename is $actual, expected about ${model.size}',
+        category: LogCategory.model,
       );
       Get.snackbar(
         'Incomplete Model File',
@@ -515,6 +516,7 @@ class ModelController extends GetxController {
       Get.find<AppLogService>().error(
         'Corrupt safetensors file blocked',
         details: '$filename failed safetensors header validation',
+        category: LogCategory.model,
       );
       Get.snackbar(
         'Corrupt Model File',
@@ -528,6 +530,7 @@ class ModelController extends GetxController {
       Get.find<AppLogService>().error(
         'Corrupt LiteRT model file blocked',
         details: '$filename failed LiteRT file validation; size=$fileBytes',
+        category: LogCategory.model,
       );
       Get.snackbar(
         'Corrupt Model File',
@@ -1148,7 +1151,7 @@ class ModelController extends GetxController {
           await partialFile.delete();
         }
       }
-      Get.find<AppLogService>().error('Model import failed', details: e);
+      Get.find<AppLogService>().error('Model import failed', details: e, category: LogCategory.model);
       Get.snackbar('Import Failed', '$e', snackPosition: SnackPosition.BOTTOM);
     } finally {
       isImporting.value = false;
@@ -1187,15 +1190,16 @@ class ModelController extends GetxController {
             snackPosition: SnackPosition.BOTTOM);
       }
     } on PlatformException catch (e) {
-      Get.find<AppLogService>().error(
-        'Android model import failed',
-        details: '${e.code}: ${e.message}',
-      );
+        Get.find<AppLogService>().error(
+          'Android model import failed',
+          details: '${e.code}: ${e.message}',
+          category: LogCategory.model,
+        );
       Get.snackbar('Import Failed', e.message ?? e.code,
           snackPosition: SnackPosition.BOTTOM);
     } catch (e) {
       Get.find<AppLogService>()
-          .error('Android model import failed', details: e);
+          .error('Android model import failed', details: e, category: LogCategory.model);
       Get.snackbar('Import Failed', '$e', snackPosition: SnackPosition.BOTTOM);
     } finally {
       isImporting.value = false;

@@ -410,6 +410,7 @@ class ChatController extends GetxController {
             Get.find<AppLogService>().warning(
               'Document extraction failed',
               details: e,
+              category: LogCategory.chat,
             );
             selectedFileContent.value = '[Could not extract text from ${selectedFileName.value}: $e]';
           }
@@ -427,7 +428,7 @@ class ChatController extends GetxController {
         selectedFileContent.value = content;
       }
     } catch (e) {
-      Get.find<AppLogService>().warning('File attachment failed', details: e);
+      Get.find<AppLogService>().warning('File attachment failed', details: e, category: LogCategory.chat);
       Get.snackbar('File not attached', '$e',
           snackPosition: SnackPosition.BOTTOM);
     }
@@ -808,7 +809,7 @@ class ChatController extends GetxController {
         await Get.find<ImageGenerationNotificationService>().failed();
       }
       imageGenStartTime.value = null;
-      Get.find<AppLogService>().error('Chat response failed', details: e);
+      Get.find<AppLogService>().error('Chat response failed', details: e, category: LogCategory.chat);
       final errorMsg = ChatMessage(
         id: _uuid.v4(),
         chatId: currentSessionId.value,

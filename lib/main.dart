@@ -41,7 +41,7 @@ void main() {
     }
     appLogBuffer.clear();
 
-    appLog.info('App started');
+    appLog.info('App started', category: LogCategory.system);
 
     // Initialize Firebase before any Firebase-dependent services
     try {
@@ -49,7 +49,7 @@ void main() {
       //   options: DefaultFirebaseOptions.currentPlatform,
       // );
     } catch (e) {
-      appLog.error('[Firebase] Initialization failed', details: e);
+      appLog.error('[Firebase] Initialization failed', details: e, category: LogCategory.system);
     }
 
     // Support phones and tablets in portrait or landscape.
@@ -83,6 +83,7 @@ void main() {
       appLog.error(
         details.exceptionAsString(),
         details: details.stack?.toString() ?? 'No stack',
+        category: LogCategory.system,
       );
       crashReporting.recordFlutterFatal(details);
     };
@@ -90,6 +91,7 @@ void main() {
       appLog.error(
         error.toString(),
         details: stack.toString(),
+        category: LogCategory.system,
       );
       crashReporting.recordFatal(error, stack, reason: 'platform_dispatcher');
       return true;
@@ -117,6 +119,7 @@ void main() {
       Get.find<AppLogService>().error(
         'Uncaught zone error: $error',
         details: stack.toString(),
+        category: LogCategory.system,
       );
     }
     if (Get.isRegistered<CrashReportingService>()) {
@@ -187,7 +190,8 @@ void _autoConfigureForDevice() {
 
   Get.find<AppLogService>().info(
       '[AutoConfig] Set context=${device.recommendedContextSize}, '
-      'maxTokens=${device.recommendedMaxTokens} for ${device.totalRamGB.value.toStringAsFixed(1)}GB RAM');
+      'maxTokens=${device.recommendedMaxTokens} for ${device.totalRamGB.value.toStringAsFixed(1)}GB RAM',
+      category: LogCategory.system);
 }
 
 class CubicLMApp extends StatelessWidget {
