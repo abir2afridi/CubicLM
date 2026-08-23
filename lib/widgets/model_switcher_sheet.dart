@@ -376,7 +376,7 @@ class _ScopeToggle extends StatelessWidget {
 
 // ── Local models ──
 
-class _LocalModelList extends StatelessWidget {
+class _LocalModelList extends StatefulWidget {
   final ScrollController scrollController;
   final bool isDark;
 
@@ -386,7 +386,15 @@ class _LocalModelList extends StatelessWidget {
   });
 
   @override
+  State<_LocalModelList> createState() => _LocalModelListState();
+}
+
+class _LocalModelListState extends State<_LocalModelList> {
+  String _query = '';
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
     return Obx(() {
       final models = Get.find<ModelController>();
       final inference = Get.find<InferenceService>();
@@ -416,48 +424,113 @@ class _LocalModelList extends StatelessWidget {
         );
       }
 
+      final q = _query.trim().toLowerCase();
+      final filtered = q.isEmpty
+          ? entries
+          : entries
+              .where((m) =>
+                  m.name.toLowerCase().contains(q) ||
+                  m.filename.toLowerCase().contains(q))
+              .toList();
+
       final activeName = inference.loadedModelName.value;
       final loadingName = inference.isLoadingModel.value
           ? inference.loadingModelName.value
           : '';
 
-      return ListView.builder(
-        controller: scrollController,
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-        itemCount: entries.length,
-        itemBuilder: (context, index) {
-          final model = entries[index];
-          final isActive = model.filename == activeName;
-          final isLoading = model.filename == loadingName;
-          final isResident = !models.isLiteRtModel(model) &&
-              inference.isResident(model.filename);
-          return _ModelRow(
-            title: model.name,
-            subtitle: _localSubtitle(models, model),
-            isActive: isActive,
-            isLoading: isLoading,
-            progress: isLoading ? inference.modelLoadProgress.value : null,
-            badge: models.isLiteRtModel(model)
-                ? 'LiteRT'
-                : isResident
-                    ? 'In memory · instant'
-                    : 'GGUF',
-            badgeColor: models.isLiteRtModel(model)
-                ? AppColors.secondary
-                : isResident
-                    ? AppColors.success
-                    : null,
-            isDark: isDark,
-            // Any load while one is in flight is dropped by ModelController, so
-            // disable the rows rather than let taps silently no-op.
-            onTap: isActive || inference.isLoadingModel.value
-                ? null
-                : () {
-                    Navigator.pop(context);
-                    models.loadModel(model.filename);
-                  },
-          );
-        },
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
+            child: TextField(
+              onChanged: (v) => setState(() => _query = v),
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color:
+                    isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search downloaded models…',
+                hintStyle: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                prefixIcon: const Icon(Icons.search_rounded, size: 19),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Clear',
+                        onPressed: () => setState(() => _query = ''),
+                        icon: const Icon(Icons.close_rounded, size: 17),
+                      ),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                filled: true,
+                fillColor: isDark
+                    ? AppColors.bg.withValues(alpha: 0.45)
+                    : const Color(0xFFF1F5F9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(13),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
+                    child: Text(
+                      'No matching models',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).hintColor,
+                      ),
+                    ),
+                  )
+                : ListView.builder(
+                    controller: widget.scrollController,
+                    padding: const EdgeInsets.fromLTRB(20, 2, 20, 24),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final model = filtered[index];
+                      final isActive = model.filename == activeName;
+                      final isLoading = model.filename == loadingName;
+                      final isResident = !models.isLiteRtModel(model) &&
+                          inference.isResident(model.filename);
+                      return _ModelRow(
+                        title: model.name,
+                        subtitle: _localSubtitle(models, model),
+                        isActive: isActive,
+                        isLoading: isLoading,
+                        progress:
+                            isLoading ? inference.modelLoadProgress.value : null,
+                        badge: models.isLiteRtModel(model)
+                            ? 'LiteRT'
+                            : isResident
+                                ? 'In memory · instant'
+                                : 'GGUF',
+                        badgeColor: models.isLiteRtModel(model)
+                            ? AppColors.secondary
+                            : isResident
+                                ? AppColors.success
+                                : null,
+                        isDark: isDark,
+                        // Any load while one is in flight is dropped by
+                        // ModelController, so disable the rows rather than
+                        // let taps silently no-op.
+                        onTap: isActive || inference.isLoadingModel.value
+                            ? null
+                            : () {
+                                Navigator.pop(context);
+                                models.loadModel(model.filename);
+                              },
+                      );
+                    },
+                  ),
+          ),
+        ],
       );
     });
   }

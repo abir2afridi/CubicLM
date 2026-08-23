@@ -18,6 +18,7 @@
 - **Streaming token generation** with real-time tokens-per-second display
 - **GPU crash recovery** — automatic CPU fallback if GPU backend fails
 - **Device-tier auto-configuration** — adjusts context size and max tokens based on detected RAM
+- **Real hardware identification** — reads `ro.soc.*` system properties to show the actual processor (Snapdragon 8 Gen 2, Dimensity 9000, Google Tensor G3…) and probes Vulkan for the GPU renderer name (Adreno, Mali…) instead of a generic "Unknown" label; SoC-aware quantization recommendations follow from the detected family
 
 ### 🎛️ Inference Parameters (live-tunable from Settings)
 
@@ -64,6 +65,9 @@ For aggregator providers that host multiple companies' models under `vendor/mode
 
 ### 🧩 Additional
 
+- **Navigation:** Chat · Explore · Nodes · App Settings
+  - **Nodes** page has two tabs — **Node** (local API server) and **Config** (diagnostics, hardware capabilities, inference mode, system prompt, local model & imaging parameters)
+  - **App Settings** is its own destination — theme mode, typography scale, and app info
 - Multi-session chat with history (Hive persistence) and a searchable sidebar drawer with swipe-to-delete
 - **Message actions** — copy, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
 - **Code blocks** with syntax highlighting, one-tap copy, and export/share
@@ -74,7 +78,15 @@ For aggregator providers that host multiple companies' models under `vendor/mode
 - Background service and boot persistence
 - In-app model download with pause / resume / cancel, plus file import
 
-### 🩺 System Diagnostics (Settings > System Logs)
+#### 🔄 In-Chat Model Switcher
+
+Opened from the chat header — mirrors the Explore page's layout:
+
+- **Local tab**: search box over downloaded models; LiteRT / GGUF / "In memory" badges; live load progress
+- **Cloud tab**: every configured provider gets a collapsible section styled like the Explore provider cards — count badges, FREE badge + filter chip, per-provider search, auto-detected company filter chips, and a scrollable boxed model list. A global search box above matches models across **all providers at once** (results show the owning provider); picking a result switches the active provider automatically
+- Deactivating the active cloud provider switches inference back to local mode and **auto-loads the last downloaded model**
+
+### 🩺 System Diagnostics (Nodes › Config › System Logs)
 
 - **Health dashboard** — auto-detects 10 crash patterns: model file missing, context overflow, model load failure, GPU error, cloud API error, out of memory, generation hang, stale multi-model slot, import failure, Firebase init
 - **Category filters** — System, Model, Cloud, Chat, Server, Image
@@ -195,11 +207,12 @@ lib/
 │   ├── app_log_service.dart     # App logging with categories, search, crash pattern detection
 │   └── crash_reporting_service.dart  # Firebase Crashlytics
 ├── views/
-│   ├── home_view.dart           # Main navigation scaffold
+│   ├── home_view.dart           # Main navigation scaffold (Chat · Explore · Nodes · App Settings)
 │   ├── chat_view.dart           # Chat interface with sidebar drawer
-│   ├── model_view.dart          # Model browser/manager
-│   ├── server_view.dart         # Local API server UI
-│   ├── settings_view.dart       # Settings panel
+│   ├── model_view.dart          # Model browser/manager (Explore page)
+│   ├── server_view.dart         # Nodes page — Node tab (API server) + Config tab
+│   ├── settings_view.dart       # Config sections (embedded in Nodes › Config)
+│   ├── app_settings_view.dart   # App Settings — theme, typography scale, app info
 │   ├── log_view.dart            # System diagnostics viewer (health dashboard, search, categories)
 │   └── task_view.dart           # Automated tasks
 ├── widgets/
@@ -258,15 +271,20 @@ Or set `CUBICLM_ALLOW_DEBUG_RELEASE_SIGNING=true` to skip keystore validation du
 
 ### 🔑 Cloud API Keys
 
-Configure cloud providers in **Settings** > **Cloud Provider**, or tap **Add API Key** directly on any provider card in the Models tab — the key is verified and the live model list loads on save.
+Tap **Add API Key** on any provider card in the **Explore** tab — the key is verified and the live model list loads automatically on save. Refresh any time with the ↻ button on a provider card.
 
 ### 💾 Local Models
 
-Download models from the **Models** tab (with pause / resume / cancel support) or import `.gguf` / `.litertlm` / `.safetensors` files via the file picker. Models are stored in app-private storage. Loading is guarded — missing or corrupted files are detected before reaching the native engine, and stale download pointers are cleaned up automatically.
+Download models from the **Explore** tab (with pause / resume / cancel support) or import `.gguf` / `.litertlm` / `.safetensors` files via the file picker. Models are stored in app-private storage. Loading is guarded — missing or corrupted files are detected before reaching the native engine, and stale download pointers are cleaned up automatically.
 
 ### 🌐 Local API Server
 
-Start the built-in server from the **Server** tab. Once running, point any OpenAI-compatible client at `http://<device-ip>:8080` to use your local models programmatically.
+Open the **Nodes** tab › **Node** and flip the switch. Once running, point any OpenAI-compatible client at `http://<device-ip>:8080` to use your local models programmatically.
+
+### ⚙️ Engine & App Configuration
+
+- **Nodes › Config** — diagnostics, hardware capabilities, inference mode, global system prompt, local model parameters, imaging parameters
+- **App Settings** (bottom navigation) — theme, typography scale, app info
 
 ## 📄 License
 

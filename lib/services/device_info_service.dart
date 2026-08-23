@@ -12,6 +12,8 @@ class DeviceInfoService extends GetxService {
   final isTensorSoC = false.obs;
   final socFamily = platform_info.SocFamily.unknown.obs;
   final socHardware = ''.obs;
+  final processorName = ''.obs;
+  final gpuName = ''.obs;
 
   // Recommended limits based on device RAM
   int get recommendedContextSize => _tierConfig['contextSize']!;
@@ -89,6 +91,8 @@ class DeviceInfoService extends GetxService {
     final clamped = rawIndex < 0 ? 0 : (rawIndex > 8 ? 8 : rawIndex);
     socFamily.value = platform_info.SocFamily.values[clamped];
     socHardware.value = (info['socHardware'] as String?) ?? '';
+    processorName.value = (info['processor'] as String?) ?? '';
+    gpuName.value = (info['gpuName'] as String?) ?? '';
   }
 
   String get tierDescription {

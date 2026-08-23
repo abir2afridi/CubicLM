@@ -302,31 +302,52 @@ class SettingsView extends GetView<SettingsController> {
           child: Row(children: [
             _iconBox(AppColors.secondary, Icons.memory_rounded),
             const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(soc.displayName,
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15, fontWeight: FontWeight.w700)),
-                  if (device.socHardware.value.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(device.socHardware.value,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        device.processorName.value.isNotEmpty
+                            ? device.processorName.value
+                            : soc.displayName,
                         style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12, fontWeight: FontWeight.w500,
-                            color: Theme.of(context).hintColor)),
+                            fontSize: 15, fontWeight: FontWeight.w700)),
+                    if (device.gpuName.value.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Row(children: [
+                        Icon(Icons.videogame_asset_rounded,
+                            size: 13,
+                            color: Theme.of(context).hintColor),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(device.gpuName.value,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                  color: Theme.of(context).hintColor)),
+                        ),
+                      ]),
+                    ],
+                    if (device.socHardware.value.isNotEmpty &&
+                        device.socHardware.value !=
+                            device.processorName.value) ...[
+                      const SizedBox(height: 2),
+                      Text(device.socHardware.value,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12, fontWeight: FontWeight.w500,
+                              color: Theme.of(context).hintColor)),
+                    ],
+                    const SizedBox(height: 4),
+                    Text('Recommendation: ${soc.recommendedQuant}',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: quantWarning != null
+                                ? AppColors.warning
+                                : Theme.of(context).hintColor)),
                   ],
-                  const SizedBox(height: 4),
-                  Text('Recommendation: ${soc.recommendedQuant}',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: quantWarning != null
-                              ? AppColors.warning
-                              : Theme.of(context).hintColor)),
-                ],
+                ),
               ),
-            ),
           ]),
         ),
         if (quantWarning != null) ...[
