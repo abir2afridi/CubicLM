@@ -366,7 +366,10 @@ class CloudModelController extends GetxController {
   }
 
   Future<void> refreshModels(String provider) async {
-    if (provider == 'custom') return;
+    if (provider == 'custom') {
+      await refreshCustomModels();
+      return;
+    }
 
     if (apiKeyFor(provider).isEmpty) {
       errorByProvider.remove(provider);
@@ -406,6 +409,96 @@ class CloudModelController extends GetxController {
       );
     } finally {
       isLoadingProvider[provider] = false;
+    }
+  }
+
+  Future<void> refreshCustomModels() async {
+    final baseUrl = (_settings.customCloudBaseUrl.value)
+        .toString()
+        .replaceAll(RegExp(r'/+$'), '');
+    final apiKey = _settings.customCloudKey.value;
+    final manuallyEntered = _settings.customCloudModel.value.trim();
+
+    if (baseUrl.isEmpty) return;
+
+    isLoadingProvider['custom'] = true;
+    errorByProvider.remove('custom');
+
+    try {
+      // Try /v1/models first, then /models
+      http.Response? response;
+      for (final path in ['/v1/models', '/models']) {
+        try {
+          final uri = Uri.parse('$baseUrl$path');
+          final headers = <String, String>{
+            'Content-Type': 'application/json',
+          };
+          if (apiKey.isNotEmpty) {
+            headers['Authorization'] = 'Bearer $apiKey';
+          }
+          response = await http.get(uri, headers: headers).timeout(
+            const Duration(seconds: 10),
+            onTimeout: () => http.Response('Timeout', 408),
+          );
+          if (response.statusCode == 200) break;
+        } catch (_) {
+          continue;
+        }
+      }
+
+      if (response != null && response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final raw = data['data'] as List? ?? [];
+        final ids = raw
+            .map((m) => m is Map ? m['id']?.toString() : null)
+            .whereType<String>()
+            .toSet()
+            .toList();
+        // Always include the manually entered model
+        if (manuallyEntered.isNotEmpty && !ids.contains(manuallyEntered)) {
+          ids.insert(0, manuallyEntered);
+        }
+        modelsByProvider['custom'] = ids;
+        // Tag all custom models as free (self-hosted = free)
+        final tags = <String, List<String>>{};
+        for (final id in ids) {
+          tags[id] = const ['FREE'];
+        }
+        modelTagsByProvider['custom'] = tags;
+        final fetchedAt = DateTime.now();
+        fetchedAtByProvider['custom'] = fetchedAt;
+        await _hive.setSetting('$_cachePrefix custom', ids);
+        await _hive.setSetting(
+            '${_cacheTimePrefix}custom', fetchedAt.toIso8601String());
+      } else {
+        // Even if fetch fails, ensure manually entered model is available
+        if (manuallyEntered.isNotEmpty) {
+          modelsByProvider['custom'] = [manuallyEntered];
+          modelTagsByProvider['custom'] = {manuallyEntered: const ['FREE']};
+        }
+        final detail = response != null
+            ? '${response.statusCode}: ${_shortBody(response.body)}'
+            : 'Could not connect to $baseUrl';
+        errorByProvider['custom'] = detail;
+        Get.find<AppLogService>().warning(
+          'Custom endpoint model list failed',
+          details: detail,
+          category: LogCategory.cloud,
+        );
+      }
+    } catch (e) {
+      if (manuallyEntered.isNotEmpty) {
+        modelsByProvider['custom'] = [manuallyEntered];
+        modelTagsByProvider['custom'] = {manuallyEntered: const ['FREE']};
+      }
+      errorByProvider['custom'] = '$e';
+      Get.find<AppLogService>().warning(
+        'Custom endpoint model list failed',
+        details: e,
+        category: LogCategory.cloud,
+      );
+    } finally {
+      isLoadingProvider['custom'] = false;
     }
   }
 

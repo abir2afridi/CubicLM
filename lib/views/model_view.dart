@@ -550,20 +550,21 @@ class ModelView extends GetView<ModelController> {
     final settings = Get.find<SettingsController>();
     final cloudModels = Get.find<CloudModelController>();
     final isSelected = settings.cloudProvider.value == provider.id;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surface : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
+        border: Border.all(
           color: isSelected
               ? AppColors.primary.withValues(alpha: 0.5)
-              : Theme.of(context).dividerColor.withValues(alpha: 0.4),
+              : (isDark ? AppColors.border : AppColors.borderLightMode),
         ),
       ),
       child: ExpansionTile(
-        key: PageStorageKey('provider_${provider.id}'),
+        key: ValueKey('provider_${provider.id}'),
         initiallyExpanded: isSelected,
         shape: const Border(),
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -573,10 +574,7 @@ class ModelView extends GetView<ModelController> {
           decoration: BoxDecoration(
             color: isSelected
                 ? AppColors.primary.withValues(alpha: 0.15)
-                : Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withValues(alpha: 0.5),
+                : (isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF1F5F9)),
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
@@ -590,7 +588,7 @@ class ModelView extends GetView<ModelController> {
           style: GoogleFonts.plusJakartaSans(
             fontSize: 15,
             fontWeight: FontWeight.w700,
-            color: Theme.of(context).colorScheme.onSurface,
+            color: isDark ? Colors.white : Colors.black,
           ),
         ),
         subtitle: Text(
@@ -609,40 +607,107 @@ class ModelView extends GetView<ModelController> {
                 const Divider(),
                 const SizedBox(height: 12),
                 if (cloudModels.canSelectModel(provider.id)) ...[
-                  Text(
-                    'Available Models',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Theme.of(context).hintColor,
+                  // ── Header with count + free filter ──
+                  Obx(() {
+                    final all = cloudModels.modelsByProvider[provider.id] ?? [];
+                    final freeCount = cloudModels.freeModelCountFor(provider.id);
+                    return Row(
+                      children: [
+                        Text(
+                          'Models',
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).hintColor,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text('${all.length}',
+                            style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.primary)),
+                        ),
+                        if (freeCount > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.success.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text('$freeCount free',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.success)),
+                          ),
+                        ],
+                        const Spacer(),
+                        if (freeCount > 0)
+                          Obx(() => _miniFilterChip(
+                            context,
+                            'Free',
+                            cloudModels.freeFirstByProvider[provider.id] == true,
+                            () => cloudModels.toggleFreeFirst(provider.id),
+                          )),
+                      ],
+                    );
+                  }),
+                  const SizedBox(height: 10),
+                  // ── Search field ──
+                  TextField(
+                    onChanged: (v) => cloudModels.searchByProvider[provider.id] = v,
+                    style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500),
+                    decoration: InputDecoration(
+                      hintText: 'Search models...',
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      fillColor: isDark ? Colors.black.withValues(alpha: 0.2) : const Color(0xFFF1F5F9),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: (cloudModels.modelsByProvider[provider.id] ?? []).map((model) {
+                  const SizedBox(height: 10),
+                  // ── Compact model list ──
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 280),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.black.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.02),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05)),
+                    ),
+                    child: Obx(() {
+                      final filtered = cloudModels.filteredModelsFor(provider.id);
+                      if (filtered.isEmpty) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: Text('No matching models',
+                              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Theme.of(context).hintColor)),
+                          ),
+                        );
+                      }
                       final activeModel = cloudModels.activeModelFor(provider.id);
-                      final isActive = activeModel == model;
-                      return ChoiceChip(
-                        label: Text(model),
-                        selected: isActive,
-                        onSelected: (selected) {
-                          if (selected) {
-                            cloudModels.selectModel(provider.id, model);
-                          }
+                      return ListView.builder(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        itemCount: filtered.length,
+                        itemBuilder: (context, index) {
+                          final model = filtered[index];
+                          final isActive = activeModel == model;
+                          final isFree = cloudModels.isFreeModel(provider.id, model);
+                          return _modelListTile(
+                            context, cloudModels, provider.id,
+                            model: model,
+                            isActive: isActive,
+                            isFree: isFree,
+                            isDark: isDark,
+                            onTap: () => cloudModels.selectModel(provider.id, model),
+                          );
                         },
-                        labelStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight:
-                              isActive ? FontWeight.w700 : FontWeight.w500,
-                          color: isActive
-                              ? Colors.white
-                              : Theme.of(context).colorScheme.onSurface,
-                        ),
-                        selectedColor: AppColors.primary,
                       );
-                    }).toList(),
+                    }),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -650,6 +715,7 @@ class ModelView extends GetView<ModelController> {
                   width: double.infinity,
                   child: Obx(() {
                     final configured = cloudModels.isConfigured(provider.id);
+                    final isReallyActive = isSelected && configured;
                     return Row(
                       children: [
                         Expanded(
@@ -664,14 +730,14 @@ class ModelView extends GetView<ModelController> {
                               }
                             },
                             style: FilledButton.styleFrom(
-                              backgroundColor: isSelected && configured
+                              backgroundColor: isReallyActive
                                   ? AppColors.success.withValues(alpha: 0.2)
                                   : null,
-                              foregroundColor: isSelected && configured
+                              foregroundColor: isReallyActive
                                   ? AppColors.success
                                   : null,
                             ),
-                            child: Text(isSelected && configured
+                            child: Text(isReallyActive
                                 ? 'Active Provider'
                                 : configured
                                     ? 'Set as Active'
@@ -680,14 +746,24 @@ class ModelView extends GetView<ModelController> {
                                         : 'Add API Key'),
                           ),
                         ),
-                        if (configured && provider.id == 'custom') ...[
+                        if (configured) ...[
                           const SizedBox(width: 8),
-                          SizedBox(
-                            height: 40,
-                            child: IconButton(
-                              tooltip: 'Edit Config',
-                              icon: Icon(Icons.edit_rounded, size: 18, color: Theme.of(context).hintColor),
-                              onPressed: () => _showCustomProviderDialog(context, cloudModels),
+                          IconButton(
+                            onPressed: () => _showProviderKeyDialog(context, cloudModels, provider),
+                            icon: const Icon(Icons.key_rounded, size: 20),
+                            tooltip: 'Edit API Key',
+                            style: IconButton.styleFrom(
+                              backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF1F5F9),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => cloudModels.refreshModels(provider.id),
+                            icon: const Icon(Icons.refresh_rounded, size: 20),
+                            tooltip: 'Refresh Models',
+                            style: IconButton.styleFrom(
+                              backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF1F5F9),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
                         ],
@@ -731,6 +807,103 @@ class ModelView extends GetView<ModelController> {
           fontSize: 10,
           fontWeight: FontWeight.w700,
           color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _miniFilterChip(BuildContext context, String label, bool selected, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? AppColors.primary.withValues(alpha: 0.4) : Theme.of(context).dividerColor.withValues(alpha: 0.5),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              const Icon(Icons.check_rounded, size: 12, color: AppColors.primary),
+              const SizedBox(width: 4),
+            ],
+            Text(label, style: GoogleFonts.plusJakartaSans(
+              fontSize: 10, fontWeight: FontWeight.w800, 
+              color: selected ? AppColors.primary : Theme.of(context).hintColor)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _modelListTile(
+    BuildContext context,
+    CloudModelController cloud,
+    String providerId, {
+    required String model,
+    required bool isActive,
+    required bool isFree,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+        decoration: BoxDecoration(
+          color: isActive
+              ? AppColors.primary.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 6, height: 6,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isActive ? AppColors.primary : Colors.transparent,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                model,
+                style: GoogleFonts.firaCode(
+                  fontSize: 12,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                  color: isActive
+                      ? AppColors.primary
+                      : (isDark ? Colors.white70 : Colors.black87),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isFree) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text('FREE',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 8, fontWeight: FontWeight.w800, color: AppColors.success)),
+              ),
+            ],
+            if (isActive) ...[
+              const SizedBox(width: 8),
+              const Icon(Icons.check_circle_rounded, size: 16, color: AppColors.primary),
+            ],
+          ],
         ),
       ),
     );
@@ -873,14 +1046,11 @@ class ModelView extends GetView<ModelController> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'A Wi-Fi connection is highly recommended. Please keep the app open during the download.',
+                      'Ensure you are connected to Wi-Fi to avoid cellular data charges.',
                       style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        color: Theme.of(ctx).brightness == Brightness.dark
-                            ? const Color(0xFFFFD60A)
-                            : AppColors.warning,
-                        fontWeight: FontWeight.w500,
-                      ),
+                          fontSize: 12,
+                          color: AppColors.warning,
+                          fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -890,15 +1060,17 @@ class ModelView extends GetView<ModelController> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.plusJakartaSans(color: Theme.of(ctx).hintColor),
+            onPressed: () => Navigator.pop(ctx),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
             ),
+            child: Text('Cancel',
+                style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700, color: Theme.of(ctx).hintColor)),
           ),
           FilledButton(
             onPressed: () {
-              Navigator.of(ctx).pop();
+              Navigator.pop(ctx);
               if (isToDownloadsFolder) {
                 controller.downloadModelToDownloads(model);
               } else {
@@ -1223,6 +1395,8 @@ class ModelView extends GetView<ModelController> {
     final modelCtrl = cloud.customModelController;
     final obscureKey = true.obs;
     final error = ''.obs;
+    final isVerifying = false.obs;
+    final verifiedCount = (-1).obs; // -1 = not verified yet
 
     Get.dialog(AlertDialog(
       backgroundColor: isDark ? AppColors.surface : Colors.white,
@@ -1302,13 +1476,146 @@ class ModelView extends GetView<ModelController> {
                 controller: modelCtrl,
                 style: GoogleFonts.firaCode(fontSize: 13),
                 decoration: const InputDecoration(
-                  labelText: 'Model ID',
+                  labelText: 'Model ID (fallback if fetch fails)',
                   hintText: 'e.g. llama-3.1-8b-instruct',
                   prefixIcon: Icon(Icons.smart_toy_outlined, size: 22),
                   contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 18),
                 ),
               ),
               const SizedBox(height: 14),
+              // Verify button
+              SizedBox(
+                width: double.infinity,
+                child: Obx(() => OutlinedButton.icon(
+                  onPressed: isVerifying.value ? null : () async {
+                    final baseUrl = baseUrlCtrl.text.trim();
+                    if (baseUrl.isEmpty) { error.value = 'Enter Base URL first.'; return; }
+                    final uri = Uri.tryParse(baseUrl);
+                    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+                      error.value = 'Enter a valid URL.'; return;
+                    }
+                    error.value = '';
+                    isVerifying.value = true;
+                    await cloud.saveCustomProvider();
+                    await cloud.refreshCustomModels();
+                    isVerifying.value = false;
+                    final models = cloud.modelsByProvider['custom'] ?? [];
+                    verifiedCount.value = models.length;
+                    if (cloud.errorByProvider.containsKey('custom')) {
+                      error.value = cloud.errorByProvider['custom']!;
+                    }
+                  },
+                  icon: isVerifying.value
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.wifi_find_rounded, size: 18),
+                  label: Text(isVerifying.value ? 'Verifying...' : 'Verify & Load Models'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: AppColors.secondary.withValues(alpha: 0.4)),
+                  ),
+                )),
+              ),
+              // Verification result
+              Obx(() {
+                if (verifiedCount.value < 0) return const SizedBox.shrink();
+                final models = cloud.modelsByProvider['custom'] ?? [];
+                return Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: models.isNotEmpty
+                          ? AppColors.success.withValues(alpha: 0.08)
+                          : AppColors.warning.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: models.isNotEmpty
+                            ? AppColors.success.withValues(alpha: 0.25)
+                            : AppColors.warning.withValues(alpha: 0.25),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              models.isNotEmpty ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+                              size: 16,
+                              color: models.isNotEmpty ? AppColors.success : AppColors.warning,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              models.isNotEmpty
+                                  ? '${models.length} model${models.length == 1 ? '' : 's'} found'
+                                  : 'No models found — enter Model ID manually',
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: models.isNotEmpty ? AppColors.success : AppColors.warning,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (models.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: models.take(12).map((m) {
+                              final isActive = cloud.activeModelFor('custom') == m;
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: isActive
+                                      ? AppColors.primary.withValues(alpha: 0.15)
+                                      : isDark ? Colors.white.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.04),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: isActive
+                                        ? AppColors.primary.withValues(alpha: 0.4)
+                                        : isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.08),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(m, style: GoogleFonts.firaCode(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: isActive ? AppColors.primary : (isDark ? Colors.white70 : Colors.black54),
+                                    )),
+                                    const SizedBox(width: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.success.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text('FREE', style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 8, fontWeight: FontWeight.w800, color: AppColors.success,
+                                      )),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                          if (models.length > 12)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text('+ ${models.length - 12} more', style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10, color: Theme.of(context).hintColor,
+                              )),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 8),
               Obx(() {
                 if (error.isEmpty) return const SizedBox.shrink();
                 return _buildErrorBox(context, error.value);
@@ -1331,12 +1638,15 @@ class ModelView extends GetView<ModelController> {
             if (uri == null || !uri.hasScheme || (uri.scheme != 'https' && uri.scheme != 'http') || uri.host.isEmpty) {
               error.value = 'Enter a valid URL (http:// or https://).'; return;
             }
-            if (model.isEmpty) { error.value = 'Model ID is required.'; return; }
+            if (model.isEmpty && (cloud.modelsByProvider['custom'] ?? []).isEmpty) {
+              error.value = 'Enter a Model ID or verify endpoint first.'; return;
+            }
             error.value = '';
             await cloud.saveCustomProvider();
-            await cloud.selectModel('custom', model, showSnackbar: false);
+            final activeModel = model.isNotEmpty ? model : (cloud.modelsByProvider['custom'] ?? []).first;
+            await cloud.selectModel('custom', activeModel, showSnackbar: false);
             Get.back(closeOverlays: false);
-            Get.snackbar('Custom API Saved', '${nameCtrl.text.isEmpty ? "Custom API" : nameCtrl.text} · $model',
+            Get.snackbar('Custom API Saved', '${nameCtrl.text.isEmpty ? "Custom API" : nameCtrl.text} · $activeModel',
                 snackPosition: SnackPosition.BOTTOM);
           },
           style: ElevatedButton.styleFrom(

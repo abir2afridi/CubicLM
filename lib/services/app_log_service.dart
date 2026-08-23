@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
@@ -91,6 +92,8 @@ class AppLogService extends GetxService {
   File? _logFile;
   static const int _maxEntries = 500;
   static const int _persistBatch = 25;
+  final List<AppLogEntry> _pendingEntries = [];
+  bool _flushScheduled = false;
 
   final crashPatterns = <CrashPattern>[
     CrashPattern(
@@ -225,10 +228,24 @@ class AppLogService extends GetxService {
       details: details?.toString(),
       category: cat ?? LogCategory.system,
     );
-    entries.insert(0, entry);
-    if (entries.length > _maxEntries) {
-      entries.removeRange(_maxEntries, entries.length);
+    _pendingEntries.insert(0, entry);
+
+    if (!_flushScheduled) {
+      _flushScheduled = true;
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        _flushScheduled = false;
+        final toAdd = List<AppLogEntry>.from(_pendingEntries);
+        _pendingEntries.clear();
+        entries.insertAll(0, toAdd);
+        if (entries.length > _maxEntries) {
+          entries.removeRange(_maxEntries, entries.length);
+        }
+        if (entries.length % _persistBatch == 0) {
+          _persistLogs();
+        }
+      });
     }
+
     if ((level == 'ERROR' || level == 'WARNING') &&
         Get.isRegistered<CrashReportingService>()) {
       Get.find<CrashReportingService>().recordNonFatal(
@@ -236,9 +253,6 @@ class AppLogService extends GetxService {
         reason: message,
         extra: {'app_log_level': level, 'category': (cat ?? LogCategory.system).name},
       );
-    }
-    if (entries.length % _persistBatch == 0) {
-      _persistLogs();
     }
   }
 
