@@ -31,7 +31,7 @@ class ChatView extends GetView<ChatController> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+      backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       drawer: _buildSidebar(context, isDark),
       appBar: _appBar(context, isDark),
       body: Column(
@@ -98,7 +98,7 @@ class ChatView extends GetView<ChatController> {
                         curve: Curves.easeOutBack,
                         child: FloatingActionButton.small(
                           onPressed: controller.jumpToBottom,
-                          backgroundColor: isDark ? AppColors.surfaceLight : Colors.white,
+                          backgroundColor: isDark ? Dt.cardDark : Dt.card,
                           foregroundColor: AppColors.primary,
                           elevation: 4,
                           child: const Icon(Icons.arrow_downward_rounded, size: 20),
@@ -163,7 +163,7 @@ class ChatView extends GetView<ChatController> {
                 style: GoogleFonts.plusJakartaSans(color: AppColors.textMuted)),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+            style: FilledButton.styleFrom(backgroundColor: Dt.accent),
             onPressed: submit,
             child: Text('Send',
                 style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
@@ -176,7 +176,7 @@ class ChatView extends GetView<ChatController> {
   // ── AppBar ──
   PreferredSizeWidget _appBar(BuildContext context, bool isDark) {
     return AppBar(
-      backgroundColor: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
+      backgroundColor: (isDark ? Dt.canvasDark : Dt.canvas).withValues(alpha: 0.8),
       flexibleSpace: ClipRRect(
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -332,7 +332,7 @@ class ChatView extends GetView<ChatController> {
                       borderRadius: BorderRadius.circular(6),
                       child: LinearProgressIndicator(
                           value: inf.modelLoadProgress.value,
-                          backgroundColor: isDark ? AppColors.bg : const Color(0xFFE2E8F0),
+                          backgroundColor: isDark ? Dt.pillMutedDark : Dt.pillMuted,
                           color: AppColors.primary,
                           minHeight: 6)),
                   if (inf.modelLoadProgress.value > 0.05)
@@ -427,7 +427,7 @@ class ChatView extends GetView<ChatController> {
                     borderRadius: BorderRadius.circular(2),
                     child: LinearProgressIndicator(
                         value: pct,
-                        backgroundColor: isDark ? AppColors.surface : const Color(0xFFE2E8F0),
+                        backgroundColor: isDark ? Dt.cardDark : Dt.card,
                         color: accent,
                         minHeight: 3)),
               ],
@@ -609,7 +609,11 @@ class ChatView extends GetView<ChatController> {
               maxWidth: MediaQuery.of(context).size.width * 0.82),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           decoration: BoxDecoration(
-            color: isDark ? AppColors.surface : const Color(0xFFF1F5F9),
+            color: isDark ? Dt.cardDark : Dt.card,
+            border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.07)
+                    : Dt.hairline),
             borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(24),
                 topRight: Radius.circular(24),
@@ -1849,18 +1853,18 @@ class _TypingDotsState extends State<_TypingDots>
 
   @override
   Widget build(BuildContext context) {
-    // Claude-style: a single warm-orange sparkle gently pulsing while thinking.
+    // Claude-style thinking mark: an orange asterisk-star that gently
+    // pulses (scale + fade) while the response is being prepared.
     return AnimatedBuilder(
         animation: _c,
         builder: (_, __) {
-          final pulse = (math.sin(_c.value * 2 * math.pi) + 1) / 2;
-          final scale = 0.85 + 0.25 * pulse;
+          final t = (math.sin(_c.value * 2 * math.pi) + 1) / 2;
           return Transform.scale(
-            scale: scale,
+            scale: 0.82 + 0.28 * t,
             child: Opacity(
-              opacity: 0.45 + 0.55 * pulse,
-              child: const Icon(LucideIcons.sparkles,
-                  size: 16, color: Dt.accent),
+              opacity: 0.35 + 0.65 * t,
+              child: const Icon(LucideIcons.asterisk,
+                  size: 22, color: Dt.accent),
             ),
           );
         });

@@ -69,13 +69,29 @@ class AppSheetHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Claude sheet header: title leading-left, close action trailing-right.
     return SizedBox(
       height: 52,
       child: Stack(
         alignment: Alignment.center,
         children: [
           Positioned(
-            left: 8,
+            left: 20,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: Dt.textPrimary,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 8,
             child: IconButton(
               onPressed: onClose,
               icon: Icon(
@@ -83,14 +99,6 @@ class AppSheetHeader extends StatelessWidget {
                 size: Dt.iconSize - 2,
                 color: Dt.iconDefault,
               ),
-            ),
-          ),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: Dt.textPrimary,
             ),
           ),
         ],

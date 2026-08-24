@@ -7,6 +7,7 @@ import '../services/hive_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../core/constants.dart';
+import '../theme/design_tokens.dart';
 
 class HomeController extends GetxController {
   final currentTab = 0.obs;
@@ -93,7 +94,7 @@ class HomeController extends GetxController {
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: isDark ? const Color(0xFF0A84FF) : const Color(0xFF007AFF),
+              backgroundColor: Dt.accent,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () {
