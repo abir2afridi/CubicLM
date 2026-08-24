@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../models/chat_message.dart';
 import '../utils/thought_parser.dart';
 import '../core/colors.dart';
+import '../theme/design_tokens.dart';
 import 'attachment_preview.dart';
 import 'code_block.dart';
 import 'image_viewer.dart';
@@ -73,24 +74,13 @@ class ChatBubble extends StatelessWidget {
                     maxWidth: MediaQuery.of(context).size.width * (isUser ? 0.82 : 0.92),
                   ),
                   decoration: isUser ? BoxDecoration(
-                    gradient: AppColors.userGradient,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(24),
-                      topRight: Radius.circular(24),
-                      bottomLeft: Radius.circular(24),
-                      bottomRight: Radius.circular(8),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      )
-                    ],
+                    // Claude: user message = soft warm surface pill, flat.
+                    color: isDark ? Dt.pillMutedDark : Dt.pillMuted,
+                    borderRadius: BorderRadius.circular(20),
                   ) : null,
                   child: Padding(
-                    padding: isUser 
-                        ? const EdgeInsets.symmetric(horizontal: 18, vertical: 14)
+                    padding: isUser
+                        ? const EdgeInsets.symmetric(horizontal: 16, vertical: 12)
                         : const EdgeInsets.symmetric(vertical: 4),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,7 +128,7 @@ class ChatBubble extends StatelessWidget {
                             visibleContent,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 15,
-                              color: Colors.white,
+                              color: isDark ? Colors.white : Dt.textPrimary,
                               height: 1.5,
                               fontWeight: FontWeight.w500,
                             ),
@@ -420,23 +410,23 @@ class ChatBubble extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: isUser 
-            ? Colors.white.withValues(alpha: 0.15) 
-            : AppColors.primary.withValues(alpha: 0.1),
+        color: isUser
+            ? Dt.textPrimary.withValues(alpha: 0.06)
+            : Dt.accent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 10, color: isUser ? Colors.white : AppColors.primary),
+            Icon(icon, size: 10, color: isUser ? Dt.textSecondary : Dt.accent),
             const SizedBox(width: 4),
           ],
           Text(
             label,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 9,
-              color: isUser ? Colors.white : AppColors.primary,
+              color: isUser ? Dt.textSecondary : Dt.accent,
               fontWeight: FontWeight.w700,
             ),
           ),

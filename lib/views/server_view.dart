@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import '../controllers/server_controller.dart';
 import '../core/colors.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/design_tokens.dart';
 import 'settings_view.dart';
 
@@ -108,8 +109,8 @@ class ServerView extends GetView<ServerController> {
                             borderRadius: BorderRadius.circular(10)),
                         child: Icon(
                             controller.hasLocalModel
-                                ? Icons.verified_user_rounded
-                                : Icons.help_outline_rounded,
+                                ? LucideIcons.shieldCheck
+                                : LucideIcons.helpCircle,
                             size: 18,
                             color: controller.hasLocalModel
                                 ? AppColors.success
@@ -167,7 +168,7 @@ class ServerView extends GetView<ServerController> {
                     IconButton(
                         tooltip: 'Rotate Key',
                         onPressed: controller.generateApiKey,
-                        icon: const Icon(Icons.refresh_rounded,
+                        icon: const Icon(LucideIcons.refreshCw,
                             size: 22, color: accent)),
                     IconButton(
                         tooltip: 'Copy',
@@ -175,7 +176,7 @@ class ServerView extends GetView<ServerController> {
                             ? () => controller.copyText(
                                 controller.apiKey.value, 'API key')
                             : null,
-                        icon: Icon(Icons.copy_rounded,
+                        icon: Icon(LucideIcons.copy,
                             size: 20, color: Theme.of(context).hintColor)),
                   ])),
             ]),
@@ -197,7 +198,7 @@ class ServerView extends GetView<ServerController> {
                                   ? null
                                   : () =>
                                       _testHealth(controller.localUrl.value!),
-                              icon: const Icon(Icons.sensors_rounded, size: 18),
+                              icon: const Icon(LucideIcons.activity, size: 18),
                               label: const Text('Probe Connectivity'),
                               style: FilledButton.styleFrom(
                                 backgroundColor: AppColors.success,
@@ -234,7 +235,7 @@ class ServerView extends GetView<ServerController> {
                 child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.error_rounded,
+                      const Icon(LucideIcons.alertCircle,
                           color: AppColors.error, size: 22),
                       const SizedBox(width: 12),
                       Expanded(
@@ -324,7 +325,7 @@ class ServerView extends GetView<ServerController> {
               onPressed: url == null
                   ? null
                   : () => controller.copyText(url, '$label URL'),
-              icon: Icon(Icons.copy_rounded,
+              icon: Icon(LucideIcons.copy,
                   size: 18, color: Theme.of(context).hintColor)),
         ]));
   }
@@ -347,7 +348,7 @@ class ServerView extends GetView<ServerController> {
           IconButton(
               tooltip: 'Copy',
               onPressed: () => controller.copyText(code, title),
-              icon: Icon(Icons.content_copy_rounded,
+              icon: Icon(LucideIcons.copy,
                   size: 16, color: Theme.of(context).hintColor)),
         ]),
         const SizedBox(height: 8),
@@ -453,7 +454,7 @@ class _StatusIconState extends State<_StatusIcon> with SingleTickerProviderState
             borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(
-            widget.isRunning ? Icons.dns_rounded : Icons.dns_outlined,
+            widget.isRunning ? LucideIcons.server : Icons.dns_outlined,
             size: 24,
             color: color,
           ),

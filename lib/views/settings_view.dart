@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/design_tokens.dart';
 import '../core/constants.dart';
 import '../services/inference_service.dart';
@@ -57,10 +58,10 @@ class SettingsView extends GetView<SettingsController> {
                   context,
                   isDark,
                   leading:
-                      _iconBox(AppColors.info, Icons.terminal_rounded),
+                      _iconBox(AppColors.info, LucideIcons.terminal),
                   title: 'System Logs',
                   subtitle: 'Debug details & process monitoring',
-                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                  trailing: const Icon(LucideIcons.chevronRight, size: 20),
                   showDivider: false,
                   onTap: () => Get.to(() => const LogView()),
                 ),
@@ -75,11 +76,11 @@ class SettingsView extends GetView<SettingsController> {
                   context,
                   isDark,
                   leading:
-                      _iconBox(AppColors.success, Icons.bolt_rounded),
+                      _iconBox(AppColors.success, LucideIcons.zap),
                   title: 'Local (Privacy-First)',
                   subtitle: _localSubtitle(),
                   trailing: controller.inferenceMode.value == 'local'
-                      ? const Icon(Icons.check_rounded,
+                      ? const Icon(LucideIcons.check,
                           size: 20,
                           color: Dt.accent)
                       : null,
@@ -89,11 +90,11 @@ class SettingsView extends GetView<SettingsController> {
                 _appleListTile(
                   context,
                   isDark,
-                  leading: _iconBox(Dt.accent, Icons.cloud_done_rounded),
+                  leading: _iconBox(Dt.accent, LucideIcons.cloud),
                   title: 'Cloud Assistant',
                   subtitle: controller.cloudProvider.value.toUpperCase(),
                   trailing: controller.inferenceMode.value == 'cloud'
-                      ? const Icon(Icons.check_rounded,
+                      ? const Icon(LucideIcons.check,
                           size: 20,
                           color: Dt.accent)
                       : null,
@@ -124,7 +125,7 @@ class SettingsView extends GetView<SettingsController> {
                             hintText: AppConstants.systemPrompt,
                             contentPadding: const EdgeInsets.all(16),
                             suffixIcon: IconButton(
-                                icon: const Icon(Icons.save_rounded,
+                                icon: const Icon(LucideIcons.save,
                                     size: 22),
                                 onPressed: () {
                                   controller.setGlobalSystemPrompt(controller.globalSystemPromptController.text);
@@ -157,11 +158,12 @@ class SettingsView extends GetView<SettingsController> {
   Widget _appleGroupedCard(BuildContext context, bool isDark,
       {required List<Widget> children}) {
     return Container(
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.02) : const Color(0xFFF1F5F9).withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(24),
-      ),
       clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: isDark ? Dt.cardDark : Dt.card,
+        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.07) : Dt.hairline),
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
   }
@@ -255,23 +257,23 @@ class SettingsView extends GetView<SettingsController> {
       switch (device.deviceTier.value) {
         case 'low':
           tierColor = AppColors.error;
-          tierIcon = Icons.battery_saver_rounded;
+          tierIcon = LucideIcons.batteryLow;
           break;
         case 'mid':
           tierColor = AppColors.warning;
-          tierIcon = Icons.phone_android_rounded;
+          tierIcon = LucideIcons.smartphone;
           break;
         case 'high':
           tierColor = AppColors.success;
-          tierIcon = Icons.smartphone_rounded;
+          tierIcon = LucideIcons.smartphone;
           break;
         case 'ultra':
           tierColor = Dt.accent;
-          tierIcon = Icons.rocket_launch_rounded;
+          tierIcon = LucideIcons.rocket;
           break;
         default:
           tierColor = Theme.of(context).hintColor;
-          tierIcon = Icons.device_unknown_rounded;
+          tierIcon = LucideIcons.helpCircle;
       }
 
       final soc = device.socFamily.value;
@@ -301,7 +303,7 @@ class SettingsView extends GetView<SettingsController> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Row(children: [
-            _iconBox(AppColors.secondary, Icons.memory_rounded),
+            _iconBox(AppColors.secondary, LucideIcons.cpu),
             const SizedBox(width: 16),
               Expanded(
                 child: Column(
@@ -316,7 +318,7 @@ class SettingsView extends GetView<SettingsController> {
                     if (device.gpuName.value.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Row(children: [
-                        Icon(Icons.videogame_asset_rounded,
+                        Icon(LucideIcons.gamepad2,
                             size: 13,
                             color: Theme.of(context).hintColor),
                         const SizedBox(width: 5),
@@ -363,7 +365,7 @@ class SettingsView extends GetView<SettingsController> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.info_outline_rounded,
+                const Icon(LucideIcons.info,
                     size: 18, color: AppColors.warning),
                 const SizedBox(width: 10),
                 Expanded(
@@ -388,19 +390,19 @@ class SettingsView extends GetView<SettingsController> {
         value: 'auto_fast',
         title: 'Heuristic Optimization',
         subtitle: 'Auto GPU/CPU orchestration',
-        icon: Icons.auto_mode_rounded
+        icon: LucideIcons.sparkles
       ),
       (
         value: 'gpu_fast',
         title: 'Acceleration Engine',
         subtitle: 'Maximum throughput (Experimental)',
-        icon: Icons.bolt_rounded
+        icon: LucideIcons.zap
       ),
       (
         value: 'cpu_safe',
         title: 'Stability Mode',
         subtitle: 'Predictable CPU execution',
-        icon: Icons.shield_rounded
+        icon: LucideIcons.shield
       ),
     ];
     return _appleGroupedCard(context, isDark, children: [
@@ -412,7 +414,7 @@ class SettingsView extends GetView<SettingsController> {
           title: modes[i].title,
           subtitle: modes[i].subtitle,
           trailing: controller.liteRtPerformanceMode.value == modes[i].value
-              ? const Icon(Icons.check_circle_rounded,
+              ? const Icon(LucideIcons.checkCircle,
                   size: 20,
                   color: Dt.accent)
               : null,
@@ -434,7 +436,7 @@ class SettingsView extends GetView<SettingsController> {
         divisions: 20,
         safeMax: 1.0,
         onChanged: (v) => controller.setTemperature(v),
-        icon: Icons.thermostat_rounded,
+        icon: LucideIcons.thermometer,
         warning: 'High temperature may result in creative but halluncinated output.',
       ),
       _parameterDivider(isDark),
@@ -445,7 +447,7 @@ class SettingsView extends GetView<SettingsController> {
           ListTile(
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-            leading: Icon(Icons.auto_mode_rounded,
+            leading: Icon(LucideIcons.sparkles,
                 size: 20,
                 color: auto ? Dt.accent : Theme.of(context).hintColor),
             title: Row(children: [
@@ -470,7 +472,7 @@ class SettingsView extends GetView<SettingsController> {
               const Spacer(),
               GestureDetector(
                 onTap: () => _showAutoTuneInfoDialog(context, isDark),
-                child: Icon(Icons.info_outline_rounded,
+                child: Icon(LucideIcons.info,
                     size: 20, color: Theme.of(context).hintColor),
               ),
             ]),
@@ -501,7 +503,7 @@ class SettingsView extends GetView<SettingsController> {
               value: controller.maxTokens.value,
               safeMax: Get.find<DeviceInfoService>().maxSafeTokens,
               onChanged: (v) => controller.setMaxTokens(v),
-              icon: Icons.text_fields_rounded,
+              icon: LucideIcons.type,
             ),
             _parameterDivider(isDark),
             _ladderSlider(
@@ -513,7 +515,7 @@ class SettingsView extends GetView<SettingsController> {
               safeMax:
                   Get.find<DeviceInfoService>().maxSafeContextSize,
               onChanged: (v) => controller.setContextSize(v),
-              icon: Icons.history_rounded,
+              icon: LucideIcons.history,
               extraWarning: 'Big windows increase memory pressure a lot.',
             ),
           ],
@@ -554,7 +556,7 @@ class SettingsView extends GetView<SettingsController> {
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Row(children: [
-          const Icon(Icons.auto_mode_rounded, color: Dt.accent),
+          const Icon(LucideIcons.sparkles, color: Dt.accent),
           const SizedBox(width: 10),
           Text('Auto Tune',
               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
@@ -671,7 +673,7 @@ class SettingsView extends GetView<SettingsController> {
                   color: accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12)),
               child: Row(children: [
-                Icon(Icons.info_rounded, size: 16, color: accent),
+                Icon(LucideIcons.info, size: 16, color: accent),
                 const SizedBox(width: 10),
                 Expanded(
                     child: Text(
@@ -700,7 +702,7 @@ class SettingsView extends GetView<SettingsController> {
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.auto_awesome_rounded, size: 16, color: accent),
+            Icon(LucideIcons.sparkles, size: 16, color: accent),
             const SizedBox(width: 10),
             Text('Sampling Steps',
                 style: GoogleFonts.plusJakartaSans(
@@ -735,7 +737,7 @@ class SettingsView extends GetView<SettingsController> {
                     color: accent.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12)),
                 child: Row(children: [
-                  Icon(Icons.info_rounded, size: 16, color: accent),
+                  Icon(LucideIcons.info, size: 16, color: accent),
                   const SizedBox(width: 10),
                   Expanded(
                       child: Text(
@@ -752,7 +754,7 @@ class SettingsView extends GetView<SettingsController> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Icon(Icons.photo_size_select_actual_rounded,
+            const Icon(LucideIcons.image,
                 size: 16,
                 color: Dt.accent),
             const SizedBox(width: 10),
@@ -813,7 +815,7 @@ class SettingsView extends GetView<SettingsController> {
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            _iconBox(Dt.accent, selectedBackend == Backend.cpu ? Icons.memory_rounded : Icons.bolt_rounded),
+            _iconBox(Dt.accent, selectedBackend == Backend.cpu ? LucideIcons.cpu : LucideIcons.zap),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -834,11 +836,11 @@ class SettingsView extends GetView<SettingsController> {
             segments: [
               const ButtonSegment(
                   value: false,
-                  icon: Icon(Icons.memory_rounded, size: 18),
+                  icon: Icon(LucideIcons.cpu, size: 18),
                   label: Text('CPU')),
               ButtonSegment(
                   value: true,
-                  icon: const Icon(Icons.bolt_rounded, size: 18),
+                  icon: const Icon(LucideIcons.zap, size: 18),
                   label: Text(
                     'GPU',
                     style: TextStyle(
@@ -941,7 +943,7 @@ class SettingsView extends GetView<SettingsController> {
                   color: accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12)),
               child: Row(children: [
-                Icon(Icons.info_rounded, size: 16, color: accent),
+                Icon(LucideIcons.info, size: 16, color: accent),
                 const SizedBox(width: 10),
                 Expanded(
                     child: Text(warning,

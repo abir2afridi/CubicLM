@@ -8,6 +8,7 @@ import '../controllers/cloud_model_controller.dart';
 import '../controllers/model_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/design_tokens.dart';
 import '../models/ai_model.dart';
 import '../services/download_service.dart';
@@ -41,7 +42,7 @@ class ModelView extends GetView<ModelController> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.add_link_rounded),
+                  icon: const Icon(LucideIcons.link),
                   tooltip: 'Add Model URL',
                   onPressed: () => _showAddUrlDialog(context),
                 ),
@@ -368,7 +369,7 @@ class ModelView extends GetView<ModelController> {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
-                useGpu ? Icons.bolt_rounded : Icons.memory_rounded,
+                useGpu ? LucideIcons.zap : LucideIcons.cpu,
                 color: Dt.accent,
                 size: 22,
               ),
@@ -409,7 +410,7 @@ class ModelView extends GetView<ModelController> {
                 ],
               ),
             ),
-            const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 22),
+            const Icon(LucideIcons.checkCircle, color: AppColors.success, size: 22),
           ],
         ),
       );
@@ -663,14 +664,14 @@ class ModelView extends GetView<ModelController> {
                     style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500),
                     decoration: InputDecoration(
                       hintText: 'Search models...',
-                      prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                      prefixIcon: const Icon(LucideIcons.search, size: 18),
                       suffixIcon: Obx(() => (cloudModels.searchByProvider[provider.id] ?? '').isNotEmpty
                           ? IconButton(
                               tooltip: 'Clear',
                               onPressed: () {
                                 cloudModels.searchByProvider[provider.id] = '';
                               },
-                              icon: const Icon(Icons.close_rounded, size: 18),
+                              icon: const Icon(LucideIcons.x, size: 18),
                             )
                           : const SizedBox.shrink()),
                       isDense: true,
@@ -808,7 +809,7 @@ class ModelView extends GetView<ModelController> {
                           const SizedBox(width: 8),
                           IconButton(
                             onPressed: () => _showProviderKeyDialog(context, cloudModels, provider),
-                            icon: const Icon(Icons.key_rounded, size: 20),
+                            icon: const Icon(LucideIcons.keyRound, size: 20),
                             tooltip: 'Edit API Key',
                             style: IconButton.styleFrom(
                               backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Dt.pillMuted,
@@ -817,7 +818,7 @@ class ModelView extends GetView<ModelController> {
                           ),
                           IconButton(
                             onPressed: () => cloudModels.refreshModels(provider.id),
-                            icon: const Icon(Icons.refresh_rounded, size: 20),
+                            icon: const Icon(LucideIcons.refreshCw, size: 20),
                             tooltip: 'Refresh Models',
                             style: IconButton.styleFrom(
                               backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Dt.pillMuted,
@@ -937,7 +938,7 @@ class ModelView extends GetView<ModelController> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (selected) ...[
-              const Icon(Icons.check_rounded, size: 12, color: Dt.accent),
+              const Icon(LucideIcons.check, size: 12, color: Dt.accent),
               const SizedBox(width: 4),
             ],
             Text(label, style: GoogleFonts.plusJakartaSans(
@@ -1022,7 +1023,7 @@ class ModelView extends GetView<ModelController> {
             ],
             if (isActive) ...[
               const SizedBox(width: 8),
-              const Icon(Icons.check_circle_rounded, size: 16, color: Dt.accent),
+              const Icon(LucideIcons.checkCircle, size: 16, color: Dt.accent),
             ],
           ],
         ),
@@ -1299,7 +1300,7 @@ class ModelView extends GetView<ModelController> {
                           const SizedBox(height: 10),
                           Row(
                             children: [
-                              Icon(Icons.storage_rounded, size: 12, color: Theme.of(context).hintColor.withValues(alpha: 0.5)),
+                              Icon(LucideIcons.hardDrive, size: 12, color: Theme.of(context).hintColor.withValues(alpha: 0.5)),
                               const SizedBox(width: 4),
                               Text(
                                 controller.modelSizeLabel(model),
@@ -1325,7 +1326,7 @@ class ModelView extends GetView<ModelController> {
                                   ? () => controller.unloadModel()
                                   : () => _confirmDeleteModel(context, model.filename),
                           icon: Icon(
-                            isActive ? Icons.eject_rounded : Icons.delete_outline_rounded,
+                            isActive ? LucideIcons.logOut : LucideIcons.trash2,
                             size: 20,
                             color: isActive ? AppColors.warning : AppColors.error.withValues(alpha: 0.6),
                           ),
@@ -1340,7 +1341,7 @@ class ModelView extends GetView<ModelController> {
                               ? null
                               : () => _confirmDownload(context, model),
                           icon: const Icon(
-                            Icons.cloud_download_rounded,
+                            LucideIcons.download,
                             size: 22,
                             color: Dt.accent,
                           ),
@@ -1420,14 +1421,14 @@ class ModelView extends GetView<ModelController> {
               if (dp.isPaused.value)
                 TextButton.icon(
                   onPressed: () => controller.resumeDownload(model.filename),
-                  icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                  icon: const Icon(LucideIcons.play, size: 16),
                   label: const Text('Resume'),
                   style: TextButton.styleFrom(foregroundColor: AppColors.success),
                 )
               else
                 TextButton.icon(
                   onPressed: () => controller.pauseDownload(model.filename),
-                  icon: const Icon(Icons.pause_rounded, size: 16),
+                  icon: const Icon(LucideIcons.pause, size: 16),
                   label: const Text('Pause'),
                   style: TextButton.styleFrom(foregroundColor: AppColors.warning),
                 ),
@@ -1560,7 +1561,7 @@ class ModelView extends GetView<ModelController> {
                 decoration: const InputDecoration(
                   labelText: 'Profile name (optional)',
                   hintText: 'e.g. My Local Server',
-                  prefixIcon: Icon(Icons.label_outline_rounded, size: 22),
+                  prefixIcon: Icon(LucideIcons.tag, size: 22),
                   contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 18),
                 ),
               ),
@@ -1571,7 +1572,7 @@ class ModelView extends GetView<ModelController> {
                 decoration: const InputDecoration(
                   labelText: 'Base URL',
                   hintText: 'http://192.168.1.100:8080',
-                  prefixIcon: Icon(Icons.link_rounded, size: 22),
+                  prefixIcon: Icon(LucideIcons.link, size: 22),
                   contentPadding: EdgeInsets.symmetric(vertical: 18, horizontal: 18),
                 ),
               ),
@@ -1635,7 +1636,7 @@ class ModelView extends GetView<ModelController> {
                   },
                   icon: isVerifying.value
                       ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.wifi_find_rounded, size: 18),
+                      : const Icon(LucideIcons.wifi, size: 18),
                   label: Text(isVerifying.value ? 'Verifying...' : 'Verify & Load Models'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -1669,7 +1670,7 @@ class ModelView extends GetView<ModelController> {
                         Row(
                           children: [
                             Icon(
-                              models.isNotEmpty ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+                              models.isNotEmpty ? LucideIcons.checkCircle : LucideIcons.info,
                               size: 16,
                               color: models.isNotEmpty ? AppColors.success : AppColors.warning,
                             ),
@@ -1869,7 +1870,7 @@ class ModelView extends GetView<ModelController> {
                             );
                           }
                         },
-                        icon: const Icon(Icons.paste_rounded, size: 20),
+                        icon: const Icon(LucideIcons.clipboardPaste, size: 20),
                       ),
                       IconButton(
                         tooltip: obscureKey.value ? 'Show API key' : 'Hide API key',
@@ -2140,10 +2141,10 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sheetBg = isDark ? const Color(0xFF13131F) : const Color(0xFFF8F9FC);
-    final fieldBg = isDark ? const Color(0xFF1C1C2C) : Colors.white;
+    final sheetBg = isDark ? Dt.canvasDark : Dt.canvas;
+    final fieldBg = isDark ? Dt.cardDark : Dt.card;
     final borderCol =
-        isDark ? const Color(0xFF2A2A3D) : const Color(0xFFE2E8F0);
+        isDark ? Dt.pillMutedDark : Dt.hairline;
 
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
@@ -2162,7 +2163,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: isDark ? AppColors.border : const Color(0xFFE2E8F0),
+                color: isDark ? AppColors.border : Dt.hairline,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -2177,8 +2178,8 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: isDark
-                      ? [const Color(0xFF1A1A2E), const Color(0xFF13131F)]
-                      : [Dt.pillMuted, const Color(0xFFF8F9FC)],
+                      ? [Dt.cardDark, Dt.canvasDark]
+                      : [Dt.pillMuted, Dt.canvas],
                 ),
               ),
               child: Row(
@@ -2200,7 +2201,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.add_link_rounded,
+                    child: const Icon(LucideIcons.link,
                         color: Colors.white, size: 20),
                   ),
                   const SizedBox(width: 14),
@@ -2231,13 +2232,13 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(Icons.close_rounded,
+                    icon: Icon(LucideIcons.x,
                         color:
                             isDark ? AppColors.textSecondary : Colors.black54,
                         size: 20),
                     style: IconButton.styleFrom(
                       backgroundColor:
-                          isDark ? AppColors.surface : const Color(0xFFE2E8F0),
+                          isDark ? AppColors.surface : Dt.pillMuted,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
                       padding: const EdgeInsets.all(8),
@@ -2273,7 +2274,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                     _SheetTextField(
                       controller: widget.urlController,
                       hint: 'https://huggingface.co/…/model.gguf',
-                      prefixIcon: Icons.link_rounded,
+                      prefixIcon: LucideIcons.link,
                       keyboardType: TextInputType.url,
                       bg: fieldBg,
                       border: borderCol,
@@ -2284,7 +2285,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                           padding: const EdgeInsets.only(top: 6, left: 4),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline_rounded,
+                              const Icon(LucideIcons.alertCircle,
                                   size: 13, color: AppColors.error),
                               const SizedBox(width: 6),
                               Expanded(
@@ -2305,7 +2306,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                           padding: const EdgeInsets.only(top: 6, left: 4),
                           child: Row(
                             children: [
-                              const Icon(Icons.warning_amber_rounded,
+                              const Icon(LucideIcons.alertTriangle,
                                   size: 13, color: Colors.orange),
                               const SizedBox(width: 6),
                               Expanded(
@@ -2331,7 +2332,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                     _SheetTextField(
                       controller: widget.nameController,
                       hint: 'Display name  (e.g. Qwen3-0.6B)',
-                      prefixIcon: Icons.label_outline_rounded,
+                      prefixIcon: LucideIcons.tag,
                       bg: fieldBg,
                       border: borderCol,
                     ),
@@ -2353,7 +2354,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                           child: _SheetTextField(
                             controller: widget.sizeController,
                             hint: 'e.g. 1.2 GB',
-                            prefixIcon: Icons.data_usage_rounded,
+                            prefixIcon: LucideIcons.gauge,
                             bg: fieldBg,
                             border: borderCol,
                           ),
@@ -2439,7 +2440,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
                                       const Icon(
-                                          Icons.download_for_offline_rounded,
+                                          LucideIcons.arrowDownCircle,
                                           color: Colors.white,
                                           size: 18),
                                       const SizedBox(width: 8),
@@ -2482,7 +2483,7 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final resolvedColor = color == AppColors.textMuted
-        ? (isDark ? AppColors.textMuted : const Color(0xFF64748B))
+        ? (isDark ? AppColors.textMuted : Dt.textMuted)
         : color;
     return Text(
       label,
@@ -2565,7 +2566,7 @@ class _DetectSizeButton extends StatelessWidget {
         height: 52,
         decoration: BoxDecoration(
           color: isLoading
-              ? (isDark ? AppColors.surface : const Color(0xFFE2E8F0))
+              ? (isDark ? AppColors.surface : Dt.pillMuted)
               : Dt.accent.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
@@ -2582,7 +2583,7 @@ class _DetectSizeButton extends StatelessWidget {
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Dt.accent),
                 )
-              : const Icon(Icons.radar_rounded,
+              : const Icon(LucideIcons.radar,
                   color: Dt.accent, size: 22),
         ),
       ),
@@ -2648,7 +2649,7 @@ class _TemplateSelectorState extends State<_TemplateSelector> {
                         ? widget.accentColor
                         : (isDark
                             ? AppColors.textSecondary
-                            : const Color(0xFF64748B)),
+                            : Dt.textMuted),
                   ),
                 ),
               ),
@@ -2702,14 +2703,14 @@ class _VisionToggle extends StatelessWidget {
               decoration: BoxDecoration(
                 color: value
                     ? AppColors.secondary.withValues(alpha: 0.2)
-                    : (isDark ? AppColors.surface : const Color(0xFFE2E8F0)),
+                    : (isDark ? AppColors.surface : Dt.pillMuted),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
-                value ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                value ? LucideIcons.eye : LucideIcons.eyeOff,
                 color: value
                     ? AppColors.secondary
-                    : (isDark ? AppColors.textMuted : const Color(0xFF64748B)),
+                    : (isDark ? AppColors.textMuted : Dt.textMuted),
                 size: 16,
               ),
             ),
@@ -2732,7 +2733,7 @@ class _VisionToggle extends StatelessWidget {
                       fontSize: 11,
                       color: isDark
                           ? AppColors.textMuted
-                          : const Color(0xFF64748B),
+                          : Dt.textMuted,
                     ),
                   ),
                 ],
@@ -2746,7 +2747,7 @@ class _VisionToggle extends StatelessWidget {
               inactiveThumbColor:
                   isDark ? AppColors.textMuted : const Color(0xFF94A3B8),
               inactiveTrackColor:
-                  isDark ? AppColors.surface : const Color(0xFFE2E8F0),
+                  isDark ? AppColors.surface : Dt.pillMuted,
             ),
           ],
         ),

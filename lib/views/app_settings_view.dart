@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/design_tokens.dart';
 
 /// Dedicated App Settings page — personalisation & about info.
@@ -29,7 +30,7 @@ class AppSettingsView extends GetView<SettingsController> {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded),
+          icon: const Icon(LucideIcons.arrowLeft),
           onPressed: () => Get.back(),
         ),
         title: Text('App Settings',
@@ -58,7 +59,7 @@ class AppSettingsView extends GetView<SettingsController> {
                         size: 20, color: Theme.of(context).hintColor),
                     title: _themeModeName(mode),
                     trailing: controller.themeMode.value == mode
-                        ? const Icon(Icons.check_rounded,
+                        ? const Icon(LucideIcons.check,
                             size: 20, color: Dt.accent)
                         : null,
                     showDivider: mode != ThemeMode.system,
@@ -144,7 +145,7 @@ class AppSettingsView extends GetView<SettingsController> {
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Icon(Icons.format_size_rounded,
+            const Icon(LucideIcons.type,
                 size: 16, color: Dt.accent),
             const SizedBox(width: 10),
             Text('Typography Scale',
@@ -185,10 +186,10 @@ class AppSettingsView extends GetView<SettingsController> {
           : 'System Sync';
 
   IconData _themeModeIcon(ThemeMode m) => m == ThemeMode.light
-      ? Icons.wb_sunny_rounded
+      ? LucideIcons.sun
       : m == ThemeMode.dark
-          ? Icons.nights_stay_rounded
-          : Icons.settings_brightness_rounded;
+          ? LucideIcons.moon
+          : LucideIcons.sunMoon;
 
   // ── Shared Apple-style helpers ──
 
