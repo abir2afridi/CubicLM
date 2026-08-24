@@ -127,7 +127,7 @@ class SettingsView extends GetView<SettingsController> {
                                     size: 22),
                                 onPressed: () {
                                   controller.setGlobalSystemPrompt(controller.globalSystemPromptController.text);
-                                  Get.snackbar('Saved', 'System prompt updated successfully', 
+                                  Get.snackbar('Saved', 'System prompt updated successfully',
                                     snackPosition: SnackPosition.BOTTOM,
                                     backgroundColor: AppColors.success,
                                     colorText: Colors.white);
@@ -378,7 +378,7 @@ class SettingsView extends GetView<SettingsController> {
           ),
         ],
       ]);
-    });
+      });
   }
 
   Widget _buildLiteRtCard(BuildContext context, bool isDark) {
@@ -437,53 +437,252 @@ class SettingsView extends GetView<SettingsController> {
         warning: 'High temperature may result in creative but halluncinated output.',
       ),
       _parameterDivider(isDark),
-      _modelParameterSlider(
-        context,
-        isDark,
-        label: 'Output Token Limit',
-        value: controller.maxTokens.value.toDouble(),
-        min: 64,
-        max: 4096,
-        divisions: 63,
-        safeMax: Get.find<DeviceInfoService>().maxSafeTokens.toDouble(),
-        onChanged: (v) => controller.setMaxTokens(v.toInt()),
-        displayValue: controller.maxTokens.value.toString(),
-        icon: Icons.text_fields_rounded,
-        warning: 'Extreme token limits may lead to OOM crashes on this device.',
-      ),
-      _parameterDivider(isDark),
-      (() {
-        final inference = Get.find<InferenceService>();
-        final savedRuntime = Get.find<HiveService>()
-                .getSetting<String>(AppConstants.keyLocalModelRuntime) ??
-            '';
-        final isLiteRtActive = (inference.isModelLoaded.value &&
-                inference.loadedModelRuntime.value == 'litert') ||
-            (!inference.isModelLoaded.value &&
-                savedRuntime.toLowerCase() == 'litert');
-        final maxContext = isLiteRtActive ? 4096.0 : 8192.0;
-        final divisions = isLiteRtActive ? 7 : 15;
-        final currentValue =
-            controller.contextSize.value.toDouble().clamp(512.0, maxContext);
-
-        return _modelParameterSlider(
-          context,
-          isDark,
-          label: 'Context Window Size',
-          value: currentValue,
-          min: 512,
-          max: maxContext,
-          divisions: divisions,
-          safeMax: Get.find<DeviceInfoService>().maxSafeContextSize.toDouble(),
-          onChanged: (v) => controller.setContextSize(v.toInt()),
-          displayValue: currentValue.toInt().toString(),
-          icon: Icons.history_rounded,
-          warning: isLiteRtActive
-              ? 'LiteRT context window is hardware-limited to 4K for stability.'
-              : 'Expanding the context window increases memory pressure significantly.',
-        );
-      })(),
+      // ── Auto Tune (recommended) ──
+      Obx(() {
+        final auto = controller.autoTuneParams.value;
+        return Column(children: [
+          ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            leading: Icon(Icons.auto_mode_rounded,
+                size: 20,
+                color: auto ? AppColors.primary : Theme.of(context).hintColor),
+            title: Row(children: [
+              Text('Auto Tune',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15, fontWeight: FontWeight.w700)),
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text('RECOMMENDED',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.4,
+                        color: AppColors.success)),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: () => _showAutoTuneInfoDialog(context, isDark),
+                child: Icon(Icons.info_outline_rounded,
+                    size: 20, color: Theme.of(context).hintColor),
+              ),
+            ]),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(
+                auto
+                    ? 'Context ${_fmtTokens(controller.effectiveContextSize)} · '
+                        'Output ${_fmtTokens(controller.effectiveMaxTokens)} · tuned to RAM'
+                    : 'Manual limits — extended ranges up to 1M context',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Theme.of(context).hintColor)),
+            ),
+            trailing: Switch(
+                value: auto,
+                activeThumbColor: AppColors.primary,
+                onChanged: (v) => controller.setAutoTuneParams(v)),
+          ),
+          if (!auto) ...[
+            const SizedBox(height: 6),
+            _ladderSlider(
+              context,
+              isDark,
+              label: 'Output Token Limit',
+              ladder: _tokLadder,
+              value: controller.maxTokens.value,
+              safeMax: Get.find<DeviceInfoService>().maxSafeTokens,
+              onChanged: (v) => controller.setMaxTokens(v),
+              icon: Icons.text_fields_rounded,
+            ),
+            _parameterDivider(isDark),
+            _ladderSlider(
+              context,
+              isDark,
+              label: 'Context Window Size',
+              ladder: _contextLadder(),
+              value: controller.contextSize.value,
+              safeMax:
+                  Get.find<DeviceInfoService>().maxSafeContextSize,
+              onChanged: (v) => controller.setContextSize(v),
+              icon: Icons.history_rounded,
+              extraWarning: 'Big windows increase memory pressure a lot.',
+            ),
+          ],
+        ]);
+      }),
     ]);
+  }
+
+  static const List<int> _tokLadder = [
+    256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072,
+  ];
+
+  static List<int> _contextLadder() {
+    const full = [
+      1024, 2048, 4096, 8192, 12288, 16384, 24576, 32768, 49152, 65536,
+      98304, 131072, 196608, 262144, 393216, 524288, 786432, 1048576,
+    ];
+    // LiteRT runtime is hardware-limited to 4K context.
+    final inference = Get.find<InferenceService>();
+    final hive = Get.find<HiveService>();
+    final savedRuntime =
+        hive.getSetting<String>(AppConstants.keyLocalModelRuntime) ?? '';
+    final isLiteRtActive = (inference.isModelLoaded.value &&
+            inference.loadedModelRuntime.value == 'litert') ||
+        (!inference.isModelLoaded.value &&
+            savedRuntime.toLowerCase() == 'litert');
+    if (!isLiteRtActive) return full;
+    return full.where((v) => v <= 4096).toList();
+  }
+
+  static String _fmtTokens(int v) =>
+      v >= 1024 ? '${(v / 1024).toStringAsFixed(v % 1024 == 0 ? 0 : 1)}K' : '$v';
+
+  void _showAutoTuneInfoDialog(BuildContext context, bool isDark) {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(children: [
+          const Icon(Icons.auto_mode_rounded, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Text('Auto Tune',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+        ]),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _infoPoint('📱', 'Sets the context window and output budget to '
+                  'the highest your phone\'s RAM can safely run — no guesswork.'),
+              _infoPoint('🚀', 'Cloud models are sent WITHOUT an output cap, so '
+                  'big models write full detailed answers instead of stopping early.'),
+              _infoPoint('📚', 'Works with large-context models — when you switch '
+                  'to manual you can push context up to 1M tokens for models that support it.'),
+              _infoPoint('🛡️', 'Prevents truncated replies and chat freezes caused '
+                  'by too-small limits.'),
+              const SizedBox(height: 4),
+              Text(
+                'Turn it off only if you want manual control of every limit.',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    color: Theme.of(context).hintColor),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoPoint(String emoji, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(emoji, style: const TextStyle(fontSize: 15)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(text,
+              style: GoogleFonts.plusJakartaSans(fontSize: 13, height: 1.35)),
+        ),
+      ]),
+    );
+  }
+
+  /// Slider over a fixed ladder of standard sizes (log-ish steps).
+  Widget _ladderSlider(
+    BuildContext context,
+    bool isDark, {
+    required String label,
+    required List<int> ladder,
+    required int value,
+    required int safeMax,
+    required ValueChanged<int> onChanged,
+    required IconData icon,
+    String? extraWarning,
+  }) {
+    // Snap current value to nearest ladder entry.
+    int idx = 0;
+    for (var i = 0; i < ladder.length; i++) {
+      if (ladder[i] <= value) idx = i;
+    }
+    final display = ladder[idx];
+    final isOver = display > safeMax;
+    final accent = isOver ? AppColors.warning : AppColors.primary;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 16, color: accent),
+          const SizedBox(width: 10),
+          Text(label,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15, fontWeight: FontWeight.w700)),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8)),
+            child: Text(_fmtTokens(display),
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13, color: accent, fontWeight: FontWeight.w800)),
+          ),
+        ]),
+        Slider(
+          value: idx.toDouble(),
+          min: 0,
+          max: (ladder.length - 1).toDouble(),
+          divisions: ladder.length - 1,
+          activeColor: accent,
+          onChanged: (v) {
+            final nv = ladder[v.round()];
+            if (nv > safeMax && display <= safeMax) {
+              HapticFeedback.heavyImpact();
+            }
+            onChanged(nv);
+          },
+        ),
+        if (isOver)
+          Container(
+              margin: const EdgeInsets.only(top: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12)),
+              child: Row(children: [
+                Icon(Icons.info_rounded, size: 16, color: accent),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: Text(
+                        extraWarning ??
+                            'Above this device\'s recommended limit — may cause OOM on low RAM.',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: accent,
+                            fontWeight: FontWeight.w600))),
+              ])),
+      ]),
+    );
   }
 
   Widget _buildImageGenerationCard(BuildContext context, bool isDark) {

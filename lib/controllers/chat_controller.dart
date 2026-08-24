@@ -17,6 +17,7 @@ import '../models/chat_message.dart';
 import '../models/chat_session.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import '../services/hive_service.dart';
+import '../services/web_fetch_service.dart';
 import '../services/inference_service.dart';
 import '../services/cloud_service.dart';
 import '../services/local_image_service.dart';
@@ -620,6 +621,33 @@ class ChatController extends GetxController {
               })
           .toList();
 
+      // Web access — fetch readable text for any URLs in the prompt so
+      // the model can reason over real page content.
+      try {
+        final s = Get.find<SettingsController>();
+        if (s.webFetchEnabled.value) {
+          final pagesRead = WebFetchService.countUrls(prompt);
+          if (pagesRead > 0) {
+            Get.snackbar(
+              'Web Access',
+              'Reading $pagesRead link${pagesRead > 1 ? 's' : ''} into context…',
+              snackPosition: SnackPosition.BOTTOM,
+              duration: const Duration(seconds: 2),
+            );
+          }
+          final augmented = await WebFetchService.augmentWithWebContent(prompt);
+          if (augmented != prompt) {
+            prompt = augmented;
+            if (history.isNotEmpty && history.last['role'] == 'user') {
+              history[history.length - 1] = {
+                'role': 'user',
+                'content': augmented,
+              };
+            }
+          }
+        }
+      } catch (_) {}
+
       if (inferenceMode == 'local') {
         final localImage = Get.find<LocalImageService>();
 
@@ -723,7 +751,11 @@ class ChatController extends GetxController {
           messages: apiMessages,
           imageBase64: imgBase64,
           temperature: settings.temperature.value,
-          maxTokens: settings.maxTokens.value,
+          // Auto Tune: no output cap — let the model use its full native
+          // budget so long, detailed answers are never truncated.
+          maxTokens: settings.autoTuneParams.value
+              ? null
+              : settings.maxTokens.value,
           onToken: (token) {
             streamingResponse.value += token;
             trackThoughtTiming();

@@ -10,6 +10,7 @@ import '../core/colors.dart';
 import '../models/ai_model.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
+import 'app_ui.dart';
 
 /// Opens the in-chat model switcher.
 ///
@@ -19,11 +20,8 @@ import '../services/local_image_service.dart';
 /// restart because the two native runtimes cannot safely co-exist in one
 /// process (see [ModelController.loadModel]).
 void showModelSwitcherSheet(BuildContext context) {
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    barrierColor: Colors.black.withValues(alpha: 0.655),
+  showAppBottomSheet<void>(
+    context,
     builder: (_) => const ModelSwitcherSheet(),
   );
 }
@@ -58,30 +56,9 @@ class _ModelSwitcherSheetState extends State<ModelSwitcherSheet> {
       maxChildSize: 0.92,
       expand: false,
       builder: (context, scrollController) {
-        return Container(
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.surface : Colors.white,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(
-              color: isDark ? AppColors.border : AppColors.borderLightMode,
-              width: 0.5,
-            ),
-          ),
-          child: Column(
+        // Outer chrome (rounded top + drag handle) comes from AppBottomSheet.
+        return Column(
             children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.surfaceLight
-                      : const Color(0xFFE2E8F0),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 18),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -123,8 +100,7 @@ class _ModelSwitcherSheetState extends State<ModelSwitcherSheet> {
                     : _CloudModelList(
                         scrollController: scrollController, isDark: isDark),
               ),
-            ],
-          ),
+     ],
         );
       },
     );

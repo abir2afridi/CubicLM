@@ -81,7 +81,7 @@ class AnthropicProvider extends CloudProvider {
     final body = <String, dynamic>{
       'model': model,
       'messages': apiMessages,
-      'max_tokens': maxTokens ?? 4096,
+      'max_tokens': maxTokens ?? 8192,
     };
 
     if (systemPrompt != null) body['system'] = systemPrompt;
@@ -152,7 +152,7 @@ class AnthropicProvider extends CloudProvider {
     final body = <String, dynamic>{
       'model': model,
       'messages': apiMessages,
-      'max_tokens': maxTokens ?? 4096,
+      'max_tokens': maxTokens ?? 8192,
       'stream': true,
     };
 

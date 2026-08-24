@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../controllers/chat_controller.dart';
 import '../models/chat_message.dart';
 import '../controllers/settings_controller.dart';
@@ -16,6 +17,8 @@ import '../services/local_image_service.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import '../utils/thought_parser.dart';
 import '../widgets/attachment_preview.dart';
+import '../widgets/app_ui.dart';
+import '../theme/design_tokens.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/model_switcher_sheet.dart';
 import '../widgets/thought_disclosure.dart';
@@ -270,8 +273,9 @@ class ChatView extends GetView<ChatController> {
       }),
       leading: Builder(
         builder: (ctx) => IconButton(
-          icon: Icon(Icons.menu_rounded,
-              size: 24, color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A)),
+          icon: Icon(LucideIcons.menu,
+              size: Dt.iconSize - 2,
+              color: isDark ? AppColors.textPrimary : Dt.iconDefault),
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         ),
       ),
@@ -280,14 +284,9 @@ class ChatView extends GetView<ChatController> {
           padding: const EdgeInsets.only(right: 12),
           child: IconButton(
               tooltip: 'New Chat',
-              icon: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.add_rounded, size: 22, color: AppColors.primary),
-              ),
+              icon: Icon(LucideIcons.messageSquarePlus,
+                  size: Dt.iconSize - 2,
+                  color: isDark ? AppColors.primary : Dt.accent),
               onPressed: () => controller.createNewChat()),
         ),
       ],
@@ -451,41 +450,29 @@ class ChatView extends GetView<ChatController> {
         child: SingleChildScrollView(
       padding: const EdgeInsets.all(32),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        // Glowing Logo
-        Container(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.15),
-                blurRadius: 60,
-                spreadRadius: 20,
-              )
-            ],
-          ),
-          child: Hero(
-            tag: 'app_logo',
-            child: Image.asset(
-              'assets/icons/CubicLM.png',
-              width: 120,
-              height: 120,
-            ),
+        // Small brand mark (reference: ~7% of screen width, no glow)
+        Hero(
+          tag: 'app_logo',
+          child: Image.asset(
+            'assets/icons/CubicLM.png',
+            width: 64,
+            height: 64,
           ),
         ),
-        const SizedBox(height: 40),
-        Text('Curious to learn?',
+        const SizedBox(height: 20),
+        Text('What shall we explore?',
             style: GoogleFonts.plusJakartaSans(
-                fontSize: 32,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -1.2,
-                color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A))),
-        const SizedBox(height: 12),
-        Text('Select a topic or start typing below.',
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.3,
+                color: isDark ? AppColors.textPrimary : Dt.textPrimary)),
+        const SizedBox(height: 8),
+        Text('Start typing below or pick a topic.',
             style: GoogleFonts.plusJakartaSans(
-                fontSize: 16,
-                color: Theme.of(context).hintColor,
+                fontSize: 14,
+                color: Dt.textSecondary,
                 fontWeight: FontWeight.w500)),
-        const SizedBox(height: 48),
+        const SizedBox(height: 28),
         Obx(() {
           final settings = Get.find<SettingsController>();
           final models = Get.find<ModelController>();
@@ -871,41 +858,90 @@ class ChatView extends GetView<ChatController> {
                   );
                 }),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isDark ? AppColors.surface : Colors.white,
-                    borderRadius: BorderRadius.circular(32),
-                    border: Border.all(
-                      color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.08),
-                      width: 1.5,
-                    ),
+                    color: isDark ? AppColors.surface : Dt.card,
+                    borderRadius: BorderRadius.circular(Dt.rComposer),
+                    border: isDark
+                        ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                        : null,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                        blurRadius: 16,
-                        offset: const Offset(0, 4),
+                        color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
                       )
                     ],
                   ),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                    // Attach button
+                   child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    // ── Dismissible upsell pill (inside card, per reference) ──
                     Obx(() {
                       final s = Get.find<SettingsController>();
-                      final inf = Get.find<InferenceService>();
-                      final isCloud = s.inferenceMode.value == 'cloud';
-                      final isLocalVision = s.inferenceMode.value == 'local' &&
-                          inf.loadedModelRuntime.value == 'litert' &&
-                          inf.isVisionLoaded.value;
-                      if (!isCloud && !isLocalVision) return const SizedBox.shrink();
-                      return _AttachButton(
+                      if (s.composerUpsellDismissed.value) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                        child: Container(
+                          height: 32,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.06)
+                                : Dt.pillMuted,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(children: [
+                            Expanded(
+                              child: Text('Unlock every cloud model',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: isDark
+                                          ? AppColors.textSecondary
+                                          : Dt.textSecondary)),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.pop(context);
+                                Get.find<HomeController>().changeTab(1);
+                              },
+                              child: Text('Add API keys',
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Dt.link)),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: s.dismissComposerUpsell,
+                              child: Icon(LucideIcons.x,
+                                  size: 14, color: Dt.textSecondary),
+                            ),
+                          ]),
+                        ),
+                      );
+                    }),
+                    Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    // "+" opens the Add-to-Chat sheet (attachments, web access)
+                    AppCircleButton(
+                      icon: LucideIcons.plus,
+                      tooltip: 'Add to chat',
+                      onTap: () => _showAddToChatSheet(
+                        context,
                         isDark: isDark,
-                        isCloud: isCloud,
                         onCamera: controller.takePhoto,
                         onImage: controller.pickImage,
                         onFile: controller.pickFile,
-                        context: context,
-                      );
-                    }),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Model selector pill
+                    AppModelPill(
+                      label: _composerModelLabel(),
+                      onTap: () => showModelSwitcherSheet(context),
+                    ),
                     // Text field with floating container
                     Expanded(
                         child: TextField(
@@ -914,25 +950,25 @@ class ChatView extends GetView<ChatController> {
                           maxLines: 5,
                           minLines: 1,
                           style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                              fontSize: 15.5,
+                              color: isDark ? AppColors.textPrimary : Dt.textPrimary,
                               fontWeight: FontWeight.w500),
                           decoration: InputDecoration(
-                            hintText: 'Enter your request…',
+                            hintText: 'Message CubicLM…',
                             hintStyle: GoogleFonts.plusJakartaSans(
-                                fontSize: 15, color: Theme.of(context).hintColor, fontWeight: FontWeight.w500),
+                                fontSize: 15.5, color: Dt.textPlaceholder, fontWeight: FontWeight.w500),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 10),
+                                horizontal: 12, vertical: 12),
                             isDense: true,
                             fillColor: Colors.transparent,
                           ),
                           onSubmitted: (_) => controller.sendMessage(),
                         )),
                     const SizedBox(width: 8),
-                    // Main Action Button
+                    // Right cluster: mic (muted circle) + primary CTA (solid dark)
                     Obx(() {
                       final loading = controller.isLoading.value;
                       final listening = controller.isListening.value;
@@ -940,51 +976,29 @@ class ChatView extends GetView<ChatController> {
                           controller.selectedFileName.value != null ||
                           controller.selectedImagePath.value != null;
 
-                      final Color bgColor;
-                      final IconData iconData;
-                      final VoidCallback? onTap;
-
-                      if (loading) {
-                        bgColor = AppColors.error;
-                        iconData = Icons.stop_rounded;
-                        onTap = controller.stopGenerating;
-                      } else if (listening) {
-                        bgColor = AppColors.error;
-                        iconData = Icons.stop_rounded;
-                        onTap = controller.toggleListening;
-                      } else if (hasContent) {
-                        bgColor = AppColors.primary;
-                        iconData = Icons.arrow_upward_rounded;
-                        onTap = controller.sendMessage;
-                      } else {
-                        bgColor = isDark ? AppColors.surfaceLight : const Color(0xFFE2E8F0);
-                        iconData = Icons.mic_rounded;
-                        onTap = controller.toggleListening;
-                      }
-
-                      return GestureDetector(
-                        onTap: onTap,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 250),
-                          curve: Curves.easeOutCubic,
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: bgColor,
-                            shape: BoxShape.circle,
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!loading && !hasContent)
+                            AppCircleButton(
+                              icon: LucideIcons.mic,
+                              tooltip: 'Voice input',
+                              iconColor: listening ? AppColors.error : null,
+                              onTap: controller.toggleListening,
+                            ),
+                          if (!loading && !hasContent) const SizedBox(width: 8),
+                          AppCtaButton(
+                            icon: loading
+                                ? LucideIcons.square
+                                : LucideIcons.arrowUp,
+                            onTap: loading
+                                ? controller.stopGenerating
+                                : (hasContent ? controller.sendMessage : null),
                           ),
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 200),
-                            child: Icon(iconData,
-                                key: ValueKey(iconData),
-                                color: (loading || listening || hasContent)
-                                    ? Colors.white
-                                    : Theme.of(context).hintColor,
-                                size: 24),
-                          ),
-                        ),
+                        ],
                       );
                     }),
+                    ]),
                   ]),
                 ),
               ])),
@@ -992,12 +1006,100 @@ class ChatView extends GetView<ChatController> {
   }
 
   // ── Sidebar Drawer ──
+
+  /// Short label for the composer's model pill.
+  String _composerModelLabel() {
+    final s = Get.find<SettingsController>();
+    if (s.inferenceMode.value == 'cloud') {
+      final m = s.selectedCloudModelName;
+      if (m.isEmpty) return 'Cloud';
+      final short = m.contains('/') ? m.split('/').last : m;
+      return short.length > 18 ? '${short.substring(0, 18)}…' : short;
+    }
+    final inf = Get.find<InferenceService>();
+    final img = Get.find<LocalImageService>();
+    final name = inf.isModelLoaded.value
+        ? inf.loadedModelName.value
+        : img.isModelLoaded.value
+            ? img.loadedModelName.value
+            : '';
+    if (name.isEmpty) return 'Local';
+    final stripped = name.replaceAll(RegExp(r'\.(gguf|litertlm|safetensors)$', caseSensitive: false), '');
+    return stripped.length > 18 ? '${stripped.substring(0, 18)}…' : stripped;
+  }
+
+  /// "+" sheet per reference spec §2.3: three equal tiles, then stacked
+  /// row-cards — including the Web-access toggle that used to sit in the
+  /// composer bar.
+  void _showAddToChatSheet(
+    BuildContext context, {
+    required bool isDark,
+    required VoidCallback onCamera,
+    required VoidCallback onImage,
+    required VoidCallback onFile,
+  }) {
+    showAppBottomSheet(
+      context,
+      builder: (sheetCtx) {
+        final s = Get.find<SettingsController>();
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppSheetHeader(title: 'Add to chat', onClose: () => Navigator.pop(sheetCtx)),
+                const SizedBox(height: 6),
+                Row(children: [
+                  _AddTile(icon: LucideIcons.camera, label: 'Camera', onTap: () { Navigator.pop(sheetCtx); onCamera(); }),
+                  const SizedBox(width: 8),
+                  _AddTile(icon: LucideIcons.image, label: 'Photos', onTap: () { Navigator.pop(sheetCtx); onImage(); }),
+                  const SizedBox(width: 8),
+                  _AddTile(icon: LucideIcons.fileUp, label: 'Files', onTap: () { Navigator.pop(sheetCtx); onFile(); }),
+                ]),
+                const SizedBox(height: 12),
+                // ── Choose model row (drills into the switcher) ──
+                AppSheetRowCard(
+                  leading: const AppIconCircle(icon: LucideIcons.box),
+                  title: 'Choose model',
+                  subtitle: _composerModelLabel(),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    showModelSwitcherSheet(context);
+                  },
+                  trailing: Icon(LucideIcons.chevronRight,
+                      size: 18, color: Dt.textSecondary),
+                ),
+                const SizedBox(height: 10),
+                Obx(() => AppSheetRowCard(
+                      leading: const AppIconCircle(icon: LucideIcons.globe),
+                      title: 'Web access',
+                      subtitle: 'Read links from your message into context',
+                      trailing: Switch(
+                        value: s.webFetchEnabled.value,
+                        activeTrackColor:
+                            Theme.of(sheetCtx).brightness == Brightness.dark
+                                ? null
+                                : Dt.toggleTrackOn,
+                        onChanged: (v) => s.setWebFetchEnabled(v),
+                      ),
+                    )),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   final RxString _sidebarQuery = ''.obs;
   Widget _buildSidebar(BuildContext context, bool isDark) {
     return Drawer(
-      backgroundColor: isDark ? AppColors.bg : Colors.white,
+      backgroundColor: isDark ? AppColors.bg : Dt.sidebar,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.horizontal(right: Radius.circular(24))),
+          borderRadius:
+              BorderRadius.horizontal(right: Radius.circular(Dt.rDrawerEdge))),
       child: SafeArea(
         child: StatefulBuilder(
           builder: (context, setState) {
@@ -1031,25 +1133,27 @@ class ChatView extends GetView<ChatController> {
           ]),
         ),
         const SizedBox(height: 8),
+        // ── New chat — the only accent-colored row ──
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                side: BorderSide(color: isDark ? AppColors.border : AppColors.borderLightMode),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              icon: const Icon(Icons.add_rounded, size: 20, color: AppColors.primary),
-              label: Text('New Chat',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary)),
-              onPressed: () { controller.createNewChat(); Navigator.pop(context); },
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () { controller.createNewChat(); Navigator.pop(context); },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Row(children: [
+                Icon(LucideIcons.messageSquarePlus,
+                    size: 20, color: isDark ? AppColors.primary : Dt.accent),
+                const SizedBox(width: 14),
+                Text('New chat',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15, fontWeight: FontWeight.w600,
+                        color: isDark ? AppColors.primary : Dt.accent)),
+              ]),
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         // ── Search ──
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1090,10 +1194,10 @@ class ChatView extends GetView<ChatController> {
         const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text('RECENT',
+          child: Text('Recents',
               style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11, fontWeight: FontWeight.w700,
-                  color: AppColors.textMuted, letterSpacing: 1.2)),
+                  fontSize: 12, fontWeight: FontWeight.w600,
+                  color: AppColors.textMuted, letterSpacing: 0.3)),
         ),
         const SizedBox(height: 8),
         Expanded(
@@ -1131,21 +1235,46 @@ class ChatView extends GetView<ChatController> {
           }),
         ),
         const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: Row(children: [
-            Icon(Icons.info_outline_rounded, size: 14,
-                color: AppColors.textMuted.withValues(alpha: 0.5)),
-            const SizedBox(width: 8),
-            Text(
-              Get.find<SettingsController>().appVersion.value.isEmpty
-                  ? 'CubicLM · Engineering Build'
-                  : 'CubicLM · v${Get.find<SettingsController>().appVersion.value}',
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11, fontWeight: FontWeight.w600,
-                  color: AppColors.textMuted.withValues(alpha: 0.6)),
-            ),
-          ]),
+        // ── Pinned footer: identity + settings gear ──
+        InkWell(
+          onTap: () {
+            Navigator.pop(context);
+            Get.find<HomeController>().changeTab(3);
+          },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 12, 14),
+            child: Row(children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(
+                    color: Dt.accent, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Text('C',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text('CubicLM',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14, fontWeight: FontWeight.w600,
+                        color: isDark ? AppColors.textPrimary : Dt.textPrimary)),
+              ),
+              IconButton(
+                tooltip: 'App Settings',
+                onPressed: () {
+                  Navigator.pop(context);
+                  Get.find<HomeController>().changeTab(3);
+                },
+                icon: Icon(LucideIcons.settings,
+                    size: 20,
+                    color: isDark ? AppColors.textPrimary : Dt.iconDefault),
+              ),
+            ]),
+          ),
         ),
       ],
     );
@@ -1321,178 +1450,42 @@ class ChatView extends GetView<ChatController> {
           : v.toString();
 }
 
-// ── Attach Button ──
-class _AttachButton extends StatelessWidget {
-  final bool isDark;
-  final bool isCloud;
-  final VoidCallback onCamera;
-  final VoidCallback onImage;
-  final VoidCallback onFile;
-  final BuildContext context;
-
-  const _AttachButton({
-    required this.isDark,
-    required this.isCloud,
-    required this.onCamera,
-    required this.onImage,
-    required this.onFile,
-    required this.context,
-  });
-
-  @override
-  Widget build(BuildContext buildContext) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: GestureDetector(
-        onTap: () => _showSheet(buildContext),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.surfaceLight : const Color(0xFFE2E8F0),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(Icons.add_rounded,
-              color: Theme.of(buildContext).hintColor, size: 24),
-        ),
-      ),
-    );
-  }
-
-  void _showSheet(BuildContext ctx) {
-    final isDarkSheet = Theme.of(ctx).brightness == Brightness.dark;
-    showModalBottomSheet(
-      context: ctx,
-      backgroundColor: isDarkSheet ? AppColors.surface : Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (_) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                    color: isDarkSheet ? AppColors.surfaceLight : const Color(0xFFE2E8F0),
-                    borderRadius: BorderRadius.circular(2)),
-              ),
-              const SizedBox(height: 24),
-              Text('Add Content',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: isDarkSheet ? AppColors.textPrimary : const Color(0xFF0F172A))),
-              const SizedBox(height: 24),
-              Row(children: [
-                _SheetTile(
-                  icon: Icons.camera_alt_rounded,
-                  color: AppColors.warning,
-                  label: 'Camera',
-                  sub: 'Take a photo',
-                  isDark: isDarkSheet,
-                  onTap: () {
-                    Navigator.pop(_);
-                    onCamera();
-                  },
-                ),
-                const SizedBox(width: 12),
-                _SheetTile(
-                  icon: Icons.photo_library_rounded,
-                  color: AppColors.success,
-                  label: 'Photos',
-                  sub: 'Pick from gallery',
-                  isDark: isDarkSheet,
-                  onTap: () {
-                    Navigator.pop(_);
-                    onImage();
-                  },
-                ),
-                const SizedBox(width: 12),
-                _SheetTile(
-                  icon: Icons.attach_file_rounded,
-                  color: AppColors.primary,
-                  label: 'Files',
-                  sub: 'Documents & more',
-                  isDark: isDarkSheet,
-                  onTap: () {
-                    Navigator.pop(_);
-                    onFile();
-                  },
-                ),
-              ]),
-            ]),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SheetTile extends StatelessWidget {
+// ── Add-to-chat tile (56dp muted circle + label) ──
+class _AddTile extends StatelessWidget {
   final IconData icon;
-  final Color color;
   final String label;
-  final String sub;
-  final bool isDark;
   final VoidCallback onTap;
 
-  const _SheetTile({
-    required this.icon,
-    required this.color,
-    required this.label,
-    required this.sub,
-    required this.isDark,
-    required this.onTap,
-  });
+  const _AddTile({required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
-      child: GestureDetector(
+      child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: isDark ? AppColors.surfaceLight : const Color(0xFFF1F5F9),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isDark ? AppColors.border : AppColors.borderLightMode,
-            ),
+            color: isDark ? Theme.of(context).cardColor : Dt.card,
+            borderRadius: BorderRadius.circular(14),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(icon, color: color, size: 24),
-              ),
-              const SizedBox(height: 14),
-              Text(label,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A))),
-              const SizedBox(height: 2),
-              Text(sub,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: Theme.of(context).hintColor)),
-            ],
-          ),
+          child: Column(children: [
+            AppIconCircle(icon: icon, diameter: Dt.circleIconDiameter),
+            const SizedBox(height: 8),
+            Text(label,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Dt.textSecondary)),
+          ]),
         ),
       ),
     );
   }
 }
+
 
 // ── Pulsing Dot ──
 class _PulsingDot extends StatefulWidget {

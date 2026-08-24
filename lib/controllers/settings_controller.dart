@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -8,6 +9,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../core/constants.dart';
 import '../services/hive_service.dart';
 import '../services/app_log_service.dart';
+import '../services/device_info_service.dart';
 import '../services/inference_service.dart';
 import '../services/download_service.dart';
 import '../services/local_image_service.dart';
@@ -74,6 +76,14 @@ class SettingsController extends GetxController {
   final temperature = 0.1.obs;
   final maxTokens = 512.obs;
   final contextSize = 2048.obs;
+  /// Auto Tune (recommended): derive context & output limits from the
+  /// device RAM tier, and let cloud models use their full native output.
+  final autoTuneParams = true.obs;
+  /// Web access: when on, URLs found in the user's message are fetched
+  /// and their readable text is added to the model's context.
+  final webFetchEnabled = true.obs;
+  /// Dismissible upsell pill shown inside the composer card.
+  final composerUpsellDismissed = false.obs;
   final liteRtPerformanceMode = AppConstants.defaultLiteRtPerformanceMode.obs;
   final imageSteps = 1.obs;
   final imageGenForceCpu = AppConstants.defaultImageGenForceCpu.obs;
@@ -289,6 +299,24 @@ class SettingsController extends GetxController {
     contextSize.value = _hive.getSetting(AppConstants.keyContextSize,
             defaultValue: AppConstants.defaultContextSize) ??
         AppConstants.defaultContextSize;
+    autoTuneParams.value = _hive.getSetting<bool>(
+            AppConstants.keyAutoTuneParams,
+            defaultValue: true) ??
+        true;
+    webFetchEnabled.value = _hive.getSetting<bool>(
+            AppConstants.keyWebFetchEnabled,
+            defaultValue: true) ??
+        true;
+    composerUpsellDismissed.value = _hive.getSetting<bool>(
+            AppConstants.keyComposerUpsellDismissed,
+            defaultValue: false) ??
+        false;
+    if (autoTuneParams.value) {
+      // Persist tuned values so the native loaders (which read the Hive
+      // keys directly) always pick up tier-matched context/output even if
+      // the RAM tier changed since last launch.
+      unawaited(_applyAutoTune(writeSettings: true));
+    }
     liteRtPerformanceMode.value = _hive.getSetting(
           AppConstants.keyLiteRtPerformanceMode,
           defaultValue: AppConstants.defaultLiteRtPerformanceMode,
@@ -976,6 +1004,54 @@ class SettingsController extends GetxController {
     contextSize.value = value;
     await _hive.setSetting(AppConstants.keyContextSize, value);
     _scheduleContextReload();
+  }
+
+  // ── Auto Tune ──
+
+  /// RAM-tier context size when Auto is on, else the manual slider value.
+  int get effectiveContextSize {
+    if (!autoTuneParams.value) return contextSize.value;
+    if (Get.isRegistered<DeviceInfoService>()) {
+      return Get.find<DeviceInfoService>().recommendedContextSize;
+    }
+    return contextSize.value;
+  }
+
+  /// Output budget: scales with the effective context in Auto mode
+  /// (~25% of the window), so long detailed answers never get cut off.
+  int get effectiveMaxTokens {
+    if (!autoTuneParams.value) return maxTokens.value;
+    final ctx = effectiveContextSize;
+    return (ctx ~/ 4).clamp(512, 16384);
+  }
+
+  /// Persist tuned values into the Hive keys the native loaders read.
+  Future<void> _applyAutoTune({bool writeSettings = true}) async {
+    final ctx = effectiveContextSize;
+    final tok = effectiveMaxTokens;
+    contextSize.value = ctx;
+    maxTokens.value = tok;
+    if (writeSettings) {
+      await _hive.setSetting(AppConstants.keyContextSize, ctx);
+      await _hive.setSetting(AppConstants.keyMaxTokens, tok);
+      _scheduleContextReload();
+    }
+  }
+
+  Future<void> setAutoTuneParams(bool enabled) async {
+    autoTuneParams.value = enabled;
+    await _hive.setSetting(AppConstants.keyAutoTuneParams, enabled);
+    if (enabled) await _applyAutoTune();
+  }
+
+  Future<void> setWebFetchEnabled(bool enabled) async {
+    webFetchEnabled.value = enabled;
+    await _hive.setSetting(AppConstants.keyWebFetchEnabled, enabled);
+  }
+
+  Future<void> dismissComposerUpsell() async {
+    composerUpsellDismissed.value = true;
+    await _hive.setSetting(AppConstants.keyComposerUpsellDismissed, true);
   }
 
   Timer? _contextReloadTimer;

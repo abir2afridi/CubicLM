@@ -58,6 +58,10 @@ class AppConstants {
   static const String keyTokenRouterModel = 'tokenrouter_model';
   static const String keyCustomCloudModel = 'custom_cloud_model';
   static const String keyGlobalSystemPrompt = 'global_system_prompt';
+  static const String keyAutoTuneParams = 'auto_tune_params';
+  static const String keyWebFetchEnabled = 'web_fetch_enabled';
+  static const String keyComposerUpsellDismissed =
+      'composer_upsell_dismissed';
   static const String keyLocalModelPath = 'local_model_path';
   static const String keyLocalModelName = 'local_model_name';
   static const String keyLocalModelRuntime = 'local_model_runtime';

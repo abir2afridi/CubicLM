@@ -66,6 +66,7 @@ dependencies:
 
   archive: any
   xml: any
+  lucide_icons: ^0.257.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

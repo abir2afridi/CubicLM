@@ -20,13 +20,29 @@
 - **Device-tier auto-configuration** — adjusts context size and max tokens based on detected RAM
 - **Real hardware identification** — reads `ro.soc.*` system properties to show the actual processor (Snapdragon 8 Gen 2, Dimensity 9000, Google Tensor G3…) and probes Vulkan for the GPU renderer name (Adreno, Mali…) instead of a generic "Unknown" label; SoC-aware quantization recommendations follow from the detected family
 
-### 🎛️ Inference Parameters (live-tunable from Settings)
+### 🎛️ Inference Parameters (Nodes › Config)
 
-- **Inference temperature** and **output token limit** — applied on every generation, local and cloud
-- **Context window size** — auto-reloads the resident model after the slider settles
+- **🪄 Auto Tune (default ON)** — one switch that keeps limits optimal:
+  - Context window and output budget are set to the highest the device's RAM can safely run (tier-based)
+  - Cloud requests are sent **without an output cap**, so large models write full detailed answers instead of stopping mid-response
+  - An inline **(i) info dialog** explains exactly what it does
+- **Manual mode** — flip Auto off for direct control with extended ranges:
+  - Context window ladder from 1K up to **1M tokens** (LiteRT capped to 4K by hardware)
+  - Output token ladder from 256 up to **128K tokens**
+  - Orange warnings appear past the device's recommended limit but values stay selectable
+- **Inference temperature** — applied on every generation, local and cloud
+- **Context window changes** auto-reload the resident model after the slider settles
 - **Sampling steps** and **synthesis resolution** for image generation (Auto mode scales by available RAM)
 - **Compute backend toggle** (CPU / Vulkan / OpenCL) for image generation with automatic model reload
-- Safety rails warn when values exceed the device's recommended limits
+
+### 🌐 Web Access (independent chat)
+
+The chat page can fetch live web content on its own — no external services or API keys:
+
+- Toggle the 🌐 button in the input bar; when on, any `https://…` links in your message are downloaded automatically
+- Pages are stripped to clean readable text (scripts/styles removed, entities decoded) and injected into the model's context — works for **both local and cloud models**
+- Up to 3 links per message, ~9K characters per page, 15s timeout per fetch
+- Great for "summarize this article", "what changed on this docs page", or grounding answers in real data
 
 ### ☁️ Cloud AI Providers
 
@@ -51,7 +67,7 @@
 - **Stability AI** (SD3.5 Flash cloud image generation)
 - **Custom OpenAI-compatible** endpoints with multiple profile support
 
-All providers share a unified plugin architecture (`lib/services/cloud/providers/`) — each provider implements the `CloudProvider` interface and registers in `CloudProviderRegistry`. Model lists auto-fetch from each provider's API on key save/refresh (with catalog fallback for providers without a `/models` endpoint), with FREE model tagging and filtering where supported.
+All providers share a unified plugin architecture (`lib/services/cloud/providers/`) — each provider implements the `CloudProvider` interface and registers in `CloudProviderRegistry`. Model lists auto-fetch from each provider's API on key save/refresh (with catalog fallback for providers without a `/models` endpoint), with FREE model tagging and filtering where supported. With **Auto Tune** enabled, cloud requests carry no output-token cap — models with 128K+ output budgets answer at full length.
 
 #### 🏷️ Auto-Detected Company Filter
 
@@ -198,7 +214,8 @@ lib/
 │   ├── openai_server_service.dart   # Built-in OpenAI-compatible server
 │   ├── download_service.dart    # Model download manager (pause/resume/cancel)
 │   ├── hive_service.dart        # Local persistence
-│   ├── device_info_service.dart # RAM/tier detection
+│   ├── device_info_service.dart # RAM/tier + SoC/GPU detection
+│   ├── web_fetch_service.dart   # URL fetching → clean text for chat context
 │   ├── execution_service.dart   # Task execution engine
 │   ├── document_extractor_service.dart  # PDF/text extraction
 │   ├── local_image_service.dart # Stable Diffusion inference
@@ -283,8 +300,9 @@ Open the **Nodes** tab › **Node** and flip the switch. Once running, point any
 
 ### ⚙️ Engine & App Configuration
 
-- **Nodes › Config** — diagnostics, hardware capabilities, inference mode, global system prompt, local model parameters, imaging parameters
+- **Nodes › Config** — diagnostics, hardware capabilities, inference mode, Auto Tune (context/output limits), global system prompt, local model parameters, imaging parameters
 - **App Settings** (bottom navigation) — theme, typography scale, app info
+- **Web Access** toggle — in the chat input bar; reads links from your message into the model's context
 
 ## 📄 License
 
