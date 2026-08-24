@@ -449,7 +449,8 @@ class ChatBubble extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final color = isDark ? AppColors.textPrimary : const Color(0xFF0F172A);
     final muted = isDark ? AppColors.textSecondary : const Color(0xFF475569);
-    final base = GoogleFonts.plusJakartaSans(fontSize: 15, color: color, height: 1.6);
+    // Assistant body reads in a serif — Claude's signature editorial voice.
+    final base = GoogleFonts.sourceSerif4(fontSize: 15.5, color: color, height: 1.6);
 
     return MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
       p: base,

@@ -144,17 +144,20 @@ class AppCtaButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
     return InkWell(
       onTap: onTap,
       customBorder: const CircleBorder(),
       child: Container(
         width: Dt.circleBtnDiameter,
         height: Dt.circleBtnDiameter,
-        decoration: const BoxDecoration(
-          color: Dt.ctaFill,
+        decoration: BoxDecoration(
+          // Claude: idle = warm sand surface, active = Claude Orange.
+          color: enabled ? Dt.ctaFill : Dt.accentMuted,
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, size: 18, color: Colors.white),
+        child: Icon(icon,
+            size: 18, color: enabled ? Colors.white : Dt.textPlaceholder),
       ),
     );
   }

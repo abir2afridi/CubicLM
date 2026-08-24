@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import '../controllers/server_controller.dart';
 import '../core/colors.dart';
+import '../theme/design_tokens.dart';
 import 'settings_view.dart';
 
 class ServerView extends GetView<ServerController> {
@@ -13,14 +14,14 @@ class ServerView extends GetView<ServerController> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    const accent = AppColors.primary;
+    const accent = Dt.accent;
 
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-      backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+      backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       appBar: AppBar(
-        backgroundColor: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
+        backgroundColor: (isDark ? Dt.canvasDark : Dt.canvas).withValues(alpha: 0.8),
         flexibleSpace: ClipRRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -334,7 +335,7 @@ class ServerView extends GetView<ServerController> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: isDark ? AppColors.bg : const Color(0xFFF1F5F9),
+          color: isDark ? Colors.white.withValues(alpha: 0.05) : Dt.pillMuted,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -342,7 +343,7 @@ class ServerView extends GetView<ServerController> {
           Expanded(
               child: Text(title,
                   style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.primary))),
+                      fontSize: 13, fontWeight: FontWeight.w800, color: Dt.accent))),
           IconButton(
               tooltip: 'Copy',
               onPressed: () => controller.copyText(code, title),

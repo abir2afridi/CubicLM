@@ -3,9 +3,11 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import '../controllers/chat_controller.dart';
 import '../controllers/home_controller.dart';
 import '../core/colors.dart';
+import '../theme/design_tokens.dart';
 import 'chat_view.dart';
 import 'model_view.dart';
 import 'server_view.dart';
@@ -16,20 +18,20 @@ class HomeView extends GetView<HomeController> {
 
   static const _tabs = [
     _NavItem(
-        icon: Icons.chat_bubble_outline_rounded,
-        activeIcon: Icons.chat_bubble_rounded,
+        icon: LucideIcons.messageSquare,
+        activeIcon: LucideIcons.messageSquare,
         label: 'Chat'),
     _NavItem(
-        icon: Icons.explore_outlined,
-        activeIcon: Icons.explore_rounded,
+        icon: LucideIcons.compass,
+        activeIcon: LucideIcons.compass,
         label: 'Explore'),
     _NavItem(
-        icon: Icons.lan_outlined,
-        activeIcon: Icons.lan_rounded,
+        icon: LucideIcons.server,
+        activeIcon: LucideIcons.server,
         label: 'Nodes'),
     _NavItem(
-        icon: Icons.palette_outlined,
-        activeIcon: Icons.palette_rounded,
+        icon: LucideIcons.settings,
+        activeIcon: LucideIcons.settings,
         label: 'App Settings'),
   ];
 
@@ -45,7 +47,7 @@ class HomeView extends GetView<HomeController> {
       controller.checkResumeModel(context);
     });
     return Scaffold(
-      backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+      backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       body: Obx(() {
         final content = IndexedStack(
           index: controller.currentTab.value,
@@ -77,7 +79,7 @@ class HomeView extends GetView<HomeController> {
     return Container(
       height: 72 + MediaQuery.of(context).padding.bottom,
       decoration: BoxDecoration(
-        color: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
+        color: (isDark ? Dt.canvasDark : Dt.canvas).withValues(alpha: 0.8),
         border: Border(
           top: BorderSide(
             color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.05),
@@ -126,7 +128,7 @@ class HomeView extends GetView<HomeController> {
 
     return Container(
       width: 84,
-      color: isDark ? AppColors.bg : AppColors.bgLight,
+      color: isDark ? Dt.canvasDark : Dt.canvas,
       child: Column(children: [
         const SizedBox(height: 24),
         Image.asset(

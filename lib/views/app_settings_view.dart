@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import '../theme/design_tokens.dart';
 
 /// Dedicated App Settings page — personalisation & about info.
 ///
@@ -17,10 +18,10 @@ class AppSettingsView extends GetView<SettingsController> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+      backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       appBar: AppBar(
         backgroundColor:
-            (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
+            (isDark ? Dt.canvasDark : Dt.canvas).withValues(alpha: 0.8),
         flexibleSpace: ClipRRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -58,7 +59,7 @@ class AppSettingsView extends GetView<SettingsController> {
                     title: _themeModeName(mode),
                     trailing: controller.themeMode.value == mode
                         ? const Icon(Icons.check_rounded,
-                            size: 20, color: AppColors.primary)
+                            size: 20, color: Dt.accent)
                         : null,
                     showDivider: mode != ThemeMode.system,
                     onTap: () => controller.setThemeMode(mode),
@@ -103,7 +104,7 @@ class AppSettingsView extends GetView<SettingsController> {
                               style: GoogleFonts.plusJakartaSans(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
-                                  color: AppColors.primary
+                                  color: Dt.accent
                                       .withValues(alpha: 0.7))),
                           const SizedBox(height: 1),
                           Text(
@@ -144,7 +145,7 @@ class AppSettingsView extends GetView<SettingsController> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             const Icon(Icons.format_size_rounded,
-                size: 16, color: AppColors.primary),
+                size: 16, color: Dt.accent),
             const SizedBox(width: 10),
             Text('Typography Scale',
                 style: GoogleFonts.plusJakartaSans(
@@ -154,12 +155,12 @@ class AppSettingsView extends GetView<SettingsController> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: Dt.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8)),
               child: Text(scaleLabel(controller.fontScale.value),
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
-                      color: AppColors.primary,
+                      color: Dt.accent,
                       fontWeight: FontWeight.w800)),
             ),
           ]),
@@ -169,7 +170,7 @@ class AppSettingsView extends GetView<SettingsController> {
             min: min,
             max: max,
             divisions: 12,
-            activeColor: AppColors.primary,
+            activeColor: Dt.accent,
             onChanged: (v) => controller.setFontScale(v),
           ),
         ]),

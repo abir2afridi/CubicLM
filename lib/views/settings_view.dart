@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import '../theme/design_tokens.dart';
 import '../core/constants.dart';
 import '../services/inference_service.dart';
 import '../services/hive_service.dart';
@@ -25,9 +26,9 @@ class SettingsView extends GetView<SettingsController> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     if (embedded) return _configBody(context);
     return Scaffold(
-      backgroundColor: isDark ? AppColors.bg : AppColors.bgLight,
+      backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       appBar: AppBar(
-        backgroundColor: (isDark ? AppColors.bg : AppColors.bgLight).withValues(alpha: 0.8),
+        backgroundColor: (isDark ? Dt.canvasDark : Dt.canvas).withValues(alpha: 0.8),
         flexibleSpace: ClipRRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -80,7 +81,7 @@ class SettingsView extends GetView<SettingsController> {
                   trailing: controller.inferenceMode.value == 'local'
                       ? const Icon(Icons.check_rounded,
                           size: 20,
-                          color: AppColors.primary)
+                          color: Dt.accent)
                       : null,
                   showDivider: true,
                   onTap: () => controller.setInferenceMode('local'),
@@ -88,13 +89,13 @@ class SettingsView extends GetView<SettingsController> {
                 _appleListTile(
                   context,
                   isDark,
-                  leading: _iconBox(AppColors.primary, Icons.cloud_done_rounded),
+                  leading: _iconBox(Dt.accent, Icons.cloud_done_rounded),
                   title: 'Cloud Assistant',
                   subtitle: controller.cloudProvider.value.toUpperCase(),
                   trailing: controller.inferenceMode.value == 'cloud'
                       ? const Icon(Icons.check_rounded,
                           size: 20,
-                          color: AppColors.primary)
+                          color: Dt.accent)
                       : null,
                   showDivider: false,
                   onTap: () => controller.setInferenceMode('cloud'),
@@ -265,7 +266,7 @@ class SettingsView extends GetView<SettingsController> {
           tierIcon = Icons.smartphone_rounded;
           break;
         case 'ultra':
-          tierColor = AppColors.primary;
+          tierColor = Dt.accent;
           tierIcon = Icons.rocket_launch_rounded;
           break;
         default:
@@ -407,13 +408,13 @@ class SettingsView extends GetView<SettingsController> {
         _appleListTile(
           context,
           isDark,
-          leading: _iconBox(AppColors.primary, modes[i].icon),
+          leading: _iconBox(Dt.accent, modes[i].icon),
           title: modes[i].title,
           subtitle: modes[i].subtitle,
           trailing: controller.liteRtPerformanceMode.value == modes[i].value
               ? const Icon(Icons.check_circle_rounded,
                   size: 20,
-                  color: AppColors.primary)
+                  color: Dt.accent)
               : null,
           showDivider: i < modes.length - 1,
           onTap: () => controller.setLiteRtPerformanceMode(modes[i].value),
@@ -446,7 +447,7 @@ class SettingsView extends GetView<SettingsController> {
                 const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
             leading: Icon(Icons.auto_mode_rounded,
                 size: 20,
-                color: auto ? AppColors.primary : Theme.of(context).hintColor),
+                color: auto ? Dt.accent : Theme.of(context).hintColor),
             title: Row(children: [
               Text('Auto Tune',
                   style: GoogleFonts.plusJakartaSans(
@@ -487,7 +488,7 @@ class SettingsView extends GetView<SettingsController> {
             ),
             trailing: Switch(
                 value: auto,
-                activeThumbColor: AppColors.primary,
+                activeThumbColor: Dt.accent,
                 onChanged: (v) => controller.setAutoTuneParams(v)),
           ),
           if (!auto) ...[
@@ -553,7 +554,7 @@ class SettingsView extends GetView<SettingsController> {
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Row(children: [
-          const Icon(Icons.auto_mode_rounded, color: AppColors.primary),
+          const Icon(Icons.auto_mode_rounded, color: Dt.accent),
           const SizedBox(width: 10),
           Text('Auto Tune',
               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
@@ -625,7 +626,7 @@ class SettingsView extends GetView<SettingsController> {
     }
     final display = ladder[idx];
     final isOver = display > safeMax;
-    final accent = isOver ? AppColors.warning : AppColors.primary;
+    final accent = isOver ? AppColors.warning : Dt.accent;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 10),
@@ -689,7 +690,7 @@ class SettingsView extends GetView<SettingsController> {
     final stepsValue = controller.imageSteps.value.toDouble();
     const safeMax = 8.0;
     final isOver = stepsValue > safeMax;
-    final accent = isOver ? AppColors.warning : AppColors.primary;
+    final accent = isOver ? AppColors.warning : Dt.accent;
     final selectedBackend = controller.imageGenBackend.value;
     final gpuBackend = controller.recommendedImageGpuBackend();
     final gpuAvailable = gpuBackend != Backend.cpu;
@@ -753,7 +754,7 @@ class SettingsView extends GetView<SettingsController> {
           Row(children: [
             const Icon(Icons.photo_size_select_actual_rounded,
                 size: 16,
-                color: AppColors.primary),
+                color: Dt.accent),
             const SizedBox(width: 10),
             Text('Synthesis Resolution',
                 style: GoogleFonts.plusJakartaSans(
@@ -762,7 +763,7 @@ class SettingsView extends GetView<SettingsController> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
+                  color: Dt.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8)),
               child: Text(
                   controller.imageGenSize.value == 0
@@ -770,7 +771,7 @@ class SettingsView extends GetView<SettingsController> {
                       : '${controller.imageGenSize.value}px',
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
-                      color: AppColors.primary,
+                      color: Dt.accent,
                       fontWeight: FontWeight.w800)),
             ),
           ]),
@@ -797,7 +798,7 @@ class SettingsView extends GetView<SettingsController> {
                         ? Colors.white
                         : Theme.of(context).hintColor,
                   ),
-                  selectedColor: AppColors.primary,
+                  selectedColor: Dt.accent,
                   backgroundColor: isDark ? AppColors.surfaceLight : const Color(0xFFF1F5F9),
                   side: BorderSide.none,
                   showCheckmark: false,
@@ -812,7 +813,7 @@ class SettingsView extends GetView<SettingsController> {
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            _iconBox(AppColors.primary, selectedBackend == Backend.cpu ? Icons.memory_rounded : Icons.bolt_rounded),
+            _iconBox(Dt.accent, selectedBackend == Backend.cpu ? Icons.memory_rounded : Icons.bolt_rounded),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -889,7 +890,7 @@ class SettingsView extends GetView<SettingsController> {
         : 0.0;
     final accent = isOver
         ? Color.lerp(AppColors.warning, AppColors.error, danger)!
-        : AppColors.primary;
+        : Dt.accent;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),

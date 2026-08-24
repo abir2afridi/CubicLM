@@ -11,6 +11,7 @@ import '../models/ai_model.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import 'app_ui.dart';
+import '../theme/design_tokens.dart';
 
 /// Opens the in-chat model switcher.
 ///
@@ -70,7 +71,7 @@ class _ModelSwitcherSheetState extends State<ModelSwitcherSheet> {
                         fontWeight: FontWeight.w800,
                         color: isDark
                             ? AppColors.textPrimary
-                            : const Color(0xFF0F172A),
+                            : Dt.textPrimary,
                       ),
                     ),
                     const Spacer(),
@@ -131,12 +132,12 @@ class _ManageModelsButton extends StatelessWidget {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: AppColors.primary,
+                color: Dt.accent,
               ),
             ),
             const SizedBox(width: 2),
             const Icon(Icons.arrow_forward_rounded,
-                size: 15, color: AppColors.primary),
+                size: 15, color: Dt.accent),
           ],
         ),
       ),
@@ -167,7 +168,7 @@ class _ActiveModelHeader extends StatelessWidget {
         label = model.isEmpty ? 'No cloud model selected' : model;
         subtitle = '☁ ${_providerLabel(settings)}';
         icon = Icons.cloud_outlined;
-        accent = AppColors.primary;
+        accent = Dt.accent;
       } else if (inference.isLoadingModel.value) {
         label = inference.loadingModelName.value.isEmpty
             ? 'Loading…'
@@ -203,8 +204,8 @@ class _ActiveModelHeader extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: isDark
-              ? AppColors.bg.withValues(alpha: 0.4)
-              : const Color(0xFFF1F5F9),
+              ? Colors.white.withValues(alpha: 0.06)
+              : Dt.pillMuted,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: accent.withValues(alpha: 0.25)),
         ),
@@ -240,7 +241,7 @@ class _ActiveModelHeader extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: isDark
                           ? AppColors.textPrimary
-                          : const Color(0xFF0F172A),
+                          : Dt.textPrimary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -293,7 +294,7 @@ class _ScopeToggle extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.bg.withValues(alpha: 0.4) : const Color(0xFFF1F5F9),
+        color: isDark ? Colors.white.withValues(alpha: 0.06) : Dt.pillMuted,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -319,7 +320,7 @@ class _ScopeToggle extends StatelessWidget {
             borderRadius: BorderRadius.circular(11),
             border: selected
                 ? Border.all(
-                    color: AppColors.primary.withValues(alpha: 0.3),
+                    color: Dt.accent.withValues(alpha: 0.3),
                   )
                 : null,
           ),
@@ -329,7 +330,7 @@ class _ScopeToggle extends StatelessWidget {
               Icon(icon,
                   size: 15,
                   color: selected
-                      ? AppColors.primary
+                      ? Dt.accent
                       : Theme.of(context).hintColor),
               const SizedBox(width: 6),
               Text(
@@ -338,7 +339,7 @@ class _ScopeToggle extends StatelessWidget {
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: selected
-                      ? AppColors.primary
+                      ? Dt.accent
                       : Theme.of(context).hintColor,
                 ),
               ),
@@ -424,7 +425,7 @@ class _LocalModelListState extends State<_LocalModelList> {
                 fontSize: 13.5,
                 fontWeight: FontWeight.w600,
                 color:
-                    isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                    isDark ? AppColors.textPrimary : Dt.textPrimary,
               ),
               decoration: InputDecoration(
                 hintText: 'Search downloaded models…',
@@ -444,8 +445,8 @@ class _LocalModelListState extends State<_LocalModelList> {
                 contentPadding: const EdgeInsets.symmetric(vertical: 11),
                 filled: true,
                 fillColor: isDark
-                    ? AppColors.bg.withValues(alpha: 0.45)
-                    : const Color(0xFFF1F5F9),
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Dt.pillMuted,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(13),
                   borderSide: BorderSide.none,
@@ -588,7 +589,7 @@ class _CloudModelListState extends State<_CloudModelList> {
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                color: isDark ? AppColors.textPrimary : Dt.textPrimary,
               ),
               decoration: InputDecoration(
                 hintText: 'Search all cloud models…',
@@ -609,8 +610,8 @@ class _CloudModelListState extends State<_CloudModelList> {
                 contentPadding: const EdgeInsets.symmetric(vertical: 11),
                 filled: true,
                 fillColor: isDark
-                    ? AppColors.bg.withValues(alpha: 0.45)
-                    : const Color(0xFFF1F5F9),
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Dt.pillMuted,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(13),
                   borderSide: BorderSide.none,
@@ -668,7 +669,7 @@ class _CloudModelListState extends State<_CloudModelList> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isActiveSection
-                ? AppColors.primary.withValues(alpha: 0.5)
+                ? Dt.accent.withValues(alpha: 0.5)
                 : (isDark ? AppColors.border : AppColors.borderLightMode),
           ),
         ),
@@ -705,16 +706,16 @@ class _CloudModelListState extends State<_CloudModelList> {
               height: 40,
               decoration: BoxDecoration(
                 color: isActiveSection
-                    ? AppColors.primary.withValues(alpha: 0.15)
+                    ? Dt.accent.withValues(alpha: 0.15)
                     : (isDark
                         ? Colors.white.withValues(alpha: 0.05)
-                        : const Color(0xFFF1F5F9)),
+                        : Dt.pillMuted),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
                 provider.icon,
                 color: isActiveSection
-                    ? AppColors.primary
+                    ? Dt.accent
                     : Theme.of(context).hintColor,
                 size: 20,
               ),
@@ -786,14 +787,14 @@ class _CloudModelListState extends State<_CloudModelList> {
                                 horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
                               color:
-                                  AppColors.primary.withValues(alpha: 0.1),
+                                  Dt.accent.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text('${all.length}',
                                 style: GoogleFonts.plusJakartaSans(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w800,
-                                    color: AppColors.primary)),
+                                    color: Dt.accent)),
                           ),
                           if (freeCount > 0) ...[
                             const SizedBox(width: 6),
@@ -854,7 +855,7 @@ class _CloudModelListState extends State<_CloudModelList> {
                             const EdgeInsets.symmetric(vertical: 10),
                         fillColor: isDark
                             ? Colors.black.withValues(alpha: 0.2)
-                            : const Color(0xFFF1F5F9),
+                            : Dt.pillMuted,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -989,13 +990,13 @@ class _CloudModelListState extends State<_CloudModelList> {
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
         decoration: BoxDecoration(
           color: selected
-              ? AppColors.primary.withValues(alpha: 0.15)
+              ? Dt.accent.withValues(alpha: 0.15)
               : (isDark
                   ? Colors.white.withValues(alpha: 0.05)
-                  : const Color(0xFFF1F5F9)),
+                  : Dt.pillMuted),
           borderRadius: BorderRadius.circular(14),
           border: selected
-              ? Border.all(color: AppColors.primary.withValues(alpha: 0.4))
+              ? Border.all(color: Dt.accent.withValues(alpha: 0.4))
               : null,
         ),
         child: Text(
@@ -1004,7 +1005,7 @@ class _CloudModelListState extends State<_CloudModelList> {
             fontSize: 11,
             fontWeight: FontWeight.w800,
             color: selected
-                ? AppColors.primary
+                ? Dt.accent
                 : Theme.of(context).hintColor,
           ),
         ),
@@ -1022,13 +1023,13 @@ class _CloudModelListState extends State<_CloudModelList> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           color: selected
-              ? AppColors.primary.withValues(alpha: 0.15)
+              ? Dt.accent.withValues(alpha: 0.15)
               : (isDark
                   ? Colors.white.withValues(alpha: 0.05)
-                  : const Color(0xFFF1F5F9)),
+                  : Dt.pillMuted),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? AppColors.primary : Colors.transparent,
+            color: selected ? Dt.accent : Colors.transparent,
           ),
         ),
         child: Row(
@@ -1037,7 +1038,7 @@ class _CloudModelListState extends State<_CloudModelList> {
             Icon(icon,
                 size: 13,
                 color: selected
-                    ? AppColors.primary
+                    ? Dt.accent
                     : Theme.of(context).hintColor),
             const SizedBox(width: 4),
             Text(label,
@@ -1045,7 +1046,7 @@ class _CloudModelListState extends State<_CloudModelList> {
                     fontSize: 11.5,
                     fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                     color: selected
-                        ? AppColors.primary
+                        ? Dt.accent
                         : Theme.of(context).hintColor)),
           ],
         ),
@@ -1157,7 +1158,7 @@ class _ModelRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = badgeColor ?? AppColors.primary;
+    final accent = badgeColor ?? Dt.accent;
     final isDisabled = onTap == null && !isActive;
 
     return Opacity(
@@ -1174,14 +1175,14 @@ class _ModelRow extends StatelessWidget {
                   const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
               decoration: BoxDecoration(
                 color: isActive
-                    ? AppColors.primary.withValues(alpha: 0.08)
+                    ? Dt.accent.withValues(alpha: 0.08)
                     : (isDark
-                        ? AppColors.bg.withValues(alpha: 0.35)
-                        : const Color(0xFFF8FAFC)),
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : Dt.canvas),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isActive
-                      ? AppColors.primary.withValues(alpha: 0.4)
+                      ? Dt.accent.withValues(alpha: 0.4)
                       : (isDark
                           ? AppColors.border
                           : AppColors.borderLightMode),
@@ -1203,7 +1204,7 @@ class _ModelRow extends StatelessWidget {
                                 fontWeight: FontWeight.w700,
                                 color: isDark
                                     ? AppColors.textPrimary
-                                    : const Color(0xFF0F172A),
+                                    : Dt.textPrimary,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
@@ -1318,10 +1319,10 @@ class _EmptyState extends StatelessWidget {
               width: 60,
               height: 60,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
+                color: Dt.accent.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(18),
               ),
-              child: Icon(icon, size: 28, color: AppColors.primary),
+              child: Icon(icon, size: 28, color: Dt.accent),
             ),
             const SizedBox(height: 18),
             Text(
@@ -1330,7 +1331,7 @@ class _EmptyState extends StatelessWidget {
                 fontSize: 16,
                 fontWeight: FontWeight.w800,
                 color:
-                    isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                    isDark ? AppColors.textPrimary : Dt.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
@@ -1351,7 +1352,7 @@ class _EmptyState extends StatelessWidget {
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
+                  color: Dt.accent,
                 ),
               ),
             ),

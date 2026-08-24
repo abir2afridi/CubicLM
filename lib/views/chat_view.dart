@@ -1849,25 +1849,20 @@ class _TypingDotsState extends State<_TypingDots>
 
   @override
   Widget build(BuildContext context) {
+    // Claude-style: a single warm-orange sparkle gently pulsing while thinking.
     return AnimatedBuilder(
         animation: _c,
         builder: (_, __) {
-          return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(3, (i) {
-                final t = ((_c.value - i * 0.15) % 1.0).clamp(0.0, 1.0);
-                final pulse = math.sin(t * math.pi).clamp(0.0, 1.0);
-                return Padding(
-                    padding: EdgeInsets.only(right: i < 2 ? 6 : 0),
-                    child: Opacity(
-                        opacity: 0.2 + 0.8 * pulse,
-                        child: Container(
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppColors.primary.withValues(alpha: 0.7)))));
-              }));
+          final pulse = (math.sin(_c.value * 2 * math.pi) + 1) / 2;
+          final scale = 0.85 + 0.25 * pulse;
+          return Transform.scale(
+            scale: scale,
+            child: Opacity(
+              opacity: 0.45 + 0.55 * pulse,
+              child: const Icon(LucideIcons.sparkles,
+                  size: 16, color: Dt.accent),
+            ),
+          );
         });
   }
 }
