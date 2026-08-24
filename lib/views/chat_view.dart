@@ -904,7 +904,6 @@ class ChatView extends GetView<ChatController> {
                             ),
                             GestureDetector(
                               onTap: () {
-                                Navigator.pop(context);
                                 Get.find<HomeController>().changeTab(1);
                               },
                               child: Text('Add API keys',
@@ -923,6 +922,36 @@ class ChatView extends GetView<ChatController> {
                         ),
                       );
                     }),
+                    // ── Text field: full-width, ABOVE the controls row (cursor starts here) ──
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+                      child: TextField(
+                        controller: controller.textController,
+                        onChanged: (v) => controller.inputText.value = v,
+                        maxLines: 6,
+                        minLines: 1,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 16,
+                            height: 1.35,
+                            color: isDark ? AppColors.textPrimary : Dt.textPrimary,
+                            fontWeight: FontWeight.w500),
+                        decoration: InputDecoration(
+                          hintText: 'Message CubicLM…',
+                          hintStyle: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              color: Dt.textPlaceholder,
+                              fontWeight: FontWeight.w500),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding:
+                              const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                          isDense: true,
+                          fillColor: Colors.transparent,
+                        ),
+                      ),
+                    ),
+                    // ── Controls row: + / model pill … mic / send ──
                     Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
                     // "+" opens the Add-to-Chat sheet (attachments, web access)
                     AppCircleButton(
@@ -942,32 +971,7 @@ class ChatView extends GetView<ChatController> {
                       label: _composerModelLabel(),
                       onTap: () => showModelSwitcherSheet(context),
                     ),
-                    // Text field with floating container
-                    Expanded(
-                        child: TextField(
-                          controller: controller.textController,
-                          onChanged: (v) => controller.inputText.value = v,
-                          maxLines: 5,
-                          minLines: 1,
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15.5,
-                              color: isDark ? AppColors.textPrimary : Dt.textPrimary,
-                              fontWeight: FontWeight.w500),
-                          decoration: InputDecoration(
-                            hintText: 'Message CubicLM…',
-                            hintStyle: GoogleFonts.plusJakartaSans(
-                                fontSize: 15.5, color: Dt.textPlaceholder, fontWeight: FontWeight.w500),
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 12),
-                            isDense: true,
-                            fillColor: Colors.transparent,
-                          ),
-                          onSubmitted: (_) => controller.sendMessage(),
-                        )),
-                    const SizedBox(width: 8),
+                    const Spacer(),
                     // Right cluster: mic (muted circle) + primary CTA (solid dark)
                     Obx(() {
                       final loading = controller.isLoading.value;
