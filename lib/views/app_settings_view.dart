@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import 'about_view.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/design_tokens.dart';
 
@@ -73,7 +74,10 @@ class AppSettingsView extends GetView<SettingsController> {
               _appleGroupedCard(context, isDark, children: [
                 Padding(
                   padding: const EdgeInsets.all(20),
-                  child: Row(children: [
+                  child: InkWell(
+                    onTap: () => Get.to(() => const AboutView()),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Row(children: [
                     Container(
                         width: 50,
                         height: 50,
@@ -124,6 +128,7 @@ class AppSettingsView extends GetView<SettingsController> {
                           ]),
                     ),
                   ]),
+                  ),
                 ),
               ]),
               const SizedBox(height: 50),
