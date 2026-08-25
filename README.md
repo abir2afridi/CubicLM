@@ -83,10 +83,11 @@ For aggregator providers that host multiple companies' models under `vendor/mode
 
 - **Navigation:** Chat · Explore · Nodes · App Settings
   - **Nodes** page has two tabs — **Node** (local API server) and **Config** (diagnostics, hardware capabilities, inference mode, system prompt, local model & imaging parameters)
-  - **App Settings** is its own destination — theme mode, typography scale, and app info
+  - **App Settings** is its own destination — theme mode, typography scale, and app info (tap to open **About** page with feature highlights, tech stack, and GitHub link)
 - Multi-session chat with history (Hive persistence) and a searchable sidebar drawer with swipe-to-delete
 - **Message actions** — copy, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
 - **Code blocks** with syntax highlighting, one-tap copy, and export/share
+- **Thinking Orbs** — 3D particle sphere animation (9 states: Working, Searching, Solving, Listening, Connecting, Weaving, Composing, Breathing, Shaping) with grayscale ink and phase-continuous hard cuts, shown during model analysis and reasoning
 - Attachments from camera, gallery, or files (PDF/text extraction)
 - Image sharing and export
 - Dark/light theme with adjustable font scale
@@ -156,7 +157,7 @@ Opened from the chat header — mirrors the Explore page's layout:
 - **Networking:** dio, http
 - **Local Inference:** llama_flutter_android, flutter_litert_lm, sd_flutter_android (custom plugins)
 - **Cloud:** Firebase Core, Firebase Messaging, Firebase Crashlytics
-- **Other:** google_fonts, flutter_markdown, image_picker, share_plus, permission_handler, speech_to_text
+- **Other:** google_fonts, flutter_markdown, image_picker, share_plus, permission_handler, speech_to_text, lucide_icons, url_launcher
 
 ## 📂 Project Structure
 
@@ -164,10 +165,11 @@ Opened from the chat header — mirrors the Explore page's layout:
 lib/
 ├── main.dart                    # App entry point
 ├── core/
-│   ├── colors.dart              # App color palette
+│   ├── colors.dart              # App color palette (warm Claude-inspired)
 │   ├── constants.dart           # Settings keys, model catalog, API endpoints
 │   ├── routes.dart              # Route definitions
-│   └── theme.dart               # Light/dark theme
+│   ├── theme.dart               # Light/dark theme with warm accent palette
+│   └── design_tokens.dart       # Claude APK-measured warm palette (canvas, pill, accent, hairline)
 ├── models/
 │   ├── ai_model.dart            # AI model data class
 │   ├── chat_message.dart        # Chat message model (with revision history)
@@ -230,6 +232,7 @@ lib/
 │   ├── server_view.dart         # Nodes page — Node tab (API server) + Config tab
 │   ├── settings_view.dart       # Config sections (embedded in Nodes › Config)
 │   ├── app_settings_view.dart   # App Settings — theme, typography scale, app info
+│   ├── about_view.dart          # About page — feature highlights, tech stack, GitHub
 │   ├── log_view.dart            # System diagnostics viewer (health dashboard, search, categories)
 │   └── task_view.dart           # Automated tasks
 ├── widgets/
@@ -238,7 +241,8 @@ lib/
 │   ├── model_switcher_sheet.dart    # Quick model switcher
 │   ├── attachment_preview.dart  # File/image attachment preview
 │   ├── image_viewer.dart        # Full-screen image viewer
-│   ├── thought_disclosure.dart  # Reasoning/thought tag expansion
+│   ├── thought_disclosure.dart  # Reasoning/thought tag expansion with ThinkingOrb
+│   ├── thinking_orb.dart        # 3D particle sphere animation (9 states)
 │   └── typing_indicator.dart    # Typing animation
 ├── ffi/
 │   └── sd_ffi_bindings.dart     # FFI bindings for SD native lib

@@ -21,6 +21,7 @@ import '../widgets/app_ui.dart';
 import '../theme/design_tokens.dart';
 import '../widgets/chat_bubble.dart';
 import '../widgets/model_switcher_sheet.dart';
+import '../widgets/thinking_orb.dart';
 import '../widgets/thought_disclosure.dart';
 import '../core/colors.dart';
 
@@ -834,16 +835,19 @@ class ChatView extends GetView<ChatController> {
         : attachmentType == 'audio'
             ? 'Processing audio…'
             : null;
-    if (msg == null) return _TypingDots(isDark: isDark);
+    // Thinking orbs — dotted orb cycling through random states with a
+    // shimmering status label (Working / Searching / Solving / …).
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      _TypingDots(isDark: isDark),
-      const SizedBox(width: 12),
-      Flexible(
-          child: Text(msg,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  color: Theme.of(context).hintColor,
-                  fontWeight: FontWeight.w600))),
+      const ThinkingOrb(size: 22, autoCycle: true, showLabel: true),
+      if (msg != null) ...[
+        const SizedBox(width: 8),
+        Flexible(
+            child: Text(msg,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: Theme.of(context).hintColor,
+                    fontWeight: FontWeight.w500))),
+      ],
     ]);
   }
 
@@ -2071,51 +2075,6 @@ class _ImageGenIndicatorState extends State<_ImageGenIndicator>
         });
       },
     );
-  }
-}
-
-// ── Typing Dots ──
-class _TypingDots extends StatefulWidget {
-  final bool isDark;
-  const _TypingDots({required this.isDark});
-  @override
-  State<_TypingDots> createState() => _TypingDotsState();
-}
-
-class _TypingDotsState extends State<_TypingDots>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _c;
-  @override
-  void initState() {
-    super.initState();
-    _c = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1200))
-      ..repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Claude-style thinking mark: an orange asterisk-star that gently
-    // pulses (scale + fade) while the response is being prepared.
-    return AnimatedBuilder(
-        animation: _c,
-        builder: (_, __) {
-          final t = (math.sin(_c.value * 2 * math.pi) + 1) / 2;
-          return Transform.scale(
-            scale: 0.82 + 0.28 * t,
-            child: Opacity(
-              opacity: 0.35 + 0.65 * t,
-              child:
-                  const Icon(LucideIcons.asterisk, size: 22, color: Dt.accent),
-            ),
-          );
-        });
   }
 }
 
