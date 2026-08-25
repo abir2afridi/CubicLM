@@ -15,10 +15,10 @@ class AppTheme {
 
     final bg = isDark ? AppColors.bg : AppColors.bgLight;
     final surface = isDark ? AppColors.surface : AppColors.surfaceLightMode;
-    final surfaceHigh = isDark ? AppColors.surfaceLight : const Color(0xFFF1F5F9);
-    final textPrimary = isDark ? AppColors.textPrimary : const Color(0xFF0F172A);
-    final textSecondary = isDark ? AppColors.textSecondary : const Color(0xFF475569);
-    final textMuted = isDark ? AppColors.textMuted : const Color(0xFF94A3B8);
+    final surfaceHigh = isDark ? AppColors.surfaceLight : Dt.pillMuted;
+    final textPrimary = isDark ? AppColors.textPrimary : Dt.textPrimary;
+    final textSecondary = isDark ? AppColors.textSecondary : Dt.textSecondary;
+    final textMuted = isDark ? AppColors.textMuted : Dt.textMuted;
     final separator = isDark ? AppColors.border : AppColors.borderLightMode;
 
     return ThemeData(
@@ -162,7 +162,7 @@ class AppTheme {
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return Dt.accent;
-          return isDark ? AppColors.surfaceLight : const Color(0xFFCBD5E1);
+          return isDark ? AppColors.surfaceLight : Dt.toggleTrackOff;
         }),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),
@@ -257,7 +257,7 @@ class AppTheme {
   static Color aiBubbleColor(BuildContext context) {
     return Theme.of(context).brightness == Brightness.dark
         ? AppColors.surface
-        : const Color(0xFFF1F5F9);
+        : Dt.pillMuted;
   }
 
   static Color cmdBubbleColor(BuildContext context) {

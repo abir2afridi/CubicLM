@@ -283,6 +283,16 @@ class AppConstants {
       'template': 'chatml',
     },
     {
+      'name': 'LiquidAI LFM2.5 230M (F16)',
+      'filename': 'LFM2.5-230M-F16.gguf',
+      'url':
+          'https://huggingface.co/LiquidAI/LFM2.5-230M-GGUF/resolve/main/LFM2.5-230M-F16.gguf',
+      'size': '462 MB',
+      'description':
+          'Liquid AI hybrid edge model at full F16 precision — best quality',
+      'template': 'chatml',
+    },
+    {
       'name': 'LiquidAI LFM2.5 230M (Q4_K_M)',
       'filename': 'LFM2.5-230M-Q4_K_M.gguf',
       'url':

@@ -236,7 +236,7 @@ class ChatView extends GetView<ChatController> {
                     fontWeight: FontWeight.w800,
                     fontSize: 18,
                     letterSpacing: -0.5,
-                    color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A)),
+                    color: isDark ? AppColors.textPrimary : Dt.textPrimary),
                 overflow: TextOverflow.ellipsis),
             const SizedBox(height: 3),
             InkWell(
@@ -321,7 +321,7 @@ class ChatView extends GetView<ChatController> {
                   child: Text('Synchronizing Intelligence… $pct%',
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
-                          color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                          color: isDark ? AppColors.textPrimary : Dt.textPrimary,
                           fontWeight: FontWeight.w800)),
                 ),
               ]),
@@ -521,7 +521,9 @@ class ChatView extends GetView<ChatController> {
               crossAxisCount: 2,
               crossAxisSpacing: 16,
               mainAxisSpacing: 16,
-              childAspectRatio: 1.5,
+              // Fixed dp height (not width-derived) so wrapped text on
+              // narrow screens can never overflow the tile.
+              mainAxisExtent: 136,
             ),
             itemCount: suggestions.length,
             itemBuilder: (ctx, i) {
@@ -580,7 +582,7 @@ class ChatView extends GetView<ChatController> {
             Text(text,
                 style: GoogleFonts.plusJakartaSans(
                     fontSize: 13,
-                    color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
+                    color: isDark ? AppColors.textPrimary : Dt.textPrimary,
                     fontWeight: FontWeight.w700,
                     height: 1.3),
                 maxLines: 2,
@@ -606,20 +608,10 @@ class ChatView extends GetView<ChatController> {
         alignment: Alignment.centerLeft,
         child: Container(
           constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.82),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          decoration: BoxDecoration(
-            color: isDark ? Dt.cardDark : Dt.card,
-            border: Border.all(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.07)
-                    : Dt.hairline),
-            borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(24),
-                topRight: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-                bottomLeft: Radius.circular(8)),
-          ),
+              maxWidth: MediaQuery.of(context).size.width * 0.92),
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          // No card chrome — the response streams in place on the canvas,
+          // identical to how the finished message renders (Claude-style).
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (isImageGen)
@@ -639,7 +631,7 @@ class ChatView extends GetView<ChatController> {
                           data: answer,
                           selectable: true,
                           styleSheet: _streamMd(context, isDark))),
-                  const _BlinkingCursor(color: AppColors.primary),
+                  const _BlinkingCursor(color: Dt.accent),
                 ]),
             ],
             if (hasText && !isImageGen)
@@ -919,7 +911,7 @@ class ChatView extends GetView<ChatController> {
                             const SizedBox(width: 8),
                             GestureDetector(
                               onTap: s.dismissComposerUpsell,
-                              child: Icon(LucideIcons.x,
+                              child: const Icon(LucideIcons.x,
                                   size: 14, color: Dt.textSecondary),
                             ),
                           ]),
@@ -927,31 +919,54 @@ class ChatView extends GetView<ChatController> {
                       );
                     }),
                     // ── Text field: full-width, ABOVE the controls row (cursor starts here) ──
+                    // Enter = send, Shift+Enter = newline
                     Padding(
                       padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-                      child: TextField(
-                        controller: controller.textController,
-                        onChanged: (v) => controller.inputText.value = v,
-                        maxLines: 6,
-                        minLines: 1,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16,
-                            height: 1.35,
-                            color: isDark ? AppColors.textPrimary : Dt.textPrimary,
-                            fontWeight: FontWeight.w500),
-                        decoration: InputDecoration(
-                          hintText: 'Message CubicLM…',
-                          hintStyle: GoogleFonts.plusJakartaSans(
+                      child: KeyboardListener(
+                        focusNode: FocusNode(),
+                        onKeyEvent: (event) {
+                          if (event is KeyDownEvent &&
+                              event.logicalKey == LogicalKeyboardKey.enter &&
+                              !HardwareKeyboard.instance.isShiftPressed) {
+                            // Prevent the newline from being inserted
+                            final text = controller.textController.text.trim();
+                            if (text.isNotEmpty || controller.selectedFileName.value != null) {
+                              // Remove trailing newline that may have been inserted
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                final current = controller.textController.text;
+                                if (current.endsWith('\n')) {
+                                  controller.textController.text = current.trimRight();
+                                  controller.inputText.value = controller.textController.text;
+                                }
+                                controller.sendMessage();
+                              });
+                            }
+                          }
+                        },
+                        child: TextField(
+                          controller: controller.textController,
+                          onChanged: (v) => controller.inputText.value = v,
+                          maxLines: 6,
+                          minLines: 1,
+                          style: GoogleFonts.plusJakartaSans(
                               fontSize: 16,
-                              color: Dt.textPlaceholder,
+                              height: 1.35,
+                              color: isDark ? AppColors.textPrimary : Dt.textPrimary,
                               fontWeight: FontWeight.w500),
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          contentPadding:
-                              const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-                          isDense: true,
-                          fillColor: Colors.transparent,
+                          decoration: InputDecoration(
+                            hintText: 'Message CubicLM…',
+                            hintStyle: GoogleFonts.plusJakartaSans(
+                                fontSize: 16,
+                                color: Dt.textPlaceholder,
+                                fontWeight: FontWeight.w500),
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                            isDense: true,
+                            fillColor: Colors.transparent,
+                          ),
                         ),
                       ),
                     ),
@@ -1076,7 +1091,7 @@ class ChatView extends GetView<ChatController> {
                     Navigator.pop(sheetCtx);
                     showModelSwitcherSheet(context);
                   },
-                  trailing: Icon(LucideIcons.chevronRight,
+                  trailing: const Icon(LucideIcons.chevronRight,
                       size: 18, color: Dt.textSecondary),
                 ),
                 const SizedBox(height: 10),
@@ -1137,7 +1152,7 @@ class ChatView extends GetView<ChatController> {
                 style: GoogleFonts.plusJakartaSans(
                     fontSize: 20, fontWeight: FontWeight.w800,
                     letterSpacing: -0.5,
-                    color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A))),
+                    color: isDark ? AppColors.textPrimary : Dt.textPrimary)),
           ]),
         ),
         const SizedBox(height: 8),
@@ -1186,7 +1201,7 @@ class ChatView extends GetView<ChatController> {
               filled: true,
               fillColor: isDark
                   ? Colors.white.withValues(alpha: 0.06)
-                  : const Color(0xFFF1F5F9),
+                  : Dt.pillMuted,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
@@ -1340,7 +1355,7 @@ class ChatView extends GetView<ChatController> {
                 decoration: BoxDecoration(
                   color: active
                       ? AppColors.primary.withValues(alpha: 0.12)
-                      : (isDark ? AppColors.surfaceLight : const Color(0xFFF1F5F9)),
+                      : (isDark ? AppColors.surfaceLight : Dt.pillMuted),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -1359,7 +1374,7 @@ class ChatView extends GetView<ChatController> {
                         style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             fontWeight: active ? FontWeight.w700 : FontWeight.w600,
-                            color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A))),
+                            color: isDark ? AppColors.textPrimary : Dt.textPrimary)),
                     const SizedBox(height: 2),
                     Text(_fmtDate(s.updatedAt),
                         style: GoogleFonts.plusJakartaSans(
@@ -1376,16 +1391,17 @@ class ChatView extends GetView<ChatController> {
   }
 
   MarkdownStyleSheet _streamMd(BuildContext c, bool isDark) {
-    final clr = isDark ? AppColors.textPrimary : const Color(0xFF0F172A);
-    final muted = isDark ? AppColors.textSecondary : const Color(0xFF475569);
-    final base = GoogleFonts.plusJakartaSans(fontSize: 15, color: clr, height: 1.6, fontWeight: FontWeight.w500);
+    final clr = isDark ? AppColors.textPrimary : Dt.textPrimary;
+    final muted = isDark ? AppColors.textSecondary : Dt.textSecondary;
+    // Same serif voice as the finished message — no font swap on completion.
+    final base = GoogleFonts.sourceSerif4(fontSize: 15.5, color: clr, height: 1.6);
     return MarkdownStyleSheet.fromTheme(Theme.of(c)).copyWith(
         p: base,
         pPadding: const EdgeInsets.only(bottom: 12),
         h1: base.copyWith(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5),
         h2: base.copyWith(fontSize: 18, fontWeight: FontWeight.w700),
         h3: base.copyWith(fontSize: 16, fontWeight: FontWeight.w700),
-        strong: base.copyWith(fontWeight: FontWeight.w800),
+        strong: base.copyWith(fontWeight: FontWeight.w700),
         em: base.copyWith(fontStyle: FontStyle.italic),
         listBullet: base,
         listIndent: 24,
@@ -1405,7 +1421,7 @@ class ChatView extends GetView<ChatController> {
   MarkdownStyleSheet _thoughtMd(BuildContext c, bool isDark) {
     final muted = Theme.of(c).hintColor;
     final base = GoogleFonts.plusJakartaSans(fontSize: 13, color: muted, height: 1.5, fontWeight: FontWeight.w500);
-    final codeBg = isDark ? AppColors.surfaceLight : const Color(0xFFE2E8F0);
+    final codeBg = isDark ? AppColors.surfaceLight : Dt.hairline;
     return MarkdownStyleSheet.fromTheme(Theme.of(c)).copyWith(
         p: base,
         strong: base.copyWith(fontWeight: FontWeight.w700),

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../theme/design_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -620,8 +621,8 @@ class ModelController extends GetxController {
             builder: (context, setState) {
               final friendlyMsg = _getFriendlyErrorMessage(result);
               final isDark = Theme.of(context).brightness == Brightness.dark;
-              final detailBg = isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC);
-              final detailBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+              final detailBg = isDark ? Dt.cardDark : Dt.canvas;
+              final detailBorder = isDark ? Dt.pillMutedDark : Dt.hairline;
               
               return AlertDialog(
                 backgroundColor: Theme.of(context).dialogTheme.backgroundColor,

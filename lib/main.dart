@@ -80,8 +80,17 @@ void main() {
         await Get.putAsync(() => CrashReportingService().init());
     FlutterError.onError = (details) {
       FlutterError.presentError(details);
+      // Include the diagnostic payload (e.g. "The relevant error-causing
+      // widget was: …") so layout issues like RenderFlex overflow are
+      // pinpointed in System Logs instead of logging a bare first line.
+      final message = StringBuffer(details.exceptionAsString());
+      if (details.informationCollector != null) {
+        for (final line in details.informationCollector!()) {
+          message.write('\n$line');
+        }
+      }
       appLog.error(
-        details.exceptionAsString(),
+        message.toString(),
         details: details.stack?.toString() ?? 'No stack',
         category: LogCategory.system,
       );

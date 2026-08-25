@@ -195,7 +195,7 @@ class SettingsView extends GetView<SettingsController> {
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A))),
+                          color: isDark ? AppColors.textPrimary : Dt.textPrimary)),
                   if (subtitle != null) ...[
                     const SizedBox(height: 3),
                     Text(subtitle,
@@ -801,7 +801,7 @@ class SettingsView extends GetView<SettingsController> {
                         : Theme.of(context).hintColor,
                   ),
                   selectedColor: Dt.accent,
-                  backgroundColor: isDark ? AppColors.surfaceLight : const Color(0xFFF1F5F9),
+                  backgroundColor: isDark ? AppColors.surfaceLight : Dt.pillMuted,
                   side: BorderSide.none,
                   showCheckmark: false,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

@@ -64,6 +64,7 @@ class HomeController extends GetxController {
       await hive.setSetting(AppConstants.keyImageModelName, '');
     }
 
+    // Nothing to resume — user picks a model from Explore when needed.
     if (!hasText && !hasImage) return;
     if (!context.mounted) return;
 

@@ -1263,7 +1263,7 @@ class _ModelRow extends StatelessWidget {
                             size: 20,
                             color: isDark
                                 ? AppColors.surfaceLight
-                                : const Color(0xFFCBD5E1)),
+                                : Dt.toggleTrackOff),
                     ],
                   ),
                   if (isLoading) ...[
@@ -1275,7 +1275,7 @@ class _ModelRow extends StatelessWidget {
                         minHeight: 3,
                         backgroundColor: isDark
                             ? AppColors.surfaceLight
-                            : const Color(0xFFE2E8F0),
+                            : Dt.hairline,
                         color: AppColors.warning,
                       ),
                     ),

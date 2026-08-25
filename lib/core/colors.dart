@@ -16,16 +16,16 @@ class AppColors {
   static const Color error = Color(0xFFEF4444);
   static const Color info = Color(0xFF3B82F6);
 
-  // Backgrounds & Surfaces (Dark)
-  static const Color bg = Color(0xFF0F172A); // Slate 900
-  static const Color surface = Color(0xFF1E293B); // Slate 800
-  static const Color surfaceLight = Color(0xFF334155); // Slate 700
-  static const Color surfaceLighter = Color(0xFF475569); // Slate 600
-  
-  // Text
-  static const Color textPrimary = Color(0xFFF8FAFC);
-  static const Color textSecondary = Color(0xFF94A3B8);
-  static const Color textMuted = Color(0xFF64748B);
+  // Backgrounds & Surfaces (Dark — warm Claude palette, no blue cast)
+  static const Color bg = Color(0xFF262624); // warm dark canvas
+  static const Color surface = Color(0xFF30302E); // warm dark card
+  static const Color surfaceLight = Color(0xFF3A3937); // warm pills/chips
+  static const Color surfaceLighter = Color(0xFF4A4946);
+
+  // Text (warm)
+  static const Color textPrimary = Color(0xFFEDE6DC);
+  static const Color textSecondary = Color(0xFFA8A099);
+  static const Color textMuted = Color(0xFF78716C);
 
   // Chat Bubbles
   static const LinearGradient userGradient = LinearGradient(
@@ -33,25 +33,25 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
-  
+
   static const LinearGradient glassGradient = LinearGradient(
     colors: [Colors.white10, Color(0x0DFFFFFF)], // 0x0D is roughly 5% opacity
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
-  
-  static const Color aiBubble = Color(0xFF1E293B);
+
+  static const Color aiBubble = Color(0xFF30302E);
   static const Color cmdBubble = Color(0xFF064E3B); // Dark Emerald
 
-  // Borders
-  static const Color border = Color(0xFF334155);
-  static const Color borderLight = Color(0xFF475569);
-  
-  // Light Mode (Optional mapping or separate class)
-  static const Color bgLight = Color(0xFFF8FAFC);
-  static const Color surfaceLightMode = Color(0xFFFFFFFF);
-  static const Color surfaceHighLightMode = Color(0xFFF1F5F9);
-  static const Color borderLightMode = Color(0xFFE2E8F0);
+  // Borders (warm)
+  static const Color border = Color(0xFF3F3E3B);
+  static const Color borderLight = Color(0xFF4A4946);
+
+  // Light Mode (warm Claude palette)
+  static const Color bgLight = Color(0xFFF8F4ED); // parchment canvas
+  static const Color surfaceLightMode = Color(0xFFFBF9F4); // paper white
+  static const Color surfaceHighLightMode = Color(0xFFF0EAE0); // surface warm
+  static const Color borderLightMode = Color(0xFFDDD2BD); // hairline
 
   // Glass Styles
   static BoxDecoration glassDecoration(BuildContext context) {

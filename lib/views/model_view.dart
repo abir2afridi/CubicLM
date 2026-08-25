@@ -2536,9 +2536,9 @@ class _SheetTextField extends StatelessWidget {
           hintText: hint,
           hintStyle: GoogleFonts.plusJakartaSans(
               fontSize: 13,
-              color: isDark ? AppColors.textMuted : const Color(0xFF94A3B8)),
+              color: isDark ? AppColors.textMuted : Dt.textMuted),
           prefixIcon: Icon(prefixIcon,
-              color: isDark ? AppColors.textMuted : const Color(0xFF94A3B8),
+              color: isDark ? AppColors.textMuted : Dt.textMuted,
               size: 18),
           border: InputBorder.none,
           contentPadding:
@@ -2571,7 +2571,7 @@ class _DetectSizeButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isLoading
-                ? (isDark ? AppColors.border : const Color(0xFFCBD5E1))
+                ? (isDark ? AppColors.border : Dt.toggleTrackOff)
                 : Dt.accent.withValues(alpha: 0.4),
           ),
         ),
@@ -2745,7 +2745,7 @@ class _VisionToggle extends StatelessWidget {
               activeThumbColor: AppColors.secondary,
               activeTrackColor: AppColors.secondary.withValues(alpha: 0.3),
               inactiveThumbColor:
-                  isDark ? AppColors.textMuted : const Color(0xFF94A3B8),
+                  isDark ? AppColors.textMuted : Dt.textMuted,
               inactiveTrackColor:
                   isDark ? AppColors.surface : Dt.pillMuted,
             ),

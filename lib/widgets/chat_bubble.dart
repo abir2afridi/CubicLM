@@ -195,7 +195,7 @@ class ChatBubble extends StatelessWidget {
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
                                 color: isUser
-                                    ? Colors.white.withValues(alpha: 0.6)
+                                    ? Dt.textMuted.withValues(alpha: 0.8)
                                     : AppColors.textMuted.withValues(alpha: 0.7),
                                 fontWeight: FontWeight.w500,
                               ),
@@ -221,10 +221,10 @@ class ChatBubble extends StatelessWidget {
   Widget _buildActionBar(BuildContext context, bool isUser, bool isDark) {
     final iconColor = isDark
         ? AppColors.textMuted.withValues(alpha: 0.6)
-        : const Color(0xFF94A3B8);
+        : Dt.textMuted;
     final mutedColor = isDark
         ? AppColors.textMuted.withValues(alpha: 0.3)
-        : const Color(0xFFCBD5E1);
+        : Dt.toggleTrackOff;
     const double iconSize = 16;
     final revisions = message.revisions;
     final hasRevisions = revisions != null && revisions.isNotEmpty;
@@ -351,7 +351,7 @@ class ChatBubble extends StatelessWidget {
               height: 4,
               margin: const EdgeInsets.only(bottom: 16, top: 4),
               decoration: BoxDecoration(
-                color: isDark ? AppColors.surfaceLight : const Color(0xFFE2E8F0),
+                color: isDark ? AppColors.surfaceLight : Dt.hairline,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -398,7 +398,7 @@ class ChatBubble extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon, size: 22, color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A)),
+      leading: Icon(icon, size: 22, color: isDark ? AppColors.textPrimary : Dt.textPrimary),
       title: Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600)),
       onTap: onTap,
       dense: true,
@@ -437,8 +437,8 @@ class ChatBubble extends StatelessWidget {
 
   MarkdownStyleSheet _markdownStyle(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final color = isDark ? AppColors.textPrimary : const Color(0xFF0F172A);
-    final muted = isDark ? AppColors.textSecondary : const Color(0xFF475569);
+    final color = isDark ? AppColors.textPrimary : Dt.textPrimary;
+    final muted = isDark ? AppColors.textSecondary : Dt.textSecondary;
     // Assistant body reads in a serif — Claude's signature editorial voice.
     final base = GoogleFonts.sourceSerif4(fontSize: 15.5, color: color, height: 1.6);
 
@@ -477,7 +477,7 @@ class ChatBubble extends StatelessWidget {
     final muted = Theme.of(context).hintColor;
     final base = GoogleFonts.plusJakartaSans(fontSize: 13, color: muted, height: 1.5);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final codeBg = isDark ? AppColors.surfaceLight : const Color(0xFFE2E8F0);
+    final codeBg = isDark ? AppColors.surfaceLight : Dt.hairline;
 
     return MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
       p: base,

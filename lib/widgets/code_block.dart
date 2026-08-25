@@ -4,6 +4,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import '../core/colors.dart';
+import '../theme/design_tokens.dart';
 
 class CodeBlockBuilder extends MarkdownElementBuilder {
   final BuildContext context;
@@ -94,24 +95,28 @@ class _CodeBlockState extends State<_CodeBlock> {
                       size: 14,
                       color: isDark
                           ? AppColors.textMuted
-                          : const Color(0xFF64748B)),
+                          : Dt.textMuted),
                   const SizedBox(width: 6),
-                  Text(lang.toUpperCase(),
-                      style: GoogleFonts.firaCode(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isDark
-                            ? AppColors.textMuted
-                            : const Color(0xFF64748B),
-                      )),
+                  Flexible(
+                    child: Text(lang.toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.firaCode(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isDark
+                              ? AppColors.textMuted
+                              : Dt.textMuted,
+                        )),
+                  ),
                 ] else
                   Text('CODE',
                       style: GoogleFonts.firaCode(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: isDark
-                            ? AppColors.textMuted
-                            : const Color(0xFF64748B),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: isDark
+                              ? AppColors.textMuted
+                              : Dt.textMuted,
                       )),
                 const Spacer(),
                 _actionButton(
@@ -161,7 +166,7 @@ class _CodeBlockState extends State<_CodeBlock> {
                 color: color ??
                     (isDark
                         ? AppColors.textMuted
-                        : const Color(0xFF64748B))),
+                        : Dt.textMuted)),
             const SizedBox(width: 3),
             Text(label,
                 style: GoogleFonts.plusJakartaSans(
@@ -170,7 +175,7 @@ class _CodeBlockState extends State<_CodeBlock> {
                   color: color ??
                       (isDark
                           ? AppColors.textMuted
-                          : const Color(0xFF64748B)),
+                          : Dt.textMuted),
                 )),
           ],
         ),
@@ -179,10 +184,10 @@ class _CodeBlockState extends State<_CodeBlock> {
   }
 
   Widget _highlightedCode(List<String> lines, String lang, bool isDark) {
-    final codeColor = isDark ? const Color(0xFFCDD6F4) : const Color(0xFF1E293B);
+    final codeColor = isDark ? const Color(0xFFCDD6F4) : Dt.cardDark;
     final keywordColor = isDark ? const Color(0xFFCBA6F7) : const Color(0xFF7C3AED);
     final stringColor = isDark ? const Color(0xFFA6E3A1) : const Color(0xFF059669);
-    final commentColor = isDark ? const Color(0xFF6C7086) : const Color(0xFF94A3B8);
+    final commentColor = isDark ? const Color(0xFF6C7086) : Dt.textMuted;
     final numberColor = isDark ? const Color(0xFFFAB387) : const Color(0xFFEA580C);
     final funcColor = isDark ? const Color(0xFF89DCEB) : const Color(0xFF2563EB);
     final lineNumColor = isDark ? Colors.white24 : Colors.black26;

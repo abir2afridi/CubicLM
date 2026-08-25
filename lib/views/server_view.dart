@@ -260,7 +260,7 @@ class ServerView extends GetView<ServerController> {
   Widget _groupedCard(bool isDark, {required List<Widget> children}) {
     return Container(
       decoration: BoxDecoration(
-          color: isDark ? Colors.white.withValues(alpha: 0.02) : const Color(0xFFF1F5F9).withValues(alpha: 0.5),
+          color: isDark ? Colors.white.withValues(alpha: 0.02) : Dt.pillMuted.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(24),
       ),
       clipBehavior: Clip.antiAlias,
@@ -356,7 +356,7 @@ class ServerView extends GetView<ServerController> {
             scrollDirection: Axis.horizontal,
             child: Text(code,
                 style: GoogleFonts.firaCode(
-                    fontSize: 11, fontWeight: FontWeight.w500, color: isDark ? AppColors.textSecondary : const Color(0xFF475569)))),
+                    fontSize: 11, fontWeight: FontWeight.w500, color: isDark ? AppColors.textSecondary : Dt.textSecondary))),
       ]),
     );
   }

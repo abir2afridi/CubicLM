@@ -213,6 +213,16 @@ class ChatController extends GetxController {
     }
   }
 
+  void renameChat(String sessionId, String newTitle) {
+    if (newTitle.trim().isEmpty) return;
+    final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
+    if (session == null) return;
+    final updated = session.copyWith(title: newTitle.trim());
+    _hive.saveSession(updated.id, updated.toMap());
+    final idx = sessions.indexWhere((s) => s.id == updated.id);
+    if (idx >= 0) sessions[idx] = updated;
+  }
+
   // ─── Image Handling ─────────────────────────────
 
   Future<void> pickImage() async {
@@ -1121,6 +1131,13 @@ class ChatController extends GetxController {
       messages.add(copied);
     }
     _scrollToBottom(force: true);
+  }
+
+  void deleteMessage(ChatMessage msg) {
+    final idx = messages.indexWhere((m) => m.id == msg.id);
+    if (idx < 0) return;
+    _hive.deleteMessage(msg.id);
+    messages.removeAt(idx);
   }
 
   void _saveAssistantMessage({

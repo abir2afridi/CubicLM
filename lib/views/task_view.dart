@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/task_controller.dart';
 import '../core/colors.dart';
+import '../theme/design_tokens.dart';
 import '../models/task_model.dart';
 
 class TaskView extends GetView<TaskController> {
@@ -69,7 +70,7 @@ class TaskView extends GetView<TaskController> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.03) : const Color(0xFFF1F5F9).withValues(alpha: 0.6),
+        color: isDark ? Colors.white.withValues(alpha: 0.03) : Dt.pillMuted.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(20),
       ),
       child: InkWell(
@@ -98,7 +99,7 @@ class TaskView extends GetView<TaskController> {
         GestureDetector(
           onTap: () => controller.currentTask.value = null,
           child: Container(width: 40, height: 40,
-            decoration: BoxDecoration(color: isDark ? AppColors.surface : const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode)),
+            decoration: BoxDecoration(color: isDark ? AppColors.surface : Dt.pillMuted, borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode)),
             child: Icon(Icons.chevron_left_rounded, size: 24, color: isDark ? Colors.white : Colors.black)),
         ),
         const SizedBox(width: 16),
@@ -181,7 +182,7 @@ class TaskView extends GetView<TaskController> {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: isDark ? AppColors.bg : const Color(0xFFF1F5F9), borderRadius: BorderRadius.circular(10), border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode)),
+            decoration: BoxDecoration(color: isDark ? AppColors.bg : Dt.pillMuted, borderRadius: BorderRadius.circular(10), border: Border.all(color: isDark ? AppColors.border : AppColors.borderLightMode)),
             child: Row(
               children: [
                 const Icon(Icons.terminal_rounded, size: 14, color: AppColors.primary),

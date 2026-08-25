@@ -199,7 +199,7 @@ class AppSettingsView extends GetView<SettingsController> {
       decoration: BoxDecoration(
         color: isDark
             ? Colors.white.withValues(alpha: 0.02)
-            : const Color(0xFFF1F5F9).withValues(alpha: 0.5),
+            : Dt.pillMuted.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(24),
       ),
       clipBehavior: Clip.antiAlias,
@@ -235,7 +235,7 @@ class AppSettingsView extends GetView<SettingsController> {
                           fontWeight: FontWeight.w700,
                           color: isDark
                               ? AppColors.textPrimary
-                              : const Color(0xFF0F172A))),
+                              : Dt.textPrimary)),
                   if (subtitle != null) ...[
                     const SizedBox(height: 3),
                     Text(subtitle,

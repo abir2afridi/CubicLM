@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/colors.dart';
+import '../theme/design_tokens.dart';
 import '../services/app_log_service.dart';
 
 class LogView extends StatelessWidget {
@@ -24,7 +25,7 @@ class LogView extends StatelessWidget {
         case 'INFO':
           return AppColors.success;
         case 'DEBUG':
-          return const Color(0xFF94A3B8);
+          return Dt.textMuted;
         default:
           return Theme.of(context).hintColor;
       }
@@ -121,7 +122,7 @@ class LogView extends StatelessWidget {
                 filled: true,
                 fillColor: isDark
                     ? Colors.white.withValues(alpha: 0.04)
-                    : const Color(0xFFF1F5F9),
+                    : Dt.pillMuted,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 border: OutlineInputBorder(
@@ -404,7 +405,7 @@ class LogView extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: isDark
                           ? Colors.white.withValues(alpha: 0.02)
-                          : const Color(0xFFF1F5F9)
+                          : Dt.pillMuted
                               .withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -431,20 +432,24 @@ class LogView extends StatelessWidget {
                               ]),
                             ),
                             const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: _catColor(entry.category)
-                                    .withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(5),
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _catColor(entry.category)
+                                      .withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                child: Text(entry.category.label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color:
+                                            _catColor(entry.category))),
                               ),
-                              child: Text(entry.category.label,
-                                  style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w700,
-                                      color:
-                                          _catColor(entry.category))),
                             ),
                             const Spacer(),
                             Text(_formatTime(entry.timestamp),
@@ -488,7 +493,7 @@ class LogView extends StatelessWidget {
                                       fontSize: 10,
                                       color: isDark
                                           ? AppColors.textSecondary
-                                          : const Color(0xFF475569))),
+                                          : Dt.textSecondary)),
                             ),
                           ],
                         ]),
