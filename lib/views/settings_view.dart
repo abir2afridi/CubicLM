@@ -455,19 +455,25 @@ class SettingsView extends GetView<SettingsController> {
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 15, fontWeight: FontWeight.w700)),
               const SizedBox(width: 8),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
+              Flexible(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text('RECOMMENDED',
+                        maxLines: 1,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.4,
+                            color: AppColors.success)),
+                  ),
                 ),
-                child: Text('RECOMMENDED',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.4,
-                        color: AppColors.success)),
               ),
               const Spacer(),
               GestureDetector(

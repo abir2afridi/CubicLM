@@ -92,31 +92,37 @@ class AppSettingsView extends GetView<SettingsController> {
                           fit: BoxFit.cover,
                         )),
                     const SizedBox(width: 16),
-                    Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('CubicLM',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w800)),
-                          const SizedBox(height: 2),
-                          Text(
-                              'Developed by Abir Hasan Siam (CodeCraftedStudio)',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Dt.accent
-                                      .withValues(alpha: 0.7))),
-                          const SizedBox(height: 1),
-                          Text(
-                              controller.appVersion.value.isEmpty
-                                  ? 'Engineering Build'
-                                  : 'Version ${controller.appVersion.value}',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Theme.of(context).hintColor)),
-                        ]),
+                    Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('CubicLM',
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800)),
+                            const SizedBox(height: 2),
+                            Text(
+                                'Developed by Abir Hasan Siam (CodeCraftedStudio)',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Dt.accent
+                                        .withValues(alpha: 0.7))),
+                            const SizedBox(height: 1),
+                            Obx(() => Text(
+                                controller.appVersion.value.isEmpty
+                                    ? 'Engineering Build'
+                                    : 'Version ${controller.appVersion.value}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Theme.of(context).hintColor))),
+                          ]),
+                    ),
                   ]),
                 ),
               ]),

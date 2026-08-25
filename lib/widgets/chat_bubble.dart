@@ -11,7 +11,7 @@ import 'code_block.dart';
 import 'image_viewer.dart';
 import 'thought_disclosure.dart';
 
-class ChatBubble extends StatelessWidget {
+class ChatBubble extends StatefulWidget {
   final ChatMessage message;
   final VoidCallback? onCopy;
   final VoidCallback? onRetry;
@@ -19,6 +19,7 @@ class ChatBubble extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onPrevRevision;
   final VoidCallback? onNextRevision;
+  final VoidCallback? onDelete;
 
   const ChatBubble({
     super.key,
@@ -29,16 +30,24 @@ class ChatBubble extends StatelessWidget {
     this.onEdit,
     this.onPrevRevision,
     this.onNextRevision,
+    this.onDelete,
   });
 
   @override
+  State<ChatBubble> createState() => _ChatBubbleState();
+}
+
+class _ChatBubbleState extends State<ChatBubble> {
+  bool _copied = false;
+
+  @override
   Widget build(BuildContext context) {
-    final isUser = message.role == 'user';
+    final isUser = widget.message.role == 'user';
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    final visibleContent = message.fileName == null
-        ? message.content
-        : message.content.split('\n\nAttached file:').first;
+    final visibleContent = widget.message.fileName == null
+        ? widget.message.content
+        : widget.message.content.split('\n\nAttached file:').first;
         
     final thoughtParts = isUser
         ? const ThoughtParts(thought: '', answer: '', isThinking: false)
@@ -86,15 +95,15 @@ class ChatBubble extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Image attachment
-                        if (message.decodedImageBytes != null)
+                        if (widget.message.decodedImageBytes != null)
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: GestureDetector(
-                              onTap: () => ImageViewer.show(context, message.imageBase64!),
+                              onTap: () => ImageViewer.show(context, widget.message.imageBase64!),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(16),
                                 child: Image.memory(
-                                  message.decodedImageBytes!,
+                                  widget.message.decodedImageBytes!,
                                   width: double.infinity,
                                   height: 220,
                                   fit: BoxFit.cover,
@@ -118,7 +127,7 @@ class ChatBubble extends StatelessWidget {
                         if (!isUser && thoughtParts.hasThought)
                           ThoughtDisclosure(
                             thought: thoughtParts.thought,
-                            durationSeconds: message.thoughtDurationSeconds,
+                            durationSeconds: widget.message.thoughtDurationSeconds,
                             styleSheet: _thoughtMarkdownStyle(context),
                           ),
 
@@ -145,14 +154,14 @@ class ChatBubble extends StatelessWidget {
                           ),
 
                         // File attachment
-                        if (message.fileName != null) ...[
+                        if (widget.message.fileName != null) ...[
                           const SizedBox(height: 12),
                           AttachmentPreview(
-                            fileName: message.fileName!,
-                            fileType: message.fileType,
-                            fileSize: message.fileSize,
-                            imageBase64: message.imageBase64,
-                            imagePath: message.imagePath,
+                            fileName: widget.message.fileName!,
+                            fileType: widget.message.fileType,
+                            fileSize: widget.message.fileSize,
+                            imageBase64: widget.message.imageBase64,
+                            imagePath: widget.message.imagePath,
                             compact: true,
                           ),
                         ],
@@ -162,36 +171,36 @@ class ChatBubble extends StatelessWidget {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (message.tokensPerSec != null && message.tokensPerSec! > 0)
+                            if (widget.message.tokensPerSec != null && widget.message.tokensPerSec! > 0)
                               Padding(
                                 padding: const EdgeInsets.only(right: 10),
                                 child: _infoBadge(
-                                  '${message.tokensPerSec!.toStringAsFixed(1)} tok/s',
+                                  '${widget.message.tokensPerSec!.toStringAsFixed(1)} tok/s',
                                   isUser,
                                   context,
                                 ),
                               ),
-                            if (message.imageGenDurationMs != null && message.imageGenDurationMs! > 0)
+                            if (widget.message.imageGenDurationMs != null && widget.message.imageGenDurationMs! > 0)
                               Padding(
                                 padding: const EdgeInsets.only(right: 10),
                                 child: _infoBadge(
-                                  _formatGenTime(message.imageGenDurationMs!),
+                                  _formatGenTime(widget.message.imageGenDurationMs!),
                                   isUser,
                                   context,
                                 ),
                               ),
-                            if (message.generationDurationMs != null && message.generationDurationMs! > 0)
+                            if (widget.message.generationDurationMs != null && widget.message.generationDurationMs! > 0)
                               Padding(
                                 padding: const EdgeInsets.only(right: 10),
                                 child: _infoBadge(
-                                  _formatGenTime(message.generationDurationMs!),
+                                  _formatGenTime(widget.message.generationDurationMs!),
                                   isUser,
                                   context,
                                   icon: Icons.timer_outlined,
                                 ),
                               ),
                             Text(
-                              _formatTime(message.timestamp),
+                              _formatTime(widget.message.timestamp),
                               style: GoogleFonts.plusJakartaSans(
                                 fontSize: 10,
                                 color: isUser
@@ -226,10 +235,10 @@ class ChatBubble extends StatelessWidget {
         ? AppColors.textMuted.withValues(alpha: 0.3)
         : Dt.toggleTrackOff;
     const double iconSize = 16;
-    final revisions = message.revisions;
+    final revisions = widget.message.revisions;
     final hasRevisions = revisions != null && revisions.isNotEmpty;
-    final canPrev = hasRevisions && message.revisionIndex > 0;
-    final canNext = hasRevisions && message.revisionIndex < revisions.length - 1;
+    final canPrev = hasRevisions && widget.message.revisionIndex > 0;
+    final canNext = hasRevisions && widget.message.revisionIndex < revisions.length - 1;
 
     return Padding(
       padding: const EdgeInsets.only(top: 4),
@@ -241,14 +250,14 @@ class ChatBubble extends StatelessWidget {
             _actionButton(
               icon: Icons.chevron_left_rounded,
               tooltip: 'Previous version',
-              onTap: canPrev ? onPrevRevision! : () {},
+              onTap: canPrev ? widget.onPrevRevision! : () {},
               color: canPrev ? iconColor : mutedColor,
               size: iconSize + 4,
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: Text(
-                '${message.revisionIndex + 1}/${revisions.length + 1}',
+                '${widget.message.revisionIndex + 1}/${revisions.length + 1}',
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 10,
                   color: iconColor,
@@ -259,7 +268,7 @@ class ChatBubble extends StatelessWidget {
             _actionButton(
               icon: Icons.chevron_right_rounded,
               tooltip: 'Next version',
-              onTap: canNext ? onNextRevision! : () {},
+              onTap: canNext ? widget.onNextRevision! : () {},
               color: canNext ? iconColor : mutedColor,
               size: iconSize + 4,
             ),
@@ -267,43 +276,57 @@ class ChatBubble extends StatelessWidget {
 
           if (isUser) ...[
             // User: Edit + Copy
-            if (onEdit != null)
+            if (widget.onEdit != null)
               _actionButton(
                 icon: Icons.edit_outlined,
                 tooltip: 'Edit',
-                onTap: onEdit!,
+                onTap: widget.onEdit!,
                 color: iconColor,
                 size: iconSize,
               ),
             _actionButton(
-              icon: Icons.copy_rounded,
-              tooltip: 'Copy',
-              onTap: () => Clipboard.setData(ClipboardData(text: message.content)),
+              icon: _copied ? Icons.check_rounded : Icons.copy_rounded,
+              tooltip: _copied ? 'Copied!' : 'Copy',
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: widget.message.content));
+                HapticFeedback.selectionClick();
+                setState(() => _copied = true);
+                Future.delayed(const Duration(seconds: 2), () {
+                  if (mounted) setState(() => _copied = false);
+                });
+              },
               color: iconColor,
               size: iconSize,
             ),
           ] else ...[
             // Assistant: Copy + Regenerate + Branch
             _actionButton(
-              icon: Icons.copy_rounded,
-              tooltip: 'Copy',
-              onTap: () => Clipboard.setData(ClipboardData(text: message.content)),
+              icon: _copied ? Icons.check_rounded : Icons.copy_rounded,
+              tooltip: _copied ? 'Copied!' : 'Copy',
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: widget.message.content));
+                HapticFeedback.selectionClick();
+                setState(() => _copied = true);
+                Future.delayed(const Duration(seconds: 2), () {
+                  if (mounted) setState(() => _copied = false);
+                });
+              },
               color: iconColor,
               size: iconSize,
             ),
-            if (onRetry != null)
+            if (widget.onRetry != null)
               _actionButton(
                 icon: Icons.refresh_rounded,
                 tooltip: 'Regenerate',
-                onTap: onRetry!,
+                onTap: widget.onRetry!,
                 color: iconColor,
                 size: iconSize,
               ),
-            if (onBranch != null)
+            if (widget.onBranch != null)
               _actionButton(
                 icon: Icons.call_split_rounded,
                 tooltip: 'Branch in new chat',
-                onTap: onBranch!,
+                onTap: widget.onBranch!,
                 color: iconColor,
                 size: iconSize,
               ),
@@ -320,14 +343,18 @@ class ChatBubble extends StatelessWidget {
     required Color color,
     required double size,
   }) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          child: Icon(icon, size: size, color: color),
+    return Semantics(
+      label: tooltip,
+      button: true,
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Icon(icon, size: size, color: color),
+          ),
         ),
       ),
     );
@@ -335,7 +362,7 @@ class ChatBubble extends StatelessWidget {
 
   void _showContextMenu(BuildContext context, bool isUser) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final content = message.content;
+    final content = widget.message.content;
     showModalBottomSheet(
       context: context,
       backgroundColor: isDark ? AppColors.surface : Colors.white,
@@ -362,26 +389,37 @@ class ChatBubble extends StatelessWidget {
               onTap: () {
                 Navigator.pop(context);
                 Clipboard.setData(ClipboardData(text: content));
+                HapticFeedback.selectionClick();
               },
             ),
-            if (!isUser && onRetry != null)
+            if (!isUser && widget.onRetry != null)
               _menuTile(
                 icon: Icons.refresh_rounded,
                 label: 'Regenerate',
                 isDark: isDark,
                 onTap: () {
                   Navigator.pop(context);
-                  onRetry!();
+                  widget.onRetry!();
                 },
               ),
-            if (!isUser && onBranch != null)
+            if (!isUser && widget.onBranch != null)
               _menuTile(
                 icon: Icons.call_split_rounded,
                 label: 'Branch in new chat',
                 isDark: isDark,
                 onTap: () {
                   Navigator.pop(context);
-                  onBranch!();
+                  widget.onBranch!();
+                },
+              ),
+            if (widget.onDelete != null)
+              _menuTile(
+                icon: Icons.delete_outline_rounded,
+                label: 'Delete message',
+                isDark: isDark,
+                onTap: () {
+                  Navigator.pop(context);
+                  widget.onDelete!();
                 },
               ),
             const SizedBox(height: 4),
