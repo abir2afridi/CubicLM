@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1867,19 +1866,13 @@ class _ImageGenIndicator extends StatefulWidget {
   State<_ImageGenIndicator> createState() => _ImageGenIndicatorState();
 }
 
-class _ImageGenIndicatorState extends State<_ImageGenIndicator>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _c;
+class _ImageGenIndicatorState extends State<_ImageGenIndicator> {
   late Timer _timer;
   int _elapsedSeconds = 0;
 
   @override
   void initState() {
     super.initState();
-    _c = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       final start = widget.controller.imageGenStartTime.value;
       if (start != null) {
@@ -1893,7 +1886,6 @@ class _ImageGenIndicatorState extends State<_ImageGenIndicator>
   @override
   void dispose() {
     _timer.cancel();
-    _c.dispose();
     super.dispose();
   }
 
@@ -1939,54 +1931,30 @@ class _ImageGenIndicatorState extends State<_ImageGenIndicator>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (_, __) {
-        final dots = Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (i) {
-            final t = ((_c.value - i * 0.15) % 1.0).clamp(0.0, 1.0);
-            final pulse = math.sin(t * math.pi).clamp(0.0, 1.0);
-            return Padding(
-              padding: EdgeInsets.only(right: i < 2 ? 6 : 0),
-              child: Opacity(
-                opacity: 0.2 + 0.8 * pulse,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.primary.withValues(alpha: 0.8),
-                  ),
-                ),
-              ),
-            );
-          }),
-        );
+    return Obx(() {
+      final step = widget.controller.imageGenStep.value;
+      final total = widget.controller.imageGenTotal.value;
+      final eta = widget.controller.imageGenEstimatedSecs.value;
+      final decoding = widget.controller.imageGenDecoding.value;
+      final hasProgress = total > 0;
+      final pct = hasProgress ? (step / total).clamp(0.0, 1.0) : 0.0;
+      final isDone = decoding || (hasProgress && step >= total);
 
-        return Obx(() {
-          final step = widget.controller.imageGenStep.value;
-          final total = widget.controller.imageGenTotal.value;
-          final eta = widget.controller.imageGenEstimatedSecs.value;
-          final decoding = widget.controller.imageGenDecoding.value;
-          final hasProgress = total > 0;
-          final pct = hasProgress ? (step / total).clamp(0.0, 1.0) : 0.0;
-          final isDone = decoding || (hasProgress && step >= total);
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              dots,
-              const SizedBox(height: 12),
-              Text(
-                isDone ? 'Decoding artifact…' : 'Synthesizing image…',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 14,
-                  color: widget.isDark ? Colors.white : Colors.black,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Composing thinking orb replaces the old pulsing dots.
+          const ThinkingOrb(size: 48, state: OrbState.composing),
+          const SizedBox(height: 12),
+          Text(
+            isDone ? 'Decoding artifact…' : 'Synthesizing image…',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 14,
+              color: widget.isDark ? Colors.white : Colors.black,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
               if (hasProgress) ...[
                 const SizedBox(height: 12),
                 Container(
@@ -2072,9 +2040,7 @@ class _ImageGenIndicatorState extends State<_ImageGenIndicator>
               ],
             ],
           );
-        });
-      },
-    );
+    });
   }
 }
 

@@ -64,7 +64,7 @@ class _ThinkingOrbState extends State<ThinkingOrb>
   void _onTick(Duration elapsed) {
     final dt = (elapsed - _lastElapsed).inMicroseconds / 1e6;
     _lastElapsed = elapsed;
-    _simTime += dt * _speedFor(_state);
+    _simTime += dt * _speedFor(_state, widget.size);
     if (mounted) setState(() {});
   }
 
@@ -150,18 +150,22 @@ class _Frame {
   _Frame(this.dots, this.lines);
 }
 
-/// Per-state speed multipliers (20px preset from the reference engine).
-double _speedFor(OrbState s) => switch (s) {
-      OrbState.working => 3.9,
-      OrbState.searching => 2.665,
-      OrbState.solving => 1.95,
-      OrbState.listening => 3.998,
-      OrbState.connecting => 6.63,
-      OrbState.weaving => 2.75,
-      OrbState.composing => 3.12,
-      OrbState.breathing => 3.78,
-      OrbState.shaping => 2.08,
-    };
+/// Per-state speed multipliers from the reference engine presets
+/// (64px hero tier and 20px inline tier).
+double _speedFor(OrbState s, double size) {
+  final big = size >= 32;
+  return switch (s) {
+    OrbState.working => big ? 1.885 : 3.9,
+    OrbState.searching => big ? 2.015 : 2.665,
+    OrbState.solving => big ? 1.82 : 1.95,
+    OrbState.listening => big ? 4.388 : 3.998,
+    OrbState.connecting => big ? 3.315 : 6.63,
+    OrbState.weaving => big ? 1.625 : 2.75,
+    OrbState.composing => big ? 2.34 : 3.12,
+    OrbState.breathing => big ? 3.24 : 3.78,
+    OrbState.shaping => big ? 2.405 : 2.08,
+  };
+}
 
 /// Orthographic camera: yaw → pitch. Returns projector (x,y,z)→(sx, sy, depth).
 (double, double, double) Function(double, double, double) _camera(
@@ -192,9 +196,9 @@ _Frame _renderState(OrbState state, double t, double size, bool isDark) {
     case OrbState.weaving:
       return _braid(t, size);
     case OrbState.composing:
-      return _ribbon(t, size);
+      return _band(t, size, _bandPreset(size, faceOn: false));
     case OrbState.breathing:
-      return _ring(t, size);
+      return _band(t, size, _bandPreset(size, faceOn: true));
     case OrbState.shaping:
       return _morph(t, size);
   }
@@ -534,66 +538,135 @@ _Frame _braid(double t, double size) {
   return _Frame(dots, const []);
 }
 
-// ── Composing → "ribbon": frozen camera, wobbling band lanes on sphere ──
+// ── Composing → "ribbon" / Breathing → "ring" (shared band engine) ──
+//
+// Faithful port of the reference engine's `bi` renderer with its
+// Sp/vp/yp preset resolution (64px and 20px tiers).
 
-_Frame _ribbon(double t, double size) {
-  return _band(t, size,
-      lanes: 2, segs: 20, ghosts: 8, faceOn: false, wobMul: 1.0);
+class _BandCfg {
+  const _BandCfg({
+    required this.lanes,
+    required this.bandMul,
+    required this.segs,
+    required this.ghosts,
+    required this.rBase,
+    required this.rDepth,
+    required this.wobMul,
+    required this.faceOn,
+  });
+  final int lanes, segs, ghosts;
+  final double bandMul, rBase, rDepth, wobMul;
+  final bool faceOn;
+
+  int get bands => math.max(1, (lanes * bandMul).round());
 }
 
-// ── Breathing → "ring": face-on disc with gentle concentric ripples ──
-
-_Frame _ring(double t, double size) {
-  return _band(t, size,
-      lanes: 2, segs: 15, ghosts: 0, faceOn: true, wobMul: 0.368);
+_BandCfg _bandPreset(double size, {required bool faceOn}) {
+  // Presets derived from the reference: base opts scaled by
+  // sqrt(count) for lanes/segs, count for ghosts, size for radii.
+  if (size >= 32) {
+    return faceOn
+        ? const _BandCfg(
+            lanes: 3,
+            bandMul: 3.627,
+            segs: 44,
+            ghosts: 0,
+            rBase: 1.05160,
+            rDepth: 1.62520,
+            wobMul: 0.368,
+            faceOn: true)
+        : const _BandCfg(
+            lanes: 3,
+            bandMul: 3.9,
+            segs: 44,
+            ghosts: 38,
+            rBase: 0.93500,
+            rDepth: 1.44500,
+            wobMul: 1.0,
+            faceOn: false);
+  }
+  return faceOn
+      ? const _BandCfg(
+          lanes: 2,
+          bandMul: 3.968,
+          segs: 15,
+          ghosts: 0,
+          rBase: 1.78420,
+          rDepth: 2.75740,
+          wobMul: 0.565,
+          faceOn: true)
+      : const _BandCfg(
+          lanes: 2,
+          bandMul: 4.94,
+          segs: 20,
+          ghosts: 8,
+          rBase: 1.18030,
+          rDepth: 1.82410,
+          wobMul: 1.0,
+          faceOn: false);
 }
 
-_Frame _band(double t, double size,
-    {required int lanes,
-    required int segs,
-    required int ghosts,
-    required bool faceOn,
-    required double wobMul}) {
-  final cx = size / 2, cy = size / 2;
-  final i = math.pow(size / 300, 0.6).toDouble();
+_Frame _band(double t, double size, _BandCfg c) {
+  final f = math.pow(size / 300, 0.6).toDouble();
   final R = size / 2 * 0.78;
-  final proj = _camera(cx, cy, 1.0, faceOn ? 0.0 : t * 0.1, 0.3);
   final dots = <_Dot>[];
-  final tilt = faceOn ? 0.0 : 0.55;
 
-  for (var g = 0; g < ghosts; g++) {
-    final (bx, by, bz) = _fibPoint(g, ghosts);
-    final (X, Y, depth) = proj(bx * R, by * R, bz * R);
-    final z = ((by) + 1) / 2;
-    dots.add(_Dot(X, Y, 0.8 * i, 0.78, 0.1 + 0.22 * z));
+  // Outer transform: yaw = t*.1*spin with spin=0 for both presets → a
+  // frozen camera tilted 0.3 rad (the animation lives in the waves).
+  final proj = _camera(size / 2, size / 2, 1.0, 0.0, 0.3);
+
+  // Ambient ghost sphere.
+  for (var g = 0; g < c.ghosts; g++) {
+    final (bx, by, bz) = _fibPoint(g, c.ghosts);
+    final (X, Y, zW) = proj(bx * R, by * R, bz * R);
+    final depth = ((zW / R) + 1) / 2;
+    dots.add(_Dot(X, Y, 0.8 * f, 0.78, 0.1 + 0.22 * depth));
   }
 
-  for (var lane = 0; lane < lanes; lane++) {
-    final pe = (lane - (lanes - 1) / 2) * 0.075;
-    final edgeFall = ((lane - (lanes - 1) / 2).abs()) / (lanes / 2);
-    for (var s = 0; s < segs; s++) {
-      final Z = s / segs * 2 * math.pi;
-      final ce = (0.16 * math.sin(Z * 3 - t * 1.7 + lane * 0.22) +
-              0.07 * math.sin(Z * 5 + t * 1.1)) *
-          wobMul;
-      // Band point: ring on the tilted plane + radial (pe) and normal
-      // (ce) offsets, renormalized onto the sphere.
-      final cz = math.cos(Z), sz = math.sin(Z);
-      final bx = cz + pe * cz + ce * -sz;
-      final by = tilt + ce * 1.0;
-      final bz = sz + pe * sz + ce * cz;
-      final len = math.sqrt(bx * bx + by * by + bz * bz);
-      final rx = bx / len * R;
-      final ry = by / len * R;
-      final rz = bz / len * R;
-      final (X, Y, _) = proj(rx, ry, rz);
-      final M = ((ry / R) + 1) / 2;
+  // Ring basis: rotY(p=0) · rotX(y). spin=0 freezes p and y.
+  final y = c.faceOn ? -0.3 : 0.55;
+  final aY = math.cos(y), dY = math.sin(y);
+
+  final edgeDenom = math.max(1.0, (c.bands - 1) / 2);
+  for (var b = 0; b < c.bands; b++) {
+    final pe = (b - (c.bands - 1) / 2) * 0.075;
+    final edgeFall = (b - (c.bands - 1) / 2).abs() / edgeDenom;
+
+    for (var j = 0; j < c.segs; j++) {
+      final theta = j / c.segs * 2 * math.pi;
+      final ce = (0.16 * math.sin(theta * 3 - t * 1.7 + b * 0.22) +
+              0.07 * math.sin(theta * 5 + t * 1.1)) *
+          c.wobMul;
+
+      // faceOn pulses radially and keeps the offset flat; ribbon slides
+      // the offset along the ring's normal before renormalizing.
+      final double mul, zOff, de;
+      if (c.faceOn) {
+        mul = 1 + ce;
+        zOff = pe;
+        de = R / (1 + 0.85 * 0.23 * c.wobMul);
+      } else {
+        mul = 1;
+        zOff = pe + ce;
+        de = R;
+      }
+
+      final tx = math.cos(theta);
+      final ty = aY * math.sin(theta) - dY * zOff;
+      final tz = dY * math.sin(theta) + aY * zOff;
+      final len =
+          math.sqrt(tx * tx + ty * ty + tz * tz).clamp(1e-9, double.infinity);
+
+      final (X, Y, zW) = proj(
+          tx / len * de * mul, ty / len * de * mul, tz / len * de * mul);
+      final depth = ((zW / R) + 1) / 2;
+
       dots.add(_Dot(
         X,
         Y,
-        (1.1 + 1.7 * M) * (1 - 0.25 * edgeFall) * i,
-        (0.52 - 0.44 * M + 0.18 * edgeFall).clamp(0.0, 1.0),
-        0.4 + 0.6 * M,
+        (c.rBase + c.rDepth * depth) * (1 - 0.25 * edgeFall) * f,
+        (0.52 - 0.44 * depth + 0.18 * edgeFall).clamp(0.0, 1.0),
+        0.4 + 0.6 * depth,
       ));
     }
   }
