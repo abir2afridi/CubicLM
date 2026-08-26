@@ -88,6 +88,7 @@ For aggregator providers that host multiple companies' models under `vendor/mode
 - **Message actions** — copy, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
 - **Code blocks** with syntax highlighting, one-tap copy, and export/share
 - **Thinking Orbs** — 3D particle sphere animation (9 states: Working, Searching, Solving, Listening, Connecting, Weaving, Composing, Breathing, Shaping) with grayscale ink, size-aware speeds, and phase-continuous hard cuts; shown during chat responses, thought analysis, and image synthesis — each context configurable to **Random** shuffle or a fixed state via **App Settings › Thinking Orbs** (live orb previews in the picker)
+- **Notification history** — 🔔 bell in chat header with unread badge; slide-in page grouped by Today/Yesterday/weekday with relative timestamps (Just now / 5m ago / 2h ago), swipe-to-delete, mark-all-read & clear-all; every model switch (local / cloud / back-to-local) auto-logs with timestamp and shows as a top spring-animated toast (Hive-persisted, max 100)
 - Attachments from camera, gallery, or files (PDF/text extraction)
 - Image sharing and export
 - Dark/light theme with adjustable font scale
@@ -175,7 +176,8 @@ lib/
 │   ├── ai_model.dart            # AI model data class
 │   ├── chat_message.dart        # Chat message model (with revision history)
 │   ├── chat_session.dart        # Chat session model
-│   └── task_model.dart          # Automated task model
+│   ├── task_model.dart          # Automated task model
+│   └── notification_entry.dart  # Model-switch history entry (title/message/type/timestamp/read)
 ├── controllers/
 │   ├── chat_controller.dart     # Chat logic and streaming
 │   ├── cloud_model_controller.dart  # Cloud model selection
@@ -218,7 +220,8 @@ lib/
 │   ├── download_native.dart         # Resumable streaming downloader (HTTP Range) + native bridges
 ├── download_web.dart            # Web stubs
 ├── download_service.dart        # Download orchestrator (native FGS + Dart fallback)
-│   ├── hive_service.dart        # Local persistence
+│   ├── hive_service.dart        # Local persistence (now also notifications box)
+│   ├── notification_history_service.dart # Model-switch history (Hive, max 100, unread count)
 │   ├── device_info_service.dart # RAM/tier + SoC/GPU detection
 │   ├── web_fetch_service.dart   # URL fetching → clean text for chat context
 │   ├── execution_service.dart   # Task execution engine
@@ -236,6 +239,7 @@ lib/
 │   ├── settings_view.dart       # Config sections (embedded in Nodes › Config)
 │   ├── app_settings_view.dart   # App Settings — theme, typography scale, Thinking Orbs picker, app info
 │   ├── about_view.dart          # About page — feature highlights, tech stack, GitHub
+│   ├── notification_history_view.dart # 🔔 History page (grouped by day, swipe-to-delete, mark read/clear)
 │   ├── log_view.dart            # System diagnostics viewer (health dashboard, search, categories)
 │   └── task_view.dart           # Automated tasks
 ├── widgets/
@@ -250,6 +254,7 @@ lib/
 ├── ffi/
 │   └── sd_ffi_bindings.dart     # FFI bindings for SD native lib
 └── utils/
+    ├── app_snackbar.dart        # Top spring-animated toast (model switch, cloud, local)
     └── thought_parser.dart      # <thought> tag parser
 
 local_plugins/

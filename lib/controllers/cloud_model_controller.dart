@@ -6,6 +6,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 
 import '../core/constants.dart';
+import '../utils/app_snackbar.dart';
 import '../services/app_log_service.dart';
 import '../services/hive_service.dart';
 import '../services/inference_service.dart';
@@ -728,16 +729,14 @@ class CloudModelController extends GetxController {
       await _settings.setCloudProvider(provider);
       await _settings.setInferenceMode('cloud');
       if (!showSnackbar) return;
-      Get.snackbar('Cloud Model Active', '$provider · $normalized',
-          snackPosition: SnackPosition.BOTTOM);
+      AppSnackbar.cloudActive('$provider · $normalized');
       return;
     }
     await _settings.setCloudProvider(provider);
     await _settings.setCloudModel(provider, normalized);
     await _settings.setInferenceMode('cloud');
     if (!showSnackbar) return;
-    Get.snackbar('Cloud Model Active', '$provider · $normalized',
-        snackPosition: SnackPosition.BOTTOM);
+    AppSnackbar.cloudActive('$provider · $normalized');
   }
 
   /// Deactivates the active cloud provider: switches inference back to
@@ -754,9 +753,7 @@ class CloudModelController extends GetxController {
 
     // If a local model is already resident we're done.
     if (inference.isModelLoaded.value || imageService.isModelLoaded.value) {
-      Get.snackbar(
-          'Cloud Deactivated', 'Using local model · ${inference.loadedModelName.value.isEmpty ? 'ready' : inference.loadedModelName.value}',
-          snackPosition: SnackPosition.BOTTOM);
+      AppSnackbar.localActive(inference.loadedModelName.value);
       return;
     }
 
@@ -790,8 +787,7 @@ class CloudModelController extends GetxController {
     }
 
     if (textName != null && textName.isNotEmpty && pathOk(textPath)) {
-      Get.snackbar('Cloud Deactivated', 'Loading local model… $textName',
-          snackPosition: SnackPosition.BOTTOM);
+      AppSnackbar.showTop('Switching back', 'Loading $textName…');
       try {
         await inference.loadModel(
           textPath!,
@@ -807,8 +803,7 @@ class CloudModelController extends GetxController {
         _hive.getSetting<String>(AppConstants.keyImageModelName);
     final imagePath = _hive.getSetting<String>(AppConstants.keyImageModelPath);
     if (imageName != null && imageName.isNotEmpty && pathOk(imagePath)) {
-      Get.snackbar('Cloud Deactivated', 'Loading local model… $imageName',
-          snackPosition: SnackPosition.BOTTOM);
+      AppSnackbar.showTop('Switching back', 'Loading $imageName…');
       try {
         await Get.find<LocalImageService>().loadModel(imagePath!,
             modelName: imageName);
@@ -816,10 +811,9 @@ class CloudModelController extends GetxController {
       return;
     }
 
-    Get.snackbar('Cloud Deactivated',
-        'No local model downloaded — download one from Local Models',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 4));
+    AppSnackbar.showTop('No local model',
+        'Download one from Explore → Local Models',
+        duration: const Duration(seconds: 3));
   }
 
   Future<void> saveCustomProvider() async {

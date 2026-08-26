@@ -6,6 +6,7 @@ class AppConstants {
   static const String chatMessagesBox = 'chat_messages';
   static const String tasksBox = 'tasks';
   static const String settingsBox = 'settings';
+  static const String notificationsBox = 'notifications';
 
   // Settings Keys
   static const String keyInferenceMode = 'inference_mode'; // 'local' or 'cloud'

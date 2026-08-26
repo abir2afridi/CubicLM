@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../theme/design_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import '../utils/app_snackbar.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/download_service.dart';
 import '../services/inference_service.dart';
@@ -589,17 +590,25 @@ class ModelController extends GetxController {
       if (Get.isDialogOpen ?? false) Get.back();
 
       final isError = !_localImage.isModelLoaded.value;
-      Get.snackbar(
-        isError ? 'Model Not Loaded' : 'Image Model',
-        result,
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: isError
-            ? const Color(0xFFFF9500).withValues(alpha: 0.15)
-            : const Color(0xFF34C759).withValues(alpha: 0.15),
-        colorText: isError ? const Color(0xFFFF9500) : const Color(0xFF34C759),
-        duration:
-            isError ? const Duration(seconds: 6) : const Duration(seconds: 2),
-      );
+      if (isError) {
+        Get.snackbar(
+          'Model Not Loaded',
+          result,
+          snackPosition: SnackPosition.TOP,
+          backgroundColor: const Color(0xFFFF9500).withValues(alpha: 0.15),
+          colorText: const Color(0xFFFF9500),
+          duration: const Duration(seconds: 6),
+          snackStyle: SnackStyle.FLOATING,
+          margin: EdgeInsets.fromLTRB(
+              16, (Get.overlayContext != null ? MediaQuery.of(Get.overlayContext!).padding.top : 24) + 8, 16, 0),
+          borderRadius: 18,
+          animationDuration: const Duration(milliseconds: 520),
+          forwardAnimationCurve: Curves.easeOutBack,
+          reverseAnimationCurve: Curves.easeInCubic,
+        );
+      } else {
+        AppSnackbar.modelSwitched(filename);
+      }
     } else {
       final result = await _inference.loadModel(
         path,
@@ -612,8 +621,7 @@ class ModelController extends GetxController {
         _inference.isVisionLoaded.value =
             fallbackToText ? false : (model == null ? false : isVisionModel(model));
         await _settings.setInferenceMode('local');
-        Get.snackbar('Model Loaded', result,
-            snackPosition: SnackPosition.BOTTOM);
+        AppSnackbar.modelSwitched(filename);
       } else {
         bool showDetails = false;
         Get.dialog(

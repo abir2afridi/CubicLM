@@ -23,6 +23,8 @@ import '../widgets/model_switcher_sheet.dart';
 import '../widgets/thinking_orb.dart';
 import '../widgets/thought_disclosure.dart';
 import '../core/colors.dart';
+import '../services/notification_history_service.dart';
+import 'notification_history_view.dart';
 
 class ChatView extends GetView<ChatController> {
   ChatView({super.key});
@@ -377,6 +379,7 @@ class ChatView extends GetView<ChatController> {
         ),
       ),
       actions: [
+        _notificationBell(context, isDark),
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: IconButton(
@@ -388,6 +391,56 @@ class ChatView extends GetView<ChatController> {
         ),
       ],
     );
+  }
+
+  Widget _notificationBell(BuildContext context, bool isDark) {
+    final svc = Get.find<NotificationHistoryService>();
+    return Obx(() {
+      final unread = svc.unreadCount;
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          IconButton(
+            tooltip: 'Notifications',
+            icon: Icon(LucideIcons.bell,
+                size: Dt.iconSize - 2,
+                color: isDark ? AppColors.textPrimary : Dt.iconDefault),
+            onPressed: () {
+              svc.markAllRead();
+              Get.to(() => const NotificationHistoryView(),
+                  transition: Transition.rightToLeft,
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic);
+            },
+          ),
+          if (unread > 0)
+            Positioned(
+              right: 6,
+              top: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                decoration: BoxDecoration(
+                  color: Dt.accent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: isDark ? Dt.canvasDark : Dt.canvas, width: 1.5),
+                ),
+                child: Center(
+                  child: Text(
+                    unread > 99 ? '99+' : '$unread',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        height: 1),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    });
   }
 
   // ── Model Loading ──

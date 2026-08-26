@@ -7,17 +7,20 @@ class HiveService extends GetxService {
   late Box _messagesBox;
   late Box _tasksBox;
   late Box _settingsBox;
+  late Box _notificationsBox;
 
   Box get sessionsBox => _sessionsBox;
   Box get messagesBox => _messagesBox;
   Box get tasksBox => _tasksBox;
   Box get settingsBox => _settingsBox;
+  Box get notificationsBox => _notificationsBox;
 
   Future<HiveService> init() async {
     _sessionsBox = await Hive.openBox(AppConstants.chatSessionsBox);
     _messagesBox = await Hive.openBox(AppConstants.chatMessagesBox);
     _tasksBox = await Hive.openBox(AppConstants.tasksBox);
     _settingsBox = await Hive.openBox(AppConstants.settingsBox);
+    _notificationsBox = await Hive.openBox(AppConstants.notificationsBox);
     // Preserve current local-server settings and purge obsolete provider data.
     final obsoleteServerKeys = _settingsBox.keys.where((key) =>
         key is String &&
@@ -96,5 +99,26 @@ class HiveService extends GetxService {
 
   Future<void> deleteTask(String id) async {
     await _tasksBox.delete(id);
+  }
+
+  // ─── Notifications ───────────────────────────────
+
+  List<Map<dynamic, dynamic>> getAllNotifications() {
+    return _notificationsBox.values
+        .map((v) => Map<dynamic, dynamic>.from(v as Map))
+        .toList();
+  }
+
+  Future<void> saveNotification(
+      String id, Map<String, dynamic> data) async {
+    await _notificationsBox.put(id, data);
+  }
+
+  Future<void> deleteNotification(String id) async {
+    await _notificationsBox.delete(id);
+  }
+
+  Future<void> clearAllNotifications() async {
+    await _notificationsBox.clear();
   }
 }
