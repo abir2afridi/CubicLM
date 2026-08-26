@@ -22,4 +22,28 @@ Future<String> downloadModel({
 
 void pauseDownload(String filename) {}
 
+void cancelStreamDownload(String filename) {}
+
+Future<Map<String, dynamic>?> startNativeStreamDownload({
+  required String url,
+  required String filename,
+  required String modelsDir,
+}) async =>
+    null;
+
+void pauseNativeStream(String filename) {}
+
+void cancelNativeStream(String filename) {}
+
+Future<List<Map<String, dynamic>>> getNativeStreamDownloads() async => [];
+
+Future<String> streamDownload({
+  required String url,
+  required String savePath,
+  String? authToken,
+  void Function(int received, int total, double bytesPerSecond)? onProgress,
+}) async {
+  return 'ERROR: Downloads not supported on web.';
+}
+
 Future<void> deleteModel(String path) async {}

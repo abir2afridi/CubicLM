@@ -91,9 +91,10 @@ For aggregator providers that host multiple companies' models under `vendor/mode
 - Attachments from camera, gallery, or files (PDF/text extraction)
 - Image sharing and export
 - Dark/light theme with adjustable font scale
+- **Background model download** with foreground service — downloads keep running when the app is closed or swiped away; notification with Pause/Cancel actions; HTTP Range resume picks up at the exact byte offset after pause or app restart (START_STICKY)
 - Firebase Crashlytics integration
 - Background service and boot persistence
-- In-app model download with pause / resume / cancel, plus file import
+- In-app model download with byte-exact pause / resume / cancel, plus file import
 
 #### 🔄 In-Chat Model Switcher
 
@@ -214,7 +215,9 @@ lib/
 │   ├── inference_service.dart   # Cross-platform inference orchestrator
 │   ├── inference_android.dart   # Android llama.cpp / LiteRT engine bridge
 │   ├── openai_server_service.dart   # Built-in OpenAI-compatible server
-│   ├── download_service.dart    # Model download manager (pause/resume/cancel)
+│   ├── download_native.dart         # Resumable streaming downloader (HTTP Range) + native bridges
+├── download_web.dart            # Web stubs
+├── download_service.dart        # Download orchestrator (native FGS + Dart fallback)
 │   ├── hive_service.dart        # Local persistence
 │   ├── device_info_service.dart # RAM/tier + SoC/GPU detection
 │   ├── web_fetch_service.dart   # URL fetching → clean text for chat context
@@ -253,6 +256,11 @@ local_plugins/
 ├── llama_flutter_android/       # llama.cpp Flutter plugin (GGUF inference)
 ├── flutter_litert_lm/          # Google LiteRT-LM Flutter plugin
 └── sd_flutter_android/         # Stable Diffusion Flutter plugin
+
+android/
+├── app/src/main/kotlin/com/cubiclm/app/
+│   ├── MainActivity.kt          # Flutter engine + channel wiring
+│   └── ModelDownloadService.kt  # Foreground service: Range resume, notification, START_STICKY
 ```
 
 ## 📋 Requirements

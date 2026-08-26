@@ -34,6 +34,20 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         importChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, importChannelName)
+        ModelDownloadService.emitter = { filename, copied, total, bps, status ->
+            mainHandler.post {
+                importChannel?.invokeMethod(
+                    "importProgress",
+                    mapOf(
+                        "filename" to filename,
+                        "copiedBytes" to copied,
+                        "totalBytes" to total,
+                        "bytesPerSecond" to bps,
+                        "status" to status,
+                    )
+                )
+            }
+        }
         importChannel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "pickAndImportModel" -> {
@@ -118,6 +132,51 @@ class MainActivity : FlutterActivity() {
                         try {
                             val activeList = reconcileInAppDownloads()
                             mainHandler.post { result.success(activeList) }
+                        } catch (e: java.lang.Exception) {
+                            mainHandler.post {
+                                result.error("QUERY_FAILED", e.message ?: e.toString(), null)
+                            }
+                        }
+                    }
+                }
+                "startStreamDownload" -> {
+                    val url = call.argument<String>("url")
+                    val filename = call.argument<String>("filename")
+                    val modelsDir = call.argument<String>("modelsDir")
+                    if (url.isNullOrBlank() || filename.isNullOrBlank() || modelsDir.isNullOrBlank()) {
+                        result.error("INVALID_DOWNLOAD", "URL, filename, or modelsDir is missing.", null)
+                        return@setMethodCallHandler
+                    }
+                    val started = ModelDownloadService.startJob(this, url, filename, modelsDir)
+                    if (started != null) {
+                        result.success(mapOf("filename" to started))
+                    } else {
+                        result.error("DOWNLOAD_BUSY", "This model is already downloading.", null)
+                    }
+                }
+                "pauseStreamDownload" -> {
+                    val filename = call.argument<String>("filename")
+                    if (!filename.isNullOrBlank()) {
+                        ModelDownloadService.pauseJob(ModelDownloadService.sanitize(filename))
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_FILENAME", "Filename is missing.", null)
+                    }
+                }
+                "cancelStreamDownload" -> {
+                    val filename = call.argument<String>("filename")
+                    if (!filename.isNullOrBlank()) {
+                        ModelDownloadService.cancelJob(ModelDownloadService.sanitize(filename))
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_FILENAME", "Filename is missing.", null)
+                    }
+                }
+                "getStreamDownloads" -> {
+                    thread(name = "stream-download-snapshot") {
+                        try {
+                            val list = ModelDownloadService.persistedSnapshot(this)
+                            mainHandler.post { result.success(list) }
                         } catch (e: java.lang.Exception) {
                             mainHandler.post {
                                 result.error("QUERY_FAILED", e.message ?: e.toString(), null)

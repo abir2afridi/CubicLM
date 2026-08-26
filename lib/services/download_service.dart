@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:path_provider/path_provider.dart';
 import '../controllers/model_controller.dart';
 
 import 'download_native.dart' if (dart.library.html) 'download_web.dart'
@@ -38,6 +40,51 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
   /// Currently active downloads.
   final activeDownloads = <String, DownloadProgress>{}.obs;
   final _nativeDownloadIds = <String, int>{};
+
+  /// Persisted metadata for paused downloads (survives app restarts).
+  final _pausedRecords = <String, Map<String, dynamic>>{};
+  String? _pausedStorePath;
+
+  Future<void> _loadPausedRecords() async {
+    if (kIsWeb) return;
+    if (_pausedStorePath != null) return;
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      _pausedStorePath = '${dir.path}/paused_downloads.json';
+      final f = File(_pausedStorePath!);
+      if (await f.exists()) {
+        final decoded = jsonDecode(await f.readAsString());
+        if (decoded is Map) {
+          decoded.forEach((k, v) {
+            if (v is Map) _pausedRecords[k.toString()] = Map<String, dynamic>.from(v);
+          });
+        }
+      }
+    } catch (e) {
+      print('[DownloadService] Failed to load paused downloads: $e');
+    }
+  }
+
+  Future<void> _savePausedRecords() async {
+    if (kIsWeb) return;
+    try {
+      await _loadPausedRecords();
+      final f = File(_pausedStorePath!);
+      await f.writeAsString(jsonEncode(_pausedRecords), flush: true);
+    } catch (e) {
+      print('[DownloadService] Failed to save paused downloads: $e');
+    }
+  }
+
+  void _updateProgress(
+      DownloadProgress dp, int received, int total, double bps) {
+    dp.downloadedBytes.value = received;
+    if (total > 0) dp.totalBytes.value = total;
+    dp.bytesPerSecond.value = bps;
+    if (total > 0) {
+      dp.progress.value = (received / total).clamp(0.0, 1.0);
+    }
+  }
 
   bool get isDownloadingAny => activeDownloads.isNotEmpty;
 
@@ -90,11 +137,11 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
           final total = (data['totalBytes'] as num).toInt();
           final speed = (data['bytesPerSecond'] as num).toDouble();
           final status = data['status'] as String;
-
           var progress = activeDownloads[filename];
           if (progress == null &&
               (status == 'Downloading...' ||
                   status == 'Downloading to phone...' ||
+                  status == 'Paused' ||
                   status.startsWith('Importing'))) {
             progress = DownloadProgress(filename: filename);
             activeDownloads[filename] = progress;
@@ -104,20 +151,33 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
             progress.totalBytes.value = total;
             progress.bytesPerSecond.value = speed;
             if (total > 0) {
-              progress.progress.value = downloaded / total;
+              progress.progress.value = (downloaded / total).clamp(0.0, 1.0);
+            }
+            if (status == 'Paused') {
+              progress.isPaused.value = true;
+            } else if (status.startsWith('Downloading')) {
+              progress.isPaused.value = false;
             }
 
             if (status == 'Download complete') {
               activeDownloads.remove(filename);
               _nativeDownloadIds.remove(filename);
+              _nativeStreams.remove(filename);
               // Trigger reload
               try {
                 Get.find<ModelController>().refreshDownloaded();
               } catch (_) {}
             } else if (status.startsWith('Download failed') ||
                 status == 'Download cancelled') {
-              activeDownloads.remove(filename);
-              _nativeDownloadIds.remove(filename);
+              // Keep the card when the user intentionally paused — the
+              // native monitor reports "cancelled" right after a pause.
+              final wasPaused =
+                  activeDownloads[filename]?.isPaused.value ?? false;
+              if (!wasPaused) {
+                activeDownloads.remove(filename);
+                _nativeDownloadIds.remove(filename);
+                _nativeStreams.remove(filename);
+              }
             }
           }
 
@@ -212,10 +272,78 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
         _nativeDownloadIds.remove(filename);
         activeDownloads.remove(filename);
       }
+
+      // Merge native foreground-service downloads (Running/Paused/Failed).
+      if (!kIsWeb && Platform.isAndroid) {
+        try {
+          final streams = await platform_dl.getNativeStreamDownloads();
+          for (final s in streams) {
+            final fn = s['filename'] as String?;
+            if (fn == null || fn.isEmpty) continue;
+            final status = (s['status'] as String?) ?? 'Running';
+            if (status == 'Running') {
+              _nativeStreams.add(fn);
+            } else {
+              _nativeStreams.remove(fn);
+            }
+            final url = s['url'] as String?;
+            if (url == null || url.isEmpty) continue;
+            final downloaded = (s['downloaded'] as num?)?.toInt() ?? 0;
+            final total = (s['total'] as num?)?.toInt() ?? 0;
+            var dp = activeDownloads[fn];
+            dp ??= DownloadProgress(filename: fn, url: url);
+            dp.url ??= url;
+            dp.downloadedBytes.value = downloaded;
+            if (total > 0) {
+              dp.totalBytes.value = total;
+              dp.progress.value = (downloaded / total).clamp(0.0, 1.0);
+            }
+            // Native Failed entries surface as paused so the user can retry.
+            dp.isPaused.value = status != 'Running';
+            activeDownloads[fn] = dp;
+            _pausedRecords[fn] = {
+              'url': url,
+              'authToken': dp.authToken,
+              'downloaded': downloaded,
+              'total': total,
+            };
+          }
+          await _savePausedRecords();
+        } catch (e) {
+          print('[DownloadService] stream reconcile failed: $e');
+        }
+      }
+
+      // Restore paused downloads persisted from previous sessions so the
+      // Resume buttons survive an app restart.
+      await _loadPausedRecords();
+      for (final entry in _pausedRecords.entries) {
+        final filename = entry.key;
+        if (_nativeDownloadIds.containsKey(filename)) continue;
+        if (activeDownloads.containsKey(filename)) continue;
+        final url = entry.value['url'] as String?;
+        if (url == null || url.isEmpty) continue;
+        final restored = DownloadProgress(
+          filename: filename,
+          url: url,
+          authToken: entry.value['authToken'] as String?,
+        )..isPaused.value = true;
+        final downloaded = (entry.value['downloaded'] as num?)?.toInt() ?? 0;
+        final total = (entry.value['total'] as num?)?.toInt() ?? 0;
+        restored.downloadedBytes.value = downloaded;
+        restored.totalBytes.value = total;
+        if (total > 0) {
+          restored.progress.value = (downloaded / total).clamp(0.0, 1.0);
+        }
+        activeDownloads[filename] = restored;
+      }
     } catch (e) {
       print('[DownloadService] Failed to reconcile active downloads: $e');
     }
   }
+
+  /// Filenames owned by the native foreground-service downloader.
+  final _nativeStreams = <String>{};
 
   Future<String> downloadModel({
     required String url,
@@ -231,108 +359,186 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
     );
     activeDownloads[filename] = downloadProgress;
 
-    if (Platform.isAndroid) {
-      try {
-        final modelsDirectory = await modelsDir;
-        final result = await platform_dl.startNativeDownload(
-          url: url,
-          filename: filename,
-          modelsDir: modelsDirectory,
-        );
-        if (result != null) {
-          final id = result['downloadId'] as int;
-          _nativeDownloadIds[filename] = id;
-          return 'NATIVE_BACKGROUND_STARTED';
-        }
-        throw Exception('Native download failed to start.');
-      } catch (e) {
-        activeDownloads.remove(filename);
-        rethrow;
+    // Android → native foreground service (keeps downloading after the
+    // app is closed; pause/resume preserve the .part file byte-exact).
+    if (!kIsWeb && Platform.isAndroid) {
+      final ok = await platform_dl.startNativeStreamDownload(
+        url: url,
+        filename: filename,
+        modelsDir: await modelsDir,
+      );
+      if (ok != null) {
+        _nativeStreams.add(filename);
+        await _loadPausedRecords();
+        _pausedRecords.remove(filename);
+        await _savePausedRecords();
+        return 'NATIVE_STREAM_STARTED';
       }
-    } else {
-      // Fallback for iOS/Desktop using standard Dio download
-      final savePath = await modelPath(filename);
-      try {
-        final result = await platform_dl.downloadModel(
-          url: url,
-          savePath: savePath,
-          authToken: authToken,
-          onProgress: (received, total) {
-            downloadProgress.downloadedBytes.value = received;
-            downloadProgress.totalBytes.value = total;
-            final elapsed = DateTime.now()
-                .difference(downloadProgress.startedAt)
-                .inMilliseconds;
-            if (elapsed > 0) {
-              downloadProgress.bytesPerSecond.value =
-                  received / (elapsed / 1000);
-            }
-            if (total > 0) {
-              downloadProgress.progress.value = received / total;
-            }
-          },
-        );
-        activeDownloads.remove(filename);
-        return result;
-      } catch (e) {
-        activeDownloads.remove(filename);
-        rethrow;
+      // Service failed to start — fall through to in-app streaming.
+    }
+
+    final savePath = await modelPath(filename);
+    try {
+      // Resumable streaming download (HTTP Range based).
+      final result = await platform_dl.streamDownload(
+        url: url,
+        savePath: savePath,
+        authToken: authToken,
+        onProgress: (received, total, bps) =>
+            _updateProgress(downloadProgress, received, total, bps),
+      );
+      if (result == 'PAUSED') {
+        // Entry stays visible with the Resume button; pauseDownload()
+        // persists the record.
+        return 'PAUSED';
       }
+      activeDownloads.remove(filename);
+      _pausedRecords.remove(filename);
+      await _savePausedRecords();
+      try {
+        Get.find<ModelController>().refreshDownloaded();
+      } catch (_) {}
+      return result;
+    } catch (e) {
+      activeDownloads.remove(filename);
+      rethrow;
     }
   }
 
-  void pauseDownload(String filename) {
-    final nativeId = _nativeDownloadIds[filename];
-    if (nativeId != null && Platform.isAndroid) {
-      platform_dl.cancelNativeDownload(
-          downloadId: nativeId, filename: filename);
-      _nativeDownloadIds.remove(filename);
-      activeDownloads[filename]?.isPaused.value = true;
-    } else {
-      platform_dl.pauseDownload(filename);
-      activeDownloads[filename]?.isPaused.value = true;
+  Future<void> pauseDownload(String filename) async {
+    final dp = activeDownloads[filename];
+    if (dp == null) return;
+
+    // Mark paused BEFORE cancelling so late "cancelled" native events
+    // don't wipe the card.
+    dp.isPaused.value = true;
+    dp.bytesPerSecond.value = 0;
+    platform_dl.cancelStreamDownload(filename);
+
+    if (!kIsWeb && Platform.isAndroid) {
+      if (_nativeStreams.remove(filename)) {
+        platform_dl.pauseNativeStream(filename);
+      }
+      // Legacy in-flight native DownloadManager job from an older session.
+      final nativeId = _nativeDownloadIds[filename];
+      if (nativeId != null) {
+        await platform_dl.cancelNativeDownload(
+            downloadId: nativeId, filename: filename);
+        _nativeDownloadIds.remove(filename);
+        dp.downloadedBytes.value = 0;
+      }
     }
+
+    await _loadPausedRecords();
+    _pausedRecords[filename] = {
+      'url': dp.url,
+      'authToken': dp.authToken,
+      'downloaded': dp.downloadedBytes.value,
+      'total': dp.totalBytes.value,
+    };
+    await _savePausedRecords();
   }
 
   Future<void> resumeDownload(String filename) async {
-    final dp = activeDownloads[filename];
-    if (dp == null || dp.url == null) return;
+    var dp = activeDownloads[filename];
+    await _loadPausedRecords();
+    final record = _pausedRecords[filename];
+
+    if (dp == null) {
+      dp = DownloadProgress(
+        filename: filename,
+        url: record?['url'] as String?,
+        authToken: record?['authToken'] as String?,
+      );
+      activeDownloads[filename] = dp;
+    }
+    dp.url ??= record?['url'] as String?;
+    dp.authToken ??= record?['authToken'] as String?;
+
+    if (dp.url == null || dp.url!.isEmpty) {
+      Get.snackbar('Resume unavailable',
+          'No source URL stored for this download.',
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+
+    final recTotal = (record?['total'] as num?)?.toInt() ?? 0;
+    if (recTotal > 0 && dp.totalBytes.value <= 0) dp.totalBytes.value = recTotal;
 
     dp.isPaused.value = false;
     dp.bytesPerSecond.value = 0;
-    dp.progress.value = dp.totalBytes.value > 0
-        ? dp.downloadedBytes.value / dp.totalBytes.value
-        : 0;
 
-    if (Platform.isAndroid) {
-      try {
-        final modelsDirectory = await modelsDir;
-        final result = await platform_dl.startNativeDownload(
-          url: dp.url!,
-          filename: filename,
-          modelsDir: modelsDirectory,
-        );
-        if (result != null) {
-          final id = result['downloadId'] as int;
-          _nativeDownloadIds[filename] = id;
-        }
-      } catch (e) {
-        dp.isPaused.value = true;
-        print('[DownloadService] Resume failed: $e');
+    // Android → hand back to the native foreground service; it picks up
+    // the existing .part file and continues via a Range request.
+    if (!kIsWeb && Platform.isAndroid) {
+      final ok = await platform_dl.startNativeStreamDownload(
+        url: dp.url!,
+        filename: filename,
+        modelsDir: await modelsDir,
+      );
+      if (ok != null) {
+        _nativeStreams.add(filename);
+        return;
       }
+    }
+
+    final savePath = await modelPath(filename);
+    try {
+      // In-app streaming fallback resumes from the .part file too.
+      final result = await platform_dl.streamDownload(
+        url: dp.url!,
+        savePath: savePath,
+        authToken: dp.authToken,
+        onProgress: (received, total, bps) =>
+            _updateProgress(dp!, received, total, bps),
+      );
+      if (result == 'PAUSED') return;
+      activeDownloads.remove(filename);
+      _nativeStreams.remove(filename);
+      _pausedRecords.remove(filename);
+      await _savePausedRecords();
+      try {
+        Get.find<ModelController>().refreshDownloaded();
+      } catch (_) {}
+    } catch (e) {
+      dp.isPaused.value = true;
+      await _loadPausedRecords();
+      _pausedRecords[filename] = {
+        'url': dp.url,
+        'authToken': dp.authToken,
+        'downloaded': dp.downloadedBytes.value,
+        'total': dp.totalBytes.value,
+      };
+      await _savePausedRecords();
+      Get.snackbar('Resume failed', '$e',
+          snackPosition: SnackPosition.BOTTOM);
     }
   }
 
-  void cancelDownload(String filename) {
-    final nativeId = _nativeDownloadIds[filename];
-    if (nativeId != null && Platform.isAndroid) {
-      platform_dl.cancelNativeDownload(
-          downloadId: nativeId, filename: filename);
-      _nativeDownloadIds.remove(filename);
-    } else {
-      platform_dl.pauseDownload(filename);
+  Future<void> cancelDownload(String filename) async {
+    platform_dl.cancelStreamDownload(filename);
+    if (!kIsWeb && Platform.isAndroid) {
+      if (_nativeStreams.remove(filename)) {
+        platform_dl.cancelNativeStream(filename);
+      }
+      final nativeId = _nativeDownloadIds[filename];
+      if (nativeId != null) {
+        await platform_dl.cancelNativeDownload(
+            downloadId: nativeId, filename: filename);
+        _nativeDownloadIds.remove(filename);
+      }
     }
+    platform_dl.pauseDownload(filename);
     activeDownloads.remove(filename);
+    await _loadPausedRecords();
+    _pausedRecords.remove(filename);
+    await _savePausedRecords();
+    if (!kIsWeb) {
+      try {
+        final partFile = File('${await modelPath(filename)}.part');
+        if (await partFile.exists()) await partFile.delete();
+      } catch (_) {}
+    }
   }
 
   Future<void> deleteModel(String filename) async {
@@ -344,6 +550,9 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
       _nativeDownloadIds.remove(filename);
     }
     await platform_dl.deleteModel(await modelPath(filename));
+    await _loadPausedRecords();
+    _pausedRecords.remove(filename);
+    await _savePausedRecords();
   }
 
   static String formatBytes(int bytes) {

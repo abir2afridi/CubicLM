@@ -51,6 +51,14 @@
             android:stopWithTask="false"
             tools:replace="android:exported,android:foregroundServiceType" />
 
+        <!-- Resumable background model download service -->
+        <service
+            android:name=".ModelDownloadService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            android:stopWithTask="false" />
+
         <!-- Boot receiver to restart after reboot -->
         <receiver
             android:name=".BootReceiver"
