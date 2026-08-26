@@ -94,6 +94,11 @@ class SettingsController extends GetxController {
   final fontScale = AppConstants.defaultFontScale.obs;
   final appVersion = ''.obs;
 
+  // Thinking Orb animation selections ('random' or an OrbState name).
+  final orbChatAnim = 'random'.obs;
+  final orbImageAnim = 'composing'.obs;
+  final orbAnalysisAnim = 'random'.obs;
+
   // Persistent text controllers for settings fields
   final openaiKeyController = TextEditingController();
   final anthropicKeyController = TextEditingController();
@@ -350,6 +355,15 @@ class SettingsController extends GetxController {
     fontScale.value = _hive.getSetting(AppConstants.keyFontScale,
             defaultValue: AppConstants.defaultFontScale) ??
         AppConstants.defaultFontScale;
+    orbChatAnim.value = _hive.getSetting(AppConstants.keyOrbChat,
+            defaultValue: 'random') ??
+        'random';
+    orbImageAnim.value = _hive.getSetting(AppConstants.keyOrbImage,
+            defaultValue: 'composing') ??
+        'composing';
+    orbAnalysisAnim.value = _hive.getSetting(AppConstants.keyOrbAnalysis,
+            defaultValue: 'random') ??
+        'random';
 
     // Sync controllers with loaded values
     openaiKeyController.text = openaiKey.value;
@@ -1252,6 +1266,24 @@ class SettingsController extends GetxController {
     final clamped = value.clamp(0.8, 1.4);
     fontScale.value = clamped;
     await _hive.setSetting(AppConstants.keyFontScale, clamped);
+  }
+
+  /// Persist a thinking-orb animation choice ('random' | OrbState name).
+  Future<void> setOrbAnim(String slot, String value) async {
+    switch (slot) {
+      case 'chat':
+        orbChatAnim.value = value;
+        await _hive.setSetting(AppConstants.keyOrbChat, value);
+        break;
+      case 'image':
+        orbImageAnim.value = value;
+        await _hive.setSetting(AppConstants.keyOrbImage, value);
+        break;
+      case 'analysis':
+        orbAnalysisAnim.value = value;
+        await _hive.setSetting(AppConstants.keyOrbAnalysis, value);
+        break;
+    }
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

@@ -836,8 +836,13 @@ class ChatView extends GetView<ChatController> {
             : null;
     // Thinking orbs — dotted orb cycling through random states with a
     // shimmering status label (Working / Searching / Solving / …).
+    final settings = Get.find<SettingsController>();
+    final fixed = orbStateFromName(settings.orbChatAnim.value);
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      const ThinkingOrb(size: 22, autoCycle: true, showLabel: true),
+      if (fixed != null)
+        ThinkingOrb(size: 22, state: fixed, showLabel: true)
+      else
+        const ThinkingOrb(size: 22, autoCycle: true, showLabel: true),
       if (msg != null) ...[
         const SizedBox(width: 8),
         Flexible(
@@ -1944,8 +1949,14 @@ class _ImageGenIndicatorState extends State<_ImageGenIndicator> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Composing thinking orb replaces the old pulsing dots.
-          const ThinkingOrb(size: 48, state: OrbState.composing),
+          // Image synthesis orb — user-selected state (default Composing).
+          Builder(builder: (_) {
+            final sel = Get.find<SettingsController>().orbImageAnim.value;
+            final fixed = orbStateFromName(sel);
+            return fixed != null
+                ? ThinkingOrb(size: 48, state: fixed)
+                : const ThinkingOrb(size: 48, autoCycle: true);
+          }),
           const SizedBox(height: 12),
           Text(
             isDone ? 'Decoding artifact…' : 'Synthesizing image…',

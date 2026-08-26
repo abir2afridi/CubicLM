@@ -86,6 +86,11 @@ class AppConstants {
   static const String keyImageGenQuantization = 'image_gen_quantization';
   static const String keyFontScale = 'font_scale';
 
+  // Thinking Orb animations ('random' or an OrbState name)
+  static const String keyOrbChat = 'orb_chat_anim';
+  static const String keyOrbImage = 'orb_image_anim';
+  static const String keyOrbAnalysis = 'orb_analysis_anim';
+
   // Default Model Config
   static const double defaultTemperature = 0.7;
   static const int defaultMaxTokens = 1024;

@@ -7,6 +7,8 @@ import '../core/colors.dart';
 import 'about_view.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/design_tokens.dart';
+import '../widgets/app_ui.dart';
+import '../widgets/thinking_orb.dart';
 
 /// Dedicated App Settings page — personalisation & about info.
 ///
@@ -69,6 +71,29 @@ class AppSettingsView extends GetView<SettingsController> {
               ]),
               const SizedBox(height: 20),
               _buildFontSizeCard(context, isDark),
+              const SizedBox(height: 28),
+              _sectionLabel(context, 'THINKING ORBS'),
+              _appleGroupedCard(context, isDark, children: [
+                _orbTile(context, isDark,
+                    icon: LucideIcons.messageSquare,
+                    title: 'While chatting',
+                    subtitle: 'Loading animation during AI responses',
+                    slot: 'chat',
+                    selection: controller.orbChatAnim),
+                _orbTile(context, isDark,
+                    icon: LucideIcons.image,
+                    title: 'Image generation',
+                    subtitle: 'Animation while synthesizing images',
+                    slot: 'image',
+                    selection: controller.orbImageAnim),
+                _orbTile(context, isDark,
+                    icon: LucideIcons.brain,
+                    title: 'Analyzing',
+                    subtitle: 'Animation during thought analysis',
+                    slot: 'analysis',
+                    selection: controller.orbAnalysisAnim,
+                    showDivider: false),
+              ]),
               const SizedBox(height: 28),
               _sectionLabel(context, 'APP INFO'),
               _appleGroupedCard(context, isDark, children: [
@@ -201,6 +226,184 @@ class AppSettingsView extends GetView<SettingsController> {
       : m == ThemeMode.dark
           ? LucideIcons.moon
           : LucideIcons.sunMoon;
+
+  // ── Thinking Orbs ──
+
+  Widget _orbTile(
+    BuildContext context,
+    bool isDark, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String slot,
+    required RxString selection,
+    bool showDivider = true,
+  }) {
+    return Column(children: [
+      InkWell(
+        onTap: () => _openOrbPicker(context, isDark,
+            title: title, slot: slot, selection: selection),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(children: [
+            Icon(icon, size: 20, color: Theme.of(context).hintColor),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: isDark
+                                ? AppColors.textPrimary
+                                : Dt.textPrimary)),
+                    const SizedBox(height: 3),
+                    Text(subtitle,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Theme.of(context).hintColor)),
+                  ]),
+            ),
+            const SizedBox(width: 12),
+            // Live preview of the current selection.
+            Obx(() {
+              final fixed = orbStateFromName(selection.value);
+              return fixed != null
+                  ? ThinkingOrb(size: 26, state: fixed)
+                  : const ThinkingOrb(size: 26, autoCycle: true);
+            }),
+            const SizedBox(width: 10),
+            Icon(LucideIcons.chevronRight,
+                size: 18, color: Theme.of(context).hintColor),
+          ]),
+        ),
+      ),
+      if (showDivider)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Divider(
+              height: 1,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.03)),
+        ),
+    ]);
+  }
+
+  void _openOrbPicker(
+    BuildContext context,
+    bool isDark, {
+    required String title,
+    required String slot,
+    required RxString selection,
+  }) {
+    showAppBottomSheet(
+      context,
+      builder: (sheetCtx) {
+        return SafeArea(
+          top: false,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.75),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppSheetHeader(
+                    title: title, onClose: () => Navigator.pop(sheetCtx)),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    padding:
+                        const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    children: [
+                      _orbOption(sheetCtx, isDark,
+                          value: 'random',
+                          name: 'Random',
+                          description: 'Shuffle through every state',
+                          icon: LucideIcons.shuffle,
+                          slot: slot,
+                          selection: selection),
+                      for (final s in OrbState.values)
+                        _orbOption(sheetCtx, isDark,
+                            value: s.name,
+                            name: s.label,
+                            description: s.description,
+                            orbState: s,
+                            slot: slot,
+                            selection: selection),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _orbOption(
+    BuildContext sheetCtx,
+    bool isDark, {
+    required String value,
+    required String name,
+    required String description,
+    IconData? icon,
+    OrbState? orbState,
+    required String slot,
+    required RxString selection,
+  }) {
+    final selected = selection.value == value;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () {
+        Get.find<SettingsController>().setOrbAnim(slot, value);
+        Navigator.pop(sheetCtx);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        child: Row(children: [
+          SizedBox(
+            width: 34,
+            height: 34,
+            child: Center(
+              child: orbState != null
+                  ? ThinkingOrb(size: 24, state: orbState)
+                  : Icon(icon,
+                      size: 20, color: Theme.of(sheetCtx).hintColor),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(name,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: isDark
+                              ? AppColors.textPrimary
+                              : Dt.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text(description,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Theme.of(sheetCtx).hintColor)),
+                ]),
+          ),
+          if (selected)
+            const Icon(LucideIcons.check, size: 20, color: Dt.accent),
+        ]),
+      ),
+    );
+  }
 
   // ── Shared Apple-style helpers ──
 

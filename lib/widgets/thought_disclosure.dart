@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
 import 'thinking_orb.dart';
 
@@ -115,10 +117,18 @@ class _ThoughtDisclosureState extends State<ThoughtDisclosure>
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (widget.isThinking)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 10),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 10),
                     // Random thinking orbs instead of a spinner.
-                    child: ThinkingOrb(size: 18, autoCycle: true),
+                    child: Obx(() {
+                      final sel = Get.find<SettingsController>()
+                          .orbAnalysisAnim
+                          .value;
+                      final fixed = orbStateFromName(sel);
+                      return fixed != null
+                          ? ThinkingOrb(size: 18, state: fixed)
+                          : const ThinkingOrb(size: 18, autoCycle: true);
+                    }),
                   )
                 else
                   Padding(

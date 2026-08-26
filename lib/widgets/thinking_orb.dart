@@ -925,7 +925,29 @@ extension OrbStateLabel on OrbState {
         OrbState.connecting => 'Connecting',
         OrbState.weaving => 'Weaving',
         OrbState.composing => 'Composing',
-        OrbState.breathing => 'Breathing',
+        OrbState.breathing => 'Thinking',
         OrbState.shaping => 'Shaping',
       };
+
+  String get description => switch (this) {
+        OrbState.working => 'Orbit rings with bright movers',
+        OrbState.searching => 'Globe with a scanning belt',
+        OrbState.solving => 'Rubik-style layer scramble',
+        OrbState.listening => 'Sine wave ripples',
+        OrbState.connecting => 'Node network signal hops',
+        OrbState.weaving => 'Three pole-to-pole strands',
+        OrbState.composing => 'Flowing ribbon bands',
+        OrbState.breathing => 'Concentric ripples',
+        OrbState.shaping => 'Circle, triangle, square morph',
+      };
+}
+
+/// Parses a stored selection ('random' | OrbState name) → fixed state,
+/// or null for the random shuffle.
+OrbState? orbStateFromName(String? value) {
+  if (value == null || value.isEmpty || value == 'random') return null;
+  for (final s in OrbState.values) {
+    if (s.name == value) return s;
+  }
+  return null;
 }

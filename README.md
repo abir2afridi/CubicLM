@@ -83,11 +83,11 @@ For aggregator providers that host multiple companies' models under `vendor/mode
 
 - **Navigation:** Chat · Explore · Nodes · App Settings
   - **Nodes** page has two tabs — **Node** (local API server) and **Config** (diagnostics, hardware capabilities, inference mode, system prompt, local model & imaging parameters)
-  - **App Settings** is its own destination — theme mode, typography scale, and app info (tap to open **About** page with feature highlights, tech stack, and GitHub link)
+  - **App Settings** is its own destination — theme mode, typography scale, **Thinking Orbs** (custom animation per context: chatting / image generation / analyzing — each set to **Random** or any of the 9 states with live preview), and app info (tap to open **About** page with feature highlights, tech stack, and GitHub link)
 - Multi-session chat with history (Hive persistence) and a searchable sidebar drawer with swipe-to-delete
 - **Message actions** — copy, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
 - **Code blocks** with syntax highlighting, one-tap copy, and export/share
-- **Thinking Orbs** — 3D particle sphere animation (9 states: Working, Searching, Solving, Listening, Connecting, Weaving, Composing, Breathing, Shaping) with grayscale ink and phase-continuous hard cuts, shown during model analysis and reasoning
+- **Thinking Orbs** — 3D particle sphere animation (9 states: Working, Searching, Solving, Listening, Connecting, Weaving, Composing, Breathing, Shaping) with grayscale ink, size-aware speeds, and phase-continuous hard cuts; shown during chat responses, thought analysis, and image synthesis — each context configurable to **Random** shuffle or a fixed state via **App Settings › Thinking Orbs** (live orb previews in the picker)
 - Attachments from camera, gallery, or files (PDF/text extraction)
 - Image sharing and export
 - Dark/light theme with adjustable font scale
@@ -234,7 +234,7 @@ lib/
 │   ├── model_view.dart          # Model browser/manager (Explore page)
 │   ├── server_view.dart         # Nodes page — Node tab (API server) + Config tab
 │   ├── settings_view.dart       # Config sections (embedded in Nodes › Config)
-│   ├── app_settings_view.dart   # App Settings — theme, typography scale, app info
+│   ├── app_settings_view.dart   # App Settings — theme, typography scale, Thinking Orbs picker, app info
 │   ├── about_view.dart          # About page — feature highlights, tech stack, GitHub
 │   ├── log_view.dart            # System diagnostics viewer (health dashboard, search, categories)
 │   └── task_view.dart           # Automated tasks
@@ -245,7 +245,7 @@ lib/
 │   ├── attachment_preview.dart  # File/image attachment preview
 │   ├── image_viewer.dart        # Full-screen image viewer
 │   ├── thought_disclosure.dart  # Reasoning/thought tag expansion with ThinkingOrb
-│   ├── thinking_orb.dart        # 3D particle sphere animation (9 states)
+│   ├── thinking_orb.dart        # 3D particle sphere animation (9 states, size-aware speeds, orbStateFromName helper)
 │   └── typing_indicator.dart    # Typing animation
 ├── ffi/
 │   └── sd_ffi_bindings.dart     # FFI bindings for SD native lib
@@ -313,7 +313,7 @@ Open the **Nodes** tab › **Node** and flip the switch. Once running, point any
 ### ⚙️ Engine & App Configuration
 
 - **Nodes › Config** — diagnostics, hardware capabilities, inference mode, Auto Tune (context/output limits), global system prompt, local model parameters, imaging parameters
-- **App Settings** (bottom navigation) — theme, typography scale, app info
+- **App Settings** (bottom navigation) — theme, typography scale, Thinking Orbs (Random or fixed state per context), app info
 - **Web Access** toggle — in the chat input bar; reads links from your message into the model's context
 
 ## 📄 License
