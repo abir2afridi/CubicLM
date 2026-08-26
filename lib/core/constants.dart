@@ -7,6 +7,8 @@ class AppConstants {
   static const String tasksBox = 'tasks';
   static const String settingsBox = 'settings';
   static const String notificationsBox = 'notifications';
+  static const String skillsBox = 'skills';
+  static const String mcpBox = 'mcp_config';
 
   // Settings Keys
   static const String keyInferenceMode = 'inference_mode'; // 'local' or 'cloud'

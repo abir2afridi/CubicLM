@@ -68,6 +68,8 @@ dependencies:
   xml: any
   lucide_icons: ^0.257.0
   url_launcher: ^6.3.2
+  flutter_secure_storage: ^10.3.1
+  dart_mcp: ^0.5.2
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -84,3 +86,4 @@ flutter:
     - assets/
     - assets/webgpu_engine.html
     - assets/icons/
+    - assets/skills/

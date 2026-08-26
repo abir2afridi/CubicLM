@@ -166,6 +166,9 @@ abstract class CloudProvider {
     return {'Authorization': 'Bearer $apiKey'};
   }
 
+  /// Whether this provider can drive MCP tools (native function calling).
+  bool get supportsMcpTools => protocol == ProviderProtocol.openAICompatible;
+
   /// Build the request body for chat completions.
   ///
   /// Default implementation builds OpenAI-compatible format.
@@ -177,6 +180,7 @@ abstract class CloudProvider {
     double? temperature,
     int? maxTokens,
     bool stream = false,
+    List<Map<String, dynamic>>? mcpTools,
   }) {
     final apiMessages = <Map<String, dynamic>>[];
 
@@ -207,6 +211,10 @@ abstract class CloudProvider {
     if (temperature != null) body['temperature'] = temperature;
     if (maxTokens != null) body['max_tokens'] = maxTokens;
     if (stream) body['stream'] = true;
+    if (mcpTools != null && mcpTools.isNotEmpty) {
+      body['tools'] = mcpTools;
+      body['tool_choice'] = 'auto';
+    }
 
     return body;
   }

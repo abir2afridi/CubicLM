@@ -15,6 +15,7 @@ import '../services/download_service.dart';
 import '../services/local_image_service.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import 'package:sd_flutter_android/sd_flutter_android.dart';
+import '../services/skills/skill_injector.dart';
 
 class SettingsController extends GetxController {
   final HiveService _hive = Get.find<HiveService>();
@@ -954,13 +955,17 @@ class SettingsController extends GetxController {
 
   String effectiveSystemPromptForModel(String modelName) {
     final prompt = globalSystemPrompt.value.trim();
+    final String base;
     final hasCustomPrompt =
         prompt.isNotEmpty && prompt != AppConstants.systemPrompt;
-    if (hasCustomPrompt) return prompt;
-    if (AppConstants.isUncensoredModelName(modelName)) {
-      return AppConstants.uncensoredSystemPrompt;
+    if (hasCustomPrompt) {
+      base = prompt;
+    } else if (AppConstants.isUncensoredModelName(modelName)) {
+      base = AppConstants.uncensoredSystemPrompt;
+    } else {
+      base = AppConstants.systemPrompt;
     }
-    return AppConstants.systemPrompt;
+    return SkillInjector.injectInto(base);
   }
 
   Future<void> refreshNvidiaModels() async {

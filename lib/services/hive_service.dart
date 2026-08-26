@@ -8,12 +8,16 @@ class HiveService extends GetxService {
   late Box _tasksBox;
   late Box _settingsBox;
   late Box _notificationsBox;
+  late Box _skillsBox;
+  late Box _mcpBox;
 
   Box get sessionsBox => _sessionsBox;
   Box get messagesBox => _messagesBox;
   Box get tasksBox => _tasksBox;
   Box get settingsBox => _settingsBox;
   Box get notificationsBox => _notificationsBox;
+  Box get skillsBox => _skillsBox;
+  Box get mcpBox => _mcpBox;
 
   Future<HiveService> init() async {
     _sessionsBox = await Hive.openBox(AppConstants.chatSessionsBox);
@@ -21,6 +25,8 @@ class HiveService extends GetxService {
     _tasksBox = await Hive.openBox(AppConstants.tasksBox);
     _settingsBox = await Hive.openBox(AppConstants.settingsBox);
     _notificationsBox = await Hive.openBox(AppConstants.notificationsBox);
+    _skillsBox = await Hive.openBox(AppConstants.skillsBox);
+    _mcpBox = await Hive.openBox(AppConstants.mcpBox);
     // Preserve current local-server settings and purge obsolete provider data.
     final obsoleteServerKeys = _settingsBox.keys.where((key) =>
         key is String &&

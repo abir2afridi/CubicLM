@@ -14,6 +14,7 @@ import '../models/ai_model.dart';
 import '../services/download_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
+import 'explore_skills_mcp_tabs.dart';
 
 class ModelView extends GetView<ModelController> {
   const ModelView({super.key});
@@ -125,8 +126,12 @@ class ModelView extends GetView<ModelController> {
                   else
                     ...controller.filteredDisplayedModels
                         .map((model) => _buildModelCard(context, model)),
-                ] else ...[
+                ] else if (controller.modelScope.value == 'online') ...[
                   _buildOnlineProviders(context),
+                ] else if (controller.modelScope.value == 'skills') ...[
+                  _buildSkillsTab(context),
+                ] else if (controller.modelScope.value == 'mcp') ...[
+                  _buildMcpTab(context),
                 ],
               ],
             )),
@@ -136,22 +141,42 @@ class ModelView extends GetView<ModelController> {
 
   Widget _buildScopeToggle(BuildContext context) {
     return Obx(() {
-      return SegmentedButton<String>(
-        segments: const [
-          ButtonSegment(
-            value: 'local',
-            icon: Icon(Icons.phone_android),
-            label: Text('Local'),
+      // Ensure legacy value 'online' still works; keep 4-way toggle.
+      final sel = controller.modelScope.value;
+      final normalized = (sel == 'local' || sel == 'online' || sel == 'skills' || sel == 'mcp') ? sel : 'local';
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(
+              value: 'local',
+              icon: Icon(LucideIcons.smartphone, size: 16),
+              label: Text('Local', style: TextStyle(fontSize: 13)),
+            ),
+            ButtonSegment(
+              value: 'online',
+              icon: Icon(LucideIcons.cloud, size: 16),
+              label: Text('Online', style: TextStyle(fontSize: 13)),
+            ),
+            ButtonSegment(
+              value: 'skills',
+              icon: Icon(LucideIcons.sparkles, size: 16),
+              label: Text('Skills', style: TextStyle(fontSize: 13)),
+            ),
+            ButtonSegment(
+              value: 'mcp',
+              icon: Icon(LucideIcons.plug, size: 16),
+              label: Text('MCP', style: TextStyle(fontSize: 13)),
+            ),
+          ],
+          selected: {normalized},
+          onSelectionChanged: (selection) =>
+              controller.modelScope.value = selection.first,
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
-          ButtonSegment(
-            value: 'online',
-            icon: Icon(Icons.cloud_outlined),
-            label: Text('Online'),
-          ),
-        ],
-        selected: {controller.modelScope.value},
-        onSelectionChanged: (selection) =>
-            controller.modelScope.value = selection.first,
+        ),
       );
     });
   }
@@ -547,6 +572,14 @@ class ModelView extends GetView<ModelController> {
         ...cloudModels.providers.map((p) => _buildProviderCard(context, p)),
       ],
     );
+  }
+
+  Widget _buildSkillsTab(BuildContext context) {
+    return const ExploreSkillsTab();
+  }
+
+  Widget _buildMcpTab(BuildContext context) {
+    return const ExploreMcpTab();
   }
 
   Widget _buildProviderCard(BuildContext context, CloudProviderInfo provider) {

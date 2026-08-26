@@ -73,6 +73,32 @@ All providers share a unified plugin architecture (`lib/services/cloud/providers
 
 For aggregator providers that host multiple companies' models under `vendor/model` IDs (OpenRouter, Hugging Face, xKiro, TokenRouter, NVIDIA NIM, Together AI, Fireworks…), a company filter chip row appears automatically above the model list. Chips are **derived from the fetched model IDs themselves** — when a vendor releases new models or a brand-new company appears on the aggregator, its filter chip shows up on the next refresh with zero app changes. Known vendor names/icons are prettified automatically; unknown ones fall back to capitalized IDs.
 
+### 🧩 Skills — Offline Instruction Extensions
+
+Skills are **offline, static prompt-injection blocks** (markdown) that teach the model how to handle a class of tasks. No network, no SDK — just text appended to the system prompt. Works identically for local (llama.cpp/LiteRT-LM) and cloud models.
+
+- **Data model** (`lib/models/skill_model.dart`): `id/name/description/author/version/content/enabled/isBuiltIn/source/createdAt`; plain text; file fallback for >100 KB
+- **Registry** (`lib/services/skills/skill_registry_service.dart`): Hive `skillsBox` with `installBuiltIns()` (idempotent), `importFromMarkdown`, `enable/disable/delete/getEnabled/getAll`; 5 bundled starters in `assets/skills/` seeded on first run
+- **Injection** (`lib/services/skills/skill_injector.dart`): `buildInjectedContext()` concatenates enabled skills as `### Skill: {name}` blocks, stably ordered, and is wired into `SettingsController.effectiveSystemPromptForModel` → read by `ChatController._effectiveSystemPrompt` for every generation
+- **Starter skills** (real content, not placeholders):
+  - *Bangla-English Translator* — bilingual Banglish handling
+  - *Code Reviewer* — Flutter/Dart/Python/JS senior review
+  - *On-Device Efficient Prompting* — concise, structured for 2K–8K contexts
+  - *Study Helper — ELI12* — analogy + quiz format
+  - *Creative Writer* — stories/poems/scripts
+- **UI** — dedicated **Explore → Skills** tab (4-way toggle: Local / Online / Skills / MCP) plus the same card in **Nodes › Config → SKILLS** (next to Global System Prompt) for quick access: grouped card with count, **Import → From file** (file_picker), **Browse Anthropic skills** (`anthropics/skills` via GitHub REST + raw fetch, cached 6h, rate-limit safe), **From URL** (any raw markdown URL, size/type checked, preview-before-enable). GitHub browse is a flat list (no search/categories) with per-item Import; URL import shows preview (frontmatter-parsed name/description) before save. All imports converge on `importFromMarkdown`.
+
+### 🔌 Custom MCP Server — Single Remote Connection (no marketplace)
+
+A power-user setting in **Nodes › Config** to connect one user-provided **remote** MCP server (Streamable HTTP / SSE). No stdio, no marketplace, no multi-server, no OAuth UI — intentionally minimal.
+
+- **SDK** — `dart_mcp ^0.5.2` (labs.dart.dev) + `mcp_client` fallback checked; only remote transport is exposed. Hand-rolled JSON-RPC is avoided where the SDK fits; Flutter ergonomics fallback is HTTP/SSE via `dio`.
+- **Connection** (`lib/services/mcp/mcp_connection.dart`): `connect()` (initialize → notifications/initialized → tools/list), `listTools()`, `callTool(name, args)` (size-capped, untrusted), `disconnect()`, `statusStream` (disconnected/connecting/connected/error) with typed errors (auth/timeout/unreachable). Session ID via `mcp-session-id` header, SSE data-frame parsing, bearer auth from secure storage.
+- **Config** (`lib/services/mcp/mcp_config.dart`): single `McpConfig` (name/url/transport/bearer/enabled), transport auto-inferred from URL, Hive `mcpBox` single record.
+- **Registry** (`lib/services/mcp/mcp_registry_service.dart`): Hive + `flutter_secure_storage` (Keystore/Keychain) for token (never in Hive/plaintext), `saveConfig/testConnection/enable/disable/remove`, status/tools observables, `WidgetsBindingObserver` to disconnect on background and reconnect on resume.
+- **LLM wiring**: `CloudProvider.supportsMcpTools` + `buildRequestBody(mcpTools)` adds `tools`/`tool_choice: auto` for OpenAI-compatible providers; `OpenAICompatibleProvider.sendMessage/streamMessage` detects `tool_calls`, calls `McpRegistryService.callTool`, round-trips `tool` result via second request, then returns final answer (streaming buffers tool deltas and re-emits final answer chunked). Local models skip tools (no reliable structured output) but still benefit from Skills. Offline/unreachable still advertises tools; failed `callTool` surfaces as error tool-result.
+- **UI** — dedicated **Explore → MCP** tab and the same form in **Nodes › Config → CUSTOM MCP SERVER** (`_McpSection` + `explore_skills_mcp_tabs.dart`): single form (name, URL, bearer token with eye toggle, transport auto), Save / Test / Enable-Disable (with pre-enable tool preview dialog) / Remove, live status dot + banner, and exposed-tools list (name + description) before enabling. Stored token never enters LLM context. Explore’s 4-way toggle (Local / Online / Skills / MCP) keeps everything discoverable in one place.
+
 ### 🔌 Built-in OpenAI-Compatible API Server
 
 - Expose local models as an OpenAI-compatible API on port 8080
@@ -82,7 +108,8 @@ For aggregator providers that host multiple companies' models under `vendor/mode
 ### 🧩 Additional
 
 - **Navigation:** Chat · Explore · Nodes · App Settings
-  - **Nodes** page has two tabs — **Node** (local API server) and **Config** (diagnostics, hardware capabilities, inference mode, system prompt, local model & imaging parameters)
+  - **Explore** now has a 4-way toggle — **Local** (on-device models) / **Online** (cloud providers) / **Skills** (offline prompt extensions) / **MCP** (custom remote server) — so models, skills, and MCP are discoverable in one hub
+  - **Nodes** page has two tabs — **Node** (local API server) and **Config** (diagnostics, hardware capabilities, inference mode, system prompt, Skills, Custom MCP Server, local model & imaging parameters)
   - **App Settings** is its own destination — theme mode, typography scale, **Thinking Orbs** (custom animation per context: chatting / image generation / analyzing — each set to **Random** or any of the 9 states with live preview), and app info (tap to open **About** page with feature highlights, tech stack, and GitHub link)
 - Multi-session chat with history (Hive persistence) and a searchable sidebar drawer with swipe-to-delete
 - **Message actions** — copy, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
@@ -159,7 +186,7 @@ Opened from the chat header — mirrors the Explore page's layout:
 - **Networking:** dio, http
 - **Local Inference:** llama_flutter_android, flutter_litert_lm, sd_flutter_android (custom plugins)
 - **Cloud:** Firebase Core, Firebase Messaging, Firebase Crashlytics
-- **Other:** google_fonts, flutter_markdown, image_picker, share_plus, permission_handler, speech_to_text, lucide_icons, url_launcher
+- **Other:** google_fonts, flutter_markdown, image_picker, share_plus, permission_handler, speech_to_text, lucide_icons, url_launcher, file_picker, flutter_secure_storage, dart_mcp
 
 ## 📂 Project Structure
 
@@ -177,7 +204,8 @@ lib/
 │   ├── chat_message.dart        # Chat message model (with revision history)
 │   ├── chat_session.dart        # Chat session model
 │   ├── task_model.dart          # Automated task model
-│   └── notification_entry.dart  # Model-switch history entry (title/message/type/timestamp/read)
+│   ├── notification_entry.dart  # Model-switch history entry (title/message/type/timestamp/read)
+│   └── skill_model.dart         # Skill (name/description/content/enabled/isBuiltIn/source)
 ├── controllers/
 │   ├── chat_controller.dart     # Chat logic and streaming
 │   ├── cloud_model_controller.dart  # Cloud model selection
@@ -220,8 +248,17 @@ lib/
 │   ├── download_native.dart         # Resumable streaming downloader (HTTP Range) + native bridges
 ├── download_web.dart            # Web stubs
 ├── download_service.dart        # Download orchestrator (native FGS + Dart fallback)
-│   ├── hive_service.dart        # Local persistence (now also notifications box)
+│   ├── hive_service.dart        # Local persistence (now also notifications/skills/mcp boxes)
 │   ├── notification_history_service.dart # Model-switch history (Hive, max 100, unread count)
+│   ├── skills/
+│   │   ├── skill_registry_service.dart # Hive skillsBox, import, enable/disable, file fallback
+│   │   ├── skill_injector.dart         # Concatenates enabled skills into system prompt
+│   │   ├── github_skill_source.dart    # anthropics/skills REST + raw fetch, cached 6h
+│   │   └── url_skill_source.dart       # Any URL markdown fetch with size/type guard
+│   ├── mcp/
+│   │   ├── mcp_config.dart             # Single McpConfig (url/transport/bearer/enabled)
+│   │   ├── mcp_connection.dart         # HTTP/SSE JSON-RPC: connect/listTools/callTool
+│   │   └── mcp_registry_service.dart   # Hive + secure storage, status stream, lifecycle
 │   ├── device_info_service.dart # RAM/tier + SoC/GPU detection
 │   ├── web_fetch_service.dart   # URL fetching → clean text for chat context
 │   ├── execution_service.dart   # Task execution engine
@@ -234,9 +271,10 @@ lib/
 ├── views/
 │   ├── home_view.dart           # Main navigation scaffold (Chat · Explore · Nodes · App Settings)
 │   ├── chat_view.dart           # Chat interface with sidebar drawer
-│   ├── model_view.dart          # Model browser/manager (Explore page)
+│   ├── model_view.dart          # Model Hub — 4-way toggle (Local / Online / Skills / MCP)
+│   ├── explore_skills_mcp_tabs.dart # Explore Skills + MCP tabs (shared with Nodes Config)
 │   ├── server_view.dart         # Nodes page — Node tab (API server) + Config tab
-│   ├── settings_view.dart       # Config sections (embedded in Nodes › Config)
+│   ├── settings_view.dart       # Config sections (embedded in Nodes › Config) — now also hosts Skills + MCP form
 │   ├── app_settings_view.dart   # App Settings — theme, typography scale, Thinking Orbs picker, app info
 │   ├── about_view.dart          # About page — feature highlights, tech stack, GitHub
 │   ├── notification_history_view.dart # 🔔 History page (grouped by day, swipe-to-delete, mark read/clear)
@@ -266,6 +304,9 @@ android/
 ├── app/src/main/kotlin/com/cubiclm/app/
 │   ├── MainActivity.kt          # Flutter engine + channel wiring
 │   └── ModelDownloadService.kt  # Foreground service: Range resume, notification, START_STICKY
+
+assets/
+└── skills/                  # 5 bundled starters (bn_en_translator, code_reviewer, efficient_prompting, study_helper, creative_writer)
 ```
 
 ## 📋 Requirements
@@ -315,9 +356,15 @@ Download models from the **Explore** tab (with pause / resume / cancel support) 
 
 Open the **Nodes** tab › **Node** and flip the switch. Once running, point any OpenAI-compatible client at `http://<device-ip>:8080` to use your local models programmatically.
 
+### 🧩 Skills
+Manage in **Nodes › Config → SKILLS** (next to Global System Prompt) — enable/disable built-ins, **Import → From file** (.md), **Browse Anthropic skills** (flat list from `anthropics/skills`, cached, rate-limit safe), **From URL** (any raw markdown link, size/type checked). Every import shows a preview before saving; skills are pure text injection, never executable. Nothing about installed skills is sent to any Abir/Anthropic server.
+
+### 🔌 Custom MCP Server
+Configure in **Nodes › Config → CUSTOM MCP SERVER** — single remote HTTP/SSE URL, optional bearer token (secure storage), transport auto-detected. **Save / Test Connection / Enable-Disable (with tool-preview dialog) / Remove** with live status (disconnected/connecting/connected/error). When enabled, its tools are added to OpenAI-compatible cloud requests (`tools`/`tool_choice: auto`); tool results are round-tripped via `chat_controller` and capped. If offline, tools are still advertised and failed calls return an error `tool_result` — never silently omitted. Local models don’t use live tools (Skills still apply).
+
 ### ⚙️ Engine & App Configuration
 
-- **Nodes › Config** — diagnostics, hardware capabilities, inference mode, Auto Tune (context/output limits), global system prompt, local model parameters, imaging parameters
+- **Nodes › Config** — diagnostics, hardware capabilities, inference mode, Auto Tune (context/output limits), global system prompt, Skills, Custom MCP Server, local model & imaging parameters
 - **App Settings** (bottom navigation) — theme, typography scale, Thinking Orbs (Random or fixed state per context), app info
 - **Web Access** toggle — in the chat input bar; reads links from your message into the model's context
 
