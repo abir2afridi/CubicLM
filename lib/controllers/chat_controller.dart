@@ -24,6 +24,8 @@ import '../services/local_image_service.dart';
 import '../services/app_log_service.dart';
 import '../services/image_generation_notification_service.dart';
 import '../services/document_extractor_service.dart';
+import '../services/skills/skill_injector.dart';
+import '../models/web_source.dart';
 import '../utils/thought_parser.dart';
 
 const int _visionImageMaxSide = 768;
@@ -631,8 +633,23 @@ class ChatController extends GetxController {
               })
           .toList();
 
+      // Skill relevance — only inject skills relevant to this prompt.
+      final settingsForPrompt = Get.find<SettingsController>();
+      final modelNameForPrompt = inferenceMode == 'local'
+          ? Get.find<InferenceService>().loadedModelName.value
+          : settingsForPrompt.selectedCloudModelName;
+      final relevantSkills = SkillInjector.selectRelevantSkills(prompt);
+      final List<String> usedSkillNames =
+          relevantSkills.map((s) => s.name).toList();
+      final basePrompt =
+          settingsForPrompt.baseSystemPromptForModel(modelNameForPrompt);
+      final String systemPromptForThisTurn = relevantSkills.isEmpty
+          ? basePrompt
+          : '$basePrompt${SkillInjector.buildForSkills(relevantSkills)}';
+
       // Web access — fetch readable text for any URLs in the prompt so
       // the model can reason over real page content.
+      List<WebSource> webSources = [];
       try {
         final s = Get.find<SettingsController>();
         if (s.webFetchEnabled.value) {
@@ -645,16 +662,17 @@ class ChatController extends GetxController {
               duration: const Duration(seconds: 2),
             );
           }
-          final augmented = await WebFetchService.augmentWithWebContent(prompt);
-          if (augmented != prompt) {
-            prompt = augmented;
+          final result = await WebFetchService.augmentWithSources(prompt);
+          if (result.augmentedText != prompt) {
+            prompt = result.augmentedText;
             if (history.isNotEmpty && history.last['role'] == 'user') {
               history[history.length - 1] = {
                 'role': 'user',
-                'content': augmented,
+                'content': prompt,
               };
             }
           }
+          webSources = result.sources.where((w) => w.success).toList();
         }
       } catch (_) {}
 
@@ -739,7 +757,7 @@ class ChatController extends GetxController {
           final inference = Get.find<InferenceService>();
           rawResponse = await inference.generate(
             prompt: prompt,
-            systemPrompt: _effectiveSystemPrompt,
+            systemPrompt: systemPromptForThisTurn,
             conversationHistory: history,
             source: 'chat',
             imagePath: imagePath,
@@ -755,7 +773,7 @@ class ChatController extends GetxController {
         final cloud = Get.find<CloudService>();
         final settings = Get.find<SettingsController>();
         final apiMessages = [
-          {'role': 'system', 'content': _effectiveSystemPrompt},
+          {'role': 'system', 'content': systemPromptForThisTurn},
           ...history,
         ];
         rawResponse = await cloud.sendMessage(
@@ -821,6 +839,8 @@ class ChatController extends GetxController {
         thoughtDurationSeconds: thoughtDurationSeconds,
         imageGenDurationMs: imageDurationMs,
         generationDurationMs: totalDurationMs,
+        webSources: webSources.isEmpty ? null : webSources,
+        usedSkills: usedSkillNames.isEmpty ? null : usedSkillNames,
       );
       
       if (insertAt != null && insertAt >= 0 && insertAt <= messages.length) {
@@ -1222,17 +1242,6 @@ class ChatController extends GetxController {
         curve: Curves.easeOutCubic,
       );
     });
-  }
-
-  String get _effectiveSystemPrompt {
-    final settings = Get.find<SettingsController>();
-    final inference = Get.find<InferenceService>();
-    final modelName = settings.inferenceMode.value == 'local'
-        ? inference.loadedModelName.value
-        : settings.selectedCloudModelName;
-    return settings.effectiveSystemPromptForModel(
-      modelName,
-    );
   }
 
   String _attachmentTypeForExtension(String extension) {

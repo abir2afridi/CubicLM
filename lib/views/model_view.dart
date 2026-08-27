@@ -57,23 +57,30 @@ class ModelView extends GetView<ModelController> {
           }),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () async {
-          if (controller.modelScope.value == 'local') {
-            await controller.refreshDownloaded();
-          }
-        },
-        color: Dt.accent,
-        child: Obx(() => ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                _buildScopeToggle(context),
-                const SizedBox(height: 14),
-                // Active model banner
-                _buildActiveModelBanner(context),
-                const SizedBox(height: 12),
-
-                if (controller.modelScope.value == 'local') ...[
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            child: _buildScopeToggle(context),
+          ),
+          const SizedBox(height: 14),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _buildActiveModelBanner(context),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                if (controller.modelScope.value == 'local') {
+                  await controller.refreshDownloaded();
+                }
+              },
+              color: Dt.accent,
+              child: Obx(() => ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      if (controller.modelScope.value == 'local') ...[
                   _buildImportingProgress(context),
                   _buildLocalFilterChips(context),
                   const SizedBox(height: 12),
@@ -135,6 +142,9 @@ class ModelView extends GetView<ModelController> {
                 ],
               ],
             )),
+          ),
+        ),
+        ],
       ),
     );
   }

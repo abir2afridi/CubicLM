@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/chat_message.dart';
+import '../models/web_source.dart';
 import '../utils/thought_parser.dart';
 import '../core/colors.dart';
 import '../theme/design_tokens.dart';
@@ -151,6 +154,26 @@ class _ChatBubbleState extends State<ChatBubble> {
                               'code': CodeBlockBuilder(context),
                               'pre': CodeBlockBuilder(context),
                             },
+                          ),
+
+                        // Activated skills (intelligent per-prompt)
+                        if (!isUser &&
+                            widget.message.usedSkills != null &&
+                            widget.message.usedSkills!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: _skillsUsedBar(
+                                context, widget.message.usedSkills!, isDark),
+                          ),
+
+                        // Web sources fetched for this turn
+                        if (!isUser &&
+                            widget.message.webSources != null &&
+                            widget.message.webSources!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: _webSourcesBar(
+                                context, widget.message.webSources!, isDark),
                           ),
 
                         // File attachment
@@ -441,6 +464,229 @@ class _ChatBubbleState extends State<ChatBubble> {
       onTap: onTap,
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+    );
+  }
+
+  Widget _skillsUsedBar(
+      BuildContext context, List<String> skills, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: Dt.accent.withValues(alpha: isDark ? 0.08 : 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Dt.accent.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Dt.accent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(LucideIcons.sparkles,
+                  size: 12, color: Dt.accent),
+            ),
+            const SizedBox(width: 6),
+            Text('Skills used',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                    color: Dt.accent)),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: Dt.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text('${skills.length}',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: Dt.accent)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: skills
+                .map((name) => Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: Dt.accent.withValues(alpha: 0.18)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(LucideIcons.check,
+                              size: 10, color: Dt.accent),
+                          const SizedBox(width: 4),
+                          Text(name,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? Colors.white
+                                      : Dt.textPrimary)),
+                        ],
+                      ),
+                    ))
+                .toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _webSourcesBar(
+      BuildContext context, List<WebSource> sources, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.black.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : Colors.black.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(LucideIcons.link2,
+                  size: 12, color: Color(0xFF3B82F6)),
+            ),
+            const SizedBox(width: 6),
+            Text('Sources',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                    color: const Color(0xFF3B82F6))),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text('${sources.length}',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF3B82F6))),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: sources.map((src) {
+              return InkWell(
+                onTap: () async {
+                  final uri = Uri.tryParse(src.url);
+                  if (uri != null) {
+                    try {
+                      await launchUrl(uri,
+                          mode: LaunchMode.externalApplication);
+                    } catch (_) {}
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.06)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: Image.network(
+                          src.faviconUrl,
+                          width: 14,
+                          height: 14,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 14,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF3B82F6)
+                                  .withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: const Icon(LucideIcons.globe,
+                                size: 8, color: Color(0xFF3B82F6)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(src.domain,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark
+                                        ? Colors.white
+                                        : Dt.textPrimary)),
+                            if (src.title.isNotEmpty &&
+                                src.title != src.domain)
+                              Text(src.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      color: Theme.of(context).hintColor)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(LucideIcons.externalLink,
+                          size: 10,
+                          color: Theme.of(context).hintColor),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
     );
   }
 

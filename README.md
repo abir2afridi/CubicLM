@@ -42,7 +42,7 @@ The chat page can fetch live web content on its own — no external services or 
 - Toggle the 🌐 button in the input bar; when on, any `https://…` links in your message are downloaded automatically
 - Pages are stripped to clean readable text (scripts/styles removed, entities decoded) and injected into the model's context — works for **both local and cloud models**
 - Up to 3 links per message, ~9K characters per page, 15s timeout per fetch
-- Great for "summarize this article", "what changed on this docs page", or grounding answers in real data
+- **Visible sources** — every successful fetch is shown below the assistant’s answer as tappable chips with **favicon** (Google S2) + domain + page title; failed fetches are not shown but logged. No more “is web search working?” — you see exactly which sites were used, like ChatGPT/Claude, and can tap to open them. Great for “summarize this article”, “what changed on this docs page”, or grounding answers in real data
 
 ### ☁️ Cloud AI Providers
 
@@ -79,7 +79,7 @@ Skills are **offline, static prompt-injection blocks** (markdown) that teach the
 
 - **Data model** (`lib/models/skill_model.dart`): `id/name/description/author/version/content/enabled/isBuiltIn/source/createdAt`; plain text; file fallback for >100 KB
 - **Registry** (`lib/services/skills/skill_registry_service.dart`): Hive `skillsBox` with `installBuiltIns()` (idempotent), `importFromMarkdown`, `enable/disable/delete/getEnabled/getAll`; 5 bundled starters in `assets/skills/` seeded on first run
-- **Injection** (`lib/services/skills/skill_injector.dart`): `buildInjectedContext()` concatenates enabled skills as `### Skill: {name}` blocks, stably ordered, and is wired into `SettingsController.effectiveSystemPromptForModel` → read by `ChatController._effectiveSystemPrompt` for every generation
+- **Injection** (`lib/services/skills/skill_injector.dart`): `buildInjectedContext()` / `buildForSkills()` concatenate skills as `### Skill: {name}` blocks, stably ordered. **Intelligent per-prompt activation** — `selectRelevantSkills(prompt, max 2)` scores enabled skills by keywords, Bangla-script detection, code-block presence, etc. (threshold 0.6) and only those are injected via `SettingsController.effectiveSystemPromptForPrompt(model, prompt)` → read by `ChatController` for every generation. The assistant bubble then shows **“Skills used”** chips (check + name, e.g., *Code Reviewer*) — exactly like ChatGPT/Claude’s skill indicator — so you see which skill was judged relevant for that prompt; if none match, no injection and no chip
 - **Starter skills** (real content, not placeholders):
   - *Bangla-English Translator* — bilingual Banglish handling
   - *Code Reviewer* — Flutter/Dart/Python/JS senior review
@@ -116,6 +116,7 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
 - **Code blocks** with syntax highlighting, one-tap copy, and export/share
 - **Thinking Orbs** — 3D particle sphere animation (9 states: Working, Searching, Solving, Listening, Connecting, Weaving, Composing, Breathing, Shaping) with grayscale ink, size-aware speeds, and phase-continuous hard cuts; shown during chat responses, thought analysis, and image synthesis — each context configurable to **Random** shuffle or a fixed state via **App Settings › Thinking Orbs** (live orb previews in the picker)
 - **Notification history** — 🔔 bell in chat header with unread badge; slide-in page grouped by Today/Yesterday/weekday with relative timestamps (Just now / 5m ago / 2h ago), swipe-to-delete, mark-all-read & clear-all; every model switch (local / cloud / back-to-local) auto-logs with timestamp and shows as a top spring-animated toast (Hive-persisted, max 100)
+- **Chat enrichments** — assistant bubbles show **Sources** chips (favicon + domain + title, tap to open) when web search was used, and **Skills used** chips (check + skill name) when a prompt matched enabled skills — so you instantly see *whether* web fetch worked and *which* skill was activated, just like ChatGPT/Claude
 - Attachments from camera, gallery, or files (PDF/text extraction)
 - Image sharing and export
 - Dark/light theme with adjustable font scale
@@ -201,18 +202,19 @@ lib/
 │   └── design_tokens.dart       # Claude APK-measured warm palette (canvas, pill, accent, hairline)
 ├── models/
 │   ├── ai_model.dart            # AI model data class
-│   ├── chat_message.dart        # Chat message model (with revision history)
+│   ├── chat_message.dart        # Chat message model (with revision history + webSources + usedSkills)
 │   ├── chat_session.dart        # Chat session model
+│   ├── web_source.dart          # Web source (url/domain/favicon/title/success)
 │   ├── task_model.dart          # Automated task model
 │   ├── notification_entry.dart  # Model-switch history entry (title/message/type/timestamp/read)
 │   └── skill_model.dart         # Skill (name/description/content/enabled/isBuiltIn/source)
 ├── controllers/
-│   ├── chat_controller.dart     # Chat logic and streaming
+│   ├── chat_controller.dart     # Chat logic, streaming, per-prompt skill/web-source tracking (webSources + usedSkills persisted)
 │   ├── cloud_model_controller.dart  # Cloud model selection
 │   ├── home_controller.dart     # Tab navigation, model resume
 │   ├── model_controller.dart    # Model download/import management
 │   ├── server_controller.dart   # Local API server
-│   ├── settings_controller.dart # App settings
+│   ├── settings_controller.dart # App settings + baseSystemPromptForModel / effectiveSystemPromptForPrompt (selective skills)
 │   └── task_controller.dart     # Automated task execution
 ├── services/
 │   ├── cloud_service.dart       # Multi-provider cloud API (delegates to providers)
@@ -252,7 +254,7 @@ lib/
 │   ├── notification_history_service.dart # Model-switch history (Hive, max 100, unread count)
 │   ├── skills/
 │   │   ├── skill_registry_service.dart # Hive skillsBox, import, enable/disable, file fallback
-│   │   ├── skill_injector.dart         # Concatenates enabled skills into system prompt
+│   │   ├── skill_injector.dart         # Concatenates skills + intelligent per-prompt selection (max 2, threshold 0.6, Bangla/code/creative heuristics)
 │   │   ├── github_skill_source.dart    # anthropics/skills REST + raw fetch, cached 6h
 │   │   └── url_skill_source.dart       # Any URL markdown fetch with size/type guard
 │   ├── mcp/
@@ -260,7 +262,7 @@ lib/
 │   │   ├── mcp_connection.dart         # HTTP/SSE JSON-RPC: connect/listTools/callTool
 │   │   └── mcp_registry_service.dart   # Hive + secure storage, status stream, lifecycle
 │   ├── device_info_service.dart # RAM/tier + SoC/GPU detection
-│   ├── web_fetch_service.dart   # URL fetching → clean text for chat context
+│   ├── web_fetch_service.dart   # URL fetching → clean text + WebSource (domain/favicon/title) via augmentWithSources
 │   ├── execution_service.dart   # Task execution engine
 │   ├── document_extractor_service.dart  # PDF/text extraction
 │   ├── local_image_service.dart # Stable Diffusion inference
@@ -281,13 +283,13 @@ lib/
 │   ├── log_view.dart            # System diagnostics viewer (health dashboard, search, categories)
 │   └── task_view.dart           # Automated tasks
 ├── widgets/
-│   ├── chat_bubble.dart         # Message bubble with inline actions + revisions
+│   ├── chat_bubble.dart         # Message bubble (inline actions + revisions + Skills used + Sources chips with favicon)
 │   ├── code_block.dart          # Syntax-highlighted code blocks (copy/export)
 │   ├── model_switcher_sheet.dart    # Quick model switcher
 │   ├── attachment_preview.dart  # File/image attachment preview
 │   ├── image_viewer.dart        # Full-screen image viewer
 │   ├── thought_disclosure.dart  # Reasoning/thought tag expansion with ThinkingOrb
-│   ├── thinking_orb.dart        # 3D particle sphere animation (9 states, size-aware speeds, orbStateFromName helper)
+│   ├── thinking_orb.dart        # 3D particle sphere animation (9 states, size-aware speeds, orbStateFromName helper, crisp shimmer)
 │   └── typing_indicator.dart    # Typing animation
 ├── ffi/
 │   └── sd_ffi_bindings.dart     # FFI bindings for SD native lib

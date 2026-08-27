@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'web_source.dart';
+
 class ChatMessage {
   final String id;
   final String chatId;
@@ -20,6 +22,12 @@ class ChatMessage {
   final int? imageGenDurationMs; // Time taken to generate image locally
   final int? generationDurationMs; // Total time taken for text response
   final DateTime timestamp;
+
+  /// Web sources fetched for this turn (only on assistant messages).
+  final List<WebSource>? webSources;
+
+  /// Skill names that were injected for this prompt (assistant messages).
+  final List<String>? usedSkills;
 
   /// Edit history: each entry is {'content': String, 'response': String?}
   /// revisions[0] = first version, revisions[last] = latest version
@@ -54,6 +62,8 @@ class ChatMessage {
     this.imageGenDurationMs,
     this.generationDurationMs,
     DateTime? timestamp,
+    this.webSources,
+    this.usedSkills,
     this.revisions,
     this.revisionIndex = 0,
   }) : timestamp = timestamp ?? DateTime.now();
@@ -77,6 +87,8 @@ class ChatMessage {
         'imageGenDurationMs': imageGenDurationMs,
         'generationDurationMs': generationDurationMs,
         'timestamp': timestamp.toIso8601String(),
+        'webSources': webSources?.map((e) => e.toMap()).toList(),
+        'usedSkills': usedSkills,
         'revisions': revisions,
         'revisionIndex': revisionIndex,
       };
@@ -109,6 +121,14 @@ class ChatMessage {
             ? (map['generationDurationMs'] as num).toInt()
             : null,
         timestamp: DateTime.tryParse(map['timestamp'] ?? '') ?? DateTime.now(),
+        webSources: map['webSources'] != null
+            ? (map['webSources'] as List)
+                .map((e) => WebSource.fromMap(Map<dynamic, dynamic>.from(e as Map)))
+                .toList()
+            : null,
+        usedSkills: map['usedSkills'] != null
+            ? List<String>.from(map['usedSkills'] as List)
+            : null,
         revisions: map['revisions'] != null
             ? List<Map<String, dynamic>>.from(
                 (map['revisions'] as List).map((e) => Map<String, dynamic>.from(e)))

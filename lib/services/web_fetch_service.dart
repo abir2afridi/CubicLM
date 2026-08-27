@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/web_source.dart';
 import 'app_log_service.dart';
 
 /// Lightweight web access for chat.
@@ -38,16 +39,49 @@ class WebFetchService {
   /// with the readable page contents appended. Returns [text] unchanged
   /// when there are no URLs (or every fetch failed).
   static Future<String> augmentWithWebContent(String text) async {
+    final result = await augmentWithSources(text);
+    return result.augmentedText;
+  }
+
+  /// Same as [augmentWithWebContent] but also returns the list of
+  /// sources that were successfully fetched (for UI display).
+  static Future<({String augmentedText, List<WebSource> sources})>
+      augmentWithSources(String text) async {
     final urls = extractUrls(text);
-    if (urls.isEmpty) return text;
+    if (urls.isEmpty) return (augmentedText: text, sources: <WebSource>[]);
 
     final buffer = StringBuffer(text);
+    final sources = <WebSource>[];
     var fetched = 0;
 
     for (final url in urls) {
-      final page = await fetchAsText(url);
-      if (page == null || page.isEmpty) continue;
+      final rawHtml = await _fetchRawHtml(url);
+      String? page;
+      String title = '';
+      if (rawHtml != null) {
+        title = WebSource.titleFromHtml(rawHtml, url);
+        page = _htmlToText(rawHtml);
+        page = _truncate(page);
+        if (page.trim().isEmpty) page = null;
+      }
+      final domain = WebSource.domainFromUrl(url);
+      final favicon = WebSource.faviconFor(url);
+      if (page == null || page.isEmpty) {
+        sources.add(WebSource(
+            url: url,
+            domain: domain,
+            faviconUrl: favicon,
+            title: title.isEmpty ? domain : title,
+            success: false));
+        continue;
+      }
       fetched++;
+      sources.add(WebSource(
+          url: url,
+          domain: domain,
+          faviconUrl: favicon,
+          title: title.isEmpty ? domain : title,
+          success: true));
       buffer
         ..writeln()
         ..writeln()
@@ -64,9 +98,32 @@ class WebFetchService {
           category: LogCategory.chat,
         );
       } catch (_) {}
-      return buffer.toString();
+      return (augmentedText: buffer.toString(), sources: sources);
     }
-    return text;
+    return (augmentedText: text, sources: sources);
+  }
+
+  static Future<String?> _fetchRawHtml(String url) async {
+    try {
+      final uri = Uri.tryParse(url);
+      if (uri == null || !uri.hasScheme || uri.host.isEmpty) return null;
+      final response = await http.get(uri, headers: {
+        'User-Agent':
+            'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Mobile Safari/537.36 CubicLM/1.0',
+        'Accept': 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
+        'Accept-Language': 'en-US,en;q=0.9',
+      }).timeout(_timeout);
+      if (response.statusCode != 200) return null;
+      final ct = response.headers['content-type'] ?? 'text/html';
+      if (!ct.contains('html') &&
+          !ct.contains('text') &&
+          !ct.contains('json')) {
+        return null;
+      }
+      return response.body;
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Downloads [url] and converts the HTML to readable plain text.

@@ -953,19 +953,29 @@ class SettingsController extends GetxController {
     await _hive.setSetting(AppConstants.keyGlobalSystemPrompt, normalized);
   }
 
-  String effectiveSystemPromptForModel(String modelName) {
+  String baseSystemPromptForModel(String modelName) {
     final prompt = globalSystemPrompt.value.trim();
-    final String base;
     final hasCustomPrompt =
         prompt.isNotEmpty && prompt != AppConstants.systemPrompt;
-    if (hasCustomPrompt) {
-      base = prompt;
-    } else if (AppConstants.isUncensoredModelName(modelName)) {
-      base = AppConstants.uncensoredSystemPrompt;
-    } else {
-      base = AppConstants.systemPrompt;
+    if (hasCustomPrompt) return prompt;
+    if (AppConstants.isUncensoredModelName(modelName)) {
+      return AppConstants.uncensoredSystemPrompt;
     }
-    return SkillInjector.injectInto(base);
+    return AppConstants.systemPrompt;
+  }
+
+  String effectiveSystemPromptForModel(String modelName) {
+    return SkillInjector.injectInto(baseSystemPromptForModel(modelName));
+  }
+
+  /// Per-prompt selective skill injection — returns the system prompt
+  /// with only the skills relevant to [userPrompt] appended.
+  String effectiveSystemPromptForPrompt(
+      String modelName, String userPrompt) {
+    final base = baseSystemPromptForModel(modelName);
+    final relevant = SkillInjector.selectRelevantSkills(userPrompt);
+    if (relevant.isEmpty) return base;
+    return '$base${SkillInjector.buildForSkills(relevant)}';
   }
 
   Future<void> refreshNvidiaModels() async {
