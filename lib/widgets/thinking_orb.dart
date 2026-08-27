@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
@@ -828,26 +827,16 @@ class _ShimmerLabelState extends State<_ShimmerLabel>
   @override
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 280),
       switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeIn,
+      switchOutCurve: Curves.easeInCubic,
       transitionBuilder: (child, anim) => FadeTransition(
         opacity: anim,
-        child: AnimatedBuilder(
-          animation: anim,
-          builder: (context, _) {
-            final t = anim.value;
-            final incoming = child.key == ValueKey(widget.text);
-            final scale = incoming ? 0.25 + 0.75 * t : 1.0 - 0.75 * (1 - t);
-            final blur = incoming ? (1 - t) * 4 : t * 4;
-            return Transform.scale(
-              scale: scale,
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-                child: child,
-              ),
-            );
-          },
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.92, end: 1.0).animate(
+            CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+          ),
+          child: child,
         ),
       ),
       child: _shimmerText(),
@@ -855,11 +844,12 @@ class _ShimmerLabelState extends State<_ShimmerLabel>
   }
 
   Widget _shimmerText() {
+    // Crisp, always-visible base — no blur, just a subtle highlight sweep.
     final base = widget.isDark
-        ? Colors.white.withValues(alpha: 0.5)
-        : Colors.black.withValues(alpha: 0.45);
+        ? Colors.white.withValues(alpha: 0.88)
+        : const Color(0xFF2D2520).withValues(alpha: 0.82);
     final highlight =
-        widget.isDark ? Colors.white : const Color(0xFF0D0D0D);
+        widget.isDark ? Colors.white : const Color(0xFF2D2520);
 
     return AnimatedBuilder(
       animation: _c,
@@ -867,16 +857,16 @@ class _ShimmerLabelState extends State<_ShimmerLabel>
         final t = _c.value;
         return ShaderMask(
           shaderCallback: (bounds) {
-            final dx = 1.4 - 2.8 * t;
+            final dx = 1.6 - 3.2 * t;
             return LinearGradient(
               begin: Alignment.centerLeft,
               end: Alignment.centerRight,
               colors: [
-                Colors.transparent,
-                Colors.transparent,
+                base,
+                base,
                 highlight,
-                Colors.transparent,
-                Colors.transparent,
+                base,
+                base,
               ],
               stops: [
                 (dx - 0.35).clamp(0.0, 1.0),
@@ -887,7 +877,7 @@ class _ShimmerLabelState extends State<_ShimmerLabel>
               ],
             ).createShader(bounds);
           },
-          blendMode: BlendMode.srcATop,
+          blendMode: BlendMode.srcIn,
           child: child,
         );
       },
@@ -895,7 +885,7 @@ class _ShimmerLabelState extends State<_ShimmerLabel>
           key: ValueKey(widget.text),
           style: GoogleFonts.plusJakartaSans(
               fontSize: 13,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               letterSpacing: 0.2,
               color: base)),
     );

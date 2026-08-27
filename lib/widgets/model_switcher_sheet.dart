@@ -84,7 +84,37 @@ class _ModelSwitcherSheetState extends State<ModelSwitcherSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: _ActiveModelHeader(isDark: isDark),
               ),
-              const SizedBox(height: 16),
+              Obx(() {
+                final isCloud =
+                    Get.find<SettingsController>().inferenceMode.value == 'cloud';
+                if (!isCloud) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Get.find<CloudModelController>()
+                            .deactivateCloudProvider();
+                      },
+                      icon: const Icon(Icons.phone_android, size: 16),
+                      label: Text('Switch to Local Model',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w700, fontSize: 13)),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Dt.accent,
+                        side: BorderSide(
+                            color: Dt.accent.withValues(alpha: 0.3)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: _ScopeToggle(
@@ -477,6 +507,7 @@ class _LocalModelListState extends State<_LocalModelList> {
                       final isResident = !models.isLiteRtModel(model) &&
                           inference.isResident(model.filename);
                       return _ModelRow(
+                        index: index,
                         title: model.name,
                         subtitle: _localSubtitle(models, model),
                         isActive: isActive,
@@ -949,6 +980,7 @@ class _CloudModelListState extends State<_CloudModelList> {
                             final isFree = cloudModels.isFreeModel(
                                 provider.id, model);
                             return _ModelRow(
+                              index: index,
                               title: model,
                               subtitle: '',
                               isActive: isActive,
@@ -1104,6 +1136,7 @@ class _CloudModelListState extends State<_CloudModelList> {
             id == cloudModels.activeModelFor(provider.id);
         final isFree = cloudModels.isFreeModel(provider.id, id);
         return _ModelRow(
+          index: index,
           title: id,
           subtitle: provider.id == 'custom'
               ? _customName(settings)
@@ -1143,6 +1176,7 @@ class _ModelRow extends StatelessWidget {
   final Color? badgeColor;
   final bool isDark;
   final VoidCallback? onTap;
+  final int? index;
 
   const _ModelRow({
     required this.title,
@@ -1154,6 +1188,7 @@ class _ModelRow extends StatelessWidget {
     required this.isDark,
     required this.onTap,
     this.badgeColor,
+    this.index,
   });
 
   @override
@@ -1193,6 +1228,31 @@ class _ModelRow extends StatelessWidget {
                 children: [
                   Row(
                     children: [
+                      if (index != null)
+                        Container(
+                          width: 26,
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isActive
+                                ? Dt.accent.withValues(alpha: 0.15)
+                                : (isDark
+                                    ? Colors.white.withValues(alpha: 0.06)
+                                    : Colors.black.withValues(alpha: 0.05)),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '${index! + 1}',
+                            style: GoogleFonts.firaCode(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: isActive
+                                  ? Dt.accent
+                                  : Theme.of(context).hintColor,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      if (index != null) const SizedBox(width: 8),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,

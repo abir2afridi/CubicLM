@@ -338,35 +338,28 @@ class ChatView extends GetView<ChatController> {
                     color: isDark ? AppColors.textPrimary : Dt.textPrimary),
                 overflow: TextOverflow.ellipsis),
             const SizedBox(height: 3),
-            InkWell(
-              onTap: () => showModelSwitcherSheet(context),
-              borderRadius: BorderRadius.circular(8),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                    width: 7,
-                    height: 7,
-                    decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: statusColor.withValues(alpha: 0.4),
-                            blurRadius: 4,
-                          )
-                        ],
-                        color: statusColor)),
-                const SizedBox(width: 6),
-                Flexible(
-                    child: Text('$model · ${isLocal ? "Local" : "Cloud"}',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            color: Theme.of(context).hintColor,
-                            fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis)),
-                const SizedBox(width: 2),
-                Icon(Icons.expand_more_rounded,
-                    size: 16, color: Theme.of(context).hintColor),
-              ]),
-            ),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: statusColor.withValues(alpha: 0.4),
+                          blurRadius: 4,
+                        )
+                      ],
+                      color: statusColor)),
+              const SizedBox(width: 6),
+              Flexible(
+                  child: Text('$model · ${isLocal ? "Local" : "Cloud"}',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: Theme.of(context).hintColor,
+                          fontWeight: FontWeight.w600),
+                      overflow: TextOverflow.ellipsis)),
+            ]),
           ]),
         );
       }),

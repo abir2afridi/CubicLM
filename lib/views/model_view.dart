@@ -1007,14 +1007,23 @@ class ModelView extends GetView<ModelController> {
         ),
         child: Row(
           children: [
-            SizedBox(
-              width: 22,
+            Container(
+              width: 26,
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              decoration: BoxDecoration(
+                color: isActive
+                    ? Dt.accent.withValues(alpha: 0.15)
+                    : (isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.05)),
+                borderRadius: BorderRadius.circular(6),
+              ),
               child: Text(
                 '${index + 1}',
                 style: GoogleFonts.firaCode(
                   fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).hintColor,
+                  fontWeight: FontWeight.w700,
+                  color: isActive ? Dt.accent : Theme.of(context).hintColor,
                 ),
                 textAlign: TextAlign.center,
               ),

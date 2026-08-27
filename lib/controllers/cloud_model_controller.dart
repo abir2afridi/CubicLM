@@ -309,6 +309,8 @@ class CloudModelController extends GetxController {
   final customApiKeyController = TextEditingController();
   final customModelController = TextEditingController();
 
+  String _dynamicKey(String provider) => 'dynamic_model_$provider';
+
   @override
   void onInit() {
     super.onInit();
@@ -319,6 +321,18 @@ class CloudModelController extends GetxController {
     for (final provider in providers) {
       _loadCachedModels(provider.id);
       ensureDefaultModels(provider.id);
+      // Restore persisted dynamic provider model selection.
+      if (!_isBuiltInProvider(provider.id) && provider.id != 'custom') {
+        final saved = _hive.getSetting<String>(_dynamicKey(provider.id));
+        if (saved != null && saved.isNotEmpty) {
+          _dynamicActiveModel[provider.id] = saved;
+        }
+      }
+      // Ensure the active model is always visible in the list (prevents fallback to first model after restart).
+      final active = activeModelFor(provider.id);
+      if (active.isNotEmpty && !(modelsByProvider[provider.id]?.contains(active) ?? false)) {
+        modelsByProvider[provider.id] = [...(modelsByProvider[provider.id] ?? []), active];
+      }
     }
     _syncCustomControllers();
   }
@@ -445,7 +459,19 @@ class CloudModelController extends GetxController {
 
   String activeModelFor(String provider) {
     if (!_isBuiltInProvider(provider) && provider != 'custom') {
-      return _dynamicActiveModel[provider] ?? (modelsByProvider[provider]?.firstOrNull ?? '');
+      final mem = _dynamicActiveModel[provider];
+      if (mem != null && mem.isNotEmpty) return mem;
+      final saved = _hive.getSetting<String>(_dynamicKey(provider));
+      if (saved != null && saved.isNotEmpty) {
+        // Restore to memory and ensure visible in list.
+        _dynamicActiveModel[provider] = saved;
+        final list = modelsByProvider[provider] ?? [];
+        if (!list.contains(saved)) {
+          modelsByProvider[provider] = [...list, saved];
+        }
+        return saved;
+      }
+      return modelsByProvider[provider]?.firstOrNull ?? '';
     }
     switch (provider) {
       case 'openrouter':
@@ -620,8 +646,10 @@ class CloudModelController extends GetxController {
   }
 
   bool isFreeModel(String provider, String modelId) {
+    final lower = modelId.toLowerCase();
     return modelTagsFor(provider, modelId).contains('FREE') ||
-        modelId.toLowerCase().contains(':free');
+        lower.contains(':free') ||
+        lower.contains('-free');
   }
 
   int freeModelCountFor(String provider) {
@@ -697,7 +725,12 @@ class CloudModelController extends GetxController {
     final existing = modelsByProvider[provider] ?? const <String>[];
     if (existing.isNotEmpty) return;
 
-    modelsByProvider[provider] = [...defaults];
+    final withActive = [...defaults];
+    final active = activeModelFor(provider);
+    if (active.isNotEmpty && !withActive.contains(active)) {
+      withActive.add(active);
+    }
+    modelsByProvider[provider] = withActive;
 
     if (provider == 'zai') {
       modelTagsByProvider[provider] = _zaiFreeTags(defaults);
@@ -726,6 +759,12 @@ class CloudModelController extends GetxController {
         provider == 'google' ? modelId.replaceFirst('models/', '') : modelId;
     if (!_isBuiltInProvider(provider) && provider != 'custom') {
       _dynamicActiveModel[provider] = normalized;
+      await _hive.setSetting(_dynamicKey(provider), normalized);
+      // Ensure the selected model stays in the list even after refresh.
+      final list = modelsByProvider[provider] ?? [];
+      if (!list.contains(normalized)) {
+        modelsByProvider[provider] = [...list, normalized];
+      }
       await _settings.setCloudProvider(provider);
       await _settings.setInferenceMode('cloud');
       if (!showSnackbar) return;
@@ -893,7 +932,12 @@ class CloudModelController extends GetxController {
 
     if (provider == 'zai') {
       final defaults = _defaultModelsByProvider[provider] ?? const [];
-      modelsByProvider[provider] = [...defaults];
+      final withActive = [...defaults];
+      final activeZai = activeModelFor(provider);
+      if (activeZai.isNotEmpty && !withActive.contains(activeZai)) {
+        withActive.add(activeZai);
+      }
+      modelsByProvider[provider] = withActive;
       modelTagsByProvider[provider] = _zaiFreeTags(defaults);
       fetchedAtByProvider[provider] = DateTime.now();
       await _hive.setSetting('$_cachePrefix$provider', defaults);
@@ -933,7 +977,12 @@ class CloudModelController extends GetxController {
       if (response == null || workingUrl == null) {
         final defaults = _defaultModelsByProvider[provider];
         if (defaults != null && defaults.isNotEmpty) {
-          modelsByProvider[provider] = [...defaults];
+          final withActive = [...defaults];
+          final activeFallback = activeModelFor(provider);
+          if (activeFallback.isNotEmpty && !withActive.contains(activeFallback)) {
+            withActive.add(activeFallback);
+          }
+          modelsByProvider[provider] = withActive;
           fetchedAtByProvider[provider] = DateTime.now();
           await _hive.setSetting('$_cachePrefix$provider', defaults);
           await _hive.setSetting(
@@ -945,6 +994,10 @@ class CloudModelController extends GetxController {
       }
 
       final ids = _parseModelIds(provider, response.body);
+      final active = activeModelFor(provider);
+      if (active.isNotEmpty && !ids.contains(active)) {
+        ids.add(active);
+      }
       modelsByProvider[provider] = ids;
       modelTagsByProvider[provider] = _parseModelTags(provider, response.body);
       final fetchedAt = DateTime.now();
@@ -1178,9 +1231,13 @@ class CloudModelController extends GetxController {
       }
 
       final lowerId = id.toLowerCase();
-      if (modelTags.isEmpty) {
+      // Robust free detection: any model with :free / -free suffix is free,
+      // even if pricing metadata is missing.
+      if (lowerId.contains(':free') || lowerId.contains('-free')) {
+        if (!modelTags.contains('FREE')) modelTags.add('FREE');
+      } else if (modelTags.isEmpty) {
         for (final pattern in freePatterns) {
-          if (lowerId.contains(pattern) && (lowerId.contains('flash') || lowerId.endsWith('-free'))) {
+          if (lowerId.contains(pattern) && lowerId.contains('flash')) {
             modelTags.add('FREE');
             break;
           }

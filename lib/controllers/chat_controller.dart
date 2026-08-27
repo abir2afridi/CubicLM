@@ -661,8 +661,9 @@ class ChatController extends GetxController {
       if (inferenceMode == 'local') {
         final localImage = Get.find<LocalImageService>();
 
-        if (localImage.isModelLoaded.value) {
-          // Local image generation
+        if (localImage.isModelLoaded.value &&
+            _isImageGenerationPrompt(prompt)) {
+          // Local image generation — only when prompt explicitly asks for image creation
           final settings = Get.find<SettingsController>();
           final imageNotifications =
               Get.find<ImageGenerationNotificationService>();
@@ -1276,5 +1277,51 @@ class ChatController extends GetxController {
       default:
         return 'Review this attachment.';
     }
+  }
+
+  bool _isImageGenerationPrompt(String prompt) {
+    final lower = prompt.toLowerCase().trim();
+    if (lower.isEmpty) return false;
+    // Explicit prefixes always mean image generation.
+    if (lower.startsWith('/image') ||
+        lower.startsWith('/img') ||
+        lower.startsWith('/draw') ||
+        lower.startsWith('/generate image')) {
+      return true;
+    }
+    const triggers = [
+      'generate image',
+      'create image',
+      'make image',
+      'generate a image',
+      'create a picture',
+      'generate a picture',
+      'make a picture',
+      'generate photo',
+      'create photo',
+      'draw a',
+      'draw an',
+      'painting of',
+      'illustration of',
+      'render image',
+      'generate picture',
+    ];
+    if (triggers.any((t) => lower.contains(t))) return true;
+    final hasImageWord = lower.contains('image') ||
+        lower.contains('picture') ||
+        lower.contains('photo') ||
+        lower.contains('illustration') ||
+        lower.contains('artwork');
+    final hasAction = lower.contains('generate') ||
+        lower.contains('create') ||
+        lower.contains('make') ||
+        lower.contains('draw') ||
+        lower.contains('render') ||
+        lower.contains('paint') ||
+        lower.contains('design');
+    if (hasImageWord && hasAction) return true;
+    // Also catch simple "draw X" without article.
+    if (lower.contains('draw ')) return true;
+    return false;
   }
 }

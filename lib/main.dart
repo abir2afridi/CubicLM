@@ -64,15 +64,87 @@ void main() {
       ]);
     }
 
-    // Initialize Hive
-    await Hive.initFlutter();
+    // ── Robust init with timeouts — never let native splash stuck ──
+    Future<T> withTimeout<T>(Future<T> f, String name,
+        {Duration timeout = const Duration(seconds: 5)}) async {
+      try {
+        return await f.timeout(timeout);
+      } catch (e, s) {
+        appLog.error('Init $name timed out / failed',
+            details: '$e\n$s', category: LogCategory.system);
+        rethrow;
+      }
+    }
 
-    // Register global services
-    await Get.putAsync(() => HiveService().init());
-    await Get.putAsync(() => NotificationHistoryService().init());
-    await Get.putAsync(() => SkillRegistryService().init());
-    await Get.putAsync(() => McpRegistryService().init());
-    await Get.putAsync(() => DeviceInfoService().init());
+    Future<void> safePut<T extends GetxService>(
+        Future<T> Function() factory, String name,
+        {Duration timeout = const Duration(seconds: 5),
+        bool required = false}) async {
+      try {
+        await withTimeout(Get.putAsync(factory), name, timeout: timeout);
+      } catch (e) {
+        appLog.error('Service $name failed to init',
+            details: e.toString(), category: LogCategory.system);
+        if (required) rethrow;
+        // Non-required services can stay unregistered — callers must handle missing via isRegistered check.
+      }
+    }
+
+    // Support phones and tablets in portrait or landscape.
+    if (!kIsWeb) {
+      try {
+        await withTimeout(
+            SystemChrome.setPreferredOrientations([
+              DeviceOrientation.portraitUp,
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ]),
+            'setPreferredOrientations',
+            timeout: const Duration(seconds: 2));
+      } catch (_) {}
+    }
+
+    // Initialize Hive (with corruption recovery)
+    try {
+      await withTimeout(Hive.initFlutter(), 'Hive.initFlutter',
+          timeout: const Duration(seconds: 6));
+    } catch (e) {
+      appLog.error('Hive.initFlutter failed — trying recovery',
+          details: e.toString(), category: LogCategory.system);
+      // Try to delete corrupted boxes and retry once.
+      try {
+        await Hive.deleteFromDisk();
+        await Hive.initFlutter();
+      } catch (_) {}
+    }
+
+    // Register global services — Hive is required, others are best-effort.
+    try {
+      await withTimeout(Get.putAsync(() => HiveService().init()), 'HiveService',
+          timeout: const Duration(seconds: 6));
+    } catch (e) {
+      // Last resort: delete and recreate.
+      try {
+        await Hive.deleteFromDisk();
+        await Hive.initFlutter();
+        await Get.putAsync(() => HiveService().init());
+      } catch (e2) {
+        appLog.error('HiveService recovery failed',
+            details: e2.toString(), category: LogCategory.system);
+      }
+    }
+
+    // Non-critical services — timeout but don't block forever.
+    await safePut(() => NotificationHistoryService().init(),
+        'NotificationHistoryService',
+        timeout: const Duration(seconds: 4));
+    await safePut(() => SkillRegistryService().init(),
+        'SkillRegistryService',
+        timeout: const Duration(seconds: 4));
+    await safePut(() => McpRegistryService().init(), 'McpRegistryService',
+        timeout: const Duration(seconds: 4));
+    await safePut(() => DeviceInfoService().init(), 'DeviceInfoService',
+        timeout: const Duration(seconds: 4));
 
     // Settings controller must be initialized before runApp for theme support
     final settingsController = Get.put(SettingsController());
@@ -82,8 +154,16 @@ void main() {
     Get.put(CloudService());
     Get.put(DownloadService());
     Get.put(LocalImageService());
-    final crashReporting =
-        await Get.putAsync(() => CrashReportingService().init());
+    final crashReporting = await () async {
+      try {
+        return await withTimeout(Get.putAsync(() => CrashReportingService().init()),
+            'CrashReportingService',
+            timeout: const Duration(seconds: 4));
+      } catch (_) {
+        // Return a no-op if crash reporting fails — don't block startup.
+        return Get.put(CrashReportingService());
+      }
+    }();
     FlutterError.onError = (details) {
       FlutterError.presentError(details);
       // Include the diagnostic payload (e.g. "The relevant error-causing
@@ -112,16 +192,38 @@ void main() {
       return true;
     };
     final imageNotifications = Get.put(ImageGenerationNotificationService());
-    await imageNotifications.init();
-    await imageNotifications.configureBackgroundService();
+    try {
+      await withTimeout(imageNotifications.init(), 'ImageNotifications.init',
+          timeout: const Duration(seconds: 4));
+    } catch (e) {
+      appLog.error('ImageNotifications.init failed',
+          details: e.toString(), category: LogCategory.system);
+    }
+    try {
+      await withTimeout(imageNotifications.configureBackgroundService(),
+          'ImageNotifications.configureBackgroundService',
+          timeout: const Duration(seconds: 4));
+    } catch (e) {
+      appLog.error('ImageNotifications.configureBackgroundService failed',
+          details: e.toString(), category: LogCategory.system);
+    }
     Get.put(ServerController(), permanent: true);
     Get.put(ModelController());
 
     // Auto-configure inference settings based on device RAM
-    _autoConfigureForDevice();
+    // Fire-and-forget with timeout — never block startup.
+    unawaited(withTimeout(Future(() => _autoConfigureForDevice()),
+            'autoConfigureForDevice',
+            timeout: const Duration(seconds: 2))
+        .catchError((e) => appLog.error('autoConfigure failed',
+            details: e.toString(), category: LogCategory.system)));
 
     // Keep last model as a quick-load option, but do not auto-load on startup.
-    _validateLastModel();
+    unawaited(withTimeout(Future(() => _validateLastModel()),
+            'validateLastModel',
+            timeout: const Duration(seconds: 3))
+        .catchError((e) => appLog.error('validateLastModel failed',
+            details: e.toString(), category: LogCategory.system)));
 
     runApp(const CubicLMApp());
 
