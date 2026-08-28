@@ -5,6 +5,17 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0+6] - 2026-08-28
+
+### Added
+- **Windows Desktop (production)** — Signed `cubiclm.exe` bundle (`41.1 MB` / `16.22 MB` zip) ships alongside Android APK. Same `lib/` codebase, no separate fork.
+
+### Fixed
+- **Windows build** — `CMAKE_POLICY_VERSION_MINIMUM 3.5` for Firebase C++ SDK (CMake 3.5 compat removed in 4.x), `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` for `flutter_inappwebview_windows` / MSVC 14.51 STL1011, `native_assets` install guard (`if(EXISTS)`), and missing ATL headers (`Microsoft.VisualStudio.Component.VC.ATL`).
+
+### Known Limitations
+- **Web** — `dart:ffi` (`sd_ffi_bindings.dart`) not yet web-compatible; `flutter build web` fails. Tracked for next release. Android + Windows are the supported targets for `v1.1.0`.
+
 ## [1.0.5+5] - 2026-08-28
 
 ### Added
