@@ -131,7 +131,7 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
 - **Navigation:** Chat · Explore · Nodes · App Settings
   - **Explore** now has a 4-way toggle — **Local** (on-device models) / **Online** (cloud providers) / **Skills** (offline prompt extensions) / **MCP** (custom remote server) — so models, skills, and MCP are discoverable in one hub
   - **Nodes** page has two tabs — **Node** (local API server) and **Config** (diagnostics, hardware capabilities, inference mode, system prompt, Skills, Custom MCP Server, local model & imaging parameters)
-  - **App Settings** is its own destination — theme mode, typography scale, **Thinking Orbs** (custom animation per context: chatting / image generation / analyzing — each set to **Random** or any of the 9 states with live preview), **Startup → Auto-load last model**, and app info (tap to open **About** page with feature highlights, tech stack, and GitHub link)
+  - **App Settings** is its own destination — theme mode, typography scale, **Thinking Orbs** (custom animation per context: chatting / image generation / analyzing — each set to **Random** or any of the 9 states with live preview), **Language** (15 languages including Bangla, Hindi, Arabic, Chinese, Spanish, French, Japanese, Korean, Portuguese, German, Turkish, Indonesian, Russian, Urdu — instant switch, Hive-persisted), **Startup → Auto-load last model**, and app info (tap to open **About** page with feature highlights, tech stack, and GitHub link)
 - Multi-session chat with history (Hive persistence) and a searchable sidebar drawer with swipe-to-delete
 - **Message actions** — copy, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
 - **Code blocks** with syntax highlighting, one-tap copy, and export/share
@@ -219,6 +219,7 @@ Opened from the chat header — mirrors the Explore page's layout:
 - **Framework:** Flutter 3.x
 - **Language:** Dart, Kotlin, C++ (native plugins)
 - **State Management:** GetX
+- **Localization:** 15 languages — EN, BN, HI, AR, ZH, ES, FR, JA, KO, PT, DE, TR, ID, RU, UR (GetX Translations, Hive-persisted)
 - **Local Storage:** Hive
 - **Networking:** dio, http
 - **Local Inference:** llama_flutter_android, flutter_litert_lm, sd_flutter_android (custom plugins)
@@ -232,10 +233,12 @@ lib/
 ├── main.dart                    # App entry point — window_manager on Windows + critical path (Hive 5s + Settings) before runApp(), heavy services 2200ms after first frame, _MemoryBox fallback
 ├── core/
 │   ├── colors.dart              # App color palette (warm Claude-inspired)
-│   ├── constants.dart           # Settings keys (incl. autoLoadLastModel), model catalog, API endpoints
+│   ├── constants.dart           # Settings keys (incl. autoLoadLastModel, keyLanguage), model catalog, API endpoints
 │   ├── routes.dart              # Route definitions
 │   ├── theme.dart               # Light/dark theme with warm accent palette
-│   └── design_tokens.dart       # Claude APK-measured warm palette (canvas #F8F4ED, pill, accent, hairline)
+│   ├── design_tokens.dart       # Claude APK-measured warm palette (canvas #F8F4ED, pill, accent, hairline)
+│   ├── languages.dart           # 15 supported languages (code, name, nativeName, flag, Locale)
+│   └── app_translations.dart    # GetX Translations — ~70 keys × 15 languages (settings, chat, navigation, common)
 ├── models/
 │   ├── ai_model.dart            # AI model data class
 │   ├── chat_message.dart        # Chat message model (with revision history + webSources + usedSkills)
@@ -250,7 +253,7 @@ lib/
 │   ├── home_controller.dart     # Tab navigation, model resume (520ms delay, async file check, 90s crash guard, 80% RAM guard, chat-idle defer)
 │   ├── model_controller.dart    # Model download/import management
 │   ├── server_controller.dart   # Local API server
-│   ├── settings_controller.dart # App settings + baseSystemPromptForModel / effectiveSystemPromptForPrompt (selective skills) + autoLoadLastModel
+│   ├── settings_controller.dart # App settings + locale (15 langs), baseSystemPromptForModel / effectiveSystemPromptForPrompt (selective skills) + autoLoadLastModel
 │   └── task_controller.dart     # Automated task execution
 ├── services/
 │   ├── cloud_service.dart       # Multi-provider cloud API (delegates to providers)
@@ -314,7 +317,8 @@ lib/
 │   ├── explore_skills_mcp_tabs.dart # Explore Skills + MCP tabs (shared with Nodes Config)
 │   ├── server_view.dart         # Nodes page — Node tab (API server) + Config tab
 │   ├── settings_view.dart       # Config sections (embedded in Nodes › Config) — now also hosts Skills + MCP form
-│   ├── app_settings_view.dart   # App Settings — theme, typography, Thinking Orbs picker, Startup auto-load switch, app info
+│   ├── app_settings_view.dart   # App Settings — theme, typography, Thinking Orbs picker, Language (15 langs), Startup auto-load switch, app info
+│   ├── language_picker_view.dart # Full-page language picker — flag + nativeName, instant apply + top toast, Apple-style grouped list
 │   ├── about_view.dart          # About page — feature highlights, tech stack, GitHub
 │   ├── notification_history_view.dart # 🔔 History page (grouped by day, swipe-to-delete, mark read/clear)
 │   ├── log_view.dart            # System diagnostics viewer (health dashboard, search, categories, top-toast copy)
@@ -444,7 +448,7 @@ Configure in **Nodes › Config → CUSTOM MCP SERVER** — single remote HTTP/S
 ### ⚙️ Engine & App Configuration
 
 - **Nodes › Config** — diagnostics, hardware capabilities, inference mode, Auto Tune (context/output limits), global system prompt, Skills, Custom MCP Server, local model & imaging parameters
-- **App Settings** (bottom navigation) — theme, typography scale, Thinking Orbs (Random or fixed state per context), Startup auto-load, app info
+- **App Settings** (bottom navigation) — theme, typography scale, Thinking Orbs (Random or fixed state per context), **Language** (15 languages with instant switch), Startup auto-load, app info
 - **Web Access** toggle — in the chat input bar; reads links from your message into the model's context
 
 ## 📄 License

@@ -97,6 +97,9 @@ class AppConstants {
   // Startup — auto-load last model without asking
   static const String keyAutoLoadLastModel = 'auto_load_last_model';
 
+  // Language
+  static const String keyLanguage = 'app_language';
+
   // Default Model Config
   static const double defaultTemperature = 0.7;
   static const int defaultMaxTokens = 1024;

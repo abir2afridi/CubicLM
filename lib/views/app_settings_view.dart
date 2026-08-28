@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
 import 'about_view.dart';
+import 'language_picker_view.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/design_tokens.dart';
 import '../widgets/app_ui.dart';
@@ -110,6 +111,22 @@ class AppSettingsView extends GetView<SettingsController> {
                       onChanged: (v) =>
                           controller.setAutoLoadLastModel(v),
                     )),
+              ]),
+              const SizedBox(height: 28),
+              _sectionLabel(context, 'LANGUAGE'),
+              _appleGroupedCard(context, isDark, children: [
+                _appleListTile(
+                  context,
+                  isDark,
+                  leading: const Icon(LucideIcons.globe,
+                      size: 20, color: Dt.accent),
+                  title: 'App Language',
+                  subtitle: '${controller.locale.value.flag}  ${controller.locale.value.nativeName}',
+                  trailing: Icon(LucideIcons.chevronRight,
+                      size: 18, color: Theme.of(context).hintColor),
+                  showDivider: false,
+                  onTap: () => Get.to(() => const LanguagePickerView()),
+                ),
               ]),
               const SizedBox(height: 28),
               _sectionLabel(context, 'APP INFO'),

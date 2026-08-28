@@ -16,6 +16,7 @@ import '../services/local_image_service.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import 'package:sd_flutter_android/sd_flutter_android.dart';
 import '../services/skills/skill_injector.dart';
+import '../core/languages.dart';
 
 class SettingsController extends GetxController {
   final HiveService _hive = Get.find<HiveService>();
@@ -93,6 +94,7 @@ class SettingsController extends GetxController {
   final imageGenGpuGuardMb = AppConstants.defaultImageGenGpuGuardMb.obs;
   final imageGenSize = AppConstants.defaultImageGenSize.obs;
   final fontScale = AppConstants.defaultFontScale.obs;
+  final locale = AppLanguage.fromCode('en').obs;
   final appVersion = ''.obs;
 
   // Thinking Orb animation selections ('random' or an OrbState name).
@@ -359,6 +361,10 @@ class SettingsController extends GetxController {
     fontScale.value = _hive.getSetting(AppConstants.keyFontScale,
             defaultValue: AppConstants.defaultFontScale) ??
         AppConstants.defaultFontScale;
+    final savedLang = _hive.getSetting<String>(AppConstants.keyLanguage,
+            defaultValue: 'en') ??
+        'en';
+    locale.value = AppLanguage.fromCode(savedLang);
     orbChatAnim.value = _hive.getSetting(AppConstants.keyOrbChat,
             defaultValue: 'random') ??
         'random';
@@ -1288,6 +1294,12 @@ class SettingsController extends GetxController {
     final clamped = value.clamp(0.8, 1.4);
     fontScale.value = clamped;
     await _hive.setSetting(AppConstants.keyFontScale, clamped);
+  }
+
+  Future<void> setLocale(AppLanguage lang) async {
+    locale.value = lang;
+    await _hive.setSetting(AppConstants.keyLanguage, lang.code);
+    Get.updateLocale(lang.locale);
   }
 
   /// Persist a thinking-orb animation choice ('random' | OrbState name).

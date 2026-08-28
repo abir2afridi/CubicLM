@@ -27,6 +27,8 @@ import 'services/notification_history_service.dart';
 import 'services/skills/skill_registry_service.dart';
 import 'services/mcp/mcp_registry_service.dart';
 import 'core/constants.dart';
+import 'core/languages.dart';
+import 'core/app_translations.dart';
 
 void main() {
   final appLogBuffer = <String>[];
@@ -391,12 +393,16 @@ class CubicLMApp extends StatelessWidget {
         themeMode: ThemeMode.system,
         initialRoute: AppRoutes.splash,
         getPages: AppPages.pages,
+        translations: AppTranslations(),
+        locale: AppLanguage.localeFromCode('en'),
+        fallbackLocale: AppLanguage.localeFromCode('en'),
       );
     }
     final settings = Get.find<SettingsController>();
     return Obx(() {
       final themeMode = settings.themeMode.value;
       final scale = settings.fontScale.value;
+      final currentLocale = settings.locale.value.locale;
       return GetMaterialApp(
         title: 'CubicLM',
         debugShowCheckedModeBanner: false,
@@ -405,6 +411,9 @@ class CubicLMApp extends StatelessWidget {
         themeMode: themeMode,
         initialRoute: AppRoutes.splash,
         getPages: AppPages.pages,
+        translations: AppTranslations(),
+        locale: currentLocale,
+        fallbackLocale: AppLanguage.localeFromCode('en'),
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx).copyWith(
             textScaler: TextScaler.linear(scale),
