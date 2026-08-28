@@ -21,7 +21,7 @@ migrate_working_dir/
 
 # VS Code
 .history/
-docs/
+docs+/
 #.vscode/
 
 # Flutter/Dart/Pub related

@@ -134,6 +134,19 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
 - Background service and boot persistence
 - In-app model download with byte-exact pause / resume / cancel, plus file import
 
+### 🖥️ Universal Multi-Platform — One Codebase, Three Shells
+
+> **Web ⇄ Windows Desktop ⇄ Android** — same `lib/` product, not three forks. Per `docs/multiplatfrom.md` (AUDIT→PLAN→BUILD).
+
+- **Android (primary, full)** — `android/` Gradle 8.14 + `ModelDownloadService.kt` (FGS, Range, `START_STICKY`), native storage, background service & boot persistence
+- **Web (Flutter Web)** — `web/` static shell (`index.html`, `manifest.json`), Hive IndexedDB, `dart:io` stubs (`download_web.dart`, `inference_stub.dart`); `flutter build web` → `build/web`
+- **Windows Desktop (Flutter Windows, not Tauri per §8.5)** — `windows/` CMake runner, `window_manager 0.4.3` (`400×700` min, `1280×800` default, centered, `CubicLM` title, `waitUntilReadyToShow`), native file dialogs via `file_picker`, `flutter build windows` → `build/windows/runner/Release/cubiclm.exe`
+- **Why Flutter Windows, not Tauri?** Existing `shared` is Dart (`lib/`), not TS — Tauri would require rewriting `lib/` in TS/Svelte or bridging Dart→Rust; `flutter create --platforms=windows` reuses 100% of `lib/` for free (lower total cost, §8.5 justification)
+- **Single source of truth** — `shared/constants/platform_links.dart` + `lib/shared/constants/platform_links.dart` (`REPLACE_ME_*` placeholders). `About → AVAILABLE ON` links to the *other two* platforms + centralized `CHANGELOG.md` (`REPLACE_ME_WEBSITE_URL/changelog`), never to itself, via `launchUrl(externalApplication)` (Web `_blank`, Desktop OS browser, Android Browser tab) — see `docs/PLATFORM_LINKS.md`
+- **Responsive, not forked** — `lib/shared/theme/tokens.dart` (`Breakpoints.phone 360/tablet 600/laptop 900/desktop 1280/wide 1920`, `Spacing`, `TypographyTokens`) + `Dt` tokens; `HomeView._isWide 800` (sidebar vs bottom nav), `Flexible` pill `14` chars, `Expanded` header — verified `360/768/1280/1920` + manual resize `400×700` → `1920` per §5.3 (no `MobileHomePage` vs `DesktopHomePage` fork)
+- **Platform differences documented** — `docs/PLATFORM_DIFFERENCES.md` (local inference cloud-only on Web/Windows until `local_plugins/llama_flutter_windows` ported), `docs/ARCHITECTURE.md`, `docs/BUILD_AND_RUN.md`, `scripts/build-all.ps1` / `.sh`
+- **Windows local inference (intentional gap §8.3):** `local_plugins` are Android FFI only → `supportsLocalInference=false` on `TargetPlatform.windows`, shows cloud banner; roadmap is `local_plugins/llama_flutter_windows` (`llama.dll`)
+
 #### 🔄 In-Chat Model Switcher
 
 Opened from the chat header — mirrors the Explore page's layout:
@@ -196,13 +209,13 @@ Opened from the chat header — mirrors the Explore page's layout:
 - **Networking:** dio, http
 - **Local Inference:** llama_flutter_android, flutter_litert_lm, sd_flutter_android (custom plugins)
 - **Cloud:** Firebase Core, Firebase Messaging, Firebase Crashlytics
-- **Other:** google_fonts, flutter_markdown, image_picker, share_plus, permission_handler, speech_to_text, lucide_icons, url_launcher, file_picker, flutter_secure_storage, dart_mcp
+- **Other:** google_fonts, flutter_markdown, image_picker, share_plus, permission_handler, speech_to_text, lucide_icons, url_launcher, file_picker, flutter_secure_storage, dart_mcp, window_manager
 
 ## 📂 Project Structure
 
 ```text
 lib/
-├── main.dart                    # App entry point — critical path (Hive 5s + Settings) before runApp(), heavy services 2200ms after first frame, _MemoryBox fallback
+├── main.dart                    # App entry point — window_manager on Windows + critical path (Hive 5s + Settings) before runApp(), heavy services 2200ms after first frame, _MemoryBox fallback
 ├── core/
 │   ├── colors.dart              # App color palette (warm Claude-inspired)
 │   ├── constants.dart           # Settings keys (incl. autoLoadLastModel), model catalog, API endpoints
@@ -306,6 +319,26 @@ lib/
 └── utils/
     ├── app_snackbar.dart        # Top spring-animated toast (model switch, cloud, local, logs-copied)
     └── thought_parser.dart      # <thought> tag parser
+├── shared/                      # re-export of root shared/ for Flutter imports
+│   ├── constants/platform_links.dart
+│   └── theme/tokens.dart        # breakpoints 360/600/900/1280/1920 + spacing
+
+shared/                          # root single source (for future Tauri/Next.js shells)
+├── constants/platform_links.dart
+└── theme/tokens.dart
+
+windows/                         # Flutter Windows shell (runner/*.cpp, CMake, app_icon.ico, updater_config.json)
+├── runner/
+├── CMakeLists.txt
+└── updater_config.json          # auto-update scaffolding (disabled, REPLACE_ME)
+
+web/                             # Flutter Web shell
+├── index.html
+└── manifest.json
+
+scripts/
+├── build-all.ps1
+└── build-all.sh                 # one-command Android+Web+Windows
 
 local_plugins/
 ├── llama_flutter_android/       # llama.cpp Flutter plugin (GGUF inference)
@@ -320,6 +353,14 @@ android/
 
 assets/
 └── skills/                  # 5 bundled starters (bn_en_translator, code_reviewer, efficient_prompting, study_helper, creative_writer)
+
+docs/
+├── ARCHITECTURE.md          # one product, three shells — shared vs platform
+├── PLATFORM_DIFFERENCES.md  # Android full vs Web/Windows cloud-only + responsive checklist
+├── BUILD_AND_RUN.md         # clean clone → Android/Web/Windows + junctions for spaces
+├── PLATFORM_LINKS.md        # single-file link editing
+└── ../CHANGELOG.md          # single source (About → What's New on all platforms)
+
 ```
 
 ## 📋 Requirements
@@ -340,17 +381,24 @@ cd CubicLM
 flutter pub get
 
 # Run on a connected device
-flutter run
+flutter run                 # auto-picks Android/Windows/Web device from `flutter devices`
+flutter run -d android      # Android — full local inference
+flutter run -d chrome       # Web — cloud-only (Hive IndexedDB), responsive reflow
+flutter run -d windows      # Windows — 1280×800 window_manager, cloud-only until llama.dll ported
 ```
 
 ### 📦 Release Build
 
 1. Copy `android/key.properties.example` to `android/key.properties`
 2. Fill in your keystore credentials and path
-3. Build the release APK:
+3. Build each shell:
 
 ```bash
-flutter build apk --release
+flutter build apk --release        # → build/app/outputs/flutter-apk/app-release.apk
+flutter build web                  # → build/web (deploy to Vercel/Netlify)
+flutter build windows              # → build/windows/runner/Release/cubiclm.exe (+ msix)
+# or one command for all three:
+pwsh -File scripts/build-all.ps1   # /  bash scripts/build-all.sh
 ```
 
 Or set `CUBICLM_ALLOW_DEBUG_RELEASE_SIGNING=true` to skip keystore validation during development.

@@ -3,9 +3,11 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:window_manager/window_manager.dart';
 import 'controllers/settings_controller.dart';
 import 'controllers/cloud_model_controller.dart';
 import 'controllers/server_controller.dart';
@@ -31,6 +33,27 @@ void main() {
 
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    // ── Windows Desktop: native window config (before any UI shows) ──
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      try {
+        await windowManager.ensureInitialized();
+        const opts = WindowOptions(
+          minimumSize: Size(400, 700),
+          size: Size(1280, 800),
+          center: true,
+          title: 'CubicLM',
+          titleBarStyle: TitleBarStyle.normal,
+          backgroundColor: Colors.transparent,
+        );
+        await windowManager.waitUntilReadyToShow(opts, () async {
+          await windowManager.show();
+          await windowManager.focus();
+        });
+      } catch (_) {
+        // window_manager is Windows-only; ignore on other platforms.
+      }
+    }
 
     // Register logger first so everything routes to it
     final appLog = AppLogService();

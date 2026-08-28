@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -6,21 +7,50 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import '../shared/constants/platform_links.dart';
 import '../theme/design_tokens.dart';
 
 /// Full about page — opens from App Settings › App Info. Surfaces the
 /// project's key facts (features, stack, links, credits) from the README.
+/// Cross-platform aware per docs/multiplatfrom.md §5.4: each platform
+/// links to the other two + centralized changelog, never to itself.
 class AboutView extends StatelessWidget {
   const AboutView({super.key});
 
   static const _repoUrl = 'https://github.com/abir2afridi/CubicLM';
 
-  Future<void> _openRepo() async {
-    final uri = Uri.parse(_repoUrl);
-    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      Get.snackbar('Could not open link', _repoUrl,
+  Future<void> _openUrl(String url) async {
+    if (url.startsWith('REPLACE_ME')) {
+      Get.snackbar(
+        'Link not configured',
+        'Edit shared/constants/platform_links.dart — see docs/PlatformLinks.md',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.warning.withValues(alpha: 0.9),
+        colorText: Colors.white,
+      );
+      return;
+    }
+    final uri = Uri.parse(url);
+    // Per §5.5.4: Web → _blank, Desktop → external browser, Android → Browser tab.
+    // url_launcher with externalApplication does the right thing per platform.
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok) {
+      Get.snackbar('Could not open link', url,
           snackPosition: SnackPosition.BOTTOM);
     }
+  }
+
+  Future<void> _openRepo() => _openUrl(_repoUrl);
+  Future<void> _openChangelog() => _openUrl(PlatformLinks.changelogUrl);
+
+  String get _currentPlatformLabel {
+    if (kIsWeb) return 'Web';
+    if (defaultTargetPlatform == TargetPlatform.windows) return 'Windows Desktop';
+    if (defaultTargetPlatform == TargetPlatform.android) return 'Android';
+    if (defaultTargetPlatform == TargetPlatform.iOS) return 'iOS';
+    if (defaultTargetPlatform == TargetPlatform.macOS) return 'macOS';
+    if (defaultTargetPlatform == TargetPlatform.linux) return 'Linux';
+    return 'Unknown';
   }
 
   @override
@@ -100,6 +130,24 @@ class AboutView extends StatelessWidget {
                               ? AppColors.textSecondary
                               : Dt.textSecondary)),
                 ),
+                const SizedBox(height: 8),
+                // Current platform + version (per §5.5.5)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Dt.accent.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: Dt.accent.withValues(alpha: 0.15)),
+                  ),
+                  child: Text('$_currentPlatformLabel • $version',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.3,
+                          color: Dt.accent)),
+                ),
                 const SizedBox(height: 14),
                 Text(
                   'A cross-platform AI chat app with local on-device '
@@ -144,6 +192,99 @@ class AboutView extends StatelessWidget {
             ]),
             const SizedBox(height: 24),
 
+            // ── Cross-platform discoverability (per §5.4) ──
+            _sectionLabel('AVAILABLE ON', isDark),
+            _groupedCard(isDark: isDark, children: [
+              if (kIsWeb) ...[
+                // Web: link to Desktop + Android + changelog (no self)
+                _platformLinkRow(
+                  context, isDark,
+                  icon: LucideIcons.monitor,
+                  title: 'Windows Desktop',
+                  subtitle: 'Download .exe / .msi',
+                  url: PlatformLinks.desktopDownloadUrl,
+                ),
+                _divider(isDark),
+                _platformLinkRow(
+                  context, isDark,
+                  icon: LucideIcons.smartphone,
+                  title: 'Android',
+                  subtitle: 'Download .apk / .aab',
+                  url: PlatformLinks.androidDownloadUrl,
+                ),
+              ] else if (defaultTargetPlatform == TargetPlatform.windows) ...[
+                // Desktop: link to Website + Android + changelog (no self)
+                _platformLinkRow(
+                  context, isDark,
+                  icon: LucideIcons.globe,
+                  title: 'Website',
+                  subtitle: PlatformLinks.websiteUrl,
+                  url: PlatformLinks.websiteUrl,
+                ),
+                _divider(isDark),
+                _platformLinkRow(
+                  context, isDark,
+                  icon: LucideIcons.smartphone,
+                  title: 'Android App',
+                  subtitle: 'Get the APK',
+                  url: PlatformLinks.androidDownloadUrl,
+                ),
+              ] else if (defaultTargetPlatform == TargetPlatform.android) ...[
+                // Android: link to Website + Desktop + changelog (no self)
+                _platformLinkRow(
+                  context, isDark,
+                  icon: LucideIcons.globe,
+                  title: 'Website',
+                  subtitle: PlatformLinks.websiteUrl,
+                  url: PlatformLinks.websiteUrl,
+                ),
+                _divider(isDark),
+                _platformLinkRow(
+                  context, isDark,
+                  icon: LucideIcons.monitor,
+                  title: 'Windows Desktop',
+                  subtitle: 'Download .exe / .msi',
+                  url: PlatformLinks.desktopDownloadUrl,
+                ),
+              ] else ...[
+                // Fallback: show all
+                _platformLinkRow(
+                  context, isDark,
+                  icon: LucideIcons.globe,
+                  title: 'Website',
+                  subtitle: PlatformLinks.websiteUrl,
+                  url: PlatformLinks.websiteUrl,
+                ),
+                _divider(isDark),
+                _platformLinkRow(
+                  context, isDark,
+                  icon: LucideIcons.monitor,
+                  title: 'Windows Desktop',
+                  subtitle: PlatformLinks.desktopDownloadUrl,
+                  url: PlatformLinks.desktopDownloadUrl,
+                ),
+                _divider(isDark),
+                _platformLinkRow(
+                  context, isDark,
+                  icon: LucideIcons.smartphone,
+                  title: 'Android',
+                  subtitle: PlatformLinks.androidDownloadUrl,
+                  url: PlatformLinks.androidDownloadUrl,
+                ),
+              ],
+              _divider(isDark),
+              // Changelog — centralized, never duplicated (§5.5.3)
+              _platformLinkRow(
+                context, isDark,
+                icon: LucideIcons.sparkles,
+                title: "What's New",
+                subtitle: 'Changelog — single source of truth',
+                url: PlatformLinks.changelogUrl,
+                highlight: true,
+              ),
+            ]),
+            const SizedBox(height: 24),
+
             // ── Tech stack ──
             _sectionLabel('TECH STACK', isDark),
             Wrap(
@@ -153,6 +294,7 @@ class AboutView extends StatelessWidget {
                 for (final t in const [
                   'Flutter', 'Dart', 'Kotlin', 'C++', 'GetX', 'Hive',
                   'llama.cpp', 'LiteRT-LM', 'Stable Diffusion', 'Firebase',
+                  'window_manager',
                 ])
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -200,6 +342,15 @@ class AboutView extends StatelessWidget {
                 title: 'Issues & Feedback',
                 subtitle: 'Report bugs or request features on GitHub',
                 onTap: _openRepo,
+              ),
+              _divider(isDark),
+              _linkRow(
+                context,
+                isDark,
+                icon: LucideIcons.fileText,
+                title: 'Changelog',
+                subtitle: PlatformLinks.changelogUrl.replaceAll('https://', ''),
+                onTap: _openChangelog,
               ),
             ]),
             const SizedBox(height: 24),
@@ -251,6 +402,18 @@ class AboutView extends StatelessWidget {
                 'Built with Flutter · Runs AI entirely on your device',
                 style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? AppColors.textMuted : Dt.textMuted),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Version footer per §5.5.5
+            Center(
+              child: Text(
+                '$_currentPlatformLabel • $version • shared/constants/platform_links.dart',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
                     fontWeight: FontWeight.w500,
                     color: isDark ? AppColors.textMuted : Dt.textMuted),
               ),
@@ -329,6 +492,73 @@ class AboutView extends StatelessWidget {
               ]),
         ),
       ]),
+    );
+  }
+
+  Widget _platformLinkRow(
+    BuildContext context,
+    bool isDark, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String url,
+    bool highlight = false,
+  }) {
+    final isPlaceholder = url.startsWith('REPLACE_ME');
+    return InkWell(
+      onTap: () => _openUrl(url),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: highlight
+                  ? Dt.accent.withValues(alpha: 0.12)
+                  : Dt.pillBg(isDark),
+              borderRadius: BorderRadius.circular(8),
+              border: highlight
+                  ? Border.all(color: Dt.accent.withValues(alpha: 0.2))
+                  : null,
+            ),
+            child: Icon(icon,
+                size: 16,
+                color: highlight ? Dt.accent : Dt.textSecondary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: highlight
+                              ? Dt.accent
+                              : isDark
+                                  ? AppColors.textPrimary
+                                  : Dt.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text(
+                      isPlaceholder ? 'Configure in platform_links.dart' : subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                          color: isPlaceholder
+                              ? AppColors.warning
+                              : isDark
+                                  ? AppColors.textMuted
+                                  : Dt.textMuted)),
+                ]),
+          ),
+          const Icon(LucideIcons.externalLink,
+              size: 16, color: Dt.textMuted),
+        ]),
+      ),
     );
   }
 

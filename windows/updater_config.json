@@ -1,0 +1,7 @@
+{
+  "_comment": "Auto-update scaffolding per docs/multiplatfrom.md §5.1 — disabled by default, config exists and is documented.",
+  "enabled": false,
+  "feedUrl": "REPLACE_ME_UPDATE_FEED_URL",
+  "publicKey": "REPLACE_ME_UPDATE_PUBLIC_KEY",
+  "notes": "Generate a real feed (e.g., GitHub Releases + Tauri updater JSON or msix update manifest) and replace placeholders. See docs/BUILD_AND_RUN.md Windows auto-update section."
+}
