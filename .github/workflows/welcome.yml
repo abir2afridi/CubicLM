@@ -1,0 +1,38 @@
+name: 👋 Welcome First-Time Contributors
+on:
+  pull_request_target:
+    types: [opened]
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  welcome:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/first-interaction@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-message: |
+            👋 **Welcome to CubicLM — thanks for opening your first issue!**
+
+            We're a Flutter AI chat app (`com.cubiclm.app` v1.1.0) — local `llama.cpp` / `LiteRT-LM` / `SD 1.5` + 18 cloud providers, one `lib/` for Android + Windows + Web.
+
+            A maintainer will triage this shortly. In the meantime:
+            - Check [README](https://github.com/abir2afridi/CubicLM#readme), [docs/BUILD_AND_RUN.md](https://github.com/abir2afridi/CubicLM/blob/main/docs/BUILD_AND_RUN.md), and [CHANGELOG.md](https://github.com/abir2afridi/CubicLM/blob/main/CHANGELOG.md)
+            - For questions, **Discussions** (https://github.com/abir2afridi/CubicLM/discussions) is fastest
+
+            🙏 Thanks for making CubicLM better!
+          pr-message: |
+            👋 **Welcome — thanks for your first PR to CubicLM!**
+
+            Quick contributor checks:
+            - `flutter analyze` + `dart format .` + `flutter test`
+            - `flutter build apk --release` / `flutter build windows --release` still produce artifacts (`android/` → `com.cubiclm.app`, `windows/` → `cubiclm.exe`)
+            - If you touched `lib/ffi/sd_ffi_bindings.dart` or `local_plugins/`, call out FFI impact in the PR body
+            - Please fill the PR template — link the issue and include screenshots for UI changes
+
+            A reviewer will take a look soon. 🙏

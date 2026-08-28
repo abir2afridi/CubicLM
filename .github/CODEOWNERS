@@ -1,0 +1,12 @@
+# 👥 CubicLM code owners — https://github.com/abir2afridi/CubicLM
+# Default owner for everything:
+* @abir2afridi
+
+# Platform-specific and sensitive areas (still @abir2afridi — adjust if you add maintainers):
+/android/ @abir2afridi
+/windows/ @abir2afridi
+/web/ @abir2afridi
+/lib/ @abir2afridi
+/local_plugins/ @abir2afridi
+/docs/ @abir2afridi
+/.github/ @abir2afridi

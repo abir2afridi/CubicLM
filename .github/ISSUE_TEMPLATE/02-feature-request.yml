@@ -1,0 +1,171 @@
+name: ✨ Feature Request
+description: Propose a new feature or enhancement for CubicLM
+title: "[Feature]: "
+labels: [feature-request, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ✨ Feature Request
+        Thanks for taking the time to suggest an improvement to **CubicLM**.
+
+        > 💡 **Tip:** The best feature requests explain the problem first, then propose a solution. We care about problems more than solutions.
+        >
+        > 🗺️ Check [CHANGELOG.md](../../blob/main/CHANGELOG.md), [docs/ARCHITECTURE.md](../../blob/main/docs/ARCHITECTURE.md) and [Discussions](https://github.com/abir2afridi/CubicLM/discussions) before submitting — your idea might already be planned.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: ✅ Preflight Checklist
+      options:
+        - label: I have searched existing issues and this is not a duplicate
+          required: true
+        - label: I have checked the roadmap and discussions
+          required: true
+        - label: I have read the documentation and this feature does not exist
+          required: true
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: 🎯 Problem Statement
+      description: >
+        What problem are you trying to solve? What are you currently unable to do?
+        Start with "I'm frustrated when..." or "I often need to..."
+      placeholder: |
+        I'm frustrated when I try to run a 7B model on a 4GB RAM phone because the tier detection is too conservative.
+        This forces me to manually lower the context window, which is confusing.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-limitation
+    attributes:
+      label: 🚧 Current Limitation
+      description: Describe the current behavior and any workarounds you use.
+      placeholder: |
+        Currently, CubicLM does not support [X].
+        My current workaround is [Y], but it's problematic because [Z].
+        For example: Web has no local inference — only cloud — so offline use is impossible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: 💡 Proposed Solution
+      description: Describe the feature you'd like to see implemented.
+      placeholder: |
+        I would like CubicLM to do [X].
+        This could work by [mechanism, e.g., extend download_service.dart Range resume to support Web].
+        The UI would be Explore → Online → [new filter chip] that shows ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 🔄 Alternative Solutions
+      description: Have you considered any alternative approaches?
+      placeholder: |
+        Alternative 1: [description]
+        Alternative 2: [description]
+        Why these alternatives are less ideal: [reason]
+    validations:
+      required: false
+
+  - type: dropdown
+    id: platform-scope
+    attributes:
+      label: 🎯 Platform Scope
+      description: Which shell(s) does this feature target? CubicLM ships Android + Windows + Web from one lib/.
+      options:
+        - All platforms
+        - Android (APK) only
+        - Windows (cubiclm.exe) only
+        - Web (Flutter Web) only
+        - Android + Windows (native)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 📂 Area
+      description: Which part of CubicLM is this about?
+      options:
+        - Local inference (llama.cpp / LiteRT-LM / SD 1.5)
+        - Cloud providers (OpenRouter, Hugging Face, Groq, etc.)
+        - Skills / MCP
+        - Chat / composer / bubbles
+        - Explore (Local / Online / Skills / MCP hub)
+        - Downloads & storage
+        - OpenAI-compatible server (port 8080)
+        - Theming / Thinking Orbs / system logs
+        - Build / Windows / docs
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: value
+    attributes:
+      label: 📈 Value to You
+      description: How much would this feature improve your experience?
+      options:
+        - Critical — I cannot use CubicLM effectively without this
+        - High — This would significantly improve my workflow
+        - Medium — This would be a nice improvement
+        - Low — Nice to have, but not urgent
+    validations:
+      required: true
+
+  - type: dropdown
+    id: user-type
+    attributes:
+      label: 👤 Who Benefits
+      description: Who would primarily benefit from this feature?
+      multiple: true
+      options:
+        - All users
+        - New / beginner users
+        - Power users
+        - Developers / contributors
+    validations:
+      required: true
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: 🎨 Mockups / References
+      description: >
+        Share sketches, mockups, or links to similar features in other tools.
+        Drag and drop images here.
+      placeholder: |
+        [Mockup image or description]
+
+        Similar feature in LM Studio: [link]
+        Related discussion: https://github.com/abir2afridi/CubicLM/discussions/...
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 💬 Additional Context
+      description: Any other context, technical considerations, or constraints.
+      placeholder: Any additional information — e.g., minSdk 28, Hive box impact, FFI constraints...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true
+        - label: I am willing to open a PR to implement this feature
+          required: false

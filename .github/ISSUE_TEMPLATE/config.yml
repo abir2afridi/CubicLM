@@ -1,0 +1,17 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Community Discussions
+    url: https://github.com/abir2afridi/CubicLM/discussions
+    about: >
+      Ask questions, share ideas, and get help from the community.
+      Do not use Issues for support questions.
+  - name: 📖 Documentation
+    url: https://github.com/abir2afridi/CubicLM#readme
+    about: Read the full documentation before opening an issue.
+  - name: 🔒 Security Vulnerabilities
+    url: https://github.com/abir2afridi/CubicLM/security/advisories/new
+    about: >
+      Report security issues privately — never in a public issue.
+  - name: 🗺️ Roadmap & Changelog
+    url: https://github.com/abir2afridi/CubicLM/blob/main/CHANGELOG.md
+    about: Check what's planned and what's changed before requesting features.

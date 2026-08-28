@@ -1,0 +1,33 @@
+name: 🧹 Mark Stale Issues and PRs
+on:
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: |
+            💤 This issue has had no activity for 60 days and is marked as **stale**. It will be closed in 14 days if no further activity occurs.
+            If this is still relevant to **CubicLM** (`com.cubiclm.app` v1.1.0), please comment with updated reproduction (Flutter / platform / logs).
+          stale-pr-message: |
+            💤 This PR has had no activity for 45 days and is marked as **stale**. Please rebase and address review comments — it will be closed in 14 days without activity.
+          close-issue-message: |
+            🔒 Closing as stale — no activity for 74 days. Feel free to reopen with fresh `flutter doctor -v` and logs from **Nodes → Config → System Logs**.
+          days-before-stale: 60
+          days-before-close: 14
+          days-before-pr-stale: 45
+          days-before-pr-close: 14
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: security,priority: critical,blocked
+          exempt-pr-labels: security,priority: critical,blocked
+          operations-per-run: 100

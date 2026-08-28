@@ -1,0 +1,112 @@
+name: ⚡ Performance Issue
+description: Report a performance regression or slowness in CubicLM
+title: "[Perf]: "
+labels: [performance, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ⚡ Performance Issue
+        Help us keep **CubicLM** fast — local inference and downloads are sensitive to RAM, SoC, and GPU.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: ✅ Preflight Checklist
+      options:
+        - label: I have searched for existing performance issues
+          required: true
+        - label: I have confirmed this is a performance issue, not a bug
+          required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 📂 Affected Area
+      description: Where is the slowness observed?
+      options:
+        - Splash / startup (cold start, Hive open, heavy init)
+        - Local LLM generation (tokens/sec, TTFT)
+        - Stable Diffusion image generation (steps / resolution)
+        - Model download / resume / extraction
+        - Chat rendering (bubbles, markdown, code blocks, Thinking Orbs)
+        - Explore / model switcher / search
+        - Cloud API streaming
+        - Memory usage / OOM
+        - APK size / Windows bundle size / build time
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: current-measurement
+    attributes:
+      label: 📊 Current Performance (Measured)
+      description: Provide a measured value — do not estimate. Copy from Nodes → Config → System Diagnostics if possible.
+      placeholder: "e.g., 4.2s cold start, 3.8 tok/s on Qwen2.5-3B, 380MB RAM, 8.1 MB bundle delta"
+    validations:
+      required: true
+
+  - type: input
+    id: expected-measurement
+    attributes:
+      label: 🎯 Expected Performance
+      description: What do you think it should be? Cite a baseline or previous version.
+      placeholder: "e.g., under 2s cold start (v1.0.5), ~12 tok/s on Adreno, under 200MB"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 📱 Platform
+      options:
+        - Android
+        - Windows (cubiclm.exe)
+        - Web
+        - Multiple
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: 🔁 How to Reproduce
+      description: Exact steps to observe the performance issue.
+      placeholder: |
+        1. Device: Pixel 8, 8GB RAM, Snapdragon 8 Gen 2 / Adreno
+        2. Start CubicLM → chat auto-load ON → Qwen2.5-3B Q4_K_M resident
+        3. Send 2k-token prompt via stream
+        4. Observe tok/s drop to 3.8 (was 12 in v1.0.5)
+    validations:
+      required: true
+
+  - type: textarea
+    id: profiling-data
+    attributes:
+      label: 📈 Profiling Data / Logs
+      description: >
+        Paste output from **Nodes → Config → System Logs**, `flutter run --profile`, DevTools, or `adb logcat`.
+      placeholder: |
+        [Log excerpt, flame graph, dart:developer timeline]
+      render: shell
+    validations:
+      required: false
+
+  - type: input
+    id: environment
+    attributes:
+      label: 🌐 Environment
+      description: Device SoC/GPU, RAM, OS, Flutter version.
+      placeholder: "Pixel 7, Tensor G2, 8GB RAM, Android 14, Flutter 3.38.7, CubicLM v1.1.0+6"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true

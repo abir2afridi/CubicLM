@@ -1,0 +1,79 @@
+name: 🔌 API Issue
+description: Report an issue with CubicLM's local OpenAI-compatible server or provider routing
+title: "[API]: "
+labels: [api, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🔌 API Issue
+        This form is for **CubicLM's OpenAI-compatible server** (`Nodes → Node → port 8080`) and the **cloud provider registry** (`lib/services/cloud/providers/`), not for upstream provider APIs.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: ✅ Preflight Checklist
+      options:
+        - label: I have searched for existing API issues
+          required: true
+        - label: I have tried the request with `curl` to isolate the client
+          required: true
+
+  - type: dropdown
+    id: api-surface
+    attributes:
+      label: 📂 API Surface
+      options:
+        - Local server — OpenAI-compatible (port 8080 / openai_server_service.dart)
+        - Cloud provider — OpenRouter / Hugging Face / xKiro / TokenRouter
+        - Cloud provider — OpenAI / Anthropic / Gemini / Groq / etc.
+        - MCP tools (tools / tool_choice round-trip)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: endpoint
+    attributes:
+      label: 🔗 Endpoint
+      placeholder: "e.g., POST /v1/chat/completions or GET /v1/models"
+    validations:
+      required: true
+
+  - type: textarea
+    id: request
+    attributes:
+      label: 📤 Request (redact keys)
+      description: Include headers and body — **remove API keys and bearer tokens**.
+      placeholder: |
+        curl http://127.0.0.1:8080/v1/chat/completions \
+          -H "Content-Type: application/json" \
+          -d '{"model":"qwen2.5-1.5b","messages":[{"role":"user","content":"hi"}]}'
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: response
+    attributes:
+      label: 📥 Response / Error
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 📦 CubicLM Version
+      placeholder: "v1.1.0+6"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true

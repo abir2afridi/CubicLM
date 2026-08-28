@@ -1,0 +1,101 @@
+name: 📝 Documentation Issue
+description: Report missing, incorrect, or confusing documentation in CubicLM
+title: "[Docs]: "
+labels: [documentation, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 📝 Documentation Issue
+        Good documentation is crucial for **CubicLM**'s success. Thank you for helping us improve it!
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: ✅ Preflight Checklist
+      options:
+        - label: I have searched for existing documentation issues
+          required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: 📋 Issue Type
+      options:
+        - Missing documentation — this topic is not covered at all
+        - Incorrect information — something documented is wrong
+        - Outdated content — information is correct but no longer current
+        - Unclear / confusing — hard to understand even if technically correct
+        - Typo or grammar error
+        - Broken link or missing image
+        - Code example doesn't work
+        - Translation missing or incorrect
+    validations:
+      required: true
+
+  - type: dropdown
+    id: doc-area
+    attributes:
+      label: 📂 Documentation Area
+      description: Which area of the documentation is affected?
+      options:
+        - README — Features / Project Structure / Tech Stack
+        - README — Download / Getting Started / Release Build
+        - docs/ARCHITECTURE.md
+        - docs/PLATFORM_DIFFERENCES.md
+        - docs/BUILD_AND_RUN.md
+        - docs/PLATFORM_LINKS.md
+        - CHANGELOG.md
+        - CONTRIBUTING.md
+        - Code comments / inline docs
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: doc-url
+    attributes:
+      label: 🔗 Link to Problematic Page
+      description: Paste the URL or file path to the documentation with the issue.
+      placeholder: "https://github.com/abir2afridi/CubicLM/blob/main/docs/BUILD_AND_RUN.md or README.md#release-build"
+    validations:
+      required: false
+
+  - type: textarea
+    id: current-content
+    attributes:
+      label: ❌ What's Wrong
+      description: Describe what is incorrect, missing, or confusing.
+      placeholder: |
+        The documentation currently says / doesn't say [X].
+        For example: README says flutter build web just works, but since v1.1.0 Web is blocked by dart:ffi.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested-improvement
+    attributes:
+      label: ✅ Suggested Improvement
+      description: How should the documentation be improved?
+      placeholder: |
+        The documentation should instead say [X].
+        Or: Add a prerequisites callout for Windows (nuget.exe, ATL headers, C:\CLM short path).
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: 🤝 Contribution
+      options:
+        - label: I am willing to submit a PR to fix this documentation issue
+          required: false
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true

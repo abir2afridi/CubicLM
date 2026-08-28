@@ -1,0 +1,94 @@
+name: 📱 Mobile Bug Report
+description: Report an Android-specific bug in CubicLM (APK, downloads, FGS, SoC/GPU)
+title: "[Mobile]: "
+labels: [mobile, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 📱 Mobile Bug Report
+        Use this form for **Android** issues — downloads, `ModelDownloadService.kt` FGS, SoC/GPU detection, storage, and build signing.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: ✅ Preflight Checklist
+      options:
+        - label: I have searched existing issues and this is not a duplicate
+          required: true
+        - label: I have tested on the latest APK from [Releases](https://github.com/abir2afridi/CubicLM/releases)
+          required: true
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: 📦 Version
+      options:
+        - v1.1.0+6 (latest)
+        - v1.0.5+5
+        - v1.0.4
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: 📱 Device / SoC
+      description: From **Nodes → Config → System Diagnostics** if possible (shows real SoC via ro.soc.* and GPU renderer).
+      placeholder: "Pixel 8 — Snapdragon 8 Gen 2 / Adreno, 8GB RAM, Android 14"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 📂 Area
+      options:
+        - Model download / pause / resume / START_STICKY FGS notification
+        - Model load / inference (llama.cpp / LiteRT-LM)
+        - SoC / GPU detection (device_info_service.dart)
+        - Storage / Hive (3s timeout, _MemoryBox fallback)
+        - Permissions (camera, storage, notifications)
+        - Background service / boot persistence
+        - APK build / signing (gradle, minSdk 28, key.properties)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 🐛 Description
+      placeholder: "Download shows 'already downloaded' but Explore still says downloading. Resume fails."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 🔁 Steps to Reproduce
+      placeholder: |
+        1. Download Qwen2.5-3B → pause at 60%
+        2. Kill app → reopen
+        3. Tap Resume → see error ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 📋 Logs
+      description: `adb logcat` or **Nodes → Config → System Logs** export.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true

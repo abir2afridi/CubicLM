@@ -1,0 +1,71 @@
+name: 🔗 Integration Request
+description: Request a new cloud provider, MCP, or external integration for CubicLM
+title: "[Integration]: "
+labels: [integration, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🔗 Integration Request
+        CubicLM already integrates 18 cloud providers, Skills (markdown), and one remote MCP (HTTP/SSE) — tell us what to add next.
+
+  - type: dropdown
+    id: integration-type
+    attributes:
+      label: 🔗 Integration Type
+      options:
+        - Cloud LLM provider (OpenAI-compatible)
+        - Cloud image provider
+        - MCP server / tool
+        - Skill pack / prompt library
+        - Storage / vector DB
+        - Auth / identity
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: service
+    attributes:
+      label: 🌐 Service / Provider Name
+      placeholder: "e.g., Ollama Cloud, Replicate, Notion MCP"
+    validations:
+      required: true
+
+  - type: textarea
+    id: api-info
+    attributes:
+      label: 🔌 API Details
+      description: Link to docs, spec, or OpenAPI. For LLM providers: list models endpoint shape, FREE tagging, streaming format.
+      placeholder: |
+        Docs: https://example.com/docs/api
+        Models: GET /v1/models → { data: [{ id, name }] }
+        Auth: Bearer, streaming: SSE
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: 🎯 Use Case
+      description: How would you use this integration in CubicLM?
+      placeholder: "As a local-first user I want [X] so that [Y] without leaving CubicLM's Explore → Online hub."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 🔄 Alternatives / Workaround
+      placeholder: "Currently I use custom_provider with endpoint https://... but it lacks model auto-fetch."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true

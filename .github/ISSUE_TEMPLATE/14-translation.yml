@@ -1,0 +1,65 @@
+name: 🌍 Translation / i18n Issue
+description: Report a translation problem or request a new language for CubicLM
+title: "[i18n]: "
+labels: [i18n, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🌍 Translation / i18n Issue
+        CubicLM currently ships English with a `bn_en_translator` Skill for Bengali/Banglish — help us go further.
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: 🌍 Type
+      options:
+        - Incorrect translation
+        - Missing translation (English shown instead)
+        - Request a new language
+        - Formatting / RTL / font issue
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: language
+    attributes:
+      label: 🌐 Language
+      placeholder: "e.g., bn (Bengali), es, fr, de"
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: 📂 Where
+      description: Where does this string appear? File or screen path helps — e.g., lib/views/chat_view.dart:302, Explore → Local, Nodes → Config.
+      placeholder: "Chat header model pill, SettingsController prompt, etc."
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: ❌ Current String
+      placeholder: "Currently shows: 'Auto-load last model'"
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested
+    attributes:
+      label: ✅ Suggested String
+      placeholder: "Should be: '...'"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true

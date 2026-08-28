@@ -1,0 +1,47 @@
+changelog:
+  # 🏷️ CubicLM — release notes categories (used by GitHub's auto-generated notes)
+  # Keep `labels:` in sync with create-labels.sh and .github/labeler.yml
+  exclude:
+    labels:
+      - stale
+      - duplicate
+      - invalid
+      - wont-fix
+  categories:
+    - title: "✨ Features"
+      labels:
+        - feature-request
+        - enhancement
+        - integration
+    - title: "🐛 Bug Fixes"
+      labels:
+        - bug
+        - regression
+        - mobile
+    - title: "🎨 UI / UX"
+      labels:
+        - ui
+        - accessibility
+    - title: "⚡ Performance"
+      labels:
+        - performance
+    - title: "📝 Documentation"
+      labels:
+        - documentation
+        - i18n
+    - title: "🔧 Build & Tooling"
+      labels:
+        - build
+        - dependencies
+        - area: build
+        - area: ci-cd
+    - title: "🔌 API"
+      labels:
+        - api
+    - title: "🔒 Security"
+      labels:
+        - security
+    - title: "💬 Other"
+      labels:
+        - question
+        - needs-triage

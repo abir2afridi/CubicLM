@@ -1,0 +1,108 @@
+name: 🎨 UI / UX Issue
+description: Report a visual bug, layout problem, or usability issue in CubicLM
+title: "[UI]: "
+labels: [ui, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🎨 UI / UX Issue
+        CubicLM's surfaces are built with Flutter + Dt / design_tokens — every report helps us keep 360 dp → 1920 px smooth.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: ✅ Preflight Checklist
+      options:
+        - label: I have searched for existing UI/UX issues
+          required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: 🎨 Issue Type
+      options:
+        - Visual bug (something renders incorrectly)
+        - Layout broken (elements overlap, misaligned, overflow — e.g., RenderFlex overflow)
+        - Responsiveness issue (wrong on certain screen sizes / home_view _isWide 800)
+        - Dark/light mode issue (warm palette #F8F4ED / accent #D97757)
+        - Animation or transition glitch (Thinking Orbs, splash shimmer, RepaintBoundary)
+        - Poor usability (confusing flow or interaction)
+        - Missing loading state or feedback
+        - Inconsistent design (doesn't match the rest of the UI)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: 📱 Device Type
+      options:
+        - Desktop (1920px+)
+        - Laptop (1280–1920px)
+        - Tablet (768–1280px)
+        - Mobile (< 768px)
+        - All sizes affected
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 🌐 Platform
+      options:
+        - Android
+        - Windows (cubiclm.exe)
+        - Web (Flutter Web)
+        - All platforms affected
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-area
+    attributes:
+      label: 📂 Affected Area / Page
+      description: Where in CubicLM does this occur?
+      placeholder: "e.g., Chat → chat_view.dart:1185 composer pill, Explore → Local tab, Nodes → Config → Thinking Orbs picker"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 🐛 Description
+      description: Describe the visual or usability issue.
+      placeholder: "The header model pill overflows by 12px on 360 dp when composer shows image-generation indicator."
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 📸 Screenshots (Required for UI issues)
+      description: >
+        Drag and drop screenshots here. Before/After comparisons are extremely helpful.
+      placeholder: |
+        Before: [screenshot]
+        After / Current state: [screenshot]
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: 💡 Suggested Fix
+      description: How do you think it should look or behave?
+      placeholder: "Flexible + 14-char truncate, or Expanded, or use Dt spacing tokens."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true

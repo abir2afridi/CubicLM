@@ -1,0 +1,82 @@
+name: ♿ Accessibility Issue
+description: Report an accessibility barrier in CubicLM
+title: "[a11y]: "
+labels: [accessibility, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## ♿ Accessibility Issue
+        CubicLM should be usable by everyone — thanks for helping us improve.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: ✅ Preflight Checklist
+      options:
+        - label: I have searched for existing accessibility issues
+          required: true
+
+  - type: dropdown
+    id: assistive-tech
+    attributes:
+      label: 🛠️ Assistive Technology
+      options:
+        - TalkBack (Android)
+        - VoiceOver (iOS / Web)
+        - Keyboard only
+        - Screen magnifier
+        - High contrast / large text (font scale)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 📱 Platform
+      options:
+        - Android
+        - Windows (cubiclm.exe)
+        - Web
+      multiple: false
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 🐛 Description
+      description: What barrier did you encounter?
+      placeholder: "The ThinkingOrbs picker has no semantic label and TalkBack announces nothing."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 🔁 Steps to Reproduce
+      placeholder: |
+        1. Enable TalkBack
+        2. Open App Settings → Thinking Orbs
+        3. Swipe to orb preview …
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: ✅ Expected Behavior
+      description: How should it behave with assistive technology?
+      placeholder: Each orb should have an accessible label and be keyboard focusable.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true

@@ -1,0 +1,84 @@
+name: 🔧 Build / CI Failure
+description: Report a build failure for CubicLM (Flutter / Gradle / CMake / Firebase)
+title: "[Build]: "
+labels: [build, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🔧 Build / CI Failure
+        CubicLM builds to APK (`android/`, Gradle 8.14, Kotlin 2.2.20, minSdk 28) and Windows (`windows/CMakeLists.txt`, MSVC 14.51). Include the exact command and full log.
+
+  - type: input
+    id: command
+    attributes:
+      label: ⌨️ Command
+      description: Exact command that failed.
+      placeholder: "flutter build apk --release  or  flutter build windows --release  or  pwsh -File scripts/build-all.ps1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: shell
+    attributes:
+      label: 🖥️ Platform / Shell
+      options:
+        - Windows — PowerShell 7
+        - Windows — CMD
+        - macOS
+        - Linux
+        - CI (GitHub Actions)
+      multiple: false
+    validations:
+      required: true
+
+  - type: input
+    id: flutter-version
+    attributes:
+      label: 🐦 Flutter / Dart
+      placeholder: "Flutter 3.38.7 • Dart 3.10.7 (flutter --version)"
+    validations:
+      required: true
+
+  - type: input
+    id: java-version
+    attributes:
+      label: ☕ Java / JDK
+      description: CubicLM requires JDK 17 (e.g., Temurin 17.0.14). JDK 21/25 fails Kotlin daemon.
+      placeholder: "openjdk 17.0.14 Temurin"
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: 📋 Full Log (required)
+      description: Paste the full terminal output — not a screenshot of the first lines. Include CMake/MSVC or Gradle stacktrace.
+      placeholder: |
+        > flutter build windows --release
+        CMake Error at C:/.../firebase_cpp_sdk.../CMakeLists.txt:17 ...
+      render: shell
+    validations:
+      required: true
+
+  - type: dropdown
+    id: path-spaces
+    attributes:
+      label: 💬 Path Contains Spaces?
+      description: `D:\GitHub Project\CubicLM` with a space breaks CMake/Firebase extraction — workaround is a `C:\CLM` junction as in docs/BUILD_AND_RUN.md.
+      options:
+        - No spaces
+        - Yes — D:\GitHub Project\CubicLM (or similar)
+        - Using C:\CLM junction workaround
+      multiple: false
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true

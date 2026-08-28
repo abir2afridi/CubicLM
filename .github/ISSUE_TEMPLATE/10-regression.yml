@@ -1,0 +1,77 @@
+name: 🔄 Regression Report
+description: Report something that worked in a previous version of CubicLM but is now broken
+title: "[Regression]: "
+labels: [bug, regression, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🔄 Regression Report
+        CubicLM follows Semantic Versioning — regressions get high priority.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: ✅ Preflight Checklist
+      options:
+        - label: I have confirmed this worked in a previous version
+          required: true
+        - label: I have searched for existing regression reports
+          required: true
+
+  - type: input
+    id: last-working-version
+    attributes:
+      label: ✅ Last Working Version
+      description: The last version where this feature worked correctly.
+      placeholder: "e.g., v1.0.5+5 — Windows built from C:\\CLM without ATL errors"
+    validations:
+      required: true
+
+  - type: input
+    id: broken-since-version
+    attributes:
+      label: ❌ Broken Since Version
+      description: The version where the regression first appeared.
+      placeholder: "e.g., v1.1.0+6"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-regressed
+    attributes:
+      label: 🐛 What Regressed
+      description: What behavior changed between working and broken versions?
+      placeholder: |
+        In v1.0.5+5: `flutter build apk --release` succeeded with JDK 17.0.14 on C:\CLM.
+        In v1.1.0+6: same command fails with Cannot run program "C:\JDK17\bin\java".
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: 🔁 Steps to Reproduce
+      placeholder: |
+        1. Install CubicLM v[broken version]
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 📋 Error Logs
+      description: `flutter analyze`, Gradle, or CMake logs.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true

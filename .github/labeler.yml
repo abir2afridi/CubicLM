@@ -1,0 +1,58 @@
+# 🏷️ CubicLM — labeler config for auto-label workflow
+# Uses github/issue-labeler — matches issue/PR title + body against these regexes
+# and applies the mapped labels. Keep labels in sync with create-labels.sh and .github/release.yml categories.
+
+"bug":
+  - '(?i)\[Bug\]'
+
+"feature-request":
+  - '(?i)\[Feature\]'
+
+"documentation":
+  - '(?i)\[Docs\]'
+
+"performance":
+  - '(?i)\[Perf\]'
+
+"ui":
+  - '(?i)\[UI\]'
+
+"security":
+  - '(?i)\[Security\]'
+
+"regression":
+  - '(?i)\[Regression\]'
+
+"build":
+  - '(?i)\[Build\]'
+
+"mobile":
+  - '(?i)\[Mobile\]'
+
+"api":
+  - '(?i)\[API\]'
+
+"integration":
+  - '(?i)\[Integration\]'
+
+"i18n":
+  - '(?i)\[i18n\]'
+
+"question":
+  - '(?i)\[Question\]'
+
+# Area auto-labels (keyword hints in body)
+"area: mobile":
+  - '(?i)ModelDownloadService|FGS|START_STICKY|minSdk|gradle|ModelDownload'
+
+"area: build":
+  - '(?i)CMake|MSVC|atlstr\.h|nuget|CMAKE_POLICY_VERSION_MINIMUM|flutter build windows'
+
+"area: api":
+  - '(?i)openai_server_service|port 8080|/v1/chat/completions|MCP tool'
+
+"area: docs":
+  - '(?i)README|CHANGELOG|docs/PLATFORM|docs/BUILD_AND_RUN|docs/ARCHITECTURE'
+
+"area: tests":
+  - '(?i)flutter test|flutter analyze|dart format'

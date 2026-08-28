@@ -1,0 +1,43 @@
+name: 🔒 Security Vulnerability Report
+description: >
+  ⚠️ DO NOT report security vulnerabilities here. This redirects you to private reporting channels.
+title: "[Security]: Use private reporting — see instructions below"
+labels: [security]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🔒 Security Vulnerability Reporting
+
+        > ## ⚠️ STOP — Do not submit security vulnerabilities as public issues
+
+        Reporting a security vulnerability in a public issue puts **all users at risk**.
+        CubicLM stores API keys via `flutter_secure_storage` (Keystore/Keychain), handles downloads, and executes MCP tools — disclosure matters.
+
+        Please use one of these **private** reporting channels:
+
+        ### 🛡️ GitHub Security Advisories (Preferred)
+        [Click here to report privately →](https://github.com/abir2afridi/CubicLM/security/advisories/new)
+
+        This is the fastest, most secure channel. Your report will only be visible to maintainers until a fix is released.
+
+        ### 📬 Email
+        See `SECURITY.md` for the contact address. Encrypt your message with our PGP key if possible.
+
+        ---
+
+        ### ⏱️ Response Time
+        We aim to acknowledge all security reports within **48 hours** and resolve critical issues within **7 days**.
+
+        Thank you for practicing responsible disclosure. 🙏
+
+  - type: checkboxes
+    id: acknowledgement
+    attributes:
+      label: ✅ Acknowledgement
+      options:
+        - label: >
+            I understand this is not the correct form for security reports
+            and I will use the private reporting channels listed above.
+          required: true

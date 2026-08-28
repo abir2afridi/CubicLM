@@ -1,0 +1,196 @@
+name: 🐛 Bug Report
+description: >
+  Report a bug in CubicLM so we can fix it.
+title: "[Bug]: "
+labels: [bug, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🐛 Bug Report
+        Thanks for taking the time to report a bug in **CubicLM** (`com.cubiclm.app` v1.1.0).
+
+        > ⚠️ **Before submitting:** Please [search existing issues](https://github.com/abir2afridi/CubicLM/issues) to make sure this hasn't been reported already.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: ✅ Preflight Checklist
+      options:
+        - label: I have searched existing issues and this is not a duplicate
+          required: true
+        - label: I have read the [documentation](https://github.com/abir2afridi/CubicLM#readme)
+          required: true
+        - label: I am using a supported version of CubicLM
+          required: true
+
+  - type: dropdown
+    id: version
+    attributes:
+      label: 📦 Version
+      description: Which version of CubicLM are you using?
+      options:
+        - v1.1.0+6 (latest)
+        - v1.0.5+5
+        - v1.0.4
+        - v1.0.0
+        - Other (specify in additional context)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 📱 Platform
+      description: Where does the bug occur? CubicLM runs on Android, Windows, and Web via one lib/ codebase.
+      options:
+        - Android (APK — com.cubiclm.app)
+        - Windows (cubiclm.exe — Flutter Windows + window_manager)
+        - Web (Flutter Web — IndexedDB / dart:io stubs)
+        - Multiple / all platforms
+      multiple: false
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: 🖥️ OS / Device
+      description: Your OS or device. Helps reproduce SoC/GPU and storage issues.
+      options:
+        - Android 14+
+        - Android 13
+        - Android 12 and below
+        - Windows 11
+        - Windows 10
+        - Chrome / Chromium (Web)
+        - Firefox (Web)
+        - Safari (Web)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: flutter-info
+    attributes:
+      label: 🐦 Flutter Environment
+      description: Paste the output of `flutter doctor -v` and `flutter --version`. The project uses Flutter 3.3+, Dart 3.3+, compileSdk 36, minSdk 28.
+      placeholder: |
+        [✓] Flutter (Channel stable, 3.38.7, ...)
+        • Dart 3.10.7
+        • Android toolchain ...
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 🐛 Bug Description
+      description: A clear description of what the bug is.
+      placeholder: |
+        What happened? What did you observe?
+        Be as specific as possible — include model name, Skills, MCP, or cloud provider if relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: 🔁 Steps to Reproduce
+      description: Exact steps to reproduce the behavior.
+      placeholder: |
+        1. Open CubicLM → Explore → Local → load Qwen2.5-1.5B
+        2. Chat: send "https://example.com/article ..."
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: ✅ Expected Behavior
+      description: What did you expect to happen?
+      placeholder: I expected the model list to show FREE filter chips and stay scrollable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: ❌ Actual Behavior
+      description: What actually happened instead?
+      placeholder: Instead, the pill overflowed with RenderFlex overflowed by 12px.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 🚨 Severity
+      description: How severely does this bug impact your use of CubicLM?
+      options:
+        - Critical — App is completely unusable
+        - High — Major feature is broken (chat, inference, downloads, cloud API)
+        - Medium — Feature works partially or has a workaround
+        - Low — Minor visual issue or rare edge case
+    validations:
+      required: true
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: 📊 Frequency
+      description: How often does this bug occur?
+      options:
+        - Always (100% reproducible)
+        - Often (most of the time)
+        - Sometimes (intermittent)
+        - Rarely (hard to reproduce)
+        - Only once
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 📋 Error Logs / Console Output
+      description: >
+        Paste from **Nodes → Config → System Logs** or `adb logcat` / `flutter run -v`.
+        Include `analysis_options.yaml` warnings if relevant.
+      placeholder: Paste logs here...
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 📸 Screenshots / Screen Recording
+      description: Drag and drop images or paste a screen recording link.
+      placeholder: |
+        Drag and drop images here, or paste a link to a screen recording.
+        Before: [screenshot]
+        After: [screenshot]
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 💬 Additional Context
+      description: |
+        Anything else that might help us understand the issue.
+        For local inference: model file, quantization, RAM, SoC/GPU from **Nodes → Config → System Diagnostics** if possible.
+      placeholder: Any other context, related issues, or links...
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true

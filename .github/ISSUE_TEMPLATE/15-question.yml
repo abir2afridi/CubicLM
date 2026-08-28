@@ -1,0 +1,65 @@
+name: 💬 Question / Support
+description: Ask a question about CubicLM — not a bug or feature request
+title: "[Question]: "
+labels: [question, needs-triage]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 💬 Question / Support
+        > ⚠️ **Issues are not a support forum for usage questions that are answered in the docs.** Please check the docs first — you'll get a faster answer.
+        >
+        > - **Docs:** [README](https://github.com/abir2afridi/CubicLM#readme) · [docs/ARCHITECTURE.md](https://github.com/abir2afridi/CubicLM/blob/main/docs/ARCHITECTURE.md) · [docs/BUILD_AND_RUN.md](https://github.com/abir2afridi/CubicLM/blob/main/docs/BUILD_AND_RUN.md) · [docs/PLATFORM_DIFFERENCES.md](https://github.com/abir2afridi/CubicLM/blob/main/docs/PLATFORM_DIFFERENCES.md)
+        > - **Discussions (preferred for questions):** [GitHub Discussions](https://github.com/abir2afridi/CubicLM/discussions)
+        >
+        > If you have a question that needs tracker visibility, fill this form. Otherwise please use Discussions.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: ✅ Preflight Checklist
+      options:
+        - label: I have searched existing issues and discussions
+          required: true
+        - label: I have read the documentation and README
+          required: true
+        - label: This is not a bug report or feature request
+          required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 📦 Version
+      placeholder: "v1.1.0+6"
+    validations:
+      required: false
+
+  - type: textarea
+    id: question
+    attributes:
+      label: 💬 Question
+      description: What do you want to know? Be specific.
+      placeholder: |
+        How do I point CubicLM's custom_provider to a local Ollama instance with streaming?
+        I tried endpoint http://127.0.0.1:11434/v1 but model fetch returns empty.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 🔍 What Have You Tried
+      placeholder: |
+        - Read docs/ARCHITECTURE.md and lib/services/cloud/providers/custom_provider.dart
+        - Tried flutter run -d android with verbose logs
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: code-of-conduct
+    attributes:
+      label: 📜 Code of Conduct
+      options:
+        - label: I agree to follow CubicLM's [Code of Conduct](../CODE_OF_CONDUCT.md)
+          required: true
