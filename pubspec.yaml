@@ -38,7 +38,7 @@ dependencies:
   permission_handler: ^11.3.0
 
   # Image Support
-  image_picker: ^1.1.0
+  image_picker: ^1.2.3
   share_plus: ^10.0.0
 
   # UI
