@@ -5,6 +5,15 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0+7] - 2026-08-28
+
+### Added
+- **Multi-language support** — 15 languages (EN, BN, HI, AR, ZH, ES, FR, JA, KO, PT, DE, TR, ID, RU, UR) with instant-switch Apple-style picker in App Settings. GetX translations, ~70 keys × 15 languages.
+- **GitHub community infrastructure** — issue forms (15 types), PR template, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, SUPPORT, auto-label workflows, Dependabot, FUNDING.yml, 51 synced labels.
+
+### Fixed
+- **Android build stability** — Gradle JVM heap reduced from 8 GB to 3 GB (`-Xmx3072m`) to prevent Kotlin daemon incremental cache OOM/corruption on 16 GB machines. Stale caches cleaned.
+
 ## [1.1.0+6] - 2026-08-28
 
 ### Added
