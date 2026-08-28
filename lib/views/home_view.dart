@@ -13,8 +13,24 @@ import 'model_view.dart';
 import 'server_view.dart';
 import 'app_settings_view.dart';
 
-class HomeView extends GetView<HomeController> {
+class HomeView extends StatefulWidget {
   const HomeView({super.key});
+
+  @override
+  State<HomeView> createState() => _HomeViewState();
+}
+
+class _HomeViewState extends State<HomeView> {
+  late final HomeController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Get.find<HomeController>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) controller.checkResumeModel(context);
+    });
+  }
 
   static const _tabs = [
     _NavItem(
@@ -43,9 +59,6 @@ class HomeView extends GetView<HomeController> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      controller.checkResumeModel(context);
-    });
     return Scaffold(
       backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       body: Obx(() {

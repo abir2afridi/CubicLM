@@ -7,8 +7,10 @@ import '../controllers/settings_controller.dart';
 import '../views/home_view.dart';
 import '../views/chat_view.dart';
 import '../views/task_view.dart';
+import '../views/splash_view.dart';
 
 abstract class AppRoutes {
+  static const splash = '/splash';
   static const home = '/';
   static const chat = '/chat';
   static const task = '/task';
@@ -16,6 +18,10 @@ abstract class AppRoutes {
 
 class AppPages {
   static final pages = [
+    GetPage(
+      name: AppRoutes.splash,
+      page: () => const SplashView(),
+    ),
     GetPage(
       name: AppRoutes.home,
       page: () => const HomeView(),

@@ -48,7 +48,7 @@ class InferenceService extends GetxService {
       final paths = await _engine?.residentModels() ?? const <String>[];
       residentTextModels.value = paths
           .map((p) => p.split('/').last)
-          .toList(growable: false);
+          .toList(growable: true);
     } catch (_) {
       // Pool info is best-effort; never block loading on it.
     }
@@ -326,7 +326,7 @@ class InferenceService extends GetxService {
     gpuName.value = '';
     contextTokensUsed.value = 0;
     contextTokensTotal.value = 0;
-    residentTextModels.clear();
+    residentTextModels.assignAll(<String>[]);
     // _sessionNativeRuntime is intentionally NOT cleared. Unloading frees the
     // model, but the runtime's .so files stay loaded in the process for its
     // lifetime, so the cross-runtime guard must keep firing after an unload.

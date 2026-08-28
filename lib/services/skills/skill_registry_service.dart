@@ -27,31 +27,34 @@ class SkillRegistryService extends GetxService {
   }
 
   Future<void> _load() async {
-    final raw = _hive.skillsBox.values
-        .map((v) => Map<dynamic, dynamic>.from(v as Map))
-        .toList();
-    final list = <SkillModel>[];
-    for (final m in raw) {
-      var skill = SkillModel.fromMap(m);
-      // Resolve file-backed content.
-      if (skill.content.startsWith('__file__:')) {
-        final path = skill.content.substring('__file__:'.length);
-        try {
-          final content = await File(path).readAsString();
-          skill = skill.copyWith(content: content);
-        } catch (_) {
-          // Keep placeholder content; log and continue.
-          Get.find<AppLogService>().warning(
-            'Failed to read skill file',
-            details: path,
-            category: LogCategory.system,
-          );
+    try {
+      if (!_hive.skillsBox.isOpen) return;
+      final raw = _hive.skillsBox.values
+          .map((v) => Map<dynamic, dynamic>.from(v as Map))
+          .toList();
+      final list = <SkillModel>[];
+      for (final m in raw) {
+        var skill = SkillModel.fromMap(m);
+        if (skill.content.startsWith('__file__:')) {
+          final path = skill.content.substring('__file__:'.length);
+          try {
+            final content = await File(path).readAsString();
+            skill = skill.copyWith(content: content);
+          } catch (_) {
+            Get.find<AppLogService>().warning(
+              'Failed to read skill file',
+              details: path,
+              category: LogCategory.system,
+            );
+          }
         }
+        list.add(skill);
       }
-      list.add(skill);
+      list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      skills.assignAll(list);
+    } catch (_) {
+      // Skills box unavailable — will be empty until next launch.
     }
-    list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-    skills.assignAll(list);
   }
 
   List<SkillModel> getAll() => skills.toList();
@@ -108,16 +111,19 @@ class SkillRegistryService extends GetxService {
         final path = skill.content.substring('__file__:'.length);
         final f = File(path);
         if (await f.exists()) await f.delete();
-      } catch (_) {}
+      } catch (_) {
+        // File already removed or inaccessible.
+      }
     } else if (skill.content.length > _kLargeSkillThreshold) {
-      // Check file-backed variant in Hive.
       final raw = _hive.skillsBox.get(id);
       if (raw is Map && (raw['content'] as String?)?.startsWith('__file__:') == true) {
         try {
           final path = (raw['content'] as String).substring('__file__:'.length);
           final f = File(path);
           if (await f.exists()) await f.delete();
-        } catch (_) {}
+        } catch (_) {
+          // File already removed or inaccessible.
+        }
       }
     }
     skills.removeWhere((s) => s.id == id);

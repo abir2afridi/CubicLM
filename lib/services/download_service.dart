@@ -337,6 +337,54 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
         }
         activeDownloads[filename] = restored;
       }
+
+      // ── Cleanup: remove stale paused records for files that are now fully downloaded ──
+      // Fixes "download completed but still shows downloading → resume shows already downloaded".
+      final completed = <String>[];
+      for (final e in _pausedRecords.entries.toList()) {
+        final fn = e.key;
+        final total = (e.value['total'] as num?)?.toInt() ?? 0;
+        final downloaded = (e.value['downloaded'] as num?)?.toInt() ?? 0;
+        final isProgressDone = total > 0 && downloaded >= (total * 0.99);
+        bool fileDone = false;
+        try {
+          fileDone = await isModelDownloaded(fn);
+        } catch (_) {}
+        if (fileDone || isProgressDone) {
+          // Double-check file actually exists before discarding.
+          if (fileDone) {
+            completed.add(fn);
+            activeDownloads.remove(fn);
+            _nativeStreams.remove(fn);
+          } else if (isProgressDone) {
+            // Progress says done but file not yet visible (rename pending) — poll once more.
+            try {
+              if (await isModelDownloaded(fn)) {
+                completed.add(fn);
+                activeDownloads.remove(fn);
+                _nativeStreams.remove(fn);
+              }
+            } catch (_) {}
+          }
+        } else {
+          // If file is now visible even with stale progress, also clear.
+          try {
+            if (await isModelDownloaded(fn)) {
+              completed.add(fn);
+              activeDownloads.remove(fn);
+            }
+          } catch (_) {}
+        }
+      }
+      if (completed.isNotEmpty) {
+        for (final fn in completed) {
+          _pausedRecords.remove(fn);
+        }
+        await _savePausedRecords();
+        try {
+          Get.find<ModelController>().refreshDownloaded();
+        } catch (_) {}
+      }
     } catch (e) {
       print('[DownloadService] Failed to reconcile active downloads: $e');
     }

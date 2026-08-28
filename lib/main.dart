@@ -6,13 +6,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-// import 'firebase_options.dart';
 import 'controllers/settings_controller.dart';
 import 'controllers/cloud_model_controller.dart';
 import 'controllers/server_controller.dart';
 import 'controllers/model_controller.dart';
 import 'core/theme.dart';
-//////
 import 'core/routes.dart';
 import 'services/hive_service.dart';
 import 'services/inference_service.dart';
@@ -46,25 +44,18 @@ void main() {
 
     appLog.info('App started', category: LogCategory.system);
 
-    // Initialize Firebase before any Firebase-dependent services
-    try {
-      // await Firebase.initializeApp(
-      //   options: DefaultFirebaseOptions.currentPlatform,
-      // );
-    } catch (e) {
-      appLog.error('[Firebase] Initialization failed', details: e, category: LogCategory.system);
-    }
-
     // Support phones and tablets in portrait or landscape.
     if (!kIsWeb) {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
+      try {
+        await SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]).timeout(const Duration(seconds: 2));
+      } catch (_) {}
     }
 
-    // ── Robust init with timeouts — never let native splash stuck ──
+    // ── Helpers ──
     Future<T> withTimeout<T>(Future<T> f, String name,
         {Duration timeout = const Duration(seconds: 5)}) async {
       try {
@@ -76,99 +67,98 @@ void main() {
       }
     }
 
-    Future<void> safePut<T extends GetxService>(
-        Future<T> Function() factory, String name,
-        {Duration timeout = const Duration(seconds: 5),
-        bool required = false}) async {
-      try {
-        await withTimeout(Get.putAsync(factory), name, timeout: timeout);
-      } catch (e) {
-        appLog.error('Service $name failed to init',
-            details: e.toString(), category: LogCategory.system);
-        if (required) rethrow;
-        // Non-required services can stay unregistered — callers must handle missing via isRegistered check.
-      }
-    }
-
-    // Support phones and tablets in portrait or landscape.
-    if (!kIsWeb) {
-      try {
-        await withTimeout(
-            SystemChrome.setPreferredOrientations([
-              DeviceOrientation.portraitUp,
-              DeviceOrientation.landscapeLeft,
-              DeviceOrientation.landscapeRight,
-            ]),
-            'setPreferredOrientations',
-            timeout: const Duration(seconds: 2));
-      } catch (_) {}
-    }
-
-    // Initialize Hive (with corruption recovery)
+    // ── CRITICAL PATH: Hive must be ready before SettingsController, but must NEVER block runApp >6s ──
+    // Use short timeouts + memory fallback so native launch_background is removed quickly.
+    bool hiveIsFallback = false;
     try {
       await withTimeout(Hive.initFlutter(), 'Hive.initFlutter',
-          timeout: const Duration(seconds: 6));
+          timeout: const Duration(seconds: 4));
     } catch (e) {
       appLog.error('Hive.initFlutter failed — trying recovery',
           details: e.toString(), category: LogCategory.system);
-      // Try to delete corrupted boxes and retry once.
       try {
         await Hive.deleteFromDisk();
-        await Hive.initFlutter();
+        await Hive.initFlutter().timeout(const Duration(seconds: 3));
       } catch (_) {}
     }
 
-    // Register global services — Hive is required, others are best-effort.
     try {
       await withTimeout(Get.putAsync(() => HiveService().init()), 'HiveService',
-          timeout: const Duration(seconds: 6));
+          timeout: const Duration(seconds: 5));
     } catch (e) {
-      // Last resort: delete and recreate.
-      try {
-        await Hive.deleteFromDisk();
-        await Hive.initFlutter();
-        await Get.putAsync(() => HiveService().init());
-      } catch (e2) {
-        appLog.error('HiveService recovery failed',
-            details: e2.toString(), category: LogCategory.system);
+      appLog.error('HiveService init failed — using memory fallback',
+          details: e.toString(), category: LogCategory.system);
+      if (!Get.isRegistered<HiveService>()) {
+        try {
+          await Hive.deleteFromDisk();
+          await Hive.initFlutter().timeout(const Duration(seconds: 3));
+          await Get.putAsync(() => HiveService().init())
+              .timeout(const Duration(seconds: 5));
+        } catch (_) {
+          Get.put(HiveService.fallback());
+          hiveIsFallback = true;
+        }
       }
     }
-
-    // Non-critical services — timeout but don't block forever.
-    await safePut(() => NotificationHistoryService().init(),
-        'NotificationHistoryService',
-        timeout: const Duration(seconds: 4));
-    await safePut(() => SkillRegistryService().init(),
-        'SkillRegistryService',
-        timeout: const Duration(seconds: 4));
-    await safePut(() => McpRegistryService().init(), 'McpRegistryService',
-        timeout: const Duration(seconds: 4));
-    await safePut(() => DeviceInfoService().init(), 'DeviceInfoService',
-        timeout: const Duration(seconds: 4));
-
-    // Settings controller must be initialized before runApp for theme support
-    final settingsController = Get.put(SettingsController());
-    Get.put(CloudModelController());
-
-    Get.put(InferenceService());
-    Get.put(CloudService());
-    Get.put(DownloadService());
-    Get.put(LocalImageService());
-    final crashReporting = await () async {
+    if (!Get.isRegistered<HiveService>()) {
+      Get.put(HiveService.fallback());
+      hiveIsFallback = true;
+    } else {
       try {
-        return await withTimeout(Get.putAsync(() => CrashReportingService().init()),
-            'CrashReportingService',
-            timeout: const Duration(seconds: 4));
-      } catch (_) {
-        // Return a no-op if crash reporting fails — don't block startup.
-        return Get.put(CrashReportingService());
+        hiveIsFallback = Get.find<HiveService>().isFallback;
+      } catch (_) {}
+    }
+    if (hiveIsFallback) {
+      appLog.warning(
+          'Running with in-memory storage — settings will not persist until storage is cleared or app is reinstalled',
+          category: LogCategory.system);
+    }
+
+    // Settings controller must be initialized before runApp for theme support.
+    // Hive fallback ensures this never throws.
+    late SettingsController settingsController;
+    try {
+      settingsController = Get.put(SettingsController());
+    } catch (e, s) {
+      appLog.error('SettingsController init failed',
+          details: '$e\n$s', category: LogCategory.system);
+      // Force fallback hive and retry once.
+      if (!Get.isRegistered<HiveService>() ||
+          !Get.find<HiveService>().isFallback) {
+        try {
+          if (Get.isRegistered<HiveService>()) {
+            Get.delete<HiveService>(force: true);
+          }
+        } catch (_) {}
+        Get.put(HiveService.fallback());
       }
-    }();
+      settingsController = Get.put(SettingsController());
+    }
+
+    // Lightweight sync services — no async, never blocks first frame.
+    try {
+      Get.put(CloudModelController());
+      Get.put(InferenceService());
+      Get.put(CloudService());
+      Get.put(DownloadService());
+      Get.put(LocalImageService());
+      Get.put(ServerController(), permanent: true);
+      Get.put(ModelController());
+    } catch (e, s) {
+      appLog.error('Sync service put failed',
+          details: '$e\n$s', category: LogCategory.system);
+    }
+
+    // Crash reporting — put dummy now, real init deferred.
+    CrashReportingService crashReporting;
+    if (Get.isRegistered<CrashReportingService>()) {
+      crashReporting = Get.find<CrashReportingService>();
+    } else {
+      crashReporting = Get.put(CrashReportingService());
+    }
+
     FlutterError.onError = (details) {
       FlutterError.presentError(details);
-      // Include the diagnostic payload (e.g. "The relevant error-causing
-      // widget was: …") so layout issues like RenderFlex overflow are
-      // pinpointed in System Logs instead of logging a bare first line.
       final message = StringBuffer(details.exceptionAsString());
       if (details.informationCollector != null) {
         for (final line in details.informationCollector!()) {
@@ -191,27 +181,24 @@ void main() {
       crashReporting.recordFatal(error, stack, reason: 'platform_dispatcher');
       return true;
     };
-    final imageNotifications = Get.put(ImageGenerationNotificationService());
-    try {
-      await withTimeout(imageNotifications.init(), 'ImageNotifications.init',
-          timeout: const Duration(seconds: 4));
-    } catch (e) {
-      appLog.error('ImageNotifications.init failed',
-          details: e.toString(), category: LogCategory.system);
-    }
-    try {
-      await withTimeout(imageNotifications.configureBackgroundService(),
-          'ImageNotifications.configureBackgroundService',
-          timeout: const Duration(seconds: 4));
-    } catch (e) {
-      appLog.error('ImageNotifications.configureBackgroundService failed',
-          details: e.toString(), category: LogCategory.system);
-    }
-    Get.put(ServerController(), permanent: true);
-    Get.put(ModelController());
 
-    // Auto-configure inference settings based on device RAM
-    // Fire-and-forget with timeout — never block startup.
+    final imageNotifications = Get.put(ImageGenerationNotificationService());
+
+    // ── RUN APP IMMEDIATELY — removes Android launch_background native splash ──
+    runApp(const CubicLMApp());
+
+    // Apply system UI after first frame so Get.mediaQuery is available.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        settingsController.setThemeMode(settingsController.themeMode.value);
+      } catch (_) {}
+    });
+
+    // ── DEFERRED HEAVY INIT — after splash (~2.1s) + Home first frame, never janks shimmer ──
+    unawaited(Future.delayed(const Duration(milliseconds: 2200),
+        () => _initDeferredServices(appLog, imageNotifications)));
+
+    // Auto-configure inference settings based on device RAM (fire-and-forget).
     unawaited(withTimeout(Future(() => _autoConfigureForDevice()),
             'autoConfigureForDevice',
             timeout: const Duration(seconds: 2))
@@ -224,13 +211,6 @@ void main() {
             timeout: const Duration(seconds: 3))
         .catchError((e) => appLog.error('validateLastModel failed',
             details: e.toString(), category: LogCategory.system)));
-
-    runApp(const CubicLMApp());
-
-    // Apply system UI after frame is rendered so Get.mediaQuery is available
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      settingsController.setThemeMode(settingsController.themeMode.value);
-    });
   }, (error, stack) async {
     if (Get.isRegistered<AppLogService>()) {
       Get.find<AppLogService>().error(
@@ -255,9 +235,70 @@ void main() {
   ));
 }
 
+/// Deferred services that previously blocked runApp and caused native splash to hang.
+Future<void> _initDeferredServices(
+    AppLogService appLog, ImageGenerationNotificationService imageNotifications) async {
+  Future<T> withTimeout<T>(Future<T> f, String name,
+      {Duration timeout = const Duration(seconds: 4)}) async {
+    try {
+      return await f.timeout(timeout);
+    } catch (e, s) {
+      appLog.error('Deferred init $name timed out / failed',
+          details: '$e\n$s', category: LogCategory.system);
+      rethrow;
+    }
+  }
+
+  Future<void> safePut<T extends GetxService>(
+      Future<T> Function() factory, String name,
+      {Duration timeout = const Duration(seconds: 4)}) async {
+    if (Get.isRegistered<T>()) return;
+    try {
+      await withTimeout(Get.putAsync(factory), name, timeout: timeout);
+    } catch (e) {
+      appLog.error('Service $name failed to init',
+          details: e.toString(), category: LogCategory.system);
+    }
+  }
+
+  await safePut(() => NotificationHistoryService().init(),
+      'NotificationHistoryService',
+      timeout: const Duration(seconds: 4));
+  await safePut(() => SkillRegistryService().init(), 'SkillRegistryService',
+      timeout: const Duration(seconds: 4));
+  await safePut(() => McpRegistryService().init(), 'McpRegistryService',
+      timeout: const Duration(seconds: 4));
+  await safePut(() => DeviceInfoService().init(), 'DeviceInfoService',
+      timeout: const Duration(seconds: 4));
+
+  // Upgrade crash reporting from dummy to real.
+  try {
+    final cr = Get.find<CrashReportingService>();
+    await withTimeout(cr.init(), 'CrashReportingService',
+        timeout: const Duration(seconds: 4));
+  } catch (_) {}
+
+  try {
+    await withTimeout(imageNotifications.init(), 'ImageNotifications.init',
+        timeout: const Duration(seconds: 4));
+  } catch (e) {
+    appLog.error('ImageNotifications.init failed',
+        details: e.toString(), category: LogCategory.system);
+  }
+  try {
+    await withTimeout(imageNotifications.configureBackgroundService(),
+        'ImageNotifications.configureBackgroundService',
+        timeout: const Duration(seconds: 4));
+  } catch (e) {
+    appLog.error('ImageNotifications.configureBackgroundService failed',
+        details: e.toString(), category: LogCategory.system);
+  }
+}
+
 /// Validates that remembered models still exist on disk.
 /// Does NOT auto-load — the HomeView will ask the user on first launch.
 void _validateLastModel() async {
+  if (!Get.isRegistered<HiveService>() || !Get.isRegistered<DownloadService>()) return;
   final hive = Get.find<HiveService>();
   final downloadService = Get.find<DownloadService>();
 
@@ -292,6 +333,7 @@ void _validateLastModel() async {
 
 /// Auto-set optimized inference params based on device RAM (only on first launch).
 void _autoConfigureForDevice() {
+  if (!Get.isRegistered<HiveService>() || !Get.isRegistered<DeviceInfoService>()) return;
   final hive = Get.find<HiveService>();
   final device = Get.find<DeviceInfoService>();
 
@@ -316,17 +358,29 @@ class CubicLMApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // SettingsController is put before runApp, but guard for fallback / hot-restart.
+    if (!Get.isRegistered<SettingsController>()) {
+      return GetMaterialApp(
+        title: 'CubicLM',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.system,
+        initialRoute: AppRoutes.splash,
+        getPages: AppPages.pages,
+      );
+    }
     final settings = Get.find<SettingsController>();
     return Obx(() {
       final themeMode = settings.themeMode.value;
-      final scale = settings.fontScale.value; // read here → Obx tracks it
+      final scale = settings.fontScale.value;
       return GetMaterialApp(
         title: 'CubicLM',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: themeMode,
-        initialRoute: AppRoutes.home,
+        initialRoute: AppRoutes.splash,
         getPages: AppPages.pages,
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx).copyWith(

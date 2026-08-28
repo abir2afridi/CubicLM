@@ -95,6 +95,23 @@ class AppSettingsView extends GetView<SettingsController> {
                     showDivider: false),
               ]),
               const SizedBox(height: 28),
+              _sectionLabel(context, 'STARTUP'),
+              _appleGroupedCard(context, isDark, children: [
+                Obx(() => _appleSwitchTile(
+                      context,
+                      isDark,
+                      leading: const Icon(LucideIcons.rocket,
+                          size: 20, color: Dt.accent),
+                      title: 'Auto-load last model',
+                      subtitle: controller.autoLoadLastModel.value
+                          ? 'Opens directly with your last local model — no popup'
+                          : 'Ask every time whether to load the last model',
+                      value: controller.autoLoadLastModel.value,
+                      onChanged: (v) =>
+                          controller.setAutoLoadLastModel(v),
+                    )),
+              ]),
+              const SizedBox(height: 28),
               _sectionLabel(context, 'APP INFO'),
               _appleGroupedCard(context, isDark, children: [
                 Padding(
@@ -473,6 +490,50 @@ class AppSettingsView extends GetView<SettingsController> {
                   : Colors.black.withValues(alpha: 0.03)),
         ),
     ]);
+  }
+
+  Widget _appleSwitchTile(
+    BuildContext context,
+    bool isDark, {
+    Widget? leading,
+    required String title,
+    String? subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      child: Row(children: [
+        if (leading != null) ...[leading, const SizedBox(width: 16)],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppColors.textPrimary : Dt.textPrimary)),
+              if (subtitle != null) ...[
+                const SizedBox(height: 3),
+                Text(subtitle,
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Theme.of(context).hintColor)),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Switch.adaptive(
+          value: value,
+          activeThumbColor: Dt.accent,
+          onChanged: onChanged,
+        ),
+      ]),
+    );
   }
 
   Widget _sectionLabel(BuildContext context, String title) {

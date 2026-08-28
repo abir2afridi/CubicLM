@@ -6,6 +6,8 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/colors.dart';
 import '../theme/design_tokens.dart';
 import '../services/app_log_service.dart';
+import '../utils/app_snackbar.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 class LogView extends StatelessWidget {
   const LogView({super.key});
@@ -79,11 +81,14 @@ class LogView extends StatelessWidget {
             onPressed: () async {
               final text = await logs.exportFullLogs();
               await Clipboard.setData(ClipboardData(text: text));
-              Get.snackbar('Logs Copied',
-                  'Full diagnostic report copied to clipboard.',
-                  snackPosition: SnackPosition.BOTTOM,
-                  backgroundColor: AppColors.primary,
-                  colorText: Colors.white);
+              AppSnackbar.showTop(
+                'Logs Copied',
+                'Full diagnostic report copied to clipboard.',
+                icon: LucideIcons.copyCheck,
+                iconName: 'copyCheck',
+                duration: const Duration(seconds: 2),
+                logHistory: false,
+              );
             },
           ),
           IconButton(

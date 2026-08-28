@@ -35,6 +35,13 @@
 - **Sampling steps** and **synthesis resolution** for image generation (Auto mode scales by available RAM)
 - **Compute backend toggle** (CPU / Vulkan / OpenCL) for image generation with automatic model reload
 
+### 🚀 Startup & Splash
+
+- **Warm native splash** — `launch_background` is `#F8F4ED` (same as `Dt.canvas`), no white flash on cold start; `NormalTheme` matches
+- **Animated CubicLM** — 44–48sp PlusJakartaSans w900, shimmer `LinearGradient` isolated in `RepaintBoundary` + `760ms` fade-in/out, `1380ms` dwell → `Get.offAllNamed(home)` — no jank after `runApp()` was moved to critical path
+- **Deferred heavy init** — `NotificationHistory/Skill/MCP/DeviceInfo/CrashReporting/ImageNotifications` start `2200ms` after `runApp()` (after splash), plus `Hive` per-box `3s` timeout with `_MemoryBox` fallback — native `launch_background` never hangs
+- **Auto-load last model** — `App Settings → STARTUP` switch (`AppConstants.keyAutoLoadLastModel`). **ON**: after chat UI is idle (splash gone + `DeviceInfo` ready + `1200ms`), checks `isModelLoaded` resident, `90s` crash-loop guard, `80%` RAM guard, then `loadModel().timeout(90s)` off the UI frame. **OFF** (default): shows `Resume Session?` dialog after `520ms`. Prevents `mmap 2-7GB` during splash which previously froze 2nd open
+
 ### 🌐 Web Access (independent chat)
 
 The chat page can fetch live web content on its own — no external services or API keys:
@@ -110,17 +117,19 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
 - **Navigation:** Chat · Explore · Nodes · App Settings
   - **Explore** now has a 4-way toggle — **Local** (on-device models) / **Online** (cloud providers) / **Skills** (offline prompt extensions) / **MCP** (custom remote server) — so models, skills, and MCP are discoverable in one hub
   - **Nodes** page has two tabs — **Node** (local API server) and **Config** (diagnostics, hardware capabilities, inference mode, system prompt, Skills, Custom MCP Server, local model & imaging parameters)
-  - **App Settings** is its own destination — theme mode, typography scale, **Thinking Orbs** (custom animation per context: chatting / image generation / analyzing — each set to **Random** or any of the 9 states with live preview), and app info (tap to open **About** page with feature highlights, tech stack, and GitHub link)
+  - **App Settings** is its own destination — theme mode, typography scale, **Thinking Orbs** (custom animation per context: chatting / image generation / analyzing — each set to **Random** or any of the 9 states with live preview), **Startup → Auto-load last model**, and app info (tap to open **About** page with feature highlights, tech stack, and GitHub link)
 - Multi-session chat with history (Hive persistence) and a searchable sidebar drawer with swipe-to-delete
 - **Message actions** — copy, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
 - **Code blocks** with syntax highlighting, one-tap copy, and export/share
 - **Thinking Orbs** — 3D particle sphere animation (9 states: Working, Searching, Solving, Listening, Connecting, Weaving, Composing, Breathing, Shaping) with grayscale ink, size-aware speeds, and phase-continuous hard cuts; shown during chat responses, thought analysis, and image synthesis — each context configurable to **Random** shuffle or a fixed state via **App Settings › Thinking Orbs** (live orb previews in the picker)
-- **Notification history** — 🔔 bell in chat header with unread badge; slide-in page grouped by Today/Yesterday/weekday with relative timestamps (Just now / 5m ago / 2h ago), swipe-to-delete, mark-all-read & clear-all; every model switch (local / cloud / back-to-local) auto-logs with timestamp and shows as a top spring-animated toast (Hive-persisted, max 100)
+- **Empty state** — `assets/icons/CubicLM.png` 64×64 + animated `CubicLM` shimmer (same engine as splash) above suggestions — never a blank screen
+- **Header & composer sync** — `chat_view.dart:302,1185` both `Obx` on `InferenceService.loadedModelName` / `LocalImageService.loadedModelName` + `SettingsController` mode; composer pill `Flexible` + `14` char truncate prevents `RenderFlex overflow 4.4/12px` on 360dp
+- **Notification history** — 🔔 bell in chat header with unread badge; slide-in page grouped by Today/Yesterday/weekday with relative timestamps (Just now / 5m ago / 2h ago), swipe-to-delete, mark-all-read & clear-all; every model switch (local / cloud / back-to-local) auto-logs with timestamp and shows as a top spring-animated toast (`AppSnackbar.showTop` `lib/utils/app_snackbar.dart:29`), Hive-persisted, max 100. `LogView` copy now also uses top toast, not bottom
 - **Chat enrichments** — assistant bubbles show **Sources** chips (favicon + domain + title, tap to open) when web search was used, and **Skills used** chips (check + skill name) when a prompt matched enabled skills — so you instantly see *whether* web fetch worked and *which* skill was activated, just like ChatGPT/Claude
 - Attachments from camera, gallery, or files (PDF/text extraction)
 - Image sharing and export
 - Dark/light theme with adjustable font scale
-- **Background model download** with foreground service — downloads keep running when the app is closed or swiped away; notification with Pause/Cancel actions; HTTP Range resume picks up at the exact byte offset after pause or app restart (START_STICKY)
+- **Background model download** with foreground service — downloads keep running when the app is closed or swiped away; notification with Pause/Cancel actions; HTTP Range resume picks up at the exact byte offset after pause or app restart (START_STICKY). **Resume race fixed** — `download_service.dart:318-377` cleans stale `paused_downloads.json` entries when `isModelDownloaded` true and forces `ModelController.refreshDownloaded()` so “completed but still shows downloading → Resume shows already downloaded” no longer happens
 - Firebase Crashlytics integration
 - Background service and boot persistence
 - In-app model download with byte-exact pause / resume / cancel, plus file import
@@ -135,12 +144,12 @@ Opened from the chat header — mirrors the Explore page's layout:
 
 ### 🩺 System Diagnostics (Nodes › Config › System Logs)
 
-- **Health dashboard** — auto-detects 10 crash patterns: model file missing, context overflow, model load failure, GPU error, cloud API error, out of memory, generation hang, stale multi-model slot, import failure, Firebase init
+- **Health dashboard** — auto-detects 10 crash patterns: model file missing, context overflow, model load failure, GPU error, cloud API error, out of memory, generation hang, stale multi-model slot, import failure, Firebase init; `RenderFlex overflow` is logged as `ERROR [System]` but correctly shows **No crash patterns** (layout, not model)
 - **Category filters** — System, Model, Cloud, Chat, Server, Image
 - **Full-text search** across log messages and details
 - **Level filters** — ALL, ERROR, WARNING, INFO, DEBUG
 - **Log persistence** — logs survive app restarts (saved to JSON, max 500 entries)
-- **Export** — copies full diagnostic report (health summary + all logs) to clipboard
+- **Export** — copies full diagnostic report (health summary + all logs) to clipboard (top toast)
 - **Crash pattern details** — occurrence count, last-seen timestamp, and fix suggestion for each detected issue
 
 ## 🤖 Supported Models
@@ -193,13 +202,13 @@ Opened from the chat header — mirrors the Explore page's layout:
 
 ```text
 lib/
-├── main.dart                    # App entry point
+├── main.dart                    # App entry point — critical path (Hive 5s + Settings) before runApp(), heavy services 2200ms after first frame, _MemoryBox fallback
 ├── core/
 │   ├── colors.dart              # App color palette (warm Claude-inspired)
-│   ├── constants.dart           # Settings keys, model catalog, API endpoints
+│   ├── constants.dart           # Settings keys (incl. autoLoadLastModel), model catalog, API endpoints
 │   ├── routes.dart              # Route definitions
 │   ├── theme.dart               # Light/dark theme with warm accent palette
-│   └── design_tokens.dart       # Claude APK-measured warm palette (canvas, pill, accent, hairline)
+│   └── design_tokens.dart       # Claude APK-measured warm palette (canvas #F8F4ED, pill, accent, hairline)
 ├── models/
 │   ├── ai_model.dart            # AI model data class
 │   ├── chat_message.dart        # Chat message model (with revision history + webSources + usedSkills)
@@ -211,10 +220,10 @@ lib/
 ├── controllers/
 │   ├── chat_controller.dart     # Chat logic, streaming, per-prompt skill/web-source tracking (webSources + usedSkills persisted)
 │   ├── cloud_model_controller.dart  # Cloud model selection
-│   ├── home_controller.dart     # Tab navigation, model resume
+│   ├── home_controller.dart     # Tab navigation, model resume (520ms delay, async file check, 90s crash guard, 80% RAM guard, chat-idle defer)
 │   ├── model_controller.dart    # Model download/import management
 │   ├── server_controller.dart   # Local API server
-│   ├── settings_controller.dart # App settings + baseSystemPromptForModel / effectiveSystemPromptForPrompt (selective skills)
+│   ├── settings_controller.dart # App settings + baseSystemPromptForModel / effectiveSystemPromptForPrompt (selective skills) + autoLoadLastModel
 │   └── task_controller.dart     # Automated task execution
 ├── services/
 │   ├── cloud_service.dart       # Multi-provider cloud API (delegates to providers)
@@ -249,8 +258,8 @@ lib/
 │   ├── openai_server_service.dart   # Built-in OpenAI-compatible server
 │   ├── download_native.dart         # Resumable streaming downloader (HTTP Range) + native bridges
 ├── download_web.dart            # Web stubs
-├── download_service.dart        # Download orchestrator (native FGS + Dart fallback)
-│   ├── hive_service.dart        # Local persistence (now also notifications/skills/mcp boxes)
+├── download_service.dart        # Download orchestrator (native FGS + Dart fallback, stale-paused cleanup + isModelDownloaded guard)
+│   ├── hive_service.dart        # Local persistence (7 boxes, per-box 3s timeout, _MemoryBox fallback, isFallback flag)
 │   ├── notification_history_service.dart # Model-switch history (Hive, max 100, unread count)
 │   ├── skills/
 │   │   ├── skill_registry_service.dart # Hive skillsBox, import, enable/disable, file fallback
@@ -271,16 +280,17 @@ lib/
 │   ├── app_log_service.dart     # App logging with categories, search, crash pattern detection
 │   └── crash_reporting_service.dart  # Firebase Crashlytics
 ├── views/
-│   ├── home_view.dart           # Main navigation scaffold (Chat · Explore · Nodes · App Settings)
-│   ├── chat_view.dart           # Chat interface with sidebar drawer
+│   ├── splash_view.dart         # 1380ms shimmer + 760ms fade-out → home (RepaintBoundary isolated)
+│   ├── home_view.dart           # Main navigation scaffold (Stateful, one-shot checkResumeModel in initState)
+│   ├── chat_view.dart           # Chat interface (drawer + _AnimatedAppName 64px icon + header/composer Obx sync, Flexible pill 14-char)
 │   ├── model_view.dart          # Model Hub — 4-way toggle (Local / Online / Skills / MCP)
 │   ├── explore_skills_mcp_tabs.dart # Explore Skills + MCP tabs (shared with Nodes Config)
 │   ├── server_view.dart         # Nodes page — Node tab (API server) + Config tab
 │   ├── settings_view.dart       # Config sections (embedded in Nodes › Config) — now also hosts Skills + MCP form
-│   ├── app_settings_view.dart   # App Settings — theme, typography scale, Thinking Orbs picker, app info
+│   ├── app_settings_view.dart   # App Settings — theme, typography, Thinking Orbs picker, Startup auto-load switch, app info
 │   ├── about_view.dart          # About page — feature highlights, tech stack, GitHub
 │   ├── notification_history_view.dart # 🔔 History page (grouped by day, swipe-to-delete, mark read/clear)
-│   ├── log_view.dart            # System diagnostics viewer (health dashboard, search, categories)
+│   ├── log_view.dart            # System diagnostics viewer (health dashboard, search, categories, top-toast copy)
 │   └── task_view.dart           # Automated tasks
 ├── widgets/
 │   ├── chat_bubble.dart         # Message bubble (inline actions + revisions + Skills used + Sources chips with favicon)
@@ -294,7 +304,7 @@ lib/
 ├── ffi/
 │   └── sd_ffi_bindings.dart     # FFI bindings for SD native lib
 └── utils/
-    ├── app_snackbar.dart        # Top spring-animated toast (model switch, cloud, local)
+    ├── app_snackbar.dart        # Top spring-animated toast (model switch, cloud, local, logs-copied)
     └── thought_parser.dart      # <thought> tag parser
 
 local_plugins/
@@ -306,6 +316,7 @@ android/
 ├── app/src/main/kotlin/com/cubiclm/app/
 │   ├── MainActivity.kt          # Flutter engine + channel wiring
 │   └── ModelDownloadService.kt  # Foreground service: Range resume, notification, START_STICKY
+└── res/values+drawable/launch_background.xml # Warm #F8F4ED (was white) — seamless native→Flutter
 
 assets/
 └── skills/                  # 5 bundled starters (bn_en_translator, code_reviewer, efficient_prompting, study_helper, creative_writer)
@@ -359,15 +370,17 @@ Download models from the **Explore** tab (with pause / resume / cancel support) 
 Open the **Nodes** tab › **Node** and flip the switch. Once running, point any OpenAI-compatible client at `http://<device-ip>:8080` to use your local models programmatically.
 
 ### 🧩 Skills
+
 Manage in **Nodes › Config → SKILLS** (next to Global System Prompt) — enable/disable built-ins, **Import → From file** (.md), **Browse Anthropic skills** (flat list from `anthropics/skills`, cached, rate-limit safe), **From URL** (any raw markdown link, size/type checked). Every import shows a preview before saving; skills are pure text injection, never executable. Nothing about installed skills is sent to any Abir/Anthropic server.
 
 ### 🔌 Custom MCP Server
+
 Configure in **Nodes › Config → CUSTOM MCP SERVER** — single remote HTTP/SSE URL, optional bearer token (secure storage), transport auto-detected. **Save / Test Connection / Enable-Disable (with tool-preview dialog) / Remove** with live status (disconnected/connecting/connected/error). When enabled, its tools are added to OpenAI-compatible cloud requests (`tools`/`tool_choice: auto`); tool results are round-tripped via `chat_controller` and capped. If offline, tools are still advertised and failed calls return an error `tool_result` — never silently omitted. Local models don’t use live tools (Skills still apply).
 
 ### ⚙️ Engine & App Configuration
 
 - **Nodes › Config** — diagnostics, hardware capabilities, inference mode, Auto Tune (context/output limits), global system prompt, Skills, Custom MCP Server, local model & imaging parameters
-- **App Settings** (bottom navigation) — theme, typography scale, Thinking Orbs (Random or fixed state per context), app info
+- **App Settings** (bottom navigation) — theme, typography scale, Thinking Orbs (Random or fixed state per context), Startup auto-load, app info
 - **Web Access** toggle — in the chat input bar; reads links from your message into the model's context
 
 ## 📄 License

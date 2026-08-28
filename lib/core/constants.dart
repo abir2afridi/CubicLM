@@ -94,6 +94,9 @@ class AppConstants {
   static const String keyOrbImage = 'orb_image_anim';
   static const String keyOrbAnalysis = 'orb_analysis_anim';
 
+  // Startup — auto-load last model without asking
+  static const String keyAutoLoadLastModel = 'auto_load_last_model';
+
   // Default Model Config
   static const double defaultTemperature = 0.7;
   static const int defaultMaxTokens = 1024;

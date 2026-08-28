@@ -310,7 +310,7 @@ class ChatView extends GetView<ChatController> {
           } else {
             model = 'No model loaded';
           }
-          if (model.length > 24) model = '${model.substring(0, 24)}…';
+          if (model.length > 20) model = '${model.substring(0, 20)}…';
         } else {
           // Single source of truth for the cloud label, shared with the model
           // switcher sheet so the two can't drift.
@@ -318,6 +318,7 @@ class ChatView extends GetView<ChatController> {
           if (settings.cloudProvider.value == 'custom' && model.isNotEmpty) {
             model = '${settings.customCloudName.value}: $model';
           }
+          if (model.length > 22) model = '${model.substring(0, 22)}…';
         }
         final statusColor = isLocal
             ? (isLocalReady ? AppColors.success : AppColors.warning)
@@ -338,7 +339,7 @@ class ChatView extends GetView<ChatController> {
                     color: isDark ? AppColors.textPrimary : Dt.textPrimary),
                 overflow: TextOverflow.ellipsis),
             const SizedBox(height: 3),
-            Row(mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
               Container(
                   width: 7,
                   height: 7,
@@ -352,13 +353,15 @@ class ChatView extends GetView<ChatController> {
                       ],
                       color: statusColor)),
               const SizedBox(width: 6),
-              Flexible(
+              Expanded(
                   child: Text('$model · ${isLocal ? "Local" : "Cloud"}',
+                      maxLines: 1,
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           color: Theme.of(context).hintColor,
-                          fontWeight: FontWeight.w600),
-                      overflow: TextOverflow.ellipsis)),
+                          fontWeight: FontWeight.w600))),
             ]),
           ]),
         );
@@ -622,15 +625,14 @@ class ChatView extends GetView<ChatController> {
         child: SingleChildScrollView(
       padding: const EdgeInsets.all(32),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        // Small brand mark (reference: ~7% of screen width, no glow)
-        Hero(
-          tag: 'app_logo',
-          child: Image.asset(
-            'assets/icons/CubicLM.png',
-            width: 64,
-            height: 64,
-          ),
+        Image.asset(
+          'assets/icons/CubicLM.png',
+          width: 64,
+          height: 64,
+          fit: BoxFit.contain,
         ),
+        const SizedBox(height: 16),
+        _AnimatedAppName(isDark: isDark),
         const SizedBox(height: 20),
         Text('What shall we explore?',
             style: GoogleFonts.plusJakartaSans(
@@ -1189,12 +1191,14 @@ class ChatView extends GetView<ChatController> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // Model selector pill
-                          AppModelPill(
-                            label: _composerModelLabel(),
-                            onTap: () => showModelSwitcherSheet(context),
+                          // Model selector pill — flexible so it never overflows the controls row.
+                          Flexible(
+                            child: Obx(() => AppModelPill(
+                                  label: _composerModelLabel(),
+                                  onTap: () => showModelSwitcherSheet(context),
+                                )),
                           ),
-                          const Spacer(),
+                          const SizedBox(width: 8),
                           // Right cluster: mic (muted circle) + primary CTA (solid dark)
                           Obx(() {
                             final loading = controller.isLoading.value;
@@ -1258,7 +1262,8 @@ class ChatView extends GetView<ChatController> {
     if (name.isEmpty) return 'Local';
     final stripped = name.replaceAll(
         RegExp(r'\.(gguf|litertlm|safetensors)$', caseSensitive: false), '');
-    return stripped.length > 18 ? '${stripped.substring(0, 18)}…' : stripped;
+    // 14 keeps the pill compact on 360dp screens (prevents 4-12px overflow).
+    return stripped.length > 14 ? '${stripped.substring(0, 14)}…' : stripped;
   }
 
   /// "+" sheet per reference spec §2.3: three equal tiles, then stacked
@@ -2098,6 +2103,91 @@ class _ImageGenIndicatorState extends State<_ImageGenIndicator> {
             ],
           );
     });
+  }
+}
+
+// ── Animated App Name (splash/empty state) ──
+class _AnimatedAppName extends StatefulWidget {
+  final bool isDark;
+  const _AnimatedAppName({required this.isDark});
+  @override
+  State<_AnimatedAppName> createState() => _AnimatedAppNameState();
+}
+
+class _AnimatedAppNameState extends State<_AnimatedAppName>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shimmer;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmer = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 2200))
+      ..repeat();
+  }
+
+  @override
+  void dispose() {
+    _shimmer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) {
+        return Opacity(
+          opacity: t,
+          child: Transform.translate(
+            offset: Offset(0, 10 * (1 - t)),
+            child: Transform.scale(
+              scale: 0.96 + 0.04 * t,
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: AnimatedBuilder(
+        animation: _shimmer,
+        builder: (context, child) {
+          final p = _shimmer.value;
+          // shimmer travels left -> right, subtle
+          final dx = -1.2 + 2.6 * p;
+          return ShaderMask(
+            shaderCallback: (bounds) {
+              final base = widget.isDark ? Colors.white : Dt.textPrimary;
+              return LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [base, base, Dt.accent, base, base],
+                stops: [
+                  (dx - 0.28).clamp(0.0, 1.0),
+                  (dx - 0.08).clamp(0.0, 1.0),
+                  dx.clamp(0.0, 1.0),
+                  (dx + 0.08).clamp(0.0, 1.0),
+                  (dx + 0.28).clamp(0.0, 1.0),
+                ],
+              ).createShader(bounds);
+            },
+            blendMode: BlendMode.srcIn,
+            child: child,
+          );
+        },
+        child: Text(
+          'CubicLM',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 44,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -1.8,
+            height: 1.0,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
   }
 }
 

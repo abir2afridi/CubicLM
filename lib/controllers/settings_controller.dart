@@ -100,6 +100,9 @@ class SettingsController extends GetxController {
   final orbImageAnim = 'composing'.obs;
   final orbAnalysisAnim = 'random'.obs;
 
+  // Startup — auto-load last model without asking dialog.
+  final autoLoadLastModel = false.obs;
+
   // Persistent text controllers for settings fields
   final openaiKeyController = TextEditingController();
   final anthropicKeyController = TextEditingController();
@@ -365,6 +368,10 @@ class SettingsController extends GetxController {
     orbAnalysisAnim.value = _hive.getSetting(AppConstants.keyOrbAnalysis,
             defaultValue: 'random') ??
         'random';
+    autoLoadLastModel.value = _hive.getSetting<bool>(
+            AppConstants.keyAutoLoadLastModel,
+            defaultValue: false) ??
+        false;
 
     // Sync controllers with loaded values
     openaiKeyController.text = openaiKey.value;
@@ -1299,6 +1306,11 @@ class SettingsController extends GetxController {
         await _hive.setSetting(AppConstants.keyOrbAnalysis, value);
         break;
     }
+  }
+
+  Future<void> setAutoLoadLastModel(bool enabled) async {
+    autoLoadLastModel.value = enabled;
+    await _hive.setSetting(AppConstants.keyAutoLoadLastModel, enabled);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
