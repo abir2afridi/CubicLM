@@ -5,21 +5,23 @@
 
 # CubicLM
 
-[![Release](https://img.shields.io/github/v/release/abir2afridi/CubicLM?label=release)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.1.0)
-[![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Windows-blue)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.1.0)
+[![Release](https://img.shields.io/github/v/release/abir2afridi/CubicLM?label=release)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.2.0)
+[![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Windows-blue)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.2.0)
 
 > 📱⚡ A cross-platform AI chat application with local on-device inference and multi-provider cloud AI support. Runs LLMs directly on your Android device via GPU-accelerated llama.cpp 🦙 and Google's LiteRT-LM runtime ⚡, with an optional built-in OpenAI-compatible API server 🔌.
 
-## 📥 Download — v1.1.0
+## 📥 Download — v1.2.0
 
 | Platform | File | Size | Download |
 |---|---|---:|---|
-| Android | `cubiclm-1.1.0-android.apk` | 105 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.1.0/cubiclm-1.1.0-android.apk) |
-| Windows (x64) | `cubiclm-1.1.0-windows-x64.zip` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.1.0/cubiclm-1.1.0-windows-x64.zip) — unzip & run `cubiclm.exe` (WebView2 required) |
-| Checksums | `SHA256SUMS.txt` | — | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.1.0/SHA256SUMS.txt) |
+| Android (arm64) | `cubiclm-v1.2.0-arm64-v8a.apk` | 76 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-arm64-v8a.apk) |
+| Android (arm32) | `cubiclm-v1.2.0-armeabi-v7a.apk` | 30 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-armeabi-v7a.apk) |
+| Android (x86_64) | `cubiclm-v1.2.0-x86_64.apk` | 41 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-x86_64.apk) |
+| Windows (x64) | `cubiclm-v1.2.0-windows-x64.zip` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-windows-x64.zip) — unzip & run `cubiclm.exe` (WebView2 required) |
+| Checksums | `checksums.sha256` | — | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/checksums.sha256) |
 
-> **Full notes:** [CHANGELOG.md](CHANGELOG.md) · [Release page](https://github.com/abir2afridi/CubicLM/releases/tag/v1.1.0)
-> Web (`dart:ffi`) is tracked for the next release — Android + Windows are the supported targets for `v1.1.0`.
+> **Full notes:** [CHANGELOG.md](CHANGELOG.md) · [Release page](https://github.com/abir2afridi/CubicLM/releases/tag/v1.2.0)
+> Web (`dart:ffi`) is tracked for the next release — Android + Windows are the supported targets for `v1.2.0`.
 
 ## ✨ Features
 
@@ -419,7 +421,7 @@ flutter build web                  # → build/web — currently blocked by dart
 pwsh -File scripts/build-all.ps1   # /  bash scripts/build-all.sh
 ```
 
-> **Windows build prerequisites (v1.1.0):** `nuget.exe` on `PATH` (`flutter_inappwebview_windows`), ATL headers (`Microsoft.VisualStudio.Component.VC.ATL` via Visual Studio Installer), short build path if your checkout contains spaces (e.g. `C:\CLM` junction), and `CL=/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` for MSVC 14.51 — see [`windows/CMakeLists.txt:1,47,95`](windows/CMakeLists.txt) and [`docs/BUILD_AND_RUN.md`](docs/BUILD_AND_RUN.md).
+> **Windows build prerequisites (v1.2.0):** `nuget.exe` on `PATH` (`flutter_inappwebview_windows`), ATL headers (`Microsoft.VisualStudio.Component.VC.ATL` via Visual Studio Installer), short build path if your checkout contains spaces (e.g. `C:\CLM` junction), and `CL=/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` for MSVC 14.51 — see [`windows/CMakeLists.txt:1,35,47`](windows/CMakeLists.txt) and [`docs/BUILD_AND_RUN.md`](docs/BUILD_AND_RUN.md).
 
 Or set `CUBICLM_ALLOW_DEBUG_RELEASE_SIGNING=true` to skip keystore validation during development.
 
