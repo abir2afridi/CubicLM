@@ -1,5 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 
 import 'web_source.dart';
 
@@ -38,9 +40,27 @@ class ChatMessage {
   // Cache decoded bytes to prevent flickering on re-build
   Uint8List? _decodedImageBytes;
   Uint8List? get decodedImageBytes {
-    if (imageBase64 == null) return null;
-    _decodedImageBytes ??= base64Decode(imageBase64!);
-    return _decodedImageBytes;
+    if (imageBase64 != null) {
+      _decodedImageBytes ??= base64Decode(imageBase64!);
+      return _decodedImageBytes;
+    }
+    if (imagePath != null && !kIsWeb) {
+      if (_decodedImageBytes != null) return _decodedImageBytes;
+      try {
+        final f = File(imagePath!);
+        if (f.existsSync()) {
+          _decodedImageBytes = f.readAsBytesSync();
+          return _decodedImageBytes;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  /// Raw bytes for viewer/share — prefers base64, falls back to file.
+  Uint8List? get imageBytesForViewer {
+    if (decodedImageBytes != null) return decodedImageBytes;
+    return null;
   }
 
   ChatMessage({

@@ -67,6 +67,8 @@ android {
         }
     }
 
+    // R8 keep rules — llama.cpp JNI / FFI symbols are referenced only via
+    // dart:ffi (no Java reflection), but keep Hive boxes and Flutter plugins.
     buildTypes {
         release {
             signingConfig = if (hasReleaseKeystore) {
@@ -74,8 +76,14 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            setProguardFiles(
+                listOf(
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    file("proguard-rules.pro"),
+                ),
+            )
         }
     }
 }

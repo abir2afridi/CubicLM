@@ -15,6 +15,7 @@ import 'controllers/model_controller.dart';
 import 'core/theme.dart';
 import 'core/routes.dart';
 import 'services/hive_service.dart';
+import 'services/secure_key_store.dart';
 import 'services/inference_service.dart';
 import 'services/cloud_service.dart';
 import 'services/download_service.dart';
@@ -137,6 +138,28 @@ void main() {
       appLog.warning(
           'Running with in-memory storage — settings will not persist until storage is cleared or app is reinstalled',
           category: LogCategory.system);
+    }
+
+    // ── Secure storage for API keys ──
+    try {
+      await withTimeout(Get.putAsync(() => SecureKeyStore().init()),
+          'SecureKeyStore',
+          timeout: const Duration(seconds: 4));
+    } catch (e) {
+      appLog.error('SecureKeyStore init failed — API keys stay in memory',
+          details: e.toString(), category: LogCategory.system);
+      if (!Get.isRegistered<SecureKeyStore>()) {
+        Get.put(SecureKeyStore(), permanent: true);
+        unawaited(Get.find<SecureKeyStore>().init());
+      }
+    }
+
+    // One-time migration: Hive plaintext API keys → secure storage.
+    try {
+      await _migrateApiKeysFromHive();
+    } catch (e) {
+      appLog.error('API key migration failed',
+          details: e.toString(), category: LogCategory.system);
     }
 
     // Settings controller must be initialized before runApp for theme support.
@@ -317,6 +340,81 @@ Future<void> _initDeferredServices(
   } catch (e) {
     appLog.error('ImageNotifications.configureBackgroundService failed',
         details: e.toString(), category: LogCategory.system);
+  }
+}
+
+Future<void> _migrateApiKeysFromHive() async {
+  if (!Get.isRegistered<HiveService>() || !Get.isRegistered<SecureKeyStore>()) {
+    return;
+  }
+  final hive = Get.find<HiveService>();
+  if (hive.isFallback) return;
+  if (hive.getSetting<bool>('api_keys_migrated_to_secure') ?? false) return;
+  final keys = Get.find<SecureKeyStore>();
+  const optionKeys = [
+    AppConstants.keyOpenaiKey,
+    AppConstants.keyAnthropicKey,
+    AppConstants.keyGoogleKey,
+    AppConstants.keyKimiKey,
+    AppConstants.keyStabilityKey,
+    AppConstants.keyNvidiaKey,
+    AppConstants.keyOpenRouterKey,
+    AppConstants.keyDeepSeekKey,
+    AppConstants.keyZaiKey,
+    AppConstants.keyGroqKey,
+    AppConstants.keyMistralKey,
+    AppConstants.keyTogetherKey,
+    AppConstants.keyXaiKey,
+    AppConstants.keyPerplexityKey,
+    AppConstants.keyCerebrasKey,
+    AppConstants.keyFireworksKey,
+    AppConstants.keyCohereKey,
+    AppConstants.keyHuggingFaceKey,
+    AppConstants.keyXkiroKey,
+    AppConstants.keyTokenRouterKey,
+    AppConstants.keyCustomCloudKey,
+    AppConstants.keyServerApiKey,
+  ];
+  var moved = 0;
+  for (final k in optionKeys) {
+    final legacy = hive.getSetting<String>(k);
+    if (legacy != null && legacy.isNotEmpty && keys.read(k).isEmpty) {
+      await keys.write(k, legacy);
+      moved++;
+    }
+    await hive.deleteSetting(k);
+  }
+  // Custom-profile inline keys → per-profile secure slots
+  final raw = hive.getSetting<List>(AppConstants.keyCustomCloudProfiles);
+  if (raw != null) {
+    for (var i = 0; i < raw.length; i++) {
+      final m = raw[i];
+      if (m is Map) {
+        final ak = m['apiKey']?.toString() ?? '';
+        if (ak.isNotEmpty) {
+          final perKey = '${AppConstants.keyCustomCloudKey}_p$i';
+          if (keys.read(perKey).isEmpty) {
+            await keys.write(perKey, ak);
+            moved++;
+          }
+        }
+      }
+    }
+    // Wipe inline keys from the persisted list
+    final sanitized = raw.map((e) {
+      if (e is Map) {
+        final copy = Map<String, dynamic>.from(e);
+        copy['apiKey'] = '';
+        return copy;
+      }
+      return e;
+    }).toList();
+    await hive.setSetting(AppConstants.keyCustomCloudProfiles, sanitized);
+  }
+  await hive.setSetting('api_keys_migrated_to_secure', true);
+  if (moved > 0) {
+    Get.find<AppLogService>().info('[Migration] Moved $moved API keys Hive -> secure storage',
+        category: LogCategory.system);
   }
 }
 

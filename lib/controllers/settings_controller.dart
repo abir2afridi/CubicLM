@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import '../core/constants.dart';
 import '../services/hive_service.dart';
+import '../services/secure_key_store.dart';
 import '../services/app_log_service.dart';
 import '../services/device_info_service.dart';
 import '../services/inference_service.dart';
@@ -20,6 +21,33 @@ import '../core/languages.dart';
 
 class SettingsController extends GetxController {
   final HiveService _hive = Get.find<HiveService>();
+  final SecureKeyStore _keys = Get.find<SecureKeyStore>();
+
+  /// All Hive option-keys that hold API keys and must live in secure storage.
+  static const List<String> _secureOptionKeys = [
+    AppConstants.keyOpenaiKey,
+    AppConstants.keyAnthropicKey,
+    AppConstants.keyGoogleKey,
+    AppConstants.keyKimiKey,
+    AppConstants.keyStabilityKey,
+    AppConstants.keyNvidiaKey,
+    AppConstants.keyOpenRouterKey,
+    AppConstants.keyDeepSeekKey,
+    AppConstants.keyZaiKey,
+    AppConstants.keyGroqKey,
+    AppConstants.keyMistralKey,
+    AppConstants.keyTogetherKey,
+    AppConstants.keyXaiKey,
+    AppConstants.keyPerplexityKey,
+    AppConstants.keyCerebrasKey,
+    AppConstants.keyFireworksKey,
+    AppConstants.keyCohereKey,
+    AppConstants.keyHuggingFaceKey,
+    AppConstants.keyXkiroKey,
+    AppConstants.keyTokenRouterKey,
+    AppConstants.keyCustomCloudKey,
+    AppConstants.keyServerApiKey,
+  ];
 
   // Observable settings
   final themeMode = ThemeMode.system.obs;
@@ -204,6 +232,7 @@ class SettingsController extends GetxController {
   }
 
   void _loadSettings() {
+    unawaited(_migrateKeysFromHive());
     final savedTheme = _hive.getSetting<String>('theme_mode');
     themeMode.value = _themeModeFromString(savedTheme);
     inferenceMode.value = _hive.getSetting(AppConstants.keyInferenceMode,
@@ -212,36 +241,32 @@ class SettingsController extends GetxController {
     cloudProvider.value = _hive.getSetting(AppConstants.keyCloudProvider,
             defaultValue: 'openrouter') ??
         'openrouter';
-    openaiKey.value = _hive.getSetting(AppConstants.keyOpenaiKey) ?? '';
-    anthropicKey.value = _hive.getSetting(AppConstants.keyAnthropicKey) ?? '';
-    googleKey.value = _hive.getSetting(AppConstants.keyGoogleKey) ?? '';
-    kimiKey.value = _hive.getSetting(AppConstants.keyKimiKey) ?? '';
-    stabilityKey.value = _hive.getSetting(AppConstants.keyStabilityKey) ?? '';
-    nvidiaKey.value = _hive.getSetting(AppConstants.keyNvidiaKey) ?? '';
-    openRouterKey.value = _hive.getSetting(AppConstants.keyOpenRouterKey) ?? '';
-    deepSeekKey.value = _hive.getSetting(AppConstants.keyDeepSeekKey) ?? '';
-    zaiKey.value = _hive.getSetting(AppConstants.keyZaiKey) ?? '';
-    groqKey.value = _hive.getSetting(AppConstants.keyGroqKey) ?? '';
-    mistralKey.value = _hive.getSetting(AppConstants.keyMistralKey) ?? '';
-    togetherKey.value = _hive.getSetting(AppConstants.keyTogetherKey) ?? '';
-    xaiKey.value = _hive.getSetting(AppConstants.keyXaiKey) ?? '';
-    perplexityKey.value =
-        _hive.getSetting(AppConstants.keyPerplexityKey) ?? '';
-    cerebrasKey.value = _hive.getSetting(AppConstants.keyCerebrasKey) ?? '';
-    fireworksKey.value = _hive.getSetting(AppConstants.keyFireworksKey) ?? '';
-    cohereKey.value = _hive.getSetting(AppConstants.keyCohereKey) ?? '';
-    huggingfaceKey.value =
-        _hive.getSetting(AppConstants.keyHuggingFaceKey) ?? '';
-    xkiroKey.value = _hive.getSetting(AppConstants.keyXkiroKey) ?? '';
-    tokenrouterKey.value =
-        _hive.getSetting(AppConstants.keyTokenRouterKey) ?? '';
+    openaiKey.value = _keys.read(AppConstants.keyOpenaiKey);
+    anthropicKey.value = _keys.read(AppConstants.keyAnthropicKey);
+    googleKey.value = _keys.read(AppConstants.keyGoogleKey);
+    kimiKey.value = _keys.read(AppConstants.keyKimiKey);
+    stabilityKey.value = _keys.read(AppConstants.keyStabilityKey);
+    nvidiaKey.value = _keys.read(AppConstants.keyNvidiaKey);
+    openRouterKey.value = _keys.read(AppConstants.keyOpenRouterKey);
+    deepSeekKey.value = _keys.read(AppConstants.keyDeepSeekKey);
+    zaiKey.value = _keys.read(AppConstants.keyZaiKey);
+    groqKey.value = _keys.read(AppConstants.keyGroqKey);
+    mistralKey.value = _keys.read(AppConstants.keyMistralKey);
+    togetherKey.value = _keys.read(AppConstants.keyTogetherKey);
+    xaiKey.value = _keys.read(AppConstants.keyXaiKey);
+    perplexityKey.value = _keys.read(AppConstants.keyPerplexityKey);
+    cerebrasKey.value = _keys.read(AppConstants.keyCerebrasKey);
+    fireworksKey.value = _keys.read(AppConstants.keyFireworksKey);
+    cohereKey.value = _keys.read(AppConstants.keyCohereKey);
+    huggingfaceKey.value = _keys.read(AppConstants.keyHuggingFaceKey);
+    xkiroKey.value = _keys.read(AppConstants.keyXkiroKey);
+    tokenrouterKey.value = _keys.read(AppConstants.keyTokenRouterKey);
     customCloudName.value = _hive.getSetting(AppConstants.keyCustomCloudName,
             defaultValue: 'Custom API') ??
         'Custom API';
     customCloudBaseUrl.value =
         _hive.getSetting(AppConstants.keyCustomCloudBaseUrl) ?? '';
-    customCloudKey.value =
-        _hive.getSetting(AppConstants.keyCustomCloudKey) ?? '';
+    customCloudKey.value = _keys.read(AppConstants.keyCustomCloudKey);
     openaiModel.value = _hive.getSetting(AppConstants.keyOpenaiModel,
             defaultValue: 'gpt-5.2') ??
         'gpt-5.2';
@@ -579,113 +604,143 @@ class SettingsController extends GetxController {
     await _hive.setSetting(AppConstants.keyCloudProvider, provider);
   }
 
+  /// One-time migration: move API keys from the plaintext Hive settings box
+  /// into platform secure storage, then wipe them from Hive.
+  Future<void> _migrateKeysFromHive() async {
+    const migrationDoneKey = 'api_keys_migrated_to_secure';
+    try {
+      if (_hive.getSetting<bool>(migrationDoneKey) ?? false) return;
+      var moved = 0;
+      for (final k in _secureOptionKeys) {
+        final legacy = _hive.getSetting<String>(k);
+        if (legacy != null && legacy.isNotEmpty && _keys.read(k).isEmpty) {
+          await _keys.write(k, legacy);
+          moved++;
+        }
+        // Always wipe the plaintext copy from Hive.
+        await _hive.deleteSetting(k);
+      }
+      await _hive.setSetting(migrationDoneKey, true);
+      if (moved > 0 && Get.isRegistered<AppLogService>()) {
+        Get.find<AppLogService>().info(
+            '[SecureKeyStore] Migrated $moved API keys Hive → secure storage',
+            category: LogCategory.system);
+      }
+    } catch (e) {
+      if (Get.isRegistered<AppLogService>()) {
+        Get.find<AppLogService>().error('API key migration failed',
+            details: e.toString(), category: LogCategory.system);
+      }
+    }
+  }
+
   Future<void> setApiKey(String provider, String key) async {
     final trimmed = key.trim();
     switch (provider) {
       case 'openai':
         openaiKey.value = trimmed;
         openaiKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyOpenaiKey, trimmed);
+        await _keys.write(AppConstants.keyOpenaiKey, trimmed);
         break;
       case 'anthropic':
         anthropicKey.value = trimmed;
         anthropicKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyAnthropicKey, trimmed);
+        await _keys.write(AppConstants.keyAnthropicKey, trimmed);
         break;
       case 'google':
         googleKey.value = trimmed;
         googleKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyGoogleKey, trimmed);
+        await _keys.write(AppConstants.keyGoogleKey, trimmed);
         break;
       case 'kimi':
         kimiKey.value = trimmed;
         kimiKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyKimiKey, trimmed);
+        await _keys.write(AppConstants.keyKimiKey, trimmed);
         break;
       case 'stability':
         stabilityKey.value = trimmed;
         stabilityKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyStabilityKey, trimmed);
+        await _keys.write(AppConstants.keyStabilityKey, trimmed);
         break;
       case 'nvidia':
         nvidiaKey.value = trimmed;
         nvidiaKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyNvidiaKey, trimmed);
+        await _keys.write(AppConstants.keyNvidiaKey, trimmed);
         await refreshNvidiaModels();
         break;
       case 'openrouter':
         openRouterKey.value = trimmed;
         openRouterKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyOpenRouterKey, trimmed);
+        await _keys.write(AppConstants.keyOpenRouterKey, trimmed);
         break;
       case 'deepseek':
         deepSeekKey.value = trimmed;
         deepSeekKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyDeepSeekKey, trimmed);
+        await _keys.write(AppConstants.keyDeepSeekKey, trimmed);
         break;
       case 'zai':
         zaiKey.value = trimmed;
         zaiKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyZaiKey, trimmed);
+        await _keys.write(AppConstants.keyZaiKey, trimmed);
         break;
       case 'groq':
         groqKey.value = trimmed;
         groqKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyGroqKey, trimmed);
+        await _keys.write(AppConstants.keyGroqKey, trimmed);
         break;
       case 'mistral':
         mistralKey.value = trimmed;
         mistralKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyMistralKey, trimmed);
+        await _keys.write(AppConstants.keyMistralKey, trimmed);
         break;
       case 'together':
         togetherKey.value = trimmed;
         togetherKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyTogetherKey, trimmed);
+        await _keys.write(AppConstants.keyTogetherKey, trimmed);
         break;
       case 'xai':
         xaiKey.value = trimmed;
         xaiKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyXaiKey, trimmed);
+        await _keys.write(AppConstants.keyXaiKey, trimmed);
         break;
       case 'perplexity':
         perplexityKey.value = trimmed;
         perplexityKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyPerplexityKey, trimmed);
+        await _keys.write(AppConstants.keyPerplexityKey, trimmed);
         break;
       case 'cerebras':
         cerebrasKey.value = trimmed;
         cerebrasKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyCerebrasKey, trimmed);
+        await _keys.write(AppConstants.keyCerebrasKey, trimmed);
         break;
       case 'fireworks':
         fireworksKey.value = trimmed;
         fireworksKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyFireworksKey, trimmed);
+        await _keys.write(AppConstants.keyFireworksKey, trimmed);
         break;
       case 'cohere':
         cohereKey.value = trimmed;
         cohereKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyCohereKey, trimmed);
+        await _keys.write(AppConstants.keyCohereKey, trimmed);
         break;
       case 'huggingface':
         huggingfaceKey.value = trimmed;
         huggingfaceKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyHuggingFaceKey, trimmed);
+        await _keys.write(AppConstants.keyHuggingFaceKey, trimmed);
         break;
       case 'xkiro':
         xkiroKey.value = trimmed;
         xkiroKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyXkiroKey, trimmed);
+        await _keys.write(AppConstants.keyXkiroKey, trimmed);
         break;
       case 'tokenrouter':
         tokenrouterKey.value = trimmed;
         tokenrouterKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyTokenRouterKey, trimmed);
+        await _keys.write(AppConstants.keyTokenRouterKey, trimmed);
         break;      case 'custom':
         customCloudKey.value = trimmed;
         customCloudKeyController.text = trimmed;
-        await _hive.setSetting(AppConstants.keyCustomCloudKey, trimmed);
+        await _keys.write(AppConstants.keyCustomCloudKey, trimmed);
         break;
     }
   }
@@ -881,7 +936,7 @@ class SettingsController extends GetxController {
     await _hive.setSetting(
         AppConstants.keyCustomCloudName, customCloudName.value);
     await _hive.setSetting(AppConstants.keyCustomCloudBaseUrl, '');
-    await _hive.setSetting(AppConstants.keyCustomCloudKey, '');
+    await _keys.write(AppConstants.keyCustomCloudKey, '');
     await _hive.setSetting(AppConstants.keyCustomCloudModel, '');
     customCloudProfileIndex.value = -1;
     await _saveCustomCloudProfiles();
@@ -928,12 +983,28 @@ class SettingsController extends GetxController {
       customCloudProfiles.assignAll(raw.whereType<Map>().map((profile) =>
           profile.map((key, value) =>
               MapEntry(key.toString(), value?.toString() ?? ''))));
+      // Custom-profile API keys moved to secure storage: read them back
+      // from SecureKeyStore (old Hive copies were wiped by migration).
+      for (var i = 0; i < customCloudProfiles.length; i++) {
+        final p = customCloudProfiles[i];
+        final hiveKey = '${AppConstants.keyCustomCloudKey}_p$i';
+        final secureKey = _keys.read(hiveKey);
+        if (secureKey.isNotEmpty) {
+          p['apiKey'] = secureKey;
+        } else if ((p['apiKey'] ?? '').isNotEmpty) {
+          // Legacy inline key: move it now.
+          unawaited(_keys.write(hiveKey, p['apiKey']!));
+        }
+      }
     }
     if (customCloudProfiles.isEmpty && customCloudBaseUrl.value.isNotEmpty) {
+      final hiveKey = '${AppConstants.keyCustomCloudKey}_p${customCloudProfiles.length}';
       customCloudProfiles.add({
         'name': customCloudName.value,
         'baseUrl': customCloudBaseUrl.value,
-        'apiKey': customCloudKey.value,
+        'apiKey': _keys.read(hiveKey).isNotEmpty
+            ? _keys.read(hiveKey)
+            : customCloudKey.value,
         'model': customCloudModel.value,
       });
     }
@@ -952,8 +1023,18 @@ class SettingsController extends GetxController {
   }
 
   Future<void> _saveCustomCloudProfiles() async {
+    // Persist API keys in secure storage (indexed), strip them from the
+    // plaintext profile list saved to Hive.
+    final sanitized = <Map<String, String>>[];
+    for (var i = 0; i < customCloudProfiles.length; i++) {
+      final p = Map<String, String>.from(customCloudProfiles[i]);
+      await _keys.write(
+          '${AppConstants.keyCustomCloudKey}_p$i', p['apiKey'] ?? '');
+      p['apiKey'] = '';
+      sanitized.add(p);
+    }
     await _hive.setSetting(
-        AppConstants.keyCustomCloudProfiles, customCloudProfiles.toList());
+        AppConstants.keyCustomCloudProfiles, sanitized);
     await _hive.setSetting(
         AppConstants.keyCustomCloudProfileIndex, customCloudProfileIndex.value);
   }

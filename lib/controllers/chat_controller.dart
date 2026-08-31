@@ -95,6 +95,7 @@ class ChatController extends GetxController {
 
   final textController = TextEditingController();
   final scrollController = ScrollController();
+  final composerFocusNode = FocusNode();
   Timer? _scrollTimer;
   bool _followStreaming = true;
   bool _scrollListenerAttached = false;
@@ -162,6 +163,7 @@ class ChatController extends GetxController {
       scrollController.removeListener(_handleUserScroll);
     }
     textController.dispose();
+    composerFocusNode.dispose();
     scrollController.dispose();
     super.onClose();
   }
@@ -515,7 +517,7 @@ class ChatController extends GetxController {
       createNewChat();
     }
 
-    // Encode image to base64 if it's not already pre-encoded
+    // Encode image to base64 for cloud API (transient, not persisted)
     String? imgBase64 = imageBase64;
     if (imgBase64 == null && imagePath != null && !kIsWeb) {
       try {
@@ -523,14 +525,20 @@ class ChatController extends GetxController {
       } catch (_) {}
     }
 
-    // Add user message
+    final userMsgId = _uuid.v4();
+    String? persistedImagePath = imagePath;
+    if (imagePath != null && !kIsWeb) {
+      persistedImagePath = await _persistImageFile(imagePath, userMsgId);
+    }
+
+    // Add user message — store file path, not base64 (prevents Hive bloat)
     final userMsg = ChatMessage(
-      id: _uuid.v4(),
+      id: userMsgId,
       chatId: currentSessionId.value,
       role: 'user',
       content: effectiveText,
-      imageBase64: imgBase64,
-      imagePath: imagePath,
+      imageBase64: null,
+      imagePath: persistedImagePath,
       fileName: fileName,
       fileContent: fileContent,
       filePath: filePath,
@@ -595,6 +603,8 @@ class ChatController extends GetxController {
     });
     _followStreaming = true;
     _scrollToBottom(force: true);
+    final tokenBuf = StringBuffer();
+    Timer? tokenFlushTimer;
 
     try {
       DateTime? thoughtStartedAt;
@@ -612,6 +622,23 @@ class ChatController extends GetxController {
           thoughtDurationSeconds =
               DateTime.now().difference(thoughtStartedAt!).inSeconds;
         }
+      }
+
+      void flushTokens() {
+        if (tokenBuf.isNotEmpty) {
+          streamingResponse.value += tokenBuf.toString();
+          tokenBuf.clear();
+          trackThoughtTiming();
+          _scrollToBottom();
+        }
+      }
+
+      void bufferToken(String t) {
+        tokenBuf.write(t);
+        tokenFlushTimer ??= Timer(const Duration(milliseconds: 40), () {
+          flushTokens();
+          tokenFlushTimer = null;
+        });
       }
 
       final inferenceMode = _hive.getSetting(
@@ -762,12 +789,10 @@ class ChatController extends GetxController {
             source: 'chat',
             imagePath: imagePath,
             audioPath: fileType == 'audio' ? filePath : null,
-            onToken: (token) {
-              streamingResponse.value += token;
-              trackThoughtTiming();
-              _scrollToBottom();
-            },
+            onToken: bufferToken,
           );
+          flushTokens();
+          tokenFlushTimer?.cancel();
         }
       } else {
         final cloud = Get.find<CloudService>();
@@ -785,12 +810,10 @@ class ChatController extends GetxController {
           maxTokens: settings.autoTuneParams.value
               ? null
               : settings.maxTokens.value,
-          onToken: (token) {
-            streamingResponse.value += token;
-            trackThoughtTiming();
-            _scrollToBottom();
-          },
+          onToken: bufferToken,
         );
+          flushTokens();
+          tokenFlushTimer?.cancel();
       }
 
       if (thoughtStartedAt != null && thoughtDurationSeconds == null) {
@@ -798,7 +821,11 @@ class ChatController extends GetxController {
             DateTime.now().difference(thoughtStartedAt!).inSeconds;
       }
 
-      if (generationId != _generationSerial) return;
+      if (generationId != _generationSerial) {
+        tokenFlushTimer?.cancel();
+        tokenBuf.clear();
+        return;
+      }
 
       final tps = inferenceMode == 'local'
           ? Get.find<InferenceService>().tokensPerSecond.value
@@ -814,6 +841,8 @@ class ChatController extends GetxController {
 
       _generationTimer?.cancel();
       _generationTimer = null;
+      tokenFlushTimer?.cancel();
+      tokenBuf.clear();
       isStreaming.value = false;
       streamingAttachmentType.value = null;
       streamingResponse.value = '';
@@ -824,17 +853,28 @@ class ChatController extends GetxController {
       imageGenDecoding.value = false;
 
       String? outImageBase64;
+      String? outImagePath;
       if (rawResponse.startsWith('[IMAGE_BASE64]')) {
         outImageBase64 = rawResponse.substring('[IMAGE_BASE64]'.length);
         rawResponse = 'Here is your generated image:';
       }
 
+      final aiMsgId = _uuid.v4();
+      if (outImageBase64 != null && outImageBase64.isNotEmpty && !kIsWeb) {
+        try {
+          final bytes = base64Decode(outImageBase64);
+          outImagePath = await _persistImageBytes(bytes, aiMsgId);
+          if (outImagePath != null) outImageBase64 = null;
+        } catch (_) {}
+      }
+
       final aiMsg = ChatMessage(
-        id: _uuid.v4(),
+        id: aiMsgId,
         chatId: currentSessionId.value,
         role: 'assistant',
         content: rawResponse,
         imageBase64: outImageBase64,
+        imagePath: outImagePath,
         tokensPerSec: tps,
         thoughtDurationSeconds: thoughtDurationSeconds,
         imageGenDurationMs: imageDurationMs,
@@ -861,7 +901,13 @@ class ChatController extends GetxController {
       }
       unawaited(HapticFeedback.mediumImpact());
     } catch (e) {
-      if (generationId != _generationSerial) return;
+      if (generationId != _generationSerial) {
+        tokenFlushTimer?.cancel();
+        tokenBuf.clear();
+        return;
+      }
+      tokenFlushTimer?.cancel();
+      tokenBuf.clear();
       isStreaming.value = false;
       streamingAttachmentType.value = null;
       streamingResponse.value = '';
@@ -1242,6 +1288,45 @@ class ChatController extends GetxController {
         curve: Curves.easeOutCubic,
       );
     });
+  }
+
+  Future<String?> _persistImageFile(String sourcePath, String messageId) async {
+    if (kIsWeb) return sourcePath;
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final chatDir = Directory('${dir.path}/chat_images');
+      if (!await chatDir.exists()) await chatDir.create(recursive: true);
+      final ext = sourcePath.split('.').last.toLowerCase();
+      final validExt = {
+        'jpg',
+        'jpeg',
+        'png',
+        'webp',
+        'gif',
+        'heic'
+      }.contains(ext)
+          ? ext
+          : 'jpg';
+      final dest = File('${chatDir.path}/$messageId.$validExt');
+      await File(sourcePath).copy(dest.path);
+      return dest.path;
+    } catch (_) {
+      return sourcePath;
+    }
+  }
+
+  Future<String?> _persistImageBytes(Uint8List bytes, String messageId) async {
+    if (kIsWeb) return null;
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final chatDir = Directory('${dir.path}/chat_images');
+      if (!await chatDir.exists()) await chatDir.create(recursive: true);
+      final dest = File('${chatDir.path}/$messageId.png');
+      await dest.writeAsBytes(bytes);
+      return dest.path;
+    } catch (_) {
+      return null;
+    }
   }
 
   String _attachmentTypeForExtension(String extension) {

@@ -8,11 +8,13 @@ import 'package:get/get.dart';
 import '../core/constants.dart';
 import '../services/app_log_service.dart';
 import '../services/hive_service.dart';
+import '../services/secure_key_store.dart';
 import '../services/inference_service.dart';
 import '../services/openai_server_service.dart';
 
 class ServerController extends GetxController {
   final HiveService _hive = Get.find<HiveService>();
+  final SecureKeyStore _keys = Get.find<SecureKeyStore>();
   final InferenceService inference = Get.find<InferenceService>();
   final OpenAiServerService _server = OpenAiServerService();
 
@@ -34,7 +36,7 @@ class ServerController extends GetxController {
     super.onInit();
     useApiKey.value =
         _hive.getSetting<bool>(AppConstants.keyServerUseApiKey) ?? false;
-    apiKey.value = _hive.getSetting<String>(AppConstants.keyServerApiKey) ?? '';
+    apiKey.value = _keys.read(AppConstants.keyServerApiKey);
 
     apiKeyCtrl = TextEditingController(text: apiKey.value);
   }
@@ -95,7 +97,7 @@ class ServerController extends GetxController {
 
   Future<void> saveSettings() async {
     await _hive.setSetting(AppConstants.keyServerUseApiKey, useApiKey.value);
-    await _hive.setSetting(AppConstants.keyServerApiKey, apiKey.value.trim());
+    await _keys.write(AppConstants.keyServerApiKey, apiKey.value.trim());
   }
 
   Future<void> generateApiKey() async {

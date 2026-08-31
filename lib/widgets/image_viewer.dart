@@ -7,18 +7,23 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 class ImageViewer extends StatefulWidget {
-  final String base64Image;
+  final Uint8List bytes;
 
-  const ImageViewer({super.key, required this.base64Image});
+  const ImageViewer({super.key, required this.bytes});
 
-  static Future<void> show(BuildContext context, String base64Image) {
+  static Future<void> showBytes(BuildContext context, Uint8List bytes) {
     return showDialog(
       context: context,
       useSafeArea: false,
       barrierDismissible: true,
       barrierColor: Colors.black,
-      builder: (_) => ImageViewer(base64Image: base64Image),
+      builder: (_) => ImageViewer(bytes: bytes),
     );
+  }
+
+  @Deprecated('Use showBytes with decoded bytes')
+  static Future<void> show(BuildContext context, String base64Image) {
+    return showBytes(context, base64Decode(base64Image));
   }
 
   @override
@@ -33,7 +38,7 @@ class _ImageViewerState extends State<ImageViewer> {
   @override
   void initState() {
     super.initState();
-    _bytes = base64Decode(widget.base64Image);
+    _bytes = widget.bytes;
   }
 
   Future<void> _download() async {

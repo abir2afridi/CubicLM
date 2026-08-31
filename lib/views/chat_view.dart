@@ -1133,7 +1133,7 @@ class ChatView extends GetView<ChatController> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
                       child: KeyboardListener(
-                        focusNode: FocusNode(),
+                        focusNode: controller.composerFocusNode,
                         onKeyEvent: (event) {
                           if (event is KeyDownEvent &&
                               event.logicalKey == LogicalKeyboardKey.enter &&
@@ -1157,6 +1157,7 @@ class ChatView extends GetView<ChatController> {
                           }
                         },
                         child: TextField(
+                          focusNode: controller.composerFocusNode,
                           controller: controller.textController,
                           onChanged: (v) => controller.inputText.value = v,
                           maxLines: 6,

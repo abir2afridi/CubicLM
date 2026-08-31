@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -209,6 +210,34 @@ class HiveService extends GetxService {
     _skillsBox = results[5];
     _mcpBox = results[6];
 
+    // One-time migration: prefix message keys with chatId for O(1) lookup.
+    try {
+      if (_isBoxUsable(_messagesBox) && _isBoxUsable(_settingsBox)) {
+        final migrated = _settingsBox.get('messages_migrated_to_prefix',
+                defaultValue: false) as bool? ??
+            false;
+        if (!migrated) {
+          final keys = _messagesBox.keys.toList();
+          for (final k in keys) {
+            final ks = k.toString();
+            if (ks.contains('/')) continue;
+            final v = _messagesBox.get(k);
+            if (v is Map &&
+                v['chatId'] is String &&
+                (v['chatId'] as String).isNotEmpty) {
+              final chatId = v['chatId'] as String;
+              final newKey = '$chatId/$ks';
+              if (!_messagesBox.containsKey(newKey)) {
+                await _messagesBox.put(newKey, v);
+              }
+              await _messagesBox.delete(k);
+            }
+          }
+          await _settingsBox.put('messages_migrated_to_prefix', true);
+        }
+      }
+    } catch (_) {}
+
     // Purge obsolete keys only if settings box is real Hive (memory is empty anyway).
     try {
       if (_isBoxUsable(_settingsBox)) {
@@ -264,7 +293,7 @@ class HiveService extends GetxService {
     try {
       if (!_isBoxUsable(_sessionsBox)) return [];
       return _sessionsBox.values
-          .map((v) => Map<dynamic, dynamic>.from(v as Map))
+          .map((v) => Map<dynamic, dynamic>.from(v))
           .toList();
     } on HiveError {
       return [];
@@ -288,13 +317,22 @@ class HiveService extends GetxService {
     } on HiveError {
       // Box closed — session data will persist on next launch.
     } catch (_) {}
-    // Delete all messages for this session
+    // Delete all messages for this session (prefix-aware + file cleanup)
     try {
       if (!_isBoxUsable(_messagesBox)) return;
+      final prefix = '$id/';
       final keysToDelete = <dynamic>[];
+      for (final k
+          in _messagesBox.keys.where((k) => k.toString().startsWith(prefix)).toList()) {
+        final msg = _messagesBox.get(k);
+        if (msg is Map) _deleteImageFile(msg['imagePath'] as String?);
+        keysToDelete.add(k);
+      }
       for (var key in _messagesBox.keys) {
+        if (key.toString().contains('/')) continue;
         final msg = _messagesBox.get(key);
         if (msg is Map && msg['chatId'] == id) {
+          _deleteImageFile(msg['imagePath'] as String?);
           keysToDelete.add(key);
         }
       }
@@ -309,10 +347,24 @@ class HiveService extends GetxService {
   List<Map<dynamic, dynamic>> getMessagesForChat(String chatId) {
     try {
       if (!_isBoxUsable(_messagesBox)) return [];
-      return _messagesBox.values
-          .where((v) => v is Map && v['chatId'] == chatId)
-          .map((v) => Map<dynamic, dynamic>.from(v as Map))
-          .toList();
+      final prefix = '$chatId/';
+      final out = <Map<dynamic, dynamic>>[];
+      for (final k
+          in _messagesBox.keys.where((k) => k.toString().startsWith(prefix))) {
+        final v = _messagesBox.get(k);
+        if (v is Map) out.add(Map<dynamic, dynamic>.from(v));
+      }
+      if (out.isEmpty) {
+        for (final v in _messagesBox.values) {
+          if (v is Map && v['chatId'] == chatId) {
+            final id = v['id']?.toString() ?? '';
+            if (id.isNotEmpty && !out.any((m) => m['id'] == id)) {
+              out.add(Map<dynamic, dynamic>.from(v));
+            }
+          }
+        }
+      }
+      return out;
     } on HiveError {
       return [];
     } catch (_) {
@@ -323,7 +375,16 @@ class HiveService extends GetxService {
   Future<void> saveMessage(String id, Map<String, dynamic> data) async {
     try {
       if (!_isBoxUsable(_messagesBox)) return;
-      await _messagesBox.put(id, data);
+      final chatId = data['chatId']?.toString() ?? '';
+      final key = chatId.isNotEmpty ? '$chatId/$id' : id;
+      final toStore = Map<String, dynamic>.from(data);
+      if (toStore['imageBase64'] is String &&
+          (toStore['imageBase64'] as String).length > 8000 &&
+          toStore['imagePath'] is String &&
+          (toStore['imagePath'] as String).isNotEmpty) {
+        toStore['imageBase64'] = null;
+      }
+      await _messagesBox.put(key, toStore);
     } on HiveError {
       // Box closed — message will persist on next launch.
     } catch (_) {}
@@ -332,7 +393,22 @@ class HiveService extends GetxService {
   Future<void> deleteMessage(String id) async {
     try {
       if (!_isBoxUsable(_messagesBox)) return;
-      await _messagesBox.delete(id);
+      dynamic actualKey;
+      if (_messagesBox.containsKey(id)) {
+        actualKey = id;
+      } else {
+        for (final k in _messagesBox.keys) {
+          if (k.toString().endsWith('/$id')) {
+            actualKey = k;
+            break;
+          }
+        }
+      }
+      if (actualKey != null) {
+        final msg = _messagesBox.get(actualKey);
+        if (msg is Map) _deleteImageFile(msg['imagePath'] as String?);
+        await _messagesBox.delete(actualKey);
+      }
     } on HiveError {
       // Box closed — message will persist on next launch.
     } catch (_) {}
@@ -343,7 +419,7 @@ class HiveService extends GetxService {
   List<Map<dynamic, dynamic>> getAllTasks() {
     try {
       if (!_isBoxUsable(_tasksBox)) return [];
-      return _tasksBox.values.map((v) => Map<dynamic, dynamic>.from(v as Map)).toList();
+      return _tasksBox.values.map((v) => Map<dynamic, dynamic>.from(v)).toList();
     } on HiveError {
       return [];
     } catch (_) {
@@ -375,7 +451,7 @@ class HiveService extends GetxService {
     try {
       if (!_isBoxUsable(_notificationsBox)) return [];
       return _notificationsBox.values
-          .map((v) => Map<dynamic, dynamic>.from(v as Map))
+          .map((v) => Map<dynamic, dynamic>.from(v))
           .toList();
     } on HiveError {
       return [];
@@ -409,6 +485,14 @@ class HiveService extends GetxService {
       await _notificationsBox.clear();
     } on HiveError {
       // Box closed — notifications will persist on next launch.
+    } catch (_) {}
+  }
+
+  void _deleteImageFile(String? path) {
+    if (path == null || path.isEmpty) return;
+    try {
+      final f = File(path);
+      if (f.existsSync()) f.deleteSync();
     } catch (_) {}
   }
 }

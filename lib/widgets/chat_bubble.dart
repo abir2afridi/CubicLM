@@ -102,7 +102,10 @@ class _ChatBubbleState extends State<ChatBubble> {
                           Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: GestureDetector(
-                              onTap: () => ImageViewer.show(context, widget.message.imageBase64!),
+                              onTap: () {
+                                final b = widget.message.decodedImageBytes;
+                                if (b != null) ImageViewer.showBytes(context, b);
+                              },
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(16),
                                 child: Image.memory(

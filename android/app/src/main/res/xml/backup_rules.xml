@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- API keys are now in EncryptedSharedPreferences (secure storage) which
+         is device-encrypted and not useful on another device; exclude it anyway. -->
+    <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+</full-backup-content>
