@@ -36,11 +36,12 @@ class ChatView extends GetView<ChatController> {
       backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       drawer: _buildSidebar(context, isDark),
       appBar: _appBar(context, isDark),
-      body: Column(
+      body: Stack(
         children: [
-          _modelLoadingBar(context, isDark),
-          _contextBar(context, isDark),
-          Expanded(child: Obx(() {
+          Column(
+            children: [
+              _contextBar(context, isDark),
+              Expanded(child: Obx(() {
             if (controller.currentSessionId.value.isEmpty ||
                 controller.messages.isEmpty) {
               return _emptyState(context, isDark);
@@ -133,7 +134,15 @@ class ChatView extends GetView<ChatController> {
               ],
             );
           })),
-          _inputBar(context, isDark),
+              _inputBar(context, isDark),
+            ],
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _modelLoadingBar(context, isDark),
+          ),
         ],
       ),
     );
@@ -443,79 +452,76 @@ class ChatView extends GetView<ChatController> {
   Widget _modelLoadingBar(BuildContext context, bool isDark) {
     return Obx(() {
       final inf = Get.find<InferenceService>();
-      final loading = inf.isLoadingModel.value;
+      if (!inf.isLoadingModel.value) return const SizedBox.shrink();
       final pct = (inf.modelLoadProgress.value * 100).toStringAsFixed(0);
-      return Offstage(
-        offstage: !loading,
-        child: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
-              decoration: BoxDecoration(
-                color: (isDark ? AppColors.surface : Colors.white)
-                    .withValues(alpha: 0.8),
-                border: Border(
-                    bottom: BorderSide(
-                        color:
-                            isDark ? AppColors.border : AppColors.borderLightMode,
-                        width: 1)),
-              ),
-              child:
-                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2.5, color: AppColors.primary)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text('Synchronizing Intelligence… $pct%',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            color:
-                                isDark ? AppColors.textPrimary : Dt.textPrimary,
-                            fontWeight: FontWeight.w800)),
-                  ),
-                ]),
-                const SizedBox(height: 14),
-                Stack(
-                  children: [
-                    ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                            value: inf.modelLoadProgress.value,
-                            backgroundColor:
-                                isDark ? Dt.pillMutedDark : Dt.pillMuted,
-                            color: AppColors.primary,
-                            minHeight: 6)),
-                    if (inf.modelLoadProgress.value > 0.05)
-                      Positioned.fill(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: FractionallySizedBox(
-                            widthFactor: inf.modelLoadProgress.value,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                boxShadow: [
-                                  BoxShadow(
-                                    color:
-                                        AppColors.primary.withValues(alpha: 0.4),
-                                    blurRadius: 10,
-                                    spreadRadius: 1,
-                                  )
-                                ],
-                              ),
+      return ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+            decoration: BoxDecoration(
+              color: (isDark ? AppColors.surface : Colors.white)
+                  .withValues(alpha: 0.8),
+              border: Border(
+                  bottom: BorderSide(
+                      color:
+                          isDark ? AppColors.border : AppColors.borderLightMode,
+                      width: 1)),
+            ),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: AppColors.primary)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Synchronizing Intelligence… $pct%',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          color:
+                              isDark ? AppColors.textPrimary : Dt.textPrimary,
+                          fontWeight: FontWeight.w800)),
+                ),
+              ]),
+              const SizedBox(height: 14),
+              Stack(
+                children: [
+                  ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                          value: inf.modelLoadProgress.value,
+                          backgroundColor:
+                              isDark ? Dt.pillMutedDark : Dt.pillMuted,
+                          color: AppColors.primary,
+                          minHeight: 6)),
+                  if (inf.modelLoadProgress.value > 0.05)
+                    Positioned.fill(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: FractionallySizedBox(
+                          widthFactor: inf.modelLoadProgress.value,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      AppColors.primary.withValues(alpha: 0.4),
+                                  blurRadius: 10,
+                                  spreadRadius: 1,
+                                )
+                              ],
                             ),
                           ),
                         ),
                       ),
-                  ],
-                ),
-              ]),
-            ),
+                    ),
+                ],
+              ),
+            ]),
           ),
         ),
       );
@@ -908,7 +914,11 @@ class ChatView extends GetView<ChatController> {
 
   // ── Input Bar ──
   Widget _inputBar(BuildContext context, bool isDark) {
-    final bottomPad = MediaQuery.viewPaddingOf(context).bottom;
+    // Use viewPadding (nav bar) when keyboard closed, 0 when keyboard open.
+    // padding = viewPadding - viewInsets, so it gives nav bar height only when
+    // keyboard is hidden and 0 when keyboard covers it. This keeps composer
+    // stable before/after focus and correctly above keyboard/nav bar.
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
     return Container(
       padding: EdgeInsets.fromLTRB(16, 8, 16, 8 + bottomPad),
       color: Colors.transparent,
