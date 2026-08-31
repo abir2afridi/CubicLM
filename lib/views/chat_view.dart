@@ -36,15 +36,11 @@ class ChatView extends GetView<ChatController> {
       backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       drawer: _buildSidebar(context, isDark),
       appBar: _appBar(context, isDark),
-      body: SafeArea(
-        top: false,
-        bottom: true,
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                _contextBar(context, isDark),
-                Expanded(child: Obx(() {
+      body: Column(
+        children: [
+          _modelLoadingBar(context, isDark),
+          _contextBar(context, isDark),
+          Expanded(child: Obx(() {
             if (controller.currentSessionId.value.isEmpty ||
                 controller.messages.isEmpty) {
               return _emptyState(context, isDark);
@@ -137,17 +133,8 @@ class ChatView extends GetView<ChatController> {
               ],
             );
           })),
-              _inputBar(context, isDark),
-            ],
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _modelLoadingBar(context, isDark),
-          ),
+          _inputBar(context, isDark),
         ],
-      ),
       ),
     );
   }
@@ -918,10 +905,12 @@ class ChatView extends GetView<ChatController> {
 
   // ── Input Bar ──
   Widget _inputBar(BuildContext context, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      color: Colors.transparent,
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        color: Colors.transparent,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
             // Attachment preview
             Obx(() {
               final name = controller.selectedFileName.value;
@@ -1133,7 +1122,7 @@ class ChatView extends GetView<ChatController> {
                     Padding(
                       padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
                       child: KeyboardListener(
-                        focusNode: controller.composerFocusNode,
+                        focusNode: controller.composerKeyboardFocusNode,
                         onKeyEvent: (event) {
                           if (event is KeyDownEvent &&
                               event.logicalKey == LogicalKeyboardKey.enter &&
@@ -1253,9 +1242,10 @@ class ChatView extends GetView<ChatController> {
                             );
                           }),
                         ]),
-                  ]),
+                   ]),
             ),
         ]),
+      ),
     );
   }
 

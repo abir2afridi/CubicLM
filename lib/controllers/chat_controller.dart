@@ -96,6 +96,7 @@ class ChatController extends GetxController {
   final textController = TextEditingController();
   final scrollController = ScrollController();
   final composerFocusNode = FocusNode();
+  final composerKeyboardFocusNode = FocusNode();
   Timer? _scrollTimer;
   bool _followStreaming = true;
   bool _scrollListenerAttached = false;
@@ -164,6 +165,7 @@ class ChatController extends GetxController {
     }
     textController.dispose();
     composerFocusNode.dispose();
+    composerKeyboardFocusNode.dispose();
     scrollController.dispose();
     super.onClose();
   }
