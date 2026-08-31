@@ -4,259 +4,149 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CubicLM — Private, Local AI for Everyone</title>
-<meta name="description" content="CubicLM is a private, offline-first AI companion for Android & Windows. Run LLMs locally, generate images, chat with any model — no cloud required.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='0' fill='%23FF4D00'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='48' font-weight='800' fill='white' font-family='sans-serif'>C</text></svg>">
+<meta name="description" content="CubicLM is a private, offline-first AI companion for Android & Windows.">
+<link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Instrument+Serif:ital@0;1&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.2.0/remixicon.min.css">
 <style>
-/* ═══════════════════════════════════════════════
-   RESET & BASE
-   ═══════════════════════════════════════════════ */
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-::selection{background:#000;color:#FF4D00}
-html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
-body{background:#FF4D00;color:#000;font-family:'Inter',sans-serif;overflow-x:hidden}
+:root{--orange:#FF4D00;--black:#000000;--white:#FFFFFF;--offwhite:#fafafa}
+html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+body{background:var(--black);color:var(--white);font-family:'Inter',sans-serif;overflow-x:hidden}
+::selection{background:var(--orange);color:var(--black)}
+a{color:inherit;text-decoration:none}
 
-/* ═══════════════════════════════════════════════
-   NOISE OVERLAY
-   ═══════════════════════════════════════════════ */
-#noise-canvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;opacity:.03;mix-blend-mode:overlay}
+/* Noise overlay */
+#grain{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;opacity:.12;mix-blend-mode:overlay}
 
-/* ═══════════════════════════════════════════════
-   SCROLL REVEAL
-   ═══════════════════════════════════════════════ */
-.sr{opacity:0;transform:translateY(30px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
-.sr.sr-active{opacity:1;transform:translateY(0)}
-.sr-d1{transition-delay:.08s}.sr-d2{transition-delay:.16s}.sr-d3{transition-delay:.24s}.sr-d4{transition-delay:.32s}
+/* ── NAV ── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 32px;display:flex;align-items:center;justify-content:space-between}
+.nav-logo{font-family:'Archivo Black',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:-.04em;color:var(--white)}
+.nav-pill{position:absolute;left:50%;transform:translateX(-50%);background:var(--white);border-radius:999px;padding:10px 28px;display:flex;gap:28px}
+.nav-pill a{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:-.02em;color:var(--black);text-transform:uppercase;transition:background .2s,color .2s;padding:4px 12px;border-radius:999px}
+.nav-pill a:hover{background:var(--black);color:var(--white)}
+.nav-social{display:flex;gap:16px}
+.nav-social a{width:40px;height:40px;border:2px solid var(--white);border-radius:50%;display:grid;place-items:center;font-size:16px;color:var(--white);transition:background .2s,color .2s}
+.nav-social a:hover{background:var(--white);color:var(--black)}
 
-/* ═══════════════════════════════════════════════
-   FLOATING NAVIGATION
-   ═══════════════════════════════════════════════ */
-.nav-fixed{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
-.nav-logo{font-family:'Archivo Black',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:-.04em;color:#000;text-decoration:none;display:flex;align-items:center;gap:10px}
-.nav-logo .logo-box{width:36px;height:36px;background:#FF4D00;border:2px solid #000;display:grid;place-items-center;font-size:16px;font-weight:900;color:#fff}
-.nav-pill{background:#000;border-radius:999px;padding:6px 8px;display:flex;gap:0;align-items:center}
-.nav-pill a{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:-.02em;color:#fff;text-decoration:none;padding:6px 14px;border-radius:999px;text-transform:uppercase;font-weight:700;transition:background .2s,color .2s}
-.nav-pill a:hover{background:#fff;color:#000}
-.nav-social{display:flex;gap:12px}
-.nav-social a{width:36px;height:36px;border:2px solid #000;border-radius:50%;display:grid;place-items-center;color:#000;text-decoration:none;font-size:16px;transition:background .2s,color .2s}
-.nav-social a:hover{background:#000;color:#FF4D00}
+/* ── HERO (Cinematic Noir) ── */
+.hero{min-height:100vh;min-height:857px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;background:var(--black)}
+.hero-bg{position:absolute;inset:-15%;z-index:0;display:flex;align-items:center;justify-content:center;transition:transform .05s linear;will-change:transform}
+.hero-bg img{width:55%;max-width:460px;height:auto;object-fit:contain;opacity:.8;filter:brightness(1.1)}
+.hero-bg::after{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 0%,rgba(0,0,0,.15) 55%,rgba(0,0,0,.75) 100%)}
+.hero-content{position:relative;z-index:2;text-align:center;max-width:900px;padding:0 24px}
+.hero-heading{font-family:'Instrument Serif',serif;font-size:clamp(56px,11vw,150px);font-weight:900;letter-spacing:-.03em;line-height:.88;color:var(--white);will-change:transform;transform-style:preserve-3d}
+.hero-heading em{font-style:italic;font-weight:400;color:var(--orange)}
+.hero-desc{font-size:17px;font-weight:300;color:rgba(229,229,229,.55);max-width:520px;margin:28px auto 0;line-height:1.6}
+.hero-scroll{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);z-index:2;display:flex;flex-direction:column;align-items:center;gap:8px;color:rgba(255,255,255,.4);font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;animation:hero-fade 2s ease-in-out infinite}
+@keyframes hero-fade{0%,100%{opacity:.3}50%{opacity:1}}
 
-/* ═══════════════════════════════════════════════
-   HERO SECTION
-   ═══════════════════════════════════════════════ */
-.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;position:relative;background:#FF4D00;overflow:hidden}
-.hero-canvas{position:absolute;inset:0;opacity:.12}
-.hero-title{font-family:'Archivo Black',sans-serif;font-size:16vw;line-height:.85;letter-spacing:-.04em;text-transform:uppercase;text-align:center;color:#000;position:relative;z-index:2}
-.hero-title span{display:block}
-.hero-border{width:100%;height:2px;background:#000;position:relative;z-index:2}
-.hero-meta{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:20px 0;position:relative;z-index:2}
-.hero-meta-left{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:-.02em;text-transform:uppercase;color:#000}
-.hero-meta-right{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:-.02em;text-transform:uppercase;color:#000;text-align:right;line-height:1.6}
+/* ── MARQUEE ── */
+.marquee-section{background:var(--black);padding:0;transform:skewY(-2deg);margin:-20px 0;position:relative;z-index:2}
+.marquee-wrap{transform:skewY(2deg);overflow:hidden;white-space:nowrap}
+.marquee-row{display:flex;animation:marquee 25s linear infinite;width:max-content}
+.marquee-row.reverse{animation-direction:reverse;animation-duration:30s}
+.marquee-row span{font-family:'Archivo Black',sans-serif;font-size:clamp(40px,10vw,120px);text-transform:uppercase;letter-spacing:-.04em;padding:16px 40px;flex-shrink:0}
+.marquee-row.orange span{color:var(--orange)}
+.marquee-row.white span{color:var(--white);opacity:.8}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 
-/* ═══════════════════════════════════════════════
-   ROTATING SCROLL INDICATOR
-   ═══════════════════════════════════════════════ */
-.scroll-indicator{width:144px;height:144px;position:relative}
-.scroll-indicator svg{width:100%;height:100%;animation:spin 12s linear infinite}
-.scroll-indicator svg text{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;fill:#000}
-.scroll-indicator .arrow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:20px;height:20px;color:#000}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* ═══════════════════════════════════════════════
-   SKEWED MARQUEE SECTION
-   ═══════════════════════════════════════════════ */
-.marquee-section{background:#000;transform:skewY(-2deg);padding:80px 0;overflow:hidden;margin-top:-40px;position:relative;z-index:3}
-.marquee-inner{transform:skewY(2deg)}
-.marquee-track{display:flex;width:max-content;will-change:transform}
-.marquee-row{padding:12px 0;overflow:hidden}
-.marquee-row .marquee-track{animation:marquee-scroll 25s linear infinite}
-.marquee-row.reverse .marquee-track{animation-direction:reverse;animation-duration:30s}
-.marquee-item{font-family:'Archivo Black',sans-serif;font-size:10vw;line-height:1;text-transform:uppercase;white-space:nowrap;padding:0 40px;letter-spacing:-.04em}
-.marquee-item.orange{color:#FF4D00}
-.marquee-item.white{color:#fff;opacity:.8}
-@keyframes marquee-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-
-/* ═══════════════════════════════════════════════
-   SERVICE LIST
-   ═══════════════════════════════════════════════ */
-.services{background:#000;color:#fff;padding:0}
-.service-item{display:grid;grid-template-columns:60px 1fr 60px;align-items:center;padding:32px 48px;border-top:1px solid rgba(255,255,255,.2);cursor:pointer;transition:background .2s}
+/* ── SERVICES ── */
+.services{background:var(--black);color:var(--white);padding:80px 32px 0}
+.services-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:40px}
+.service-item{display:grid;grid-template-columns:60px 1fr auto;align-items:center;padding:28px 0;border-top:1px solid rgba(255,255,255,.15);cursor:pointer;transition:background .3s;gap:24px}
 .service-item:hover{background:rgba(255,255,255,.05)}
-.service-index{font-family:'Space Mono',monospace;font-size:14px;color:#FF4D00;font-weight:700}
+.service-idx{font-family:'Space Mono',monospace;font-size:14px;color:var(--orange)}
 .service-content{display:flex;flex-direction:column;gap:10px}
-.service-title{font-family:'Archivo Black',sans-serif;font-size:7vw;line-height:.9;text-transform:uppercase;letter-spacing:-.04em;color:#fff;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.service-title{font-family:'Archivo Black',sans-serif;font-size:clamp(28px,7vw,72px);text-transform:uppercase;letter-spacing:-.04em;line-height:.88;transition:transform .3s cubic-bezier(.16,1,.3,1)}
 .service-item:hover .service-title{transform:translateX(16px)}
-.service-tags{display:flex;flex-wrap:wrap;gap:6px}
-.service-tag{font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:-.02em;padding:4px 10px;border:1px solid rgba(255,255,255,.3);border-radius:999px;color:rgba(255,255,255,.7)}
-.service-arrow{font-size:28px;color:#FF4D00;opacity:0;transform:rotate(0deg);transition:opacity .3s,transform .3s cubic-bezier(.16,1,.3,1);justify-self:end}
-.service-item:hover .service-arrow{opacity:1;transform:rotate(45deg)}
+.service-tags{display:flex;gap:8px;flex-wrap:wrap}
+.service-tag{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:4px 12px;border:1px solid rgba(255,255,255,.25);border-radius:999px;color:rgba(255,255,255,.6)}
+.service-arrow{font-size:32px;color:var(--orange);opacity:0;transform:rotate(-45deg) scale(.5);transition:all .3s cubic-bezier(.16,1,.3,1)}
+.service-item:hover .service-arrow{opacity:1;transform:rotate(-45deg) scale(1)}
 
-/* ═══════════════════════════════════════════════
-   FEATURES GRID
-   ═══════════════════════════════════════════════ */
-.features-section{background:#FF4D00;padding:100px 48px}
-.features-header{font-family:'Archivo Black',sans-serif;font-size:14vw;line-height:.85;letter-spacing:-.04em;text-transform:uppercase;color:#000;text-align:center;margin-bottom:60px}
-.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:#000;border:2px solid #000;max-width:1400px;margin:0 auto}
-.feature-card{background:#FF4D00;padding:40px 32px;display:flex;flex-direction:column;gap:16px;transition:background .2s,color .2s;cursor:default}
-.feature-card:hover{background:#000;color:#FF4D00}
-.feature-card:hover .feature-icon{background:#FF4D00;color:#000}
-.feature-card:hover .feature-desc{color:rgba(255,255,255,.7)}
-.feature-icon{width:44px;height:44px;border:2px solid #000;display:grid;place-items-center;font-size:20px;transition:background .2s,color .2s}
-.feature-card:hover .feature-icon{border-color:#FF4D00}
-.feature-name{font-family:'Archivo Black',sans-serif;font-size:18px;text-transform:uppercase;letter-spacing:-.03em;line-height:1.1}
-.feature-desc{font-family:'Inter',sans-serif;font-size:13px;line-height:1.6;color:#000;opacity:.7;transition:color .2s}
+/* ── CTA ── */
+.cta{background:var(--orange);padding:120px 32px;text-align:center}
+.cta h2{font-family:'Archivo Black',sans-serif;font-size:clamp(48px,14vw,180px);text-transform:uppercase;letter-spacing:-.04em;line-height:.85;margin-bottom:48px;color:var(--black)}
+.cta-btn{display:inline-block;font-family:'Archivo Black',sans-serif;font-size:18px;text-transform:uppercase;letter-spacing:-.02em;background:var(--black);color:var(--white);padding:20px 48px;border-radius:999px;border:none;cursor:pointer;transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s}
+.cta-btn:hover{transform:scale(1.1);box-shadow:0 16px 48px rgba(0,0,0,.3)}
 
-/* ═══════════════════════════════════════════════
-   CTA SECTION
-   ═══════════════════════════════════════════════ */
-.cta-section{background:#FF4D00;padding:120px 48px;text-align:center;border-top:2px solid #000}
-.cta-heading{font-family:'Archivo Black',sans-serif;font-size:14vw;line-height:.85;letter-spacing:-.04em;text-transform:uppercase;color:#000}
-.cta-sub{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:-.02em;text-transform:uppercase;color:#000;margin-top:24px;opacity:.7}
-.cta-buttons{display:flex;gap:12px;justify-content:center;margin-top:48px;flex-wrap:wrap}
-.btn-brutal{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:-.02em;padding:16px 36px;border:2px solid #000;border-radius:999px;text-decoration:none;cursor:pointer;transition:transform .2s,background .2s,color .2s;display:inline-flex;align-items:center;gap:8px}
-.btn-brutal.primary{background:#000;color:#fff}
-.btn-brutal.primary:hover{background:#fff;color:#000;transform:scale(1.05)}
-.btn-brutal.secondary{background:transparent;color:#000}
-.btn-brutal.secondary:hover{background:#000;color:#FF4D00;transform:scale(1.05)}
+/* ── FOOTER (Cinematic Noir) ── */
+.footer{background:var(--offwhite);color:var(--black);padding:80px 32px 40px}
+.footer-cta{border-bottom:1px solid rgba(0,0,0,.1);padding-bottom:40px;margin-bottom:48px}
+.footer-cta-text{font-family:'Archivo Black',sans-serif;font-size:clamp(60px,12vw,160px);font-weight:900;letter-spacing:-.04em;line-height:.88;text-transform:uppercase;cursor:pointer;transition:opacity .2s}
+.footer-cta-text:hover{opacity:.5}
+.footer-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;max-width:1200px;margin:0 auto}
+.footer-col-title{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:#888;margin-bottom:16px}
+.footer-col a{display:block;font-size:15px;font-weight:400;color:var(--black);text-decoration:none;margin-bottom:8px;position:relative;width:fit-content}
+.footer-col a::after{content:'';position:absolute;bottom:-2px;left:0;width:100%;height:1px;background:var(--black);transform:scaleX(0);transform-origin:right;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.footer-col a:hover::after{transform:scaleX(1);transform-origin:left}
+.footer-email{font-family:'Instrument Serif',serif;font-size:clamp(20px,2.5vw,32px);font-weight:400;letter-spacing:-.02em}
+.footer-copy{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;color:#888;text-align:right}
 
-/* ═══════════════════════════════════════════════
-   DOWNLOAD SECTION
-   ═══════════════════════════════════════════════ */
-.download-section{background:#000;color:#fff;padding:100px 48px;border-top:2px solid #FF4D00}
-.download-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.2);max-width:1000px;margin:48px auto 0}
-.download-card{background:#000;padding:40px;display:flex;flex-direction:column;gap:20px}
-.download-card-head{display:flex;align-items:center;gap:14px}
-.download-card-icon{width:48px;height:48px;border:2px solid #FF4D00;display:grid;place-items-center;font-size:22px;color:#FF4D00}
-.download-card-title{font-family:'Archivo Black',sans-serif;font-size:24px;text-transform:uppercase;letter-spacing:-.03em}
-.download-card-sub{font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;opacity:.6;letter-spacing:-.02em}
-.download-btn{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:-.02em;padding:14px 28px;border:2px solid #fff;background:#fff;color:#000;border-radius:999px;text-decoration:none;cursor:pointer;transition:transform .2s,background .2s,color .2s;display:inline-flex;align-items:center;gap:8px;justify-content:center}
-.download-btn:hover{background:#FF4D00;border-color:#FF4D00;color:#fff;transform:scale(1.03)}
-.download-alts{display:flex;gap:8px;flex-wrap:wrap}
-.download-alt{font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;padding:8px 16px;border:1px solid rgba(255,255,255,.3);border-radius:999px;color:rgba(255,255,255,.6);text-decoration:none;transition:border-color .2s,color .2s}
-.download-alt:hover{border-color:#FF4D00;color:#FF4D00}
-.download-meta{font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;opacity:.4;text-align:center;margin-top:32px;letter-spacing:-.02em}
-
-/* ═══════════════════════════════════════════════
-   FOOTER
-   ═══════════════════════════════════════════════ */
-.footer{background:#000;color:#fff;padding:40px 48px;border-top:2px solid #FF4D00;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
-.footer-copy{font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:-.02em;opacity:.5}
-.footer-links{display:flex;gap:20px}
-.footer-links a{font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:-.02em;color:rgba(255,255,255,.5);text-decoration:none;transition:color .2s}
-.footer-links a:hover{color:#FF4D00}
-
-/* ═══════════════════════════════════════════════
-   RESPONSIVE
-   ═══════════════════════════════════════════════ */
+/* ── RESPONSIVE ── */
 @media(max-width:768px){
-  .hero-title{font-size:20vw}
-  .service-item{grid-template-columns:40px 1fr 40px;padding:24px 20px}
-  .service-title{font-size:10vw}
-  .features-grid{grid-template-columns:1fr}
-  .features-section{padding:60px 20px}
-  .features-header{font-size:18vw}
-  .cta-heading{font-size:18vw}
-  .cta-section{padding:80px 20px}
-  .download-grid{grid-template-columns:1fr}
-  .download-section{padding:60px 20px}
   .nav-pill{display:none}
-  .hero-meta{grid-template-columns:1fr;gap:16px;text-align:center}
-  .hero-meta-right{text-align:center}
-  .footer{flex-direction:column;text-align:center;padding:32px 20px}
+  .hero-desc{font-size:15px}
+  .footer-grid{grid-template-columns:1fr;gap:40px}
+  .footer-copy{text-align:left}
 }
 </style>
 </head>
 <body>
 
-<!-- NOISE -->
-<canvas id="noise-canvas"></canvas>
+<canvas id="grain"></canvas>
 
-<!-- ═══════════════════════════════════════════════
-     FLOATING NAVIGATION
-     ═══════════════════════════════════════════════ -->
-<nav class="nav-fixed">
-  <a href="#" class="nav-logo">
-    <div class="logo-box">C</div>
-    CubicLM
-  </a>
+<!-- ════ NAV ════ -->
+<nav class="nav">
+  <div class="nav-logo">CubicLM</div>
   <div class="nav-pill">
-    <a href="#features">Features</a>
     <a href="#services">Services</a>
-    <a href="#download">Download</a>
+    <a href="#about">About</a>
     <a href="https://github.com/abir2afridi/CubicLM" target="_blank">GitHub</a>
+    <a href="#contact">Contact</a>
   </div>
   <div class="nav-social">
     <a href="https://github.com/abir2afridi/CubicLM" target="_blank"><i class="ri-github-line"></i></a>
-    <a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank"><i class="ri-download-line"></i></a>
   </div>
 </nav>
 
-<!-- ═══════════════════════════════════════════════
-     HERO
-     ═══════════════════════════════════════════════ -->
+<!-- ════ HERO ════ -->
 <section class="hero">
-  <div class="hero-canvas" id="letter-glitch-wrap">
-    <canvas id="letter-glitch" style="display:block;width:100%;height:100%"></canvas>
+  <div class="hero-bg" id="hero-bg">
+    <img src="logo.png" alt="CubicLM">
   </div>
-  <h1 class="hero-title sr">
-    <span>Cubic</span><span>Lm</span>
-  </h1>
-  <div class="hero-border"></div>
-  <div class="hero-meta">
-    <div class="hero-meta-left sr sr-d1">
-      Based in your device.<br>
-      Offline-first. Private.
-    </div>
-    <div class="scroll-indicator sr sr-d2">
-      <svg viewBox="0 0 144 144">
-        <defs>
-          <path id="circlePath" d="M72,72 m-56,0 a56,56 0 1,1 112,0 a56,56 0 1,1 -112,0"/>
-        </defs>
-        <text><textPath href="#circlePath">SCROLL DOWN • SCROLL DOWN • SCROLL DOWN • </textPath></text>
-      </svg>
-      <div class="arrow"><i class="ri-arrow-down-line"></i></div>
-    </div>
-    <div class="hero-meta-right sr sr-d3">
-      Private AI Companion<br>
-      Android &amp; Windows<br>
-      v1.2.0+7
-    </div>
+  <div class="hero-content">
+    <h1 class="hero-heading" id="hero-heading">Your AI,<br><em>on your device.</em></h1>
+    <p class="hero-desc">Run powerful language and image models entirely offline on Android and Windows. Chat, create, code — your data never leaves the device.</p>
+  </div>
+  <div class="hero-scroll">
+    <span>Scroll</span>
+    <i class="ri-arrow-down-line"></i>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════
-     SKEWED MARQUEE
-     ═══════════════════════════════════════════════ -->
-<section class="marquee-section">
-  <div class="marquee-inner">
-    <div class="marquee-row">
-      <div class="marquee-track">
-        <div class="marquee-item orange">LOCAL AI • OFFLINE FIRST • PRIVATE • NO CLOUD • </div>
-        <div class="marquee-item orange">LOCAL AI • OFFLINE FIRST • PRIVATE • NO CLOUD • </div>
-        <div class="marquee-item orange">LOCAL AI • OFFLINE FIRST • PRIVATE • NO CLOUD • </div>
-        <div class="marquee-item orange">LOCAL AI • OFFLINE FIRST • PRIVATE • NO CLOUD • </div>
-      </div>
+<!-- ════ MARQUEE ════ -->
+<div class="marquee-section">
+  <div class="marquee-wrap">
+    <div class="marquee-row orange">
+      <span>PRIVATE AI • LOCAL MODELS • NO CLOUD • OFFLINE FIRST • OPEN SOURCE • </span>
+      <span>PRIVATE AI • LOCAL MODELS • NO CLOUD • OFFLINE FIRST • OPEN SOURCE • </span>
     </div>
-    <div class="marquee-row reverse">
-      <div class="marquee-track">
-        <div class="marquee-item white">LLAMA.CPP • STABLE DIFFUSION • FLUTTER • GGFU • FFI • VULKAN • </div>
-        <div class="marquee-item white">LLAMA.CPP • STABLE DIFFUSION • FLUTTER • GGFU • FFI • VULKAN • </div>
-        <div class="marquee-item white">LLAMA.CPP • STABLE DIFFUSION • FLUTTER • GGFU • FFI • VULKAN • </div>
-        <div class="marquee-item white">LLAMA.CPP • STABLE DIFFUSION • FLUTTER • GGFU • FFI • VULKAN • </div>
-      </div>
+    <div class="marquee-row white reverse">
+      <span>ANDROID • WINDOWS • GGUF • LITERT • STABLE DIFFUSION • VULKAN • </span>
+      <span>ANDROID • WINDOWS • GGUF • LITERT • STABLE DIFFUSION • VULKAN • </span>
     </div>
   </div>
-</section>
+</div>
 
-<!-- ═══════════════════════════════════════════════
-     SERVICE LIST
-     ═══════════════════════════════════════════════ -->
+<!-- ════ SERVICES ════ -->
 <section id="services" class="services">
-  <div class="service-item sr">
-    <div class="service-index">01</div>
+  <div class="services-label">What We Build</div>
+  <div class="service-item">
+    <div class="service-idx">01</div>
     <div class="service-content">
       <div class="service-title">LLM Chat</div>
       <div class="service-tags">
@@ -267,8 +157,8 @@ body{background:#FF4D00;color:#000;font-family:'Inter',sans-serif;overflow-x:hid
     </div>
     <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
   </div>
-  <div class="service-item sr sr-d1">
-    <div class="service-index">02</div>
+  <div class="service-item">
+    <div class="service-idx">02</div>
     <div class="service-content">
       <div class="service-title">Image Generation</div>
       <div class="service-tags">
@@ -279,192 +169,80 @@ body{background:#FF4D00;color:#000;font-family:'Inter',sans-serif;overflow-x:hid
     </div>
     <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
   </div>
-  <div class="service-item sr sr-d2">
-    <div class="service-index">03</div>
+  <div class="service-item">
+    <div class="service-idx">03</div>
     <div class="service-content">
-      <div class="service-title">Code Execution</div>
+      <div class="service-title">Code Runner</div>
       <div class="service-tags">
         <span class="service-tag">Sandboxed</span>
-        <span class="service-tag">Syntax HL</span>
-        <span class="service-tag">File Attach</span>
+        <span class="service-tag">Syntax</span>
+        <span class="service-tag">Multi-lang</span>
       </div>
     </div>
     <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
   </div>
-  <div class="service-item sr sr-d3">
-    <div class="service-index">04</div>
+  <div class="service-item">
+    <div class="service-idx">04</div>
     <div class="service-content">
-      <div class="service-title">Web Search</div>
+      <div class="service-title">100% Offline</div>
       <div class="service-tags">
-        <span class="service-tag">Optional</span>
-        <span class="service-tag">Cited Sources</span>
+        <span class="service-tag">No Cloud</span>
+        <span class="service-tag">No Account</span>
+        <span class="service-tag">MIT</span>
       </div>
     </div>
     <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
   </div>
-  <div class="service-item sr sr-d4">
-    <div class="service-index">05</div>
-    <div class="service-content">
-      <div class="service-title">Skills &amp; MCP</div>
-      <div class="service-tags">
-        <span class="service-tag">Extensible</span>
-        <span class="service-tag">Model Context</span>
-      </div>
-    </div>
-    <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
-  </div>
-  <div class="service-item sr">
-    <div class="service-index">06</div>
+  <div class="service-item">
+    <div class="service-idx">05</div>
     <div class="service-content">
       <div class="service-title">Multi-Model Pool</div>
       <div class="service-tags">
-        <span class="service-tag">Switch Anytime</span>
-        <span class="service-tag">Local + Cloud</span>
+        <span class="service-tag">Switch Models</span>
+        <span class="service-tag">Per Chat</span>
+        <span class="service-tag">Hive Service</span>
       </div>
     </div>
     <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
   </div>
 </section>
 
-<!-- ═══════════════════════════════════════════════
-     FEATURES GRID
-     ═══════════════════════════════════════════════ -->
-<section id="features" class="features-section">
-  <div class="features-header sr">Why CubicLM</div>
-  <div class="features-grid">
-    <div class="feature-card sr sr-d1">
-      <div class="feature-icon"><i class="ri-shield-keyhole-line"></i></div>
-      <div class="feature-name">Local-First &amp; Private</div>
-      <div class="feature-desc">Your chats never leave the device. No account, no tracking, no cloud.</div>
-    </div>
-    <div class="feature-card sr sr-d2">
-      <div class="feature-icon"><i class="ri-cpu-line"></i></div>
-      <div class="feature-name">Any Model</div>
-      <div class="feature-desc">GGUF, LiteRT locally. 18 cloud providers. Switch anytime.</div>
-    </div>
-    <div class="feature-card sr sr-d3">
-      <div class="feature-icon"><i class="ri-image-2-line"></i></div>
-      <div class="feature-name">Image Gen</div>
-      <div class="feature-desc">Stable Diffusion via FFI. Offline with Vulkan/OpenCL.</div>
-    </div>
-    <div class="feature-card sr sr-d1">
-      <div class="feature-icon"><i class="ri-code-s-slash-line"></i></div>
-      <div class="feature-name">Code Runner</div>
-      <div class="feature-desc">Syntax highlighted, file attachments, sandboxed execution.</div>
-    </div>
-    <div class="feature-card sr sr-d2">
-      <div class="feature-icon"><i class="ri-global-line"></i></div>
-      <div class="feature-name">Web Aware</div>
-      <div class="feature-desc">Optional web fetch with cited sources for accurate answers.</div>
-    </div>
-    <div class="feature-card sr sr-d3">
-      <div class="feature-icon"><i class="ri-puzzle-2-line"></i></div>
-      <div class="feature-name">Extensible</div>
-      <div class="feature-desc">Skills, MCP tools, and plugin architecture for power users.</div>
-    </div>
-  </div>
+<!-- ════ CTA ════ -->
+<section id="contact" class="cta">
+  <h2>Your AI,<br>Your Rules</h2>
+  <a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank" class="cta-btn">Download Now</a>
 </section>
 
-<!-- ═══════════════════════════════════════════════
-     CTA
-     ═══════════════════════════════════════════════ -->
-<section class="cta-section">
-  <div class="cta-heading sr">Start Now</div>
-  <div class="cta-sub sr sr-d1">No account. No cloud. Just install and go.</div>
-  <div class="cta-buttons sr sr-d2">
-    <a href="#download" class="btn-brutal primary"><i class="ri-download-2-line"></i> Download CubicLM</a>
-    <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="btn-brutal secondary"><i class="ri-github-line"></i> View Source</a>
+<!-- ════ FOOTER ════ -->
+<footer id="about" class="footer">
+  <div class="footer-cta">
+    <div class="footer-cta-text" onclick="window.open('https://github.com/abir2afridi/CubicLM','_blank')">Start A Project</div>
   </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════
-     DOWNLOAD
-     ═══════════════════════════════════════════════ -->
-<section id="download" class="download-section">
-  <div style="text-align:center">
-    <div class="features-header" style="color:#fff;font-size:10vw" class="sr">Get CubicLM</div>
-    <div class="download-meta">v1.2.0 • 1.2.0+7 • MIT Licensed • Open Source</div>
-  </div>
-  <div class="download-grid">
-    <div class="download-card sr sr-d1">
-      <div class="download-card-head">
-        <div class="download-card-icon"><i class="ri-android-line"></i></div>
-        <div>
-          <div class="download-card-title">Android</div>
-          <div class="download-card-sub">Android 8+ • arm64, armv7, x64</div>
-        </div>
-      </div>
-      <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-arm64-v8a.apk" class="download-btn"><i class="ri-download-2-line"></i> arm64-v8a • 75 MB</a>
-      <div class="download-alts">
-        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-armeabi-v7a.apk" class="download-alt">armeabi • 30 MB</a>
-        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-x86_64.apk" class="download-alt">x86_64 • 41 MB</a>
-      </div>
+  <div class="footer-grid">
+    <div class="footer-col">
+      <div class="footer-col-title">Social</div>
+      <a href="https://github.com/abir2afridi/CubicLM" target="_blank">GitHub</a>
+      <a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank">Releases</a>
+      <a href="https://github.com/abir2afridi/CubicLM/blob/main/LICENSE" target="_blank">License</a>
     </div>
-    <div class="download-card sr sr-d2">
-      <div class="download-card-head">
-        <div class="download-card-icon"><i class="ri-windows-line"></i></div>
-        <div>
-          <div class="download-card-title">Windows</div>
-          <div class="download-card-sub">Windows 10/11 • x64</div>
-        </div>
-      </div>
-      <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-windows-x64.zip" class="download-btn"><i class="ri-download-2-line"></i> Windows x64 • 16 MB</a>
-      <div class="download-alts">
-        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/checksums.sha256" class="download-alt">SHA256 Checksums</a>
-        <a href="https://github.com/abir2afridi/CubicLM/releases" class="download-alt">All Releases</a>
-      </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Contact</div>
+      <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="footer-email">github.com/abir2afridi</a>
     </div>
-  </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════
-     FOOTER
-     ═══════════════════════════════════════════════ -->
-<footer class="footer">
-  <div class="footer-copy">© 2025 CubicLM. Crafted for local intelligence.</div>
-  <div class="footer-links">
-    <a href="https://github.com/abir2afridi/CubicLM" target="_blank">GitHub</a>
-    <a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank">Releases</a>
-    <a href="https://github.com/abir2afridi/CubicLM/blob/main/LICENSE" target="_blank">License</a>
-    <a href="https://reactbits.dev" target="_blank">ReactBits</a>
+    <div class="footer-col">
+      <div class="footer-col-title">Info</div>
+      <div class="footer-copy">© 2025 CubicLM<br>All rights reserved.<br>Open source under MIT.</div>
+    </div>
   </div>
 </footer>
 
-<!-- ═══════════════════════════════════════════════
-     SCRIPTS
-     ═══════════════════════════════════════════════ -->
 <script>
 (function(){
 'use strict';
 
-/* ── LetterGlitch (orange palette) ── */
+/* ── Grain ── */
 (function(){
-  var canvas=document.getElementById('letter-glitch');
-  var wrap=document.getElementById('letter-glitch-wrap');
-  if(!canvas||!wrap)return;
-  var colors=['#000000','#1a1a1a','#333333'];
-  var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$&*()-_+=/[]{};:<>.,0123456789';
-  var letters=Array.from(chars);
-  var fs=16,cw=10,ch=20;
-  var grid={c:0,r:0},ctx=canvas.getContext('2d'),arr=[],aid=null,lg=Date.now();
-  var rc=function(){return letters[Math.floor(Math.random()*letters.length)]};
-  var rco=function(){return colors[Math.floor(Math.random()*colors.length)]};
-  var h2r=function(h){h=h.replace(/^#?([a-f\d])([a-f\d])([a-f\d])$/i,function(m,r,g,b){return r+r+g+g+b+b});var m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);return m?{r:parseInt(m[1],16),g:parseInt(m[2],16),b:parseInt(m[3],16)}:null};
-  var ip=function(s,e,f){return{r:Math.round(s.r+(e.r-s.r)*f),g:Math.round(s.g+(e.g-s.g)*f),b:Math.round(s.b+(e.b-s.b)*f)}};
-  var cg=function(w,h){return{c:Math.ceil(w/cw),r:Math.ceil(h/ch)}};
-  var il=function(c,r){grid={c:c,r:r};arr=Array.from({length:c*r},function(){return{ch:rc(),co:rco(),tc:rco(),cp:1}})};
-  var rs=function(){var d=window.devicePixelRatio||1;var rc=wrap.getBoundingClientRect();canvas.width=rc.width*d;canvas.height=rc.height*d;canvas.style.width=rc.width+'px';canvas.style.height=rc.height+'px';ctx.setTransform(d,0,0,d,0,0);var g=cg(rc.width,rc.height);il(g.c,g.g);dr()};
-  var dr=function(){if(!ctx||!arr.length)return;var rc=wrap.getBoundingClientRect();ctx.clearRect(0,0,rc.width,rc.height);ctx.font=fs+'px monospace';ctx.textBaseline='top';arr.forEach(function(l,i){ctx.fillStyle=l.co;ctx.fillText(l.ch,(i%grid.c)*cw,Math.floor(i/grid.c)*ch)})};
-  var up=function(){var n=Math.max(1,Math.floor(arr.length*.05));for(var i=0;i<n;i++){var idx=Math.floor(Math.random()*arr.length);if(!arr[idx])continue;arr[idx].ch=rc();arr[idx].tc=rco();arr[idx].cp=0}};
-  var sm=function(){var nd=false;arr.forEach(function(l){if(l.cp<1){l.cp+=.05;if(l.cp>1)l.cp=1;var s=h2r(l.co),e=h2r(l.tc);if(s&&e){var c=ip(s,e,l.cp);l.co='rgb('+c.r+','+c.g+','+c.b+')';nd=true}}});if(nd)dr()};
-  var an=function(){var now=Date.now();if(now-lg>=50){up();dr();lg=now}sm();aid=requestAnimationFrame(an)};
-  ctx=canvas.getContext('2d');rs();an();
-  var to;window.addEventListener('resize',function(){clearTimeout(to);to=setTimeout(function(){cancelAnimationFrame(aid);rs();an()},100)});
-})();
-
-/* ── Noise ── */
-(function(){
-  var c=document.getElementById('noise-canvas');if(!c)return;
+  var c=document.getElementById('grain');if(!c)return;
   var ctx=c.getContext('2d'),w,h;
   var rs=function(){w=c.width=window.innerWidth;h=c.height=window.innerHeight};
   rs();window.addEventListener('resize',rs);
@@ -472,14 +250,22 @@ body{background:#FF4D00;color:#000;font-family:'Inter',sans-serif;overflow-x:hid
   (function lp(){f++;if(f%3===0){var img=ctx.createImageData(w,h);var d=img.data;for(var i=0;i<d.length;i+=4){var v=Math.random()*255;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}ctx.putImageData(img,0,0)}requestAnimationFrame(lp)})();
 })();
 
-/* ── ScrollReveal ── */
+/* ── Scroll-linked hero zoom ── */
 (function(){
-  var els=document.querySelectorAll('.sr');
-  if(!els.length)return;
-  var obs=new IntersectionObserver(function(entries){
-    entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('sr-active');obs.unobserve(e.target)}})
-  },{threshold:.12,rootMargin:'0px 0px -30px 0px'});
-  els.forEach(function(el){obs.observe(el)});
+  var heading=document.getElementById('hero-heading');
+  var bg=document.getElementById('hero-bg');
+  if(!heading||!bg)return;
+  var ticking=false;
+  window.addEventListener('scroll',function(){
+    if(!ticking){ticking=true;requestAnimationFrame(function(){
+      var scrollY=window.scrollY;
+      var vh=window.innerHeight;
+      var progress=Math.min(1,scrollY/(vh*.3));
+      heading.style.transform='scale('+(1-progress*.11)+')';
+      bg.style.transform='scale('+(1+progress*.27)+')';
+      ticking=false;
+    })}
+  },{passive:true});
 })();
 
 })();
