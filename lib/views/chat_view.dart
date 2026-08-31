@@ -36,12 +36,15 @@ class ChatView extends GetView<ChatController> {
       backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       drawer: _buildSidebar(context, isDark),
       appBar: _appBar(context, isDark),
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              _contextBar(context, isDark),
-              Expanded(child: Obx(() {
+      body: SafeArea(
+        top: false,
+        bottom: true,
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                _contextBar(context, isDark),
+                Expanded(child: Obx(() {
             if (controller.currentSessionId.value.isEmpty ||
                 controller.messages.isEmpty) {
               return _emptyState(context, isDark);
@@ -144,6 +147,7 @@ class ChatView extends GetView<ChatController> {
             child: _modelLoadingBar(context, isDark),
           ),
         ],
+      ),
       ),
     );
   }
@@ -914,13 +918,8 @@ class ChatView extends GetView<ChatController> {
 
   // ── Input Bar ──
   Widget _inputBar(BuildContext context, bool isDark) {
-    // Use viewPadding (nav bar) when keyboard closed, 0 when keyboard open.
-    // padding = viewPadding - viewInsets, so it gives nav bar height only when
-    // keyboard is hidden and 0 when keyboard covers it. This keeps composer
-    // stable before/after focus and correctly above keyboard/nav bar.
-    final bottomPad = MediaQuery.paddingOf(context).bottom;
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, 8 + bottomPad),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       color: Colors.transparent,
       child: Column(mainAxisSize: MainAxisSize.min, children: [
             // Attachment preview
@@ -1203,8 +1202,11 @@ class ChatView extends GetView<ChatController> {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          // Model selector pill — flexible so it never overflows the controls row.
-                          Flexible(
+                          // Model selector pill — fixed width so label change
+                          // (Local → loaded model name) doesn't shift the
+                          // right cluster. 125dp fits 14 chars at 12.5sp + chevron.
+                          SizedBox(
+                            width: 125,
                             child: Obx(() => AppModelPill(
                                   label: _composerModelLabel(),
                                   onTap: () => showModelSwitcherSheet(context),
