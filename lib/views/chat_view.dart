@@ -443,76 +443,79 @@ class ChatView extends GetView<ChatController> {
   Widget _modelLoadingBar(BuildContext context, bool isDark) {
     return Obx(() {
       final inf = Get.find<InferenceService>();
-      if (!inf.isLoadingModel.value) return const SizedBox.shrink();
+      final loading = inf.isLoadingModel.value;
       final pct = (inf.modelLoadProgress.value * 100).toStringAsFixed(0);
-      return ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
-            decoration: BoxDecoration(
-              color: (isDark ? AppColors.surface : Colors.white)
-                  .withValues(alpha: 0.8),
-              border: Border(
-                  bottom: BorderSide(
-                      color:
-                          isDark ? AppColors.border : AppColors.borderLightMode,
-                      width: 1)),
-            ),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2.5, color: AppColors.primary)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text('Synchronizing Intelligence… $pct%',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color:
-                              isDark ? AppColors.textPrimary : Dt.textPrimary,
-                          fontWeight: FontWeight.w800)),
-                ),
-              ]),
-              const SizedBox(height: 14),
-              Stack(
-                children: [
-                  ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                          value: inf.modelLoadProgress.value,
-                          backgroundColor:
-                              isDark ? Dt.pillMutedDark : Dt.pillMuted,
-                          color: AppColors.primary,
-                          minHeight: 6)),
-                  if (inf.modelLoadProgress.value > 0.05)
-                    Positioned.fill(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: inf.modelLoadProgress.value,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              boxShadow: [
-                                BoxShadow(
-                                  color:
-                                      AppColors.primary.withValues(alpha: 0.4),
-                                  blurRadius: 10,
-                                  spreadRadius: 1,
-                                )
-                              ],
+      return Offstage(
+        offstage: !loading,
+        child: ClipRect(
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+              decoration: BoxDecoration(
+                color: (isDark ? AppColors.surface : Colors.white)
+                    .withValues(alpha: 0.8),
+                border: Border(
+                    bottom: BorderSide(
+                        color:
+                            isDark ? AppColors.border : AppColors.borderLightMode,
+                        width: 1)),
+              ),
+              child:
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.5, color: AppColors.primary)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text('Synchronizing Intelligence… $pct%',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14,
+                            color:
+                                isDark ? AppColors.textPrimary : Dt.textPrimary,
+                            fontWeight: FontWeight.w800)),
+                  ),
+                ]),
+                const SizedBox(height: 14),
+                Stack(
+                  children: [
+                    ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                            value: inf.modelLoadProgress.value,
+                            backgroundColor:
+                                isDark ? Dt.pillMutedDark : Dt.pillMuted,
+                            color: AppColors.primary,
+                            minHeight: 6)),
+                    if (inf.modelLoadProgress.value > 0.05)
+                      Positioned.fill(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: inf.modelLoadProgress.value,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                boxShadow: [
+                                  BoxShadow(
+                                    color:
+                                        AppColors.primary.withValues(alpha: 0.4),
+                                    blurRadius: 10,
+                                    spreadRadius: 1,
+                                  )
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ]),
+                  ],
+                ),
+              ]),
+            ),
           ),
         ),
       );
