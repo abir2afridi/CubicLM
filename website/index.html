@@ -5,464 +5,481 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CubicLM — Private, Local AI for Everyone</title>
 <meta name="description" content="CubicLM is a private, offline-first AI companion for Android & Windows. Run LLMs locally, generate images, chat with any model — no cloud required.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23D97757'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='48' font-weight='800' fill='white' font-family='sans-serif'>C</text></svg>">
-<script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='0' fill='%23FF4D00'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='48' font-weight='800' fill='white' font-family='sans-serif'>C</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.2.0/remixicon.min.css">
-<script>tailwind.config={theme:{extend:{fontFamily:{sans:['Plus Jakarta Sans','sans-serif'],mono:['JetBrains Mono','monospace']},colors:{canvas:'#F8F4ED',card:'#FBF9F4',pill:'#F0EAE0',hairline:'#DDD2BD',ink:'#2D2520',muted:'#5A4F44',accent:'#D97757',accentHover:'#C86A4D'}}}}</script>
 <style>
-*{scroll-behavior:smooth}
-::selection{background:#D97757;color:white}
-/* ── Noise overlay (ReactBits: Noise) ── */
-#noise-canvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;opacity:.035;mix-blend-mode:overlay}
-/* ── ScrollReveal (ReactBits: ScrollReveal) ── */
-.sr{opacity:0;filter:blur(8px);transform:translateY(30px);transition:opacity .7s cubic-bezier(.16,1,.3,1),filter .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
-.sr.sr-active{opacity:1;filter:blur(0);transform:translateY(0)}
-.sr.sr-left{transform:translateX(-40px) translateY(0)}.sr.sr-left.sr-active{transform:translateX(0)}
-.sr.sr-right{transform:translateX(40px) translateY(0)}.sr.sr-right.sr-active{transform:translateX(0)}
-.sr.sr-scale{transform:scale(.92)}.sr.sr-scale.sr-active{transform:scale(1)}
-/* stagger delays */
-.sr-d1{transition-delay:.1s}.sr-d2{transition-delay:.2s}.sr-d3{transition-delay:.3s}.sr-d4{transition-delay:.4s}.sr-d5{transition-delay:.5s}.sr-d6{transition-delay:.6s}
-/* ── SplitText (ReactBits: SplitText) ── */
-.split-parent{overflow:hidden}
-.split-child{display:inline-block;opacity:0;transform:translateY(100%);transition:opacity .5s cubic-bezier(.16,1,.3,1),transform .5s cubic-bezier(.16,1,.3,1)}
-.split-child.active{opacity:1;transform:translateY(0)}
-/* ── GlareHover (ReactBits: GlareHover) ── */
-.glare-card{position:relative;overflow:hidden}
-.glare-card .glare{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .3s;border-radius:inherit;background:radial-gradient(circle at var(--gx,50%) var(--gy,50%),rgba(255,255,255,.18) 0%,transparent 60%)}
-.glare-card:hover .glare{opacity:1}
-/* ── Magnetic (ReactBits: Magnet) ── */
-.mag{transition:transform .3s cubic-bezier(.16,1,.3,1)}
-/* ── StarBorder (ReactBits: StarBorder) ── */
-.star-border{position:relative}
-.star-border::before{content:'';position:absolute;inset:-2px;border-radius:inherit;background:conic-gradient(from var(--star-angle,0deg),transparent 40%,#D97757 50%,transparent 60%);z-index:-1;animation:star-spin 4s linear infinite;opacity:0;transition:opacity .3s}
-.star-border:hover::before{opacity:1}
-@keyframes star-spin{to{--star-angle:360deg}}
-@property --star-angle{syntax:'<angle>';initial-value:0deg;inherits:false}
-/* ── ScrollVelocity marquee (ReactBits: ScrollVelocity) ── */
+/* ═══════════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════════ */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+::selection{background:#000;color:#FF4D00}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+body{background:#FF4D00;color:#000;font-family:'Inter',sans-serif;overflow-x:hidden}
+
+/* ═══════════════════════════════════════════════
+   NOISE OVERLAY
+   ═══════════════════════════════════════════════ */
+#noise-canvas{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;opacity:.03;mix-blend-mode:overlay}
+
+/* ═══════════════════════════════════════════════
+   SCROLL REVEAL
+   ═══════════════════════════════════════════════ */
+.sr{opacity:0;transform:translateY(30px);transition:opacity .6s cubic-bezier(.16,1,.3,1),transform .6s cubic-bezier(.16,1,.3,1)}
+.sr.sr-active{opacity:1;transform:translateY(0)}
+.sr-d1{transition-delay:.08s}.sr-d2{transition-delay:.16s}.sr-d3{transition-delay:.24s}.sr-d4{transition-delay:.32s}
+
+/* ═══════════════════════════════════════════════
+   FLOATING NAVIGATION
+   ═══════════════════════════════════════════════ */
+.nav-fixed{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+.nav-logo{font-family:'Archivo Black',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:-.04em;color:#000;text-decoration:none;display:flex;align-items:center;gap:10px}
+.nav-logo .logo-box{width:36px;height:36px;background:#FF4D00;border:2px solid #000;display:grid;place-items-center;font-size:16px;font-weight:900;color:#fff}
+.nav-pill{background:#000;border-radius:999px;padding:6px 8px;display:flex;gap:0;align-items:center}
+.nav-pill a{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:-.02em;color:#fff;text-decoration:none;padding:6px 14px;border-radius:999px;text-transform:uppercase;font-weight:700;transition:background .2s,color .2s}
+.nav-pill a:hover{background:#fff;color:#000}
+.nav-social{display:flex;gap:12px}
+.nav-social a{width:36px;height:36px;border:2px solid #000;border-radius:50%;display:grid;place-items-center;color:#000;text-decoration:none;font-size:16px;transition:background .2s,color .2s}
+.nav-social a:hover{background:#000;color:#FF4D00}
+
+/* ═══════════════════════════════════════════════
+   HERO SECTION
+   ═══════════════════════════════════════════════ */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;position:relative;background:#FF4D00;overflow:hidden}
+.hero-canvas{position:absolute;inset:0;opacity:.12}
+.hero-title{font-family:'Archivo Black',sans-serif;font-size:16vw;line-height:.85;letter-spacing:-.04em;text-transform:uppercase;text-align:center;color:#000;position:relative;z-index:2}
+.hero-title span{display:block}
+.hero-border{width:100%;height:2px;background:#000;position:relative;z-index:2}
+.hero-meta{width:100%;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:20px 0;position:relative;z-index:2}
+.hero-meta-left{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:-.02em;text-transform:uppercase;color:#000}
+.hero-meta-right{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:-.02em;text-transform:uppercase;color:#000;text-align:right;line-height:1.6}
+
+/* ═══════════════════════════════════════════════
+   ROTATING SCROLL INDICATOR
+   ═══════════════════════════════════════════════ */
+.scroll-indicator{width:144px;height:144px;position:relative}
+.scroll-indicator svg{width:100%;height:100%;animation:spin 12s linear infinite}
+.scroll-indicator svg text{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;fill:#000}
+.scroll-indicator .arrow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:20px;height:20px;color:#000}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ═══════════════════════════════════════════════
+   SKEWED MARQUEE SECTION
+   ═══════════════════════════════════════════════ */
+.marquee-section{background:#000;transform:skewY(-2deg);padding:80px 0;overflow:hidden;margin-top:-40px;position:relative;z-index:3}
+.marquee-inner{transform:skewY(2deg)}
 .marquee-track{display:flex;width:max-content;will-change:transform}
-/* ── CountUp ── */
-.count-num{font-variant-numeric:tabular-nums}
+.marquee-row{padding:12px 0;overflow:hidden}
+.marquee-row .marquee-track{animation:marquee-scroll 25s linear infinite}
+.marquee-row.reverse .marquee-track{animation-direction:reverse;animation-duration:30s}
+.marquee-item{font-family:'Archivo Black',sans-serif;font-size:10vw;line-height:1;text-transform:uppercase;white-space:nowrap;padding:0 40px;letter-spacing:-.04em}
+.marquee-item.orange{color:#FF4D00}
+.marquee-item.white{color:#fff;opacity:.8}
+@keyframes marquee-scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+/* ═══════════════════════════════════════════════
+   SERVICE LIST
+   ═══════════════════════════════════════════════ */
+.services{background:#000;color:#fff;padding:0}
+.service-item{display:grid;grid-template-columns:60px 1fr 60px;align-items:center;padding:32px 48px;border-top:1px solid rgba(255,255,255,.2);cursor:pointer;transition:background .2s}
+.service-item:hover{background:rgba(255,255,255,.05)}
+.service-index{font-family:'Space Mono',monospace;font-size:14px;color:#FF4D00;font-weight:700}
+.service-content{display:flex;flex-direction:column;gap:10px}
+.service-title{font-family:'Archivo Black',sans-serif;font-size:7vw;line-height:.9;text-transform:uppercase;letter-spacing:-.04em;color:#fff;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.service-item:hover .service-title{transform:translateX(16px)}
+.service-tags{display:flex;flex-wrap:wrap;gap:6px}
+.service-tag{font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:-.02em;padding:4px 10px;border:1px solid rgba(255,255,255,.3);border-radius:999px;color:rgba(255,255,255,.7)}
+.service-arrow{font-size:28px;color:#FF4D00;opacity:0;transform:rotate(0deg);transition:opacity .3s,transform .3s cubic-bezier(.16,1,.3,1);justify-self:end}
+.service-item:hover .service-arrow{opacity:1;transform:rotate(45deg)}
+
+/* ═══════════════════════════════════════════════
+   FEATURES GRID
+   ═══════════════════════════════════════════════ */
+.features-section{background:#FF4D00;padding:100px 48px}
+.features-header{font-family:'Archivo Black',sans-serif;font-size:14vw;line-height:.85;letter-spacing:-.04em;text-transform:uppercase;color:#000;text-align:center;margin-bottom:60px}
+.features-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:#000;border:2px solid #000;max-width:1400px;margin:0 auto}
+.feature-card{background:#FF4D00;padding:40px 32px;display:flex;flex-direction:column;gap:16px;transition:background .2s,color .2s;cursor:default}
+.feature-card:hover{background:#000;color:#FF4D00}
+.feature-card:hover .feature-icon{background:#FF4D00;color:#000}
+.feature-card:hover .feature-desc{color:rgba(255,255,255,.7)}
+.feature-icon{width:44px;height:44px;border:2px solid #000;display:grid;place-items-center;font-size:20px;transition:background .2s,color .2s}
+.feature-card:hover .feature-icon{border-color:#FF4D00}
+.feature-name{font-family:'Archivo Black',sans-serif;font-size:18px;text-transform:uppercase;letter-spacing:-.03em;line-height:1.1}
+.feature-desc{font-family:'Inter',sans-serif;font-size:13px;line-height:1.6;color:#000;opacity:.7;transition:color .2s}
+
+/* ═══════════════════════════════════════════════
+   CTA SECTION
+   ═══════════════════════════════════════════════ */
+.cta-section{background:#FF4D00;padding:120px 48px;text-align:center;border-top:2px solid #000}
+.cta-heading{font-family:'Archivo Black',sans-serif;font-size:14vw;line-height:.85;letter-spacing:-.04em;text-transform:uppercase;color:#000}
+.cta-sub{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:-.02em;text-transform:uppercase;color:#000;margin-top:24px;opacity:.7}
+.cta-buttons{display:flex;gap:12px;justify-content:center;margin-top:48px;flex-wrap:wrap}
+.btn-brutal{font-family:'Space Mono',monospace;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:-.02em;padding:16px 36px;border:2px solid #000;border-radius:999px;text-decoration:none;cursor:pointer;transition:transform .2s,background .2s,color .2s;display:inline-flex;align-items:center;gap:8px}
+.btn-brutal.primary{background:#000;color:#fff}
+.btn-brutal.primary:hover{background:#fff;color:#000;transform:scale(1.05)}
+.btn-brutal.secondary{background:transparent;color:#000}
+.btn-brutal.secondary:hover{background:#000;color:#FF4D00;transform:scale(1.05)}
+
+/* ═══════════════════════════════════════════════
+   DOWNLOAD SECTION
+   ═══════════════════════════════════════════════ */
+.download-section{background:#000;color:#fff;padding:100px 48px;border-top:2px solid #FF4D00}
+.download-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.2);max-width:1000px;margin:48px auto 0}
+.download-card{background:#000;padding:40px;display:flex;flex-direction:column;gap:20px}
+.download-card-head{display:flex;align-items:center;gap:14px}
+.download-card-icon{width:48px;height:48px;border:2px solid #FF4D00;display:grid;place-items-center;font-size:22px;color:#FF4D00}
+.download-card-title{font-family:'Archivo Black',sans-serif;font-size:24px;text-transform:uppercase;letter-spacing:-.03em}
+.download-card-sub{font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;opacity:.6;letter-spacing:-.02em}
+.download-btn{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:-.02em;padding:14px 28px;border:2px solid #fff;background:#fff;color:#000;border-radius:999px;text-decoration:none;cursor:pointer;transition:transform .2s,background .2s,color .2s;display:inline-flex;align-items:center;gap:8px;justify-content:center}
+.download-btn:hover{background:#FF4D00;border-color:#FF4D00;color:#fff;transform:scale(1.03)}
+.download-alts{display:flex;gap:8px;flex-wrap:wrap}
+.download-alt{font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;padding:8px 16px;border:1px solid rgba(255,255,255,.3);border-radius:999px;color:rgba(255,255,255,.6);text-decoration:none;transition:border-color .2s,color .2s}
+.download-alt:hover{border-color:#FF4D00;color:#FF4D00}
+.download-meta{font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;opacity:.4;text-align:center;margin-top:32px;letter-spacing:-.02em}
+
+/* ═══════════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════════ */
+.footer{background:#000;color:#fff;padding:40px 48px;border-top:2px solid #FF4D00;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+.footer-copy{font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:-.02em;opacity:.5}
+.footer-links{display:flex;gap:20px}
+.footer-links a{font-family:'Space Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:-.02em;color:rgba(255,255,255,.5);text-decoration:none;transition:color .2s}
+.footer-links a:hover{color:#FF4D00}
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════ */
+@media(max-width:768px){
+  .hero-title{font-size:20vw}
+  .service-item{grid-template-columns:40px 1fr 40px;padding:24px 20px}
+  .service-title{font-size:10vw}
+  .features-grid{grid-template-columns:1fr}
+  .features-section{padding:60px 20px}
+  .features-header{font-size:18vw}
+  .cta-heading{font-size:18vw}
+  .cta-section{padding:80px 20px}
+  .download-grid{grid-template-columns:1fr}
+  .download-section{padding:60px 20px}
+  .nav-pill{display:none}
+  .hero-meta{grid-template-columns:1fr;gap:16px;text-align:center}
+  .hero-meta-right{text-align:center}
+  .footer{flex-direction:column;text-align:center;padding:32px 20px}
+}
 </style>
 </head>
-<body class="bg-canvas text-ink antialiased overflow-x-hidden">
+<body>
 
-<!-- ══════════════════════════════════════════════════════════════
-     1. NOISE OVERLAY — ReactBits: Noise
-     ══════════════════════════════════════════════════════════════ -->
+<!-- NOISE -->
 <canvas id="noise-canvas"></canvas>
 
-<!-- ══════════════════════════════════════════════════════════════
-     2. HERO — LetterGlitch bg + SplitText + Magnetic buttons
-     ══════════════════════════════════════════════════════════════ -->
-<section class="relative min-h-[86vh] lg:min-h-[92vh] overflow-hidden bg-black">
-  <!-- LetterGlitch background -->
-  <div class="absolute inset-0" id="letter-glitch-wrap" style="background:#0a0a0a">
+<!-- ═══════════════════════════════════════════════
+     FLOATING NAVIGATION
+     ═══════════════════════════════════════════════ -->
+<nav class="nav-fixed">
+  <a href="#" class="nav-logo">
+    <div class="logo-box">C</div>
+    CubicLM
+  </a>
+  <div class="nav-pill">
+    <a href="#features">Features</a>
+    <a href="#services">Services</a>
+    <a href="#download">Download</a>
+    <a href="https://github.com/abir2afridi/CubicLM" target="_blank">GitHub</a>
+  </div>
+  <div class="nav-social">
+    <a href="https://github.com/abir2afridi/CubicLM" target="_blank"><i class="ri-github-line"></i></a>
+    <a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank"><i class="ri-download-line"></i></a>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════
+     HERO
+     ═══════════════════════════════════════════════ -->
+<section class="hero">
+  <div class="hero-canvas" id="letter-glitch-wrap">
     <canvas id="letter-glitch" style="display:block;width:100%;height:100%"></canvas>
-    <div class="absolute inset-0 pointer-events-none" style="background:radial-gradient(circle, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 60%)"></div>
-    <div class="absolute inset-0 bg-gradient-to-b from-black/30 via-black/20 to-black/70 pointer-events-none"></div>
   </div>
-
-  <!-- Nav -->
-  <nav class="relative z-20 max-w-6xl mx-auto px-5 lg:px-8 h-[64px] flex items-center justify-between">
-    <a href="#" class="flex items-center gap-3 group">
-      <div class="w-9 h-9 rounded-xl bg-white text-ink flex items-center justify-center font-extrabold text-[17px] group-hover:scale-105 transition-transform">C</div>
-      <span class="font-extrabold text-[18px] tracking-tight text-white">CubicLM</span>
-      <span class="hidden sm:inline-flex ml-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white text-[11px] font-bold tracking-wide backdrop-blur">v1.2.0</span>
-    </a>
-    <div class="hidden md:flex items-center gap-7 text-[13.5px] font-semibold text-white/70">
-      <a href="#features" class="hover:text-white transition">Features</a>
-      <a href="#how" class="hover:text-white transition">How it works</a>
-      <a href="#download" class="hover:text-white transition">Download</a>
-      <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="inline-flex items-center gap-1.5 hover:text-white transition">GitHub <i class="ri-external-link-line"></i></a>
+  <h1 class="hero-title sr">
+    <span>Cubic</span><span>Lm</span>
+  </h1>
+  <div class="hero-border"></div>
+  <div class="hero-meta">
+    <div class="hero-meta-left sr sr-d1">
+      Based in your device.<br>
+      Offline-first. Private.
     </div>
-    <a href="#download" class="hidden sm:inline-flex h-9 px-5 rounded-full bg-white text-ink text-[13.5px] font-bold hover:bg-zinc-100 transition">Download</a>
-  </nav>
-
-  <!-- Hero content with SplitText animation -->
-  <div class="relative z-10 max-w-6xl mx-auto px-5 lg:px-8 pt-10 lg:pt-14 pb-12">
-    <div class="max-w-3xl">
-      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 backdrop-blur text-white text-[12.5px] font-semibold sr sr-d1">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        Offline-first • Private by default
-        <span class="hidden sm:inline text-white/60 font-medium">• ReactBits powered</span>
-      </div>
-      <h1 class="mt-6 font-mono text-[34px] sm:text-[44px] lg:text-[54px] font-bold leading-[0.9] tracking-tight text-white" id="hero-heading">
-        <span class="opacity-60 text-[13px] font-sans font-bold tracking-widest uppercase block mb-3 sr sr-d2">// cubiclm.glitch()</span>
-        <span class="split-parent"><span class="split-child">Your AI,</span></span><br>
-        <span class="split-parent"><span class="split-child">on your </span><span class="split-child text-[#61dca3] relative">device.<span class="absolute -bottom-1 left-0 w-full h-[3px] bg-[#61dca3]/60 blur-[1px]"></span></span></span>
-      </h1>
-      <p class="mt-5 text-[15.5px] leading-7 text-white/70 max-w-[560px] font-medium sr sr-d3">
-        Run powerful language & image models <span class="text-white font-semibold">entirely offline</span> on Android & Windows. Chat, create, code — your data never leaves the device.
-      </p>
-      <div class="mt-8 flex flex-wrap gap-3 sr sr-d4">
-        <a href="#download" class="mag h-[46px] px-7 rounded-full bg-[#D97757] text-white font-bold text-[14px] inline-flex items-center gap-2 hover:bg-[#C86A4D] transition shadow-[0_0_20px_rgba(217,119,87,0.4)]"><i class="ri-terminal-box-line text-[18px]"></i> Download for Android</a>
-        <a href="#download" class="mag h-[46px] px-7 rounded-full bg-white/10 border border-white/20 backdrop-blur text-white font-bold text-[14px] inline-flex items-center gap-2 hover:bg-white/15 transition"><i class="ri-window-line text-[18px]"></i> Windows</a>
-        <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="mag h-[46px] px-6 rounded-full bg-white text-ink font-bold text-[14px] inline-flex items-center gap-2 hover:bg-zinc-100 transition"><i class="ri-github-line text-[18px]"></i> Star</a>
-      </div>
-      <div class="mt-6 flex flex-wrap items-center gap-3 text-[12px] font-mono text-white/50 sr sr-d5">
-        <span class="px-2.5 py-1 rounded bg-white/10 border border-white/10 backdrop-blur">v1.2.0 • 1.2.0+7</span>
-        <span>•</span>
-        <span>15 languages • MIT</span>
-        <span class="hidden sm:inline-flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> LetterGlitch • Noise • SplitText • Magnetic</span>
-      </div>
+    <div class="scroll-indicator sr sr-d2">
+      <svg viewBox="0 0 144 144">
+        <defs>
+          <path id="circlePath" d="M72,72 m-56,0 a56,56 0 1,1 112,0 a56,56 0 1,1 -112,0"/>
+        </defs>
+        <text><textPath href="#circlePath">SCROLL DOWN • SCROLL DOWN • SCROLL DOWN • </textPath></text>
+      </svg>
+      <div class="arrow"><i class="ri-arrow-down-line"></i></div>
     </div>
-  </div>
-  <div class="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-canvas to-transparent pointer-events-none z-10"></div>
-</section>
-
-<div class="bg-canvas">
-
-<!-- ══════════════════════════════════════════════════════════════
-     3. PILL BAR — ScrollReveal
-     ══════════════════════════════════════════════════════════════ -->
-<section class="max-w-6xl mx-auto px-5 lg:px-8 -mt-6 relative z-20">
-  <div class="rounded-2xl bg-ink text-white px-5 lg:px-7 py-4 flex flex-wrap items-center justify-between gap-4 shadow-xl border border-white/5 sr sr-scale">
-    <div class="text-[13px] font-semibold opacity-90 flex items-center gap-2"><i class="ri-quill-pen-line text-[#61dca3]"></i> ReactBits components • LetterGlitch • Noise • SplitText • GlareHover • Magnetic • StarBorder</div>
-    <div class="flex items-center gap-2 text-[11px] font-mono"><span class="px-2.5 py-1 rounded-full bg-white/10 border border-white/10">Android 8+</span><span class="px-2.5 py-1 rounded-full bg-white/10 border border-white/10">Windows 10/11</span><span class="px-2.5 py-1 rounded-full bg-white/10 border border-white/10">arm64 • x64</span></div>
+    <div class="hero-meta-right sr sr-d3">
+      Private AI Companion<br>
+      Android &amp; Windows<br>
+      v1.2.0+7
+    </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════════════════════════
-     4. STATS MARQUEE — ScrollVelocity + CountUp
-     ══════════════════════════════════════════════════════════════ -->
-<section class="mt-12 overflow-hidden sr sr-d2">
-  <div class="relative py-6 border-y border-hairline/50">
-    <div class="marquee-track" id="marquee">
-      <div class="flex items-center gap-12 px-6 whitespace-nowrap">
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#61dca3]"></span> <span class="count-num" data-target="18">0</span> Cloud Providers</span>
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-accent"></span> <span class="count-num" data-target="15">0</span> Languages</span>
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-ink"></span> 100% Offline</span>
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#61dca3]"></span> MIT Licensed</span>
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-accent"></span> <span class="count-num" data-target="6">0</span> Feature Cards</span>
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-ink"></span> Open Source</span>
+<!-- ═══════════════════════════════════════════════
+     SKEWED MARQUEE
+     ═══════════════════════════════════════════════ -->
+<section class="marquee-section">
+  <div class="marquee-inner">
+    <div class="marquee-row">
+      <div class="marquee-track">
+        <div class="marquee-item orange">LOCAL AI • OFFLINE FIRST • PRIVATE • NO CLOUD • </div>
+        <div class="marquee-item orange">LOCAL AI • OFFLINE FIRST • PRIVATE • NO CLOUD • </div>
+        <div class="marquee-item orange">LOCAL AI • OFFLINE FIRST • PRIVATE • NO CLOUD • </div>
+        <div class="marquee-item orange">LOCAL AI • OFFLINE FIRST • PRIVATE • NO CLOUD • </div>
       </div>
-      <div class="flex items-center gap-12 px-6 whitespace-nowrap" aria-hidden="true">
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#61dca3]"></span> <span class="count-num" data-target="18">0</span> Cloud Providers</span>
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-accent"></span> <span class="count-num" data-target="15">0</span> Languages</span>
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-ink"></span> 100% Offline</span>
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-[#61dca3]"></span> MIT Licensed</span>
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-accent"></span> <span class="count-num" data-target="6">0</span> Feature Cards</span>
-        <span class="text-[14px] font-bold text-muted/60 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-ink"></span> Open Source</span>
+    </div>
+    <div class="marquee-row reverse">
+      <div class="marquee-track">
+        <div class="marquee-item white">LLAMA.CPP • STABLE DIFFUSION • FLUTTER • GGFU • FFI • VULKAN • </div>
+        <div class="marquee-item white">LLAMA.CPP • STABLE DIFFUSION • FLUTTER • GGFU • FFI • VULKAN • </div>
+        <div class="marquee-item white">LLAMA.CPP • STABLE DIFFUSION • FLUTTER • GGFU • FFI • VULKAN • </div>
+        <div class="marquee-item white">LLAMA.CPP • STABLE DIFFUSION • FLUTTER • GGFU • FFI • VULKAN • </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════════════════════════
-     5. FEATURES — GlareHover cards + BounceCards stagger
-     ══════════════════════════════════════════════════════════════ -->
-<section id="features" class="max-w-6xl mx-auto px-5 lg:px-8 pt-12">
-  <div class="flex items-end justify-between gap-4 flex-wrap sr">
-    <div>
-      <div class="text-[11px] font-mono font-bold tracking-widest text-accent uppercase flex items-center gap-2"><span class="w-6 h-[2px] bg-accent"></span> // why_cubiclm</div>
-      <h2 class="text-[26px] lg:text-[32px] font-extrabold tracking-tight leading-none mt-2">Everything you need.<br>Nothing you don't.</h2>
+<!-- ═══════════════════════════════════════════════
+     SERVICE LIST
+     ═══════════════════════════════════════════════ -->
+<section id="services" class="services">
+  <div class="service-item sr">
+    <div class="service-index">01</div>
+    <div class="service-content">
+      <div class="service-title">LLM Chat</div>
+      <div class="service-tags">
+        <span class="service-tag">GGUF</span>
+        <span class="service-tag">LiteRT</span>
+        <span class="service-tag">18 Providers</span>
+      </div>
     </div>
-    <p class="max-w-[420px] text-[14px] leading-6 text-muted">Fast, beautiful chat with local reasoning, code execution, web search — without the cloud tax.</p>
+    <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
   </div>
-  <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8" id="feature-grid">
-    <div class="glare-card bg-white rounded-[18px] border border-hairline p-6 shadow-sm sr sr-d1 bounce-card"><div class="glare"></div><div class="w-10 h-10 rounded-xl bg-ink text-white grid place-items-center"><i class="ri-shield-keyhole-line"></i></div><h3 class="mt-4 font-extrabold text-[15px]">Local-first & private</h3><p class="mt-1.5 text-[13.5px] leading-6 text-muted">Your chats never leave the device in Local mode. No account, no tracking.</p></div>
-    <div class="glare-card bg-white rounded-[18px] border border-hairline p-6 shadow-sm sr sr-d2 bounce-card"><div class="glare"></div><div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center"><i class="ri-cpu-line"></i></div><h3 class="mt-4 font-extrabold text-[15px]">Any model, any provider</h3><p class="mt-1.5 text-[13.5px] leading-6 text-muted">GGUF/LiteRT locally, plus 18 cloud providers.</p></div>
-    <div class="glare-card bg-white rounded-[18px] border border-hairline p-6 shadow-sm sr sr-d3 bounce-card"><div class="glare"></div><div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center"><i class="ri-image-2-line"></i></div><h3 class="mt-4 font-extrabold text-[15px]">On-device image gen</h3><p class="mt-1.5 text-[13.5px] leading-6 text-muted">Stable Diffusion via FFI — offline with Vulkan/OpenCL.</p></div>
-    <div class="glare-card bg-white rounded-[18px] border border-hairline p-6 shadow-sm sr sr-d4 bounce-card"><div class="glare"></div><div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center"><i class="ri-code-s-slash-line"></i></div><h3 class="mt-4 font-extrabold text-[15px]">Code & tools</h3><p class="mt-1.5 text-[13.5px] leading-6 text-muted">Syntax-highlighted code, file attachments, sandboxed runner.</p></div>
-    <div class="glare-card bg-white rounded-[18px] border border-hairline p-6 shadow-sm sr sr-d5 bounce-card"><div class="glare"></div><div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center"><i class="ri-global-line"></i></div><h3 class="mt-4 font-extrabold text-[15px]">Web-aware answers</h3><p class="mt-1.5 text-[13.5px] leading-6 text-muted">Optional web fetch augments responses with cited sources.</p></div>
-    <div class="glare-card bg-white rounded-[18px] border border-hairline p-6 shadow-sm sr sr-d6 bounce-card"><div class="glare"></div><div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center"><i class="ri-puzzle-2-line"></i></div><h3 class="mt-4 font-extrabold text-[15px]">Skills & MCP</h3><p class="mt-1.5 text-[13.5px] leading-6 text-muted">Extend with skills and Model Context Protocol tools.</p></div>
+  <div class="service-item sr sr-d1">
+    <div class="service-index">02</div>
+    <div class="service-content">
+      <div class="service-title">Image Generation</div>
+      <div class="service-tags">
+        <span class="service-tag">Stable Diffusion</span>
+        <span class="service-tag">FFI</span>
+        <span class="service-tag">Vulkan</span>
+      </div>
+    </div>
+    <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
+  </div>
+  <div class="service-item sr sr-d2">
+    <div class="service-index">03</div>
+    <div class="service-content">
+      <div class="service-title">Code Execution</div>
+      <div class="service-tags">
+        <span class="service-tag">Sandboxed</span>
+        <span class="service-tag">Syntax HL</span>
+        <span class="service-tag">File Attach</span>
+      </div>
+    </div>
+    <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
+  </div>
+  <div class="service-item sr sr-d3">
+    <div class="service-index">04</div>
+    <div class="service-content">
+      <div class="service-title">Web Search</div>
+      <div class="service-tags">
+        <span class="service-tag">Optional</span>
+        <span class="service-tag">Cited Sources</span>
+      </div>
+    </div>
+    <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
+  </div>
+  <div class="service-item sr sr-d4">
+    <div class="service-index">05</div>
+    <div class="service-content">
+      <div class="service-title">Skills &amp; MCP</div>
+      <div class="service-tags">
+        <span class="service-tag">Extensible</span>
+        <span class="service-tag">Model Context</span>
+      </div>
+    </div>
+    <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
+  </div>
+  <div class="service-item sr">
+    <div class="service-index">06</div>
+    <div class="service-content">
+      <div class="service-title">Multi-Model Pool</div>
+      <div class="service-tags">
+        <span class="service-tag">Switch Anytime</span>
+        <span class="service-tag">Local + Cloud</span>
+      </div>
+    </div>
+    <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════════════════════════
-     6. HOW IT WORKS — AnimatedContent directional reveals
-     ══════════════════════════════════════════════════════════════ -->
-<section id="how" class="max-w-6xl mx-auto px-5 lg:px-8 pt-12">
-  <div class="bg-ink rounded-[22px] p-6 lg:p-8 relative overflow-hidden sr sr-scale">
-    <div class="absolute inset-0 opacity-20" style="background:radial-gradient(600px circle at 0% 0%, #61dca3 0%, transparent 50%), radial-gradient(800px circle at 100% 100%, #D97757 0%, transparent 50%)"></div>
-    <div class="relative">
-      <div class="text-[11px] font-mono font-bold tracking-widest text-white/50 uppercase sr sr-left">// how_it_works.sh</div>
-      <h3 class="font-extrabold text-[18px] text-white mt-1 sr sr-left sr-d1">Three commands to local intelligence</h3>
-      <div class="grid md:grid-cols-3 gap-6 mt-6">
-        <div class="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-5 sr sr-d2 sr-left">
-          <div class="w-9 h-9 rounded-full bg-white text-ink grid place-items-center font-extrabold text-[13px]">1</div>
-          <div class="font-bold text-[13.5px] text-white mt-3">Install</div>
-          <div class="text-[13.5px] leading-6 text-white/60 mt-1">Get the APK or Windows build. No account needed.</div>
+<!-- ═══════════════════════════════════════════════
+     FEATURES GRID
+     ═══════════════════════════════════════════════ -->
+<section id="features" class="features-section">
+  <div class="features-header sr">Why CubicLM</div>
+  <div class="features-grid">
+    <div class="feature-card sr sr-d1">
+      <div class="feature-icon"><i class="ri-shield-keyhole-line"></i></div>
+      <div class="feature-name">Local-First &amp; Private</div>
+      <div class="feature-desc">Your chats never leave the device. No account, no tracking, no cloud.</div>
+    </div>
+    <div class="feature-card sr sr-d2">
+      <div class="feature-icon"><i class="ri-cpu-line"></i></div>
+      <div class="feature-name">Any Model</div>
+      <div class="feature-desc">GGUF, LiteRT locally. 18 cloud providers. Switch anytime.</div>
+    </div>
+    <div class="feature-card sr sr-d3">
+      <div class="feature-icon"><i class="ri-image-2-line"></i></div>
+      <div class="feature-name">Image Gen</div>
+      <div class="feature-desc">Stable Diffusion via FFI. Offline with Vulkan/OpenCL.</div>
+    </div>
+    <div class="feature-card sr sr-d1">
+      <div class="feature-icon"><i class="ri-code-s-slash-line"></i></div>
+      <div class="feature-name">Code Runner</div>
+      <div class="feature-desc">Syntax highlighted, file attachments, sandboxed execution.</div>
+    </div>
+    <div class="feature-card sr sr-d2">
+      <div class="feature-icon"><i class="ri-global-line"></i></div>
+      <div class="feature-name">Web Aware</div>
+      <div class="feature-desc">Optional web fetch with cited sources for accurate answers.</div>
+    </div>
+    <div class="feature-card sr sr-d3">
+      <div class="feature-icon"><i class="ri-puzzle-2-line"></i></div>
+      <div class="feature-name">Extensible</div>
+      <div class="feature-desc">Skills, MCP tools, and plugin architecture for power users.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     CTA
+     ═══════════════════════════════════════════════ -->
+<section class="cta-section">
+  <div class="cta-heading sr">Start Now</div>
+  <div class="cta-sub sr sr-d1">No account. No cloud. Just install and go.</div>
+  <div class="cta-buttons sr sr-d2">
+    <a href="#download" class="btn-brutal primary"><i class="ri-download-2-line"></i> Download CubicLM</a>
+    <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="btn-brutal secondary"><i class="ri-github-line"></i> View Source</a>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════
+     DOWNLOAD
+     ═══════════════════════════════════════════════ -->
+<section id="download" class="download-section">
+  <div style="text-align:center">
+    <div class="features-header" style="color:#fff;font-size:10vw" class="sr">Get CubicLM</div>
+    <div class="download-meta">v1.2.0 • 1.2.0+7 • MIT Licensed • Open Source</div>
+  </div>
+  <div class="download-grid">
+    <div class="download-card sr sr-d1">
+      <div class="download-card-head">
+        <div class="download-card-icon"><i class="ri-android-line"></i></div>
+        <div>
+          <div class="download-card-title">Android</div>
+          <div class="download-card-sub">Android 8+ • arm64, armv7, x64</div>
         </div>
-        <div class="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-5 sr sr-d3">
-          <div class="w-9 h-9 rounded-full bg-white text-ink grid place-items-center font-extrabold text-[13px]">2</div>
-          <div class="font-bold text-[13.5px] text-white mt-3">Pick a model</div>
-          <div class="text-[13.5px] leading-6 text-white/60 mt-1">Download a GGUF from the Hub or connect any cloud API.</div>
+      </div>
+      <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-arm64-v8a.apk" class="download-btn"><i class="ri-download-2-line"></i> arm64-v8a • 75 MB</a>
+      <div class="download-alts">
+        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-armeabi-v7a.apk" class="download-alt">armeabi • 30 MB</a>
+        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-x86_64.apk" class="download-alt">x86_64 • 41 MB</a>
+      </div>
+    </div>
+    <div class="download-card sr sr-d2">
+      <div class="download-card-head">
+        <div class="download-card-icon"><i class="ri-windows-line"></i></div>
+        <div>
+          <div class="download-card-title">Windows</div>
+          <div class="download-card-sub">Windows 10/11 • x64</div>
         </div>
-        <div class="bg-[#61dca3] rounded-2xl p-5 sr sr-d4 sr-right">
-          <div class="w-9 h-9 rounded-full bg-white text-[#1a5c3a] grid place-items-center font-extrabold text-[13px]">3</div>
-          <div class="font-bold text-[13.5px] text-ink mt-3">Chat & create</div>
-          <div class="text-[13.5px] leading-6 text-ink/80 mt-1">Talk, code, and generate images — fully offline.</div>
-        </div>
+      </div>
+      <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-windows-x64.zip" class="download-btn"><i class="ri-download-2-line"></i> Windows x64 • 16 MB</a>
+      <div class="download-alts">
+        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/checksums.sha256" class="download-alt">SHA256 Checksums</a>
+        <a href="https://github.com/abir2afridi/CubicLM/releases" class="download-alt">All Releases</a>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════════════════════════
-     7. DOWNLOAD — StarBorder + Magnetic buttons
-     ══════════════════════════════════════════════════════════════ -->
-<section id="download" class="max-w-6xl mx-auto px-5 lg:px-8 pt-12 pb-6">
-  <div class="text-center max-w-2xl mx-auto sr">
-    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ink text-white text-[11px] font-mono font-bold tracking-wide"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> v1.2.0 • 1.2.0+7</div>
-    <h2 class="text-[26px] lg:text-[32px] font-extrabold tracking-tight mt-3">Download CubicLM</h2>
-    <p class="mt-2 text-[14px] leading-6 text-muted">One tap to install. All builds are signed, open source, and free.</p>
+<!-- ═══════════════════════════════════════════════
+     FOOTER
+     ═══════════════════════════════════════════════ -->
+<footer class="footer">
+  <div class="footer-copy">© 2025 CubicLM. Crafted for local intelligence.</div>
+  <div class="footer-links">
+    <a href="https://github.com/abir2afridi/CubicLM" target="_blank">GitHub</a>
+    <a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank">Releases</a>
+    <a href="https://github.com/abir2afridi/CubicLM/blob/main/LICENSE" target="_blank">License</a>
+    <a href="https://reactbits.dev" target="_blank">ReactBits</a>
   </div>
-  <div class="grid lg:grid-cols-2 gap-5 mt-8">
-    <!-- Android -->
-    <div class="glare-card bg-ink text-white rounded-[22px] p-6 lg:p-7 relative overflow-hidden border border-white/5 sr sr-d1 sr-left">
-      <div class="glare"></div>
-      <div class="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
-      <div class="flex items-center gap-3 relative">
-        <div class="w-11 h-11 rounded-xl bg-white/10 border border-white/10 grid place-items-center text-[20px]"><i class="ri-android-line"></i></div>
-        <div><div class="font-extrabold text-[18px] leading-none">Android</div><div class="text-[12.5px] font-medium text-white/60">Android 8+ • arm64, armv7, x64</div></div>
-        <span class="ml-auto hidden sm:inline-flex px-2.5 py-1 rounded-full bg-white text-ink text-[11px] font-extrabold">RECOMMENDED</span>
-      </div>
-      <div class="mt-6 grid gap-2.5 relative">
-        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-arm64-v8a.apk" class="star-border mag h-[48px] rounded-full bg-white text-ink font-extrabold text-[14px] inline-flex items-center justify-center gap-2 hover:bg-zinc-100 transition"><i class="ri-download-2-line text-[18px]"></i> Download arm64-v8a <span class="font-mono font-bold text-[11px] bg-ink text-white px-2 py-0.5 rounded-full">75 MB</span></a>
-        <div class="grid grid-cols-2 gap-2.5">
-          <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-armeabi-v7a.apk" class="mag h-11 rounded-full bg-white/10 border border-white/20 font-bold text-[13px] inline-flex items-center justify-center gap-1.5 hover:bg-white/15 transition">armeabi <span class="text-[11px] opacity-60">30 MB</span></a>
-          <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-x86_64.apk" class="mag h-11 rounded-full bg-white/10 border border-white/20 font-bold text-[13px] inline-flex items-center justify-center gap-1.5 hover:bg-white/15 transition">x86_64 <span class="text-[11px] opacity-60">41 MB</span></a>
-        </div>
-        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/checksums.sha256" class="text-center text-[12px] font-mono text-white/50 hover:text-white transition">View checksums (SHA256) →</a>
-      </div>
-    </div>
-    <!-- Windows -->
-    <div class="glare-card bg-white rounded-[22px] border border-hairline p-6 lg:p-7 shadow-sm sr sr-d2 sr-right">
-      <div class="glare"></div>
-      <div class="flex items-center gap-3">
-        <div class="w-11 h-11 rounded-xl bg-pill border border-hairline grid place-items-center text-[20px]"><i class="ri-window-line"></i></div>
-        <div><div class="font-extrabold text-[18px] leading-none">Windows</div><div class="text-[12.5px] font-medium text-muted">Windows 10/11 • x64</div></div>
-      </div>
-      <div class="mt-6 grid gap-2.5">
-        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-windows-x64.zip" class="star-border mag h-[48px] rounded-full bg-ink text-white font-extrabold text-[14px] inline-flex items-center justify-center gap-2 hover:bg-black transition"><i class="ri-download-2-line text-[18px]"></i> Download Windows (x64) <span class="font-mono font-bold text-[11px] bg-white text-ink px-2 py-0.5 rounded-full">16 MB</span></a>
-        <div class="rounded-xl bg-pill border border-hairline p-3 text-[12.5px] leading-5 text-muted">
-          <div class="font-bold text-ink flex items-center gap-1.5"><i class="ri-information-line"></i> First run</div>
-          Unzip and run <span class="font-mono bg-white px-1.5 py-0.5 rounded border border-hairline">CubicLM.exe</span>. No installer.
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="mt-5 flex flex-wrap items-center justify-center gap-3 text-[13px] sr sr-d3">
-    <a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank" class="mag h-9 px-5 rounded-full bg-white border border-hairline font-bold inline-flex items-center gap-1.5 hover:bg-pill transition">All releases <i class="ri-external-link-line"></i></a>
-    <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="mag h-9 px-5 rounded-full bg-ink text-white font-bold inline-flex items-center gap-1.5 hover:bg-black transition"><i class="ri-github-line"></i> View source</a>
-  </div>
-</section>
-
-</div>
-
-<!-- ══════════════════════════════════════════════════════════════
-     8. FOOTER
-     ══════════════════════════════════════════════════════════════ -->
-<footer class="bg-ink text-white border-t border-white/5">
-  <div class="max-w-6xl mx-auto px-5 lg:px-8 py-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-    <div>
-      <div class="flex items-center gap-2 font-extrabold"><span class="w-7 h-7 rounded-lg bg-white text-ink grid place-items-center text-[13px]">C</span> CubicLM</div>
-      <div class="mt-1 text-[12.5px] leading-5 text-white/60 max-w-[520px]">Private, offline AI for Android & Windows. Built with Flutter, llama.cpp and Stable Diffusion. Open source under MIT. UI powered by ReactBits.</div>
-    </div>
-    <div class="flex flex-wrap gap-6 text-[13px] font-semibold text-white/60">
-      <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="hover:text-white">GitHub</a>
-      <a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank" class="hover:text-white">Releases</a>
-      <a href="https://reactbits.dev" target="_blank" class="hover:text-white">ReactBits</a>
-      <a href="https://github.com/abir2afridi/CubicLM/blob/main/LICENSE" target="_blank" class="hover:text-white">License</a>
-    </div>
-  </div>
-  <div class="max-w-6xl mx-auto px-5 lg:px-8 pb-6 text-[11px] font-mono text-white/30 text-center">© 2025 CubicLM • Crafted for local intelligence • github.com/abir2afridi/CubicLM</div>
 </footer>
 
-<!-- ══════════════════════════════════════════════════════════════
-     SCRIPTS — ReactBits vanilla JS ports
-     ══════════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════
+     SCRIPTS
+     ═══════════════════════════════════════════════ -->
 <script>
 (function(){
 'use strict';
 
-/* ──────────────────────────────────────────────
-   1. LetterGlitch — ReactBits: Backgrounds/LetterGlitch
-   ────────────────────────────────────────────── */
-(function letterGlitch(){
-  const canvas=document.getElementById('letter-glitch');
-  const wrap=document.getElementById('letter-glitch-wrap');
-  if(!canvas||!wrap) return;
-  const glitchColors=['#2b4539','#61dca3','#61b3dc'];
-  const characters='ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$&*()-_+=/[]{};:<>.,0123456789';
-  const letters=Array.from(characters);
-  const fontSize=16,charWidth=10,charHeight=20;
-  let grid={columns:0,rows:0},ctx=canvas.getContext('2d'),lettersArr=[],animId=null,lastGlitch=Date.now();
-  const getRandomChar=()=>letters[Math.floor(Math.random()*letters.length)];
-  const getRandomColor=()=>glitchColors[Math.floor(Math.random()*glitchColors.length)];
-  const hexToRgb=h=>{h=h.replace(/^#?([a-f\d])([a-f\d])([a-f\d])$/i,(_,r,g,b)=>r+r+g+g+b+b);const m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);return m?{r:parseInt(m[1],16),g:parseInt(m[2],16),b:parseInt(m[3],16)}:null;};
-  const interp=(s,e,f)=>({r:Math.round(s.r+(e.r-s.r)*f),g:Math.round(s.g+(e.g-s.g)*f),b:Math.round(s.b+(e.b-s.b)*f)});
-  const calcGrid=(w,h)=>({columns:Math.ceil(w/charWidth),rows:Math.ceil(h/charHeight)});
-  const initLetters=(c,r)=>{grid={columns:c,rows:r};lettersArr=Array.from({length:c*r},()=>({char:getRandomChar(),color:getRandomColor(),targetColor:getRandomColor(),colorProgress:1}));};
-  const resize=()=>{const dpr=window.devicePixelRatio||1;const rect=wrap.getBoundingClientRect();canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;canvas.style.width=rect.width+'px';canvas.style.height=rect.height+'px';ctx.setTransform(dpr,0,0,dpr,0,0);initLetters(...Object.values(calcGrid(rect.width,rect.height)));draw();};
-  const draw=()=>{if(!ctx||!lettersArr.length) return;const rect=wrap.getBoundingClientRect();ctx.clearRect(0,0,rect.width,rect.height);ctx.font=fontSize+'px monospace';ctx.textBaseline='top';lettersArr.forEach((l,i)=>{ctx.fillStyle=l.color;ctx.fillText(l.char,(i%grid.columns)*charWidth,Math.floor(i/grid.columns)*charHeight);});};
-  const update=()=>{const cnt=Math.max(1,Math.floor(lettersArr.length*.05));for(let i=0;i<cnt;i++){const idx=Math.floor(Math.random()*lettersArr.length);if(!lettersArr[idx])continue;lettersArr[idx].char=getRandomChar();lettersArr[idx].targetColor=getRandomColor();lettersArr[idx].colorProgress=0;}};
-  const smoothFn=()=>{let need=false;lettersArr.forEach(l=>{if(l.colorProgress<1){l.colorProgress+=.05;if(l.colorProgress>1)l.colorProgress=1;const s=hexToRgb(l.color),e=hexToRgb(l.targetColor);if(s&&e){const c=interp(s,e,l.colorProgress);l.color=`rgb(${c.r},${c.g},${c.b})`;need=true;}}});if(need)draw();};
-  const animate=()=>{const now=Date.now();if(now-lastGlitch>=50){update();draw();lastGlitch=now;}smoothFn();animId=requestAnimationFrame(animate);};
-  ctx=canvas.getContext('2d');resize();animate();
-  let to;window.addEventListener('resize',()=>{clearTimeout(to);to=setTimeout(()=>{cancelAnimationFrame(animId);resize();animate();},100);});
+/* ── LetterGlitch (orange palette) ── */
+(function(){
+  var canvas=document.getElementById('letter-glitch');
+  var wrap=document.getElementById('letter-glitch-wrap');
+  if(!canvas||!wrap)return;
+  var colors=['#000000','#1a1a1a','#333333'];
+  var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$&*()-_+=/[]{};:<>.,0123456789';
+  var letters=Array.from(chars);
+  var fs=16,cw=10,ch=20;
+  var grid={c:0,r:0},ctx=canvas.getContext('2d'),arr=[],aid=null,lg=Date.now();
+  var rc=function(){return letters[Math.floor(Math.random()*letters.length)]};
+  var rco=function(){return colors[Math.floor(Math.random()*colors.length)]};
+  var h2r=function(h){h=h.replace(/^#?([a-f\d])([a-f\d])([a-f\d])$/i,function(m,r,g,b){return r+r+g+g+b+b});var m=/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);return m?{r:parseInt(m[1],16),g:parseInt(m[2],16),b:parseInt(m[3],16)}:null};
+  var ip=function(s,e,f){return{r:Math.round(s.r+(e.r-s.r)*f),g:Math.round(s.g+(e.g-s.g)*f),b:Math.round(s.b+(e.b-s.b)*f)}};
+  var cg=function(w,h){return{c:Math.ceil(w/cw),r:Math.ceil(h/ch)}};
+  var il=function(c,r){grid={c:c,r:r};arr=Array.from({length:c*r},function(){return{ch:rc(),co:rco(),tc:rco(),cp:1}})};
+  var rs=function(){var d=window.devicePixelRatio||1;var rc=wrap.getBoundingClientRect();canvas.width=rc.width*d;canvas.height=rc.height*d;canvas.style.width=rc.width+'px';canvas.style.height=rc.height+'px';ctx.setTransform(d,0,0,d,0,0);var g=cg(rc.width,rc.height);il(g.c,g.g);dr()};
+  var dr=function(){if(!ctx||!arr.length)return;var rc=wrap.getBoundingClientRect();ctx.clearRect(0,0,rc.width,rc.height);ctx.font=fs+'px monospace';ctx.textBaseline='top';arr.forEach(function(l,i){ctx.fillStyle=l.co;ctx.fillText(l.ch,(i%grid.c)*cw,Math.floor(i/grid.c)*ch)})};
+  var up=function(){var n=Math.max(1,Math.floor(arr.length*.05));for(var i=0;i<n;i++){var idx=Math.floor(Math.random()*arr.length);if(!arr[idx])continue;arr[idx].ch=rc();arr[idx].tc=rco();arr[idx].cp=0}};
+  var sm=function(){var nd=false;arr.forEach(function(l){if(l.cp<1){l.cp+=.05;if(l.cp>1)l.cp=1;var s=h2r(l.co),e=h2r(l.tc);if(s&&e){var c=ip(s,e,l.cp);l.co='rgb('+c.r+','+c.g+','+c.b+')';nd=true}}});if(nd)dr()};
+  var an=function(){var now=Date.now();if(now-lg>=50){up();dr();lg=now}sm();aid=requestAnimationFrame(an)};
+  ctx=canvas.getContext('2d');rs();an();
+  var to;window.addEventListener('resize',function(){clearTimeout(to);to=setTimeout(function(){cancelAnimationFrame(aid);rs();an()},100)});
 })();
 
-/* ──────────────────────────────────────────────
-   2. Noise — ReactBits: Animations/Noise
-   Canvas film grain overlay
-   ────────────────────────────────────────────── */
-(function noise(){
-  const c=document.getElementById('noise-canvas');if(!c) return;
-  const ctx=c.getContext('2d');
-  let w,h;
-  const resize=()=>{w=c.width=window.innerWidth;h=c.height=window.innerHeight;};
-  resize();window.addEventListener('resize',resize);
-  const draw=()=>{const img=ctx.createImageData(w,h);const d=img.data;for(let i=0;i<d.length;i+=4){const v=Math.random()*255;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255;}ctx.putImageData(img,0,0);};
-  let frame=0;
-  const loop=()=>{frame++;if(frame%3===0) draw();requestAnimationFrame(loop);};
-  loop();
+/* ── Noise ── */
+(function(){
+  var c=document.getElementById('noise-canvas');if(!c)return;
+  var ctx=c.getContext('2d'),w,h;
+  var rs=function(){w=c.width=window.innerWidth;h=c.height=window.innerHeight};
+  rs();window.addEventListener('resize',rs);
+  var f=0;
+  (function lp(){f++;if(f%3===0){var img=ctx.createImageData(w,h);var d=img.data;for(var i=0;i<d.length;i+=4){var v=Math.random()*255;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255}ctx.putImageData(img,0,0)}requestAnimationFrame(lp)})();
 })();
 
-/* ──────────────────────────────────────────────
-   3. ScrollReveal — ReactBits: AnimatedContent / ScrollReveal
-   IntersectionObserver-based reveal
-   ────────────────────────────────────────────── */
-(function scrollReveal(){
-  const els=document.querySelectorAll('.sr');
-  if(!els.length) return;
-  const obs=new IntersectionObserver((entries)=>{
-    entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('sr-active');obs.unobserve(e.target);}});
-  },{threshold:.15,rootMargin:'0px 0px -40px 0px'});
-  els.forEach(el=>obs.observe(el));
-})();
-
-/* ──────────────────────────────────────────────
-   4. SplitText — ReactBits: TextAnimations/SplitText
-   Split text into chars with staggered entrance
-   ────────────────────────────────────────────── */
-(function splitText(){
-  const parents=document.querySelectorAll('.split-parent');
-  if(!parents.length) return;
-  const obs=new IntersectionObserver((entries)=>{
-    entries.forEach(e=>{
-      if(e.isIntersecting){
-        const children=e.target.querySelectorAll('.split-child');
-        children.forEach((ch,i)=>{setTimeout(()=>ch.classList.add('active'),i*120);});
-        obs.unobserve(e.target);
-      }
-    });
-  },{threshold:.2});
-  parents.forEach(p=>obs.observe(p));
-})();
-
-/* ──────────────────────────────────────────────
-   5. GlareHover — ReactBits: Animations/GlareHover
-   Glare highlight follows cursor on cards
-   ────────────────────────────────────────────── */
-(function glareHover(){
-  document.querySelectorAll('.glare-card').forEach(card=>{
-    const glare=card.querySelector('.glare');if(!glare) return;
-    card.addEventListener('mousemove',e=>{
-      const rect=card.getBoundingClientRect();
-      const x=((e.clientX-rect.left)/rect.width)*100;
-      const y=((e.clientY-rect.top)/rect.height)*100;
-      card.style.setProperty('--gx',x+'%');
-      card.style.setProperty('--gy',y+'%');
-    });
-  });
-})();
-
-/* ──────────────────────────────────────────────
-   6. Magnetic — ReactBits: Animations/Magnet
-   Elements magnetically attracted to cursor
-   ────────────────────────────────────────────── */
-(function magnetic(){
-  document.querySelectorAll('.mag').forEach(el=>{
-    const strength=.3;
-    el.addEventListener('mousemove',e=>{
-      const rect=el.getBoundingClientRect();
-      const cx=rect.left+rect.width/2;
-      const cy=rect.top+rect.height/2;
-      const dx=e.clientX-cx;
-      const dy=e.clientY-cy;
-      el.style.transform=`translate(${dx*strength}px,${dy*strength}px)`;
-    });
-    el.addEventListener('mouseleave',()=>{el.style.transform='translate(0,0)';});
-  });
-})();
-
-/* ──────────────────────────────────────────────
-   7. BounceCards — ReactBits: Components/BounceCards
-   Cards bounce in with stagger on scroll
-   ────────────────────────────────────────────── */
-(function bounceCards(){
-  const cards=document.querySelectorAll('.bounce-card');
-  if(!cards.length) return;
-  const obs=new IntersectionObserver((entries)=>{
-    entries.forEach(e=>{
-      if(e.isIntersecting){
-        const idx=Array.from(cards).indexOf(e.target);
-        setTimeout(()=>{
-          e.target.style.opacity='1';
-          e.target.style.transform='translateY(0) scale(1)';
-        },idx*80);
-        obs.unobserve(e.target);
-      }
-    });
-  },{threshold:.1});
-  cards.forEach(c=>{
-    c.style.opacity='0';
-    c.style.transform='translateY(30px) scale(.95)';
-    c.style.transition='opacity .5s cubic-bezier(.16,1,.3,1), transform .5s cubic-bezier(.16,1,.3,1)';
-    obs.observe(c);
-  });
-})();
-
-/* ──────────────────────────────────────────────
-   8. CountUp — ReactBits: Components/Counter
-   Animated number counter
-   ────────────────────────────────────────────── */
-(function countUp(){
-  const nums=document.querySelectorAll('.count-num');
-  if(!nums.length) return;
-  const obs=new IntersectionObserver((entries)=>{
-    entries.forEach(e=>{
-      if(e.isIntersecting){
-        const el=e.target;
-        const target=parseInt(el.dataset.target);
-        const duration=1200;
-        const start=performance.now();
-        const animate=(now)=>{
-          const progress=Math.min((now-start)/duration,1);
-          const eased=1-Math.pow(1-progress,3);
-          el.textContent=Math.round(eased*target);
-          if(progress<1) requestAnimationFrame(animate);
-        };
-        requestAnimationFrame(animate);
-        obs.unobserve(el);
-      }
-    });
-  },{threshold:.5});
-  nums.forEach(n=>obs.observe(n));
-})();
-
-/* ──────────────────────────────────────────────
-   9. ScrollVelocity Marquee
-   Marquee that accelerates on scroll
-   ────────────────────────────────────────────── */
-(function scrollVelocity(){
-  const track=document.getElementById('marquee');if(!track) return;
-  let velocity=0,lastScroll=window.scrollY,ticking=false;
-  const update=()=>{
-    const currentScroll=window.scrollY;
-    velocity=(currentScroll-lastScroll)*.15;
-    lastScroll=currentScroll;
-    track.style.transform=`translateX(${-velocity}px)`;
-    ticking=false;
-  };
-  window.addEventListener('scroll',()=>{if(!ticking){ticking=true;requestAnimationFrame(update);}},{passive:true});
-  // Also do a slow auto-scroll
-  let pos=0;
-  const autoScroll=()=>{pos-=.5;track.style.transform=`translateX(${pos}px)`;requestAnimationFrame(autoScroll);};
-  // Uncomment for auto-scroll: autoScroll();
+/* ── ScrollReveal ── */
+(function(){
+  var els=document.querySelectorAll('.sr');
+  if(!els.length)return;
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){if(e.isIntersecting){e.target.classList.add('sr-active');obs.unobserve(e.target)}})
+  },{threshold:.12,rootMargin:'0px 0px -30px 0px'});
+  els.forEach(function(el){obs.observe(el)});
 })();
 
 })();
