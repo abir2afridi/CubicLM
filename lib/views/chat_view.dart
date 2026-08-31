@@ -905,12 +905,11 @@ class ChatView extends GetView<ChatController> {
 
   // ── Input Bar ──
   Widget _inputBar(BuildContext context, bool isDark) {
+    final bottomPad = MediaQuery.viewPaddingOf(context).bottom;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 8 + bottomPad),
       color: Colors.transparent,
-      child: SafeArea(
-          top: false,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
             // Attachment preview
             Obx(() {
               final name = controller.selectedFileName.value;
@@ -1240,7 +1239,7 @@ class ChatView extends GetView<ChatController> {
                         ]),
                   ]),
             ),
-          ])),
+        ]),
     );
   }
 
