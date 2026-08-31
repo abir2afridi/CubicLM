@@ -67,6 +67,33 @@ a{color:inherit;text-decoration:none}
 .service-arrow{font-size:32px;color:var(--orange);opacity:0;transform:rotate(-45deg) scale(.5);transition:all .3s cubic-bezier(.16,1,.3,1)}
 .service-item:hover .service-arrow{opacity:1;transform:rotate(-45deg) scale(1)}
 
+/* ── DOWNLOAD ── */
+.download{background:var(--black);color:var(--white);padding:80px 32px}
+.download-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:40px}
+.download-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:1000px;margin:0 auto}
+.download-card{border:2px solid rgba(255,255,255,.15);padding:40px;display:flex;flex-direction:column;gap:16px;transition:border-color .3s,background .3s;cursor:pointer;text-decoration:none;color:var(--white)}
+.download-card:hover{border-color:var(--orange);background:rgba(255,255,255,.03)}
+.download-card-icon{font-size:40px;color:var(--orange)}
+.download-card-title{font-family:'Archivo Black',sans-serif;font-size:28px;text-transform:uppercase;letter-spacing:-.04em}
+.download-card-desc{font-size:14px;line-height:1.6;opacity:.6}
+.download-card-size{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--orange);margin-top:auto}
+.download-card-arrow{font-size:24px;color:var(--white);opacity:.4;transition:opacity .3s,transform .3s}
+.download-card:hover .download-card-arrow{opacity:1;transform:translateX(4px)}
+
+/* ── ABOUT / FEATURES DETAIL ── */
+.about-detail{background:var(--black);color:var(--white);padding:80px 32px;border-top:1px solid rgba(255,255,255,.1)}
+.about-detail-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:40px}
+.about-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:1100px;margin:0 auto}
+.about-card{padding:32px;border:1px solid rgba(255,255,255,.1);transition:border-color .3s,background .3s}
+.about-card:hover{border-color:var(--orange);background:rgba(255,255,255,.03)}
+.about-card-icon{font-size:28px;color:var(--orange);margin-bottom:16px}
+.about-card-title{font-family:'Archivo Black',sans-serif;font-size:18px;text-transform:uppercase;letter-spacing:-.03em;margin-bottom:8px}
+.about-card-text{font-size:13px;line-height:1.6;opacity:.55}
+.about-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;max-width:1100px;margin:48px auto 0;border-top:1px solid rgba(255,255,255,.1);padding-top:40px}
+.about-stat{text-align:center}
+.about-stat-num{font-family:'Archivo Black',sans-serif;font-size:clamp(32px,5vw,48px);color:var(--orange);line-height:1}
+.about-stat-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-top:8px}
+
 /* ── CTA ── */
 .cta{background:var(--orange);padding:120px 32px;text-align:center}
 .cta h2{font-family:'Archivo Black',sans-serif;font-size:clamp(48px,14vw,180px);text-transform:uppercase;letter-spacing:-.04em;line-height:.85;margin-bottom:48px;color:var(--black)}
@@ -90,6 +117,9 @@ a{color:inherit;text-decoration:none}
 @media(max-width:768px){
   .nav-pill{display:none}
   .hero-desc{font-size:15px}
+  .download-grid{grid-template-columns:1fr}
+  .about-detail-grid{grid-template-columns:1fr}
+  .about-stats{grid-template-columns:1fr 1fr}
   .footer-grid{grid-template-columns:1fr;gap:40px}
   .footer-copy{text-align:left}
 }
@@ -104,9 +134,9 @@ a{color:inherit;text-decoration:none}
   <div class="nav-logo">CubicLM</div>
   <div class="nav-pill">
     <a href="#services">Services</a>
+    <a href="#download">Download</a>
     <a href="#about">About</a>
     <a href="https://github.com/abir2afridi/CubicLM" target="_blank">GitHub</a>
-    <a href="#contact">Contact</a>
   </div>
   <div class="nav-social">
     <a href="https://github.com/abir2afridi/CubicLM" target="_blank"><i class="ri-github-line"></i></a>
@@ -204,6 +234,70 @@ a{color:inherit;text-decoration:none}
       </div>
     </div>
     <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
+  </div>
+</section>
+
+<!-- ════ DOWNLOAD ════ -->
+<section id="download" class="download">
+  <div class="download-label">Download CubicLM</div>
+  <div class="download-grid">
+    <a href="https://github.com/abir2afridi/CubicLM/releases/latest" target="_blank" class="download-card">
+      <div class="download-card-icon"><i class="ri-windows-line"></i></div>
+      <div class="download-card-title">Windows</div>
+      <div class="download-card-desc">Full desktop app with GPU-accelerated llama.cpp, Vulkan support, and OpenAI-compatible local server.</div>
+      <div class="download-card-size">EXE / MSI · Windows 10+</div>
+      <div class="download-card-arrow"><i class="ri-arrow-right-line"></i></div>
+    </a>
+    <a href="https://github.com/abir2afridi/CubicLM/releases/latest" target="_blank" class="download-card">
+      <div class="download-card-icon"><i class="ri-android-line"></i></div>
+      <div class="download-card-title">Android</div>
+      <div class="download-card-desc">On-device inference with LiteRT-LM and llama.cpp. Run GGUF models directly on your phone — no cloud needed.</div>
+      <div class="download-card-size">APK · Android 9+</div>
+      <div class="download-card-arrow"><i class="ri-arrow-right-line"></i></div>
+    </a>
+  </div>
+</section>
+
+<!-- ════ ABOUT DETAIL ════ -->
+<section id="about" class="about-detail">
+  <div class="about-detail-label">Why CubicLM</div>
+  <div class="about-detail-grid">
+    <div class="about-card">
+      <div class="about-card-icon"><i class="ri-shield-check-line"></i></div>
+      <div class="about-card-title">Private by Default</div>
+      <div class="about-card-text">No telemetry, no accounts, no cloud. Your conversations stay on your device with AES-256 encryption. Your data never leaves.</div>
+    </div>
+    <div class="about-card">
+      <div class="about-card-icon"><i class="ri-plug-line"></i></div>
+      <div class="about-card-title">20+ Providers</div>
+      <div class="about-card-text">OpenRouter, OpenAI, Anthropic, Gemini, Groq, DeepSeek, and more. Switch providers per chat with a single tap.</div>
+    </div>
+    <div class="about-card">
+      <div class="about-card-icon"><i class="ri-image-line"></i></div>
+      <div class="about-card-title">Image Generation</div>
+      <div class="about-card-text">Stable Diffusion 1.5 runs locally via FFI with Vulkan acceleration. Generate images offline on your device.</div>
+    </div>
+    <div class="about-card">
+      <div class="about-card-icon"><i class="ri-code-s-slash-line"></i></div>
+      <div class="about-card-title">Code Runner</div>
+      <div class="about-card-text">Sandboxed code execution with syntax highlighting. Run, test, and iterate — all within the chat interface.</div>
+    </div>
+    <div class="about-card">
+      <div class="about-card-icon"><i class="ri-server-line"></i></div>
+      <div class="about-card-title">Local API Server</div>
+      <div class="about-card-text">Built-in OpenAI-compatible server at port 8080. Connect any tool or app to your local models on your network.</div>
+    </div>
+    <div class="about-card">
+      <div class="about-card-icon"><i class="ri-global-line"></i></div>
+      <div class="about-card-title">Web Aware</div>
+      <div class="about-card-text">Optional web fetch augments responses with live, cited sources. No API keys needed — just toggle it on.</div>
+    </div>
+  </div>
+  <div class="about-stats">
+    <div class="about-stat"><div class="about-stat-num">20+</div><div class="about-stat-label">Cloud Providers</div></div>
+    <div class="about-stat"><div class="about-stat-num">15</div><div class="about-stat-label">Languages</div></div>
+    <div class="about-stat"><div class="about-stat-num">100%</div><div class="about-stat-label">Offline Capable</div></div>
+    <div class="about-stat"><div class="about-stat-num">MIT</div><div class="about-stat-label">Open Source</div></div>
   </div>
 </section>
 
