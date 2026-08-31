@@ -1198,8 +1198,10 @@ class ChatView extends GetView<ChatController> {
                                   onTap: () => showModelSwitcherSheet(context),
                                 )),
                           ),
-                          const SizedBox(width: 8),
+                          const Spacer(),
                           // Right cluster: mic (muted circle) + primary CTA (solid dark)
+                          // Spacer pushes this cluster to the far right corner,
+                          // and inner Row keeps mic + send at the same vertical level.
                           Obx(() {
                             final loading = controller.isLoading.value;
                             final listening = controller.isListening.value;
@@ -1210,6 +1212,7 @@ class ChatView extends GetView<ChatController> {
 
                             return Row(
                               mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 if (!loading && !hasContent)
                                   AppCircleButton(
