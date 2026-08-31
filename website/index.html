@@ -7,159 +7,96 @@
 <meta name="description" content="CubicLM is a private, offline-first AI companion for Android & Windows. Run LLMs locally, generate images, chat with any model — no cloud required.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23D97757'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='48' font-weight='800' fill='white' font-family='sans-serif'>C</text></svg>">
 <script src="https://cdn.tailwindcss.com"></script>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.2.0/remixicon.min.css">
 <script>
-tailwind.config = {
-  theme: {
-    extend: {
-      fontFamily: { sans: ['Plus Jakarta Sans', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
-      colors: {
-        canvas: '#F8F4ED',
-        card: '#FBF9F4',
-        pill: '#F0EAE0',
-        hairline: '#DDD2BD',
-        ink: '#2D2520',
-        muted: '#5A4F44',
-        placeholder: '#8A7E72',
-        accent: '#D97757',
-        accentHover: '#C86A4D',
-        indigo: '#6D5FE8',
-        success: '#1A8A4A',
-      },
-      borderRadius: { rCard: '18px', rSheet: '17px', rPill: '9999px' }
-    }
+tailwind.config={theme:{extend:{fontFamily:{sans:['Plus Jakarta Sans','sans-serif'],mono:['JetBrains Mono','monospace']},colors:{canvas:'#F8F4ED',card:'#FBF9F4',pill:'#F0EAE0',hairline:'#DDD2BD',ink:'#2D2520',muted:'#5A4F44',accent:'#D97757',accentHover:'#C86A4D',success:'#1A8A4A'}}}}
+</script>
+<style>
+*{scroll-behavior:smooth}::selection{background:#D97757;color:white}
+.faulty-terminal-container{position:absolute;inset:0;width:100%;height:100%;overflow:hidden}
+.faulty-terminal-container canvas{display:block;width:100%;height:100%}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "ogl": "https://cdn.jsdelivr.net/npm/ogl@1.0.11/+esm"
   }
 }
 </script>
-<style>
-*{scroll-behavior:smooth}
-::selection{background:#D97757;color:white}
-</style>
 </head>
-<body class="bg-canvas text-ink antialiased overflow-x-hidden">
-<!-- Nav -->
-<header class="sticky top-0 z-50 backdrop-blur-xl bg-canvas/80 border-b border-hairline/60">
-  <nav class="max-w-6xl mx-auto px-5 lg:px-8 h-[64px] flex items-center justify-between">
+<body class="bg-[#0a0a0a] text-ink antialiased overflow-x-hidden">
+<!-- Faulty Terminal Hero -->
+<section class="relative min-h-[86vh] lg:min-h-[92vh] overflow-hidden bg-black">
+  <div id="faulty-terminal" class="absolute inset-0"></div>
+  <div class="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60 pointer-events-none"></div>
+  <div class="absolute inset-0 opacity-[0.03]" style="background-image:repeating-linear-gradient(0deg, transparent, transparent 2px, white 2px, white 3px)"></div>
+  
+  <!-- Nav over terminal -->
+  <nav class="relative z-20 max-w-6xl mx-auto px-5 lg:px-8 h-[64px] flex items-center justify-between">
     <a href="#" class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl bg-ink flex items-center justify-center">
-        <span class="text-white font-extrabold text-[17px] tracking-tight">C</span>
-      </div>
-      <span class="font-extrabold text-[18px] tracking-tight">CubicLM</span>
-      <span class="hidden sm:inline-flex ml-1 px-2 py-0.5 rounded-full bg-pill text-[11px] font-bold tracking-wide text-muted border border-hairline">v1.2.0</span>
+      <div class="w-9 h-9 rounded-xl bg-white text-ink flex items-center justify-center font-extrabold text-[17px]">C</div>
+      <span class="font-extrabold text-[18px] tracking-tight text-white">CubicLM</span>
+      <span class="hidden sm:inline-flex ml-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white text-[11px] font-bold tracking-wide backdrop-blur">v1.2.0</span>
     </a>
-    <div class="hidden md:flex items-center gap-7 text-[13.5px] font-semibold text-muted">
-      <a href="#features" class="hover:text-ink transition">Features</a>
-      <a href="#how" class="hover:text-ink transition">How it works</a>
-      <a href="#download" class="hover:text-ink transition">Download</a>
-      <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="inline-flex items-center gap-1.5 hover:text-ink transition">GitHub <i class="ri-external-link-line text-[14px]"></i></a>
+    <div class="hidden md:flex items-center gap-7 text-[13.5px] font-semibold text-white/70">
+      <a href="#features" class="hover:text-white transition">Features</a>
+      <a href="#how" class="hover:text-white transition">How it works</a>
+      <a href="#download" class="hover:text-white transition">Download</a>
+      <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="inline-flex items-center gap-1.5 hover:text-white transition">GitHub <i class="ri-external-link-line"></i></a>
     </div>
-    <div class="flex items-center gap-2">
-      <a href="#download" class="hidden sm:inline-flex h-9 px-5 rounded-full bg-ink text-white text-[13.5px] font-bold hover:bg-black transition">Download</a>
-      <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="md:hidden w-9 h-9 rounded-full bg-ink text-white grid place-items-center"><i class="ri-github-line"></i></a>
-    </div>
+    <a href="#download" class="hidden sm:inline-flex h-9 px-5 rounded-full bg-white text-ink text-[13.5px] font-bold hover:bg-zinc-100 transition">Download</a>
   </nav>
-</header>
 
-<!-- Hero -->
-<section class="max-w-6xl mx-auto px-5 lg:px-8 pt-10 lg:pt-16 pb-8">
-  <div class="grid lg:grid-cols-[1.05fr_0.95fr] gap-10 lg:gap-8 items-center">
-    <div>
-      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-hairline shadow-sm text-[12.5px] font-semibold">
-        <span class="w-2 h-2 rounded-full bg-success animate-pulse"></span>
+  <!-- Hero content -->
+  <div class="relative z-10 max-w-6xl mx-auto px-5 lg:px-8 pt-10 lg:pt-14 pb-12">
+    <div class="max-w-3xl">
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 backdrop-blur text-white text-[12.5px] font-semibold">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
         Offline-first • Private by default
-        <span class="hidden sm:inline text-placeholder font-medium">• No account required</span>
+        <span class="hidden sm:inline text-white/60 font-medium">• No account required</span>
       </div>
-      <h1 class="mt-5 text-[34px] sm:text-[42px] lg:text-[48px] font-extrabold leading-[0.95] tracking-tight">
+      <h1 class="mt-6 font-mono text-[34px] sm:text-[44px] lg:text-[54px] font-bold leading-[0.9] tracking-tight text-white">
+        <span class="opacity-60 text-[14px] font-sans font-bold tracking-widest uppercase block mb-3">/// cubiclm.init()</span>
         Your AI,<br>
-        <span class="text-accent">on your device.</span>
+        <span class="text-white">on your</span> <span class="text-[#D97757] relative">device.
+          <span class="absolute -bottom-1 left-0 w-full h-[3px] bg-[#D97757]/60 blur-[1px]"></span>
+        </span>
       </h1>
-      <p class="mt-4 text-[15.5px] leading-7 text-muted max-w-[560px]">
-        CubicLM runs powerful language & image models <span class="font-semibold text-ink">entirely offline</span> on Android & Windows. Chat, create, code and think — without sending your data to the cloud. Cloud models are there when you need them.
+      <p class="mt-5 text-[15.5px] leading-7 text-white/70 max-w-[560px] font-medium">
+        Run powerful language & image models <span class="text-white font-semibold">entirely offline</span> on Android & Windows. Chat, create, code — without sending your data to the cloud. Cloud models are there when you need them.
       </p>
-      <div class="mt-7 flex flex-wrap gap-3">
-        <a href="#download" class="h-[46px] px-7 rounded-full bg-accent text-white font-bold text-[14px] inline-flex items-center gap-2 hover:bg-accentHover transition shadow-sm">
-          <i class="ri-download-2-line text-[18px]"></i> Download for Android
+      <div class="mt-8 flex flex-wrap gap-3">
+        <a href="#download" class="h-[46px] px-7 rounded-full bg-[#D97757] text-white font-bold text-[14px] inline-flex items-center gap-2 hover:bg-[#C86A4D] transition shadow-[0_0_20px_rgba(217,119,87,0.4)]">
+          <i class="ri-terminal-box-line text-[18px]"></i> Download for Android
         </a>
-        <a href="#download" class="h-[46px] px-7 rounded-full bg-white border border-hairline font-bold text-[14px] inline-flex items-center gap-2 hover:bg-pill transition">
+        <a href="#download" class="h-[46px] px-7 rounded-full bg-white/10 border border-white/20 backdrop-blur text-white font-bold text-[14px] inline-flex items-center gap-2 hover:bg-white/15 transition">
           <i class="ri-window-line text-[18px]"></i> Windows
         </a>
-        <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="h-[46px] px-6 rounded-full bg-ink text-white font-bold text-[14px] inline-flex items-center gap-2 hover:bg-black transition">
-          <i class="ri-github-line text-[18px]"></i> Star on GitHub
+        <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="h-[46px] px-6 rounded-full bg-white text-ink font-bold text-[14px] inline-flex items-center gap-2 hover:bg-zinc-100 transition">
+          <i class="ri-github-line text-[18px]"></i> Star
         </a>
       </div>
-      <div class="mt-6 flex flex-wrap items-center gap-3 text-[12.5px] font-medium text-muted">
-        <span class="inline-flex items-center gap-1.5"><i class="ri-shield-check-line text-[16px]"></i> Private & offline</span>
-        <span class="w-1 h-1 rounded-full bg-hairline"></span>
-        <span class="inline-flex items-center gap-1.5"><i class="ri-flashlight-line text-[16px]"></i> 15 languages</span>
-        <span class="w-1 h-1 rounded-full bg-hairline"></span>
-        <span class="inline-flex items-center gap-1.5"><i class="ri-scales-3-line text-[16px]"></i> MIT Licensed</span>
-      </div>
-      <div class="mt-4 flex items-center gap-2 text-[12px] font-mono text-placeholder">
-        <span class="px-2 py-1 rounded bg-pill border border-hairline">v1.2.0 • 1.2.0+7</span>
+      <div class="mt-6 flex flex-wrap items-center gap-3 text-[12px] font-mono text-white/50">
+        <span class="px-2.5 py-1 rounded bg-white/10 border border-white/10 backdrop-blur">v1.2.0 • 1.2.0+7</span>
         <span>•</span>
-        <span>Updated Aug 2025</span>
-      </div>
-    </div>
-    <!-- Phone mock -->
-    <div class="relative lg:pl-6">
-      <div class="mx-auto max-w-[360px] lg:max-w-none lg:ml-auto lg:mr-0 relative">
-        <div class="absolute -inset-6 bg-gradient-to-br from-accent/10 via-indigo/10 to-pink-100 rounded-[32px] blur-2xl"></div>
-        <div class="relative bg-card rounded-[28px] border border-hairline shadow-[0_20px_60px_rgba(45,37,32,0.08)] overflow-hidden">
-          <div class="h-[52px] px-5 flex items-center justify-between border-b border-hairline/70 bg-white/60 backdrop-blur">
-            <div class="flex items-center gap-3">
-              <div class="w-7 h-7 rounded-full bg-pill border border-hairline grid place-items-center"><i class="ri-bard-line text-[14px]"></i></div>
-              <div>
-                <div class="text-[13px] font-extrabold leading-none">CubicLM</div>
-                <div class="text-[11px] font-semibold text-success flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-success"></span> LFM2.5 • Local</div>
-              </div>
-            </div>
-            <div class="w-8 h-8 rounded-full bg-pill grid place-items-center"><i class="ri-more-line"></i></div>
-          </div>
-          <div class="p-4 space-y-3 bg-canvas">
-            <div class="bg-white rounded-2xl p-4 border border-hairline shadow-sm">
-              <div class="text-[12px] font-bold text-muted flex items-center gap-1.5"><i class="ri-user-3-line"></i> You</div>
-              <div class="mt-1.5 text-[13.5px] leading-6 font-medium">Explain quantum computing simply</div>
-            </div>
-            <div class="bg-white rounded-2xl p-4 border border-hairline shadow-sm">
-              <div class="text-[12px] font-bold text-indigo flex items-center gap-1.5"><i class="ri-sparkling-line"></i> CubicLM • Local</div>
-              <div class="mt-1.5 text-[13.5px] leading-6">Imagine a coin spinning — it's both heads and tails. <span class="bg-pill px-1.5 py-0.5 rounded font-mono text-[12px]">qubits</span> do that. When you look, it chooses. That lets them explore many answers at once.</div>
-              <div class="mt-3 flex gap-2">
-                <span class="px-2.5 py-1 rounded-full bg-pill border border-hairline text-[11px] font-bold">⚡ 23 tok/s</span>
-                <span class="px-2.5 py-1 rounded-full bg-pill border border-hairline text-[11px] font-bold">◯ 2.1s thought</span>
-              </div>
-            </div>
-          </div>
-          <div class="p-3 bg-white border-t border-hairline">
-            <div class="rounded-2xl border border-hairline bg-card p-2 flex flex-col gap-2">
-              <div class="px-3 py-2 text-[13.5px] text-placeholder font-medium">Message CubicLM…</div>
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-1.5">
-                  <span class="w-7 h-7 rounded-full bg-pill grid place-items-center"><i class="ri-add-line"></i></span>
-                  <span class="px-3 py-1.5 rounded-full bg-pill border border-hairline text-[12px] font-semibold">LFM2.5 230M <i class="ri-arrow-down-s-line"></i></span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <span class="w-7 h-7 rounded-full bg-pill grid place-items-center"><i class="ri-mic-line"></i></span>
-                  <span class="w-7 h-7 rounded-full bg-accent text-white grid place-items-center"><i class="ri-arrow-up-line"></i></span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="absolute -bottom-4 -right-2 lg:-right-4 bg-white border border-hairline rounded-2xl px-3 py-2 shadow-lg flex items-center gap-2 text-[12px] font-bold">
-          <span class="w-7 h-7 rounded-full bg-success/10 text-success grid place-items-center"><i class="ri-lock-2-line"></i></span>
-          100% offline
-        </div>
+        <span>15 languages • MIT</span>
+        <span class="hidden sm:inline-flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> 100% offline</span>
       </div>
     </div>
   </div>
+
+  <!-- Bottom fade to canvas -->
+  <div class="absolute bottom-0 inset-x-0 h-24 bg-gradient-to-t from-canvas to-transparent pointer-events-none z-10"></div>
 </section>
 
-<!-- Trust bar -->
-<section class="max-w-6xl mx-auto px-5 lg:px-8">
-  <div class="rounded-2xl bg-ink text-white px-5 lg:px-7 py-4 flex flex-wrap items-center justify-between gap-4">
-    <div class="text-[13px] font-semibold opacity-90">Trusted by developers & creators • Open source on GitHub</div>
-    <div class="flex items-center gap-3 text-[12px] font-mono">
+<!-- Rest of site on canvas -->
+<div class="bg-canvas">
+<!-- Trust -->
+<section class="max-w-6xl mx-auto px-5 lg:px-8 -mt-6 relative z-20">
+  <div class="rounded-2xl bg-ink text-white px-5 lg:px-7 py-4 flex flex-wrap items-center justify-between gap-4 shadow-xl border border-white/5">
+    <div class="text-[13px] font-semibold opacity-90 flex items-center gap-2"><i class="ri-lock-2-line text-emerald-400"></i> Trusted by developers • Open source on GitHub</div>
+    <div class="flex items-center gap-2 text-[11px] font-mono">
       <span class="px-2.5 py-1 rounded-full bg-white/10 border border-white/10">Android 8+</span>
       <span class="px-2.5 py-1 rounded-full bg-white/10 border border-white/10">Windows 10/11</span>
       <span class="px-2.5 py-1 rounded-full bg-white/10 border border-white/10">arm64 • x64</span>
@@ -167,35 +104,35 @@ tailwind.config = {
   </div>
 </section>
 
-<!-- Features -->
-<section id="features" class="max-w-6xl mx-auto px-5 lg:px-8 pt-14">
+<!-- Features with terminal accents -->
+<section id="features" class="max-w-6xl mx-auto px-5 lg:px-8 pt-12">
   <div class="flex items-end justify-between gap-4 flex-wrap">
     <div>
-      <div class="text-[12px] font-extrabold tracking-widest text-accent uppercase">Why CubicLM</div>
-      <h2 class="text-[26px] lg:text-[32px] font-extrabold tracking-tight leading-none mt-1">Everything you need.<br>Nothing you don't.</h2>
+      <div class="text-[11px] font-mono font-bold tracking-widest text-accent uppercase flex items-center gap-2"><span class="w-6 h-[2px] bg-accent"></span> // why_cubiclm</div>
+      <h2 class="text-[26px] lg:text-[32px] font-extrabold tracking-tight leading-none mt-2">Everything you need.<br>Nothing you don't.</h2>
     </div>
-    <p class="max-w-[420px] text-[14px] leading-6 text-muted">A fast, beautiful chat experience with local reasoning, code execution, web search and a whole ecosystem — without the cloud tax.</p>
+    <p class="max-w-[420px] text-[14px] leading-6 text-muted">A fast, beautiful chat experience with local reasoning, code execution, web search — without the cloud tax.</p>
   </div>
   <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-8">
-    <div class="bg-white rounded-[18px] border border-hairline p-6 shadow-sm">
-      <div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center text-[18px]">🔒</div>
+    <div class="group bg-white rounded-[18px] border border-hairline p-6 shadow-sm hover:shadow-md hover:border-accent/20 transition">
+      <div class="w-10 h-10 rounded-xl bg-ink text-white grid place-items-center group-hover:bg-accent transition"><i class="ri-shield-keyhole-line"></i></div>
       <h3 class="mt-4 font-extrabold text-[15px]">Local-first & private</h3>
       <p class="mt-1.5 text-[13.5px] leading-6 text-muted">Your chats never leave the device in Local mode. No account, no tracking.</p>
     </div>
-    <div class="bg-white rounded-[18px] border border-hairline p-6 shadow-sm">
-      <div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center"><i class="ri-cpu-line"></i></div>
+    <div class="group bg-white rounded-[18px] border border-hairline p-6 shadow-sm hover:shadow-md hover:border-accent/20 transition">
+      <div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center group-hover:bg-ink group-hover:text-white transition"><i class="ri-cpu-line"></i></div>
       <h3 class="mt-4 font-extrabold text-[15px]">Any model, any provider</h3>
-      <p class="mt-1.5 text-[13.5px] leading-6 text-muted">GGUF/LiteRT locally, plus 18 cloud providers (OpenAI, Anthropic, Gemini, Groq…).</p>
+      <p class="mt-1.5 text-[13.5px] leading-6 text-muted">GGUF/LiteRT locally, plus 18 cloud providers (OpenAI, Anthropic, Gemini…).</p>
     </div>
-    <div class="bg-white rounded-[18px] border border-hairline p-6 shadow-sm">
-      <div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center"><i class="ri-image-2-line"></i></div>
+    <div class="group bg-white rounded-[18px] border border-hairline p-6 shadow-sm hover:shadow-md hover:border-accent/20 transition">
+      <div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center group-hover:bg-ink group-hover:text-white transition"><i class="ri-image-2-line"></i></div>
       <h3 class="mt-4 font-extrabold text-[15px]">On-device image gen</h3>
-      <p class="mt-1.5 text-[13.5px] leading-6 text-muted">Stable Diffusion via FFI — generate images offline with Vulkan/OpenCL acceleration.</p>
+      <p class="mt-1.5 text-[13.5px] leading-6 text-muted">Stable Diffusion via FFI — generate images offline with Vulkan/OpenCL.</p>
     </div>
     <div class="bg-white rounded-[18px] border border-hairline p-6 shadow-sm">
       <div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center"><i class="ri-code-s-slash-line"></i></div>
       <h3 class="mt-4 font-extrabold text-[15px]">Code & tools</h3>
-      <p class="mt-1.5 text-[13.5px] leading-6 text-muted">Syntax-highlighted code blocks, file attachments, and a sandboxed code runner.</p>
+      <p class="mt-1.5 text-[13.5px] leading-6 text-muted">Syntax-highlighted code blocks, file attachments, sandboxed runner.</p>
     </div>
     <div class="bg-white rounded-[18px] border border-hairline p-6 shadow-sm">
       <div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center"><i class="ri-global-line"></i></div>
@@ -205,110 +142,112 @@ tailwind.config = {
     <div class="bg-white rounded-[18px] border border-hairline p-6 shadow-sm">
       <div class="w-10 h-10 rounded-xl bg-pill border border-hairline grid place-items-center"><i class="ri-puzzle-2-line"></i></div>
       <h3 class="mt-4 font-extrabold text-[15px]">Skills & MCP</h3>
-      <p class="mt-1.5 text-[13.5px] leading-6 text-muted">Extend CubicLM with skills and Model Context Protocol tools — your own ecosystem.</p>
+      <p class="mt-1.5 text-[13.5px] leading-6 text-muted">Extend with skills and Model Context Protocol tools.</p>
     </div>
   </div>
 </section>
 
-<!-- How it works -->
-<section id="how" class="max-w-6xl mx-auto px-5 lg:px-8 pt-14">
-  <div class="bg-white rounded-[22px] border border-hairline p-6 lg:p-8 shadow-sm">
-    <h3 class="font-extrabold text-[18px]">How it works</h3>
-    <div class="grid md:grid-cols-3 gap-6 mt-6">
-      <div class="flex gap-4">
-        <div class="w-9 h-9 rounded-full bg-ink text-white grid place-items-center font-extrabold text-[13px] shrink-0">1</div>
-        <div><div class="font-bold text-[13.5px]">Install</div><div class="text-[13.5px] leading-6 text-muted mt-1">Get the APK or Windows build. No account needed.</div></div>
-      </div>
-      <div class="flex gap-4">
-        <div class="w-9 h-9 rounded-full bg-ink text-white grid place-items-center font-extrabold text-[13px] shrink-0">2</div>
-        <div><div class="font-bold text-[13.5px]">Pick a model</div><div class="text-[13.5px] leading-6 text-muted mt-1">Download a GGUF from the Model Hub or connect any cloud API.</div></div>
-      </div>
-      <div class="flex gap-4">
-        <div class="w-9 h-9 rounded-full bg-accent text-white grid place-items-center font-extrabold text-[13px] shrink-0">3</div>
-        <div><div class="font-bold text-[13.5px]">Chat & create</div><div class="text-[13.5px] leading-6 text-muted mt-1">Talk, code, and generate images — fully offline if you want.</div></div>
+<!-- How -->
+<section id="how" class="max-w-6xl mx-auto px-5 lg:px-8 pt-12">
+  <div class="bg-ink rounded-[22px] p-6 lg:p-8 relative overflow-hidden">
+    <div class="absolute inset-0 opacity-20" style="background:radial-gradient(600px circle at 0% 0%, #D97757 0%, transparent 50%), radial-gradient(800px circle at 100% 100%, #6D5FE8 0%, transparent 50%)"></div>
+    <div class="relative">
+      <div class="text-[11px] font-mono font-bold tracking-widest text-white/50 uppercase">// how_it_works.sh</div>
+      <h3 class="font-extrabold text-[18px] text-white mt-1">Three commands to local intelligence</h3>
+      <div class="grid md:grid-cols-3 gap-6 mt-6">
+        <div class="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-5">
+          <div class="w-9 h-9 rounded-full bg-white text-ink grid place-items-center font-extrabold text-[13px]">1</div>
+          <div class="font-bold text-[13.5px] text-white mt-3">Install</div><div class="text-[13.5px] leading-6 text-white/60 mt-1">Get the APK or Windows build. No account needed.</div>
+        </div>
+        <div class="bg-white/5 backdrop-blur border border-white/10 rounded-2xl p-5">
+          <div class="w-9 h-9 rounded-full bg-white text-ink grid place-items-center font-extrabold text-[13px]">2</div>
+          <div class="font-bold text-[13.5px] text-white mt-3">Pick a model</div><div class="text-[13.5px] leading-6 text-white/60 mt-1">Download a GGUF from the Hub or connect any cloud API.</div>
+        </div>
+        <div class="bg-accent rounded-2xl p-5">
+          <div class="w-9 h-9 rounded-full bg-white text-accent grid place-items-center font-extrabold text-[13px]">3</div>
+          <div class="font-bold text-[13.5px] text-white mt-3">Chat & create</div><div class="text-[13.5px] leading-6 text-white/90 mt-1">Talk, code, and generate images — fully offline.</div>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
 <!-- Download -->
-<section id="download" class="max-w-6xl mx-auto px-5 lg:px-8 pt-14 pb-6">
+<section id="download" class="max-w-6xl mx-auto px-5 lg:px-8 pt-12 pb-6">
   <div class="text-center max-w-2xl mx-auto">
-    <h2 class="text-[26px] lg:text-[32px] font-extrabold tracking-tight">Download CubicLM</h2>
-    <p class="mt-2 text-[14px] leading-6 text-muted">One tap to install. All builds are signed, open source, and free. Pick your platform below.</p>
-    <div class="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-hairline text-[12px] font-mono text-muted">
-      <span class="w-2 h-2 rounded-full bg-success"></span> v1.2.0 • 1.2.0+7 • Checksums included
-    </div>
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ink text-white text-[11px] font-mono font-bold tracking-wide"><span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> v1.2.0 • 1.2.0+7</div>
+    <h2 class="text-[26px] lg:text-[32px] font-extrabold tracking-tight mt-3">Download CubicLM</h2>
+    <p class="mt-2 text-[14px] leading-6 text-muted">One tap to install. All builds are signed, open source, and free.</p>
   </div>
-
   <div class="grid lg:grid-cols-2 gap-5 mt-8">
-    <!-- Android -->
-    <div class="bg-ink text-white rounded-[22px] p-6 lg:p-7 relative overflow-hidden">
+    <div class="bg-ink text-white rounded-[22px] p-6 lg:p-7 relative overflow-hidden border border-white/5">
       <div class="absolute -top-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-2xl"></div>
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-3 relative">
         <div class="w-11 h-11 rounded-xl bg-white/10 border border-white/10 grid place-items-center text-[20px]"><i class="ri-android-line"></i></div>
-        <div>
-          <div class="font-extrabold text-[18px] leading-none">Android</div>
-          <div class="text-[12.5px] font-medium text-white/70">Android 8+ • arm64, armv7, x64</div>
-        </div>
-        <span class="ml-auto hidden sm:inline-flex px-2.5 py-1 rounded-full bg-white text-ink text-[11px] font-extrabold tracking-wide">RECOMMENDED</span>
+        <div><div class="font-extrabold text-[18px] leading-none">Android</div><div class="text-[12.5px] font-medium text-white/60">Android 8+ • arm64, armv7, x64</div></div>
+        <span class="ml-auto hidden sm:inline-flex px-2.5 py-1 rounded-full bg-white text-ink text-[11px] font-extrabold">RECOMMENDED</span>
       </div>
-      <div class="mt-6 grid gap-2.5">
-        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-arm64-v8a.apk" class="h-[48px] rounded-full bg-white text-ink font-extrabold text-[14px] inline-flex items-center justify-center gap-2 hover:bg-zinc-100 transition">
-          <i class="ri-download-2-line text-[18px]"></i> Download arm64-v8a <span class="font-mono font-bold text-[11px] bg-ink text-white px-2 py-0.5 rounded-full">75 MB</span>
-        </a>
+      <div class="mt-6 grid gap-2.5 relative">
+        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-arm64-v8a.apk" class="h-[48px] rounded-full bg-white text-ink font-extrabold text-[14px] inline-flex items-center justify-center gap-2 hover:bg-zinc-100 transition"> <i class="ri-download-2-line text-[18px]"></i> Download arm64-v8a <span class="font-mono font-bold text-[11px] bg-ink text-white px-2 py-0.5 rounded-full">75 MB</span></a>
         <div class="grid grid-cols-2 gap-2.5">
-          <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-armeabi-v7a.apk" class="h-11 rounded-full bg-white/10 border border-white/20 font-bold text-[13px] inline-flex items-center justify-center gap-1.5 hover:bg-white/15 transition">armeabi-v7a <span class="text-[11px] opacity-70">30 MB</span></a>
-          <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-x86_64.apk" class="h-11 rounded-full bg-white/10 border border-white/20 font-bold text-[13px] inline-flex items-center justify-center gap-1.5 hover:bg-white/15 transition">x86_64 <span class="text-[11px] opacity-70">41 MB</span></a>
+          <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-armeabi-v7a.apk" class="h-11 rounded-full bg-white/10 border border-white/20 font-bold text-[13px] inline-flex items-center justify-center gap-1.5 hover:bg-white/15 transition">armeabi <span class="text-[11px] opacity-60">30 MB</span></a>
+          <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-x86_64.apk" class="h-11 rounded-full bg-white/10 border border-white/20 font-bold text-[13px] inline-flex items-center justify-center gap-1.5 hover:bg-white/15 transition">x86_64 <span class="text-[11px] opacity-60">41 MB</span></a>
         </div>
-        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/checksums.sha256" class="text-center text-[12px] font-mono text-white/60 hover:text-white transition">View checksums (SHA256) →</a>
+        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/checksums.sha256" class="text-center text-[12px] font-mono text-white/50 hover:text-white transition">View checksums (SHA256) →</a>
       </div>
     </div>
-    <!-- Windows -->
     <div class="bg-white rounded-[22px] border border-hairline p-6 lg:p-7 shadow-sm">
       <div class="flex items-center gap-3">
         <div class="w-11 h-11 rounded-xl bg-pill border border-hairline grid place-items-center text-[20px]"><i class="ri-window-line"></i></div>
-        <div>
-          <div class="font-extrabold text-[18px] leading-none">Windows</div>
-          <div class="text-[12.5px] font-medium text-muted">Windows 10/11 • x64</div>
-        </div>
+        <div><div class="font-extrabold text-[18px] leading-none">Windows</div><div class="text-[12.5px] font-medium text-muted">Windows 10/11 • x64</div></div>
       </div>
       <div class="mt-6 grid gap-2.5">
-        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-windows-x64.zip" class="h-[48px] rounded-full bg-ink text-white font-extrabold text-[14px] inline-flex items-center justify-center gap-2 hover:bg-black transition">
-          <i class="ri-download-2-line text-[18px]"></i> Download Windows (x64) <span class="font-mono font-bold text-[11px] bg-white text-ink px-2 py-0.5 rounded-full">16 MB</span>
-        </a>
-        <div class="rounded-xl bg-pill border border-hairline p-3 text-[12.5px] leading-5 text-muted">
-          <div class="font-bold text-ink flex items-center gap-1.5"><i class="ri-information-line"></i> First run</div>
-          Unzip and run <span class="font-mono bg-white px-1.5 py-0.5 rounded border border-hairline">CubicLM.exe</span>. No installer needed.
-        </div>
+        <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-windows-x64.zip" class="h-[48px] rounded-full bg-ink text-white font-extrabold text-[14px] inline-flex items-center justify-center gap-2 hover:bg-black transition"><i class="ri-download-2-line text-[18px]"></i> Download Windows (x64) <span class="font-mono font-bold text-[11px] bg-white text-ink px-2 py-0.5 rounded-full">16 MB</span></a>
+        <div class="rounded-xl bg-pill border border-hairline p-3 text-[12.5px] leading-5 text-muted"><div class="font-bold text-ink flex items-center gap-1.5"><i class="ri-information-line"></i> First run</div>Unzip and run <span class="font-mono bg-white px-1.5 py-0.5 rounded border border-hairline">CubicLM.exe</span>. No installer.</div>
       </div>
     </div>
   </div>
-
   <div class="mt-5 flex flex-wrap items-center justify-center gap-3 text-[13px]">
     <a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank" class="h-9 px-5 rounded-full bg-white border border-hairline font-bold inline-flex items-center gap-1.5 hover:bg-pill transition">All releases <i class="ri-external-link-line"></i></a>
     <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="h-9 px-5 rounded-full bg-ink text-white font-bold inline-flex items-center gap-1.5 hover:bg-black transition"><i class="ri-github-line"></i> View source</a>
   </div>
 </section>
+</div>
 
-<!-- Footer -->
-<footer class="mt-8 border-t border-hairline bg-white/60">
+<footer class="bg-ink text-white border-t border-white/5">
   <div class="max-w-6xl mx-auto px-5 lg:px-8 py-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-    <div>
-      <div class="flex items-center gap-2 font-extrabold"><span class="w-7 h-7 rounded-lg bg-ink text-white grid place-items-center text-[13px]">C</span> CubicLM</div>
-      <div class="mt-1 text-[12.5px] leading-5 text-muted max-w-[520px]">Private, offline AI for Android & Windows. Built with Flutter, llama.cpp and Stable Diffusion. Open source under MIT.</div>
-    </div>
-    <div class="flex flex-wrap gap-6 text-[13px] font-semibold text-muted">
-      <a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="hover:text-ink">GitHub</a>
-      <a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank" class="hover:text-ink">Releases</a>
-      <a href="https://github.com/abir2afridi/CubicLM/issues" target="_blank" class="hover:text-ink">Issues</a>
-      <a href="https://github.com/abir2afridi/CubicLM/blob/main/LICENSE" target="_blank" class="hover:text-ink">License</a>
-    </div>
+    <div><div class="flex items-center gap-2 font-extrabold"><span class="w-7 h-7 rounded-lg bg-white text-ink grid place-items-center text-[13px]">C</span> CubicLM</div><div class="mt-1 text-[12.5px] leading-5 text-white/60 max-w-[520px]">Private, offline AI for Android & Windows. Built with Flutter, llama.cpp and Stable Diffusion. Open source under MIT.</div></div>
+    <div class="flex flex-wrap gap-6 text-[13px] font-semibold text-white/60"><a href="https://github.com/abir2afridi/CubicLM" target="_blank" class="hover:text-white">GitHub</a><a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank" class="hover:text-white">Releases</a><a href="https://github.com/abir2afridi/CubicLM/issues" target="_blank" class="hover:text-white">Issues</a><a href="https://github.com/abir2afridi/CubicLM/blob/main/LICENSE" target="_blank" class="hover:text-white">License</a></div>
   </div>
-  <div class="max-w-6xl mx-auto px-5 lg:px-8 pb-6 text-[11px] font-mono text-placeholder text-center">
-    © 2025 CubicLM • Crafted for local intelligence • <a href="https://github.com/abir2afridi/CubicLM" class="underline hover:text-ink">github.com/abir2afridi/CubicLM</a>
-  </div>
+  <div class="max-w-6xl mx-auto px-5 lg:px-8 pb-6 text-[11px] font-mono text-white/30 text-center">© 2025 CubicLM • Crafted for local intelligence • github.com/abir2afridi/CubicLM</div>
 </footer>
+
+<script type="module">
+import { Renderer, Program, Mesh, Color, Triangle } from 'https://cdn.jsdelivr.net/npm/ogl@1.0.11/+esm';
+const vertex = `attribute vec2 position;attribute vec2 uv;varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position,0.0,1.0);}`;
+const fragment = `precision mediump float;varying vec2 vUv;uniform float iTime;uniform vec3 iResolution;uniform float uScale;uniform vec2 uGridMul;uniform float uDigitSize;uniform float uScanlineIntensity;uniform float uGlitchAmount;uniform float uFlickerAmount;uniform float uNoiseAmp;uniform float uCurvature;uniform vec3 uTint;uniform vec2 uMouse;uniform float uMouseStrength;uniform float uUseMouse;uniform float uPageLoadProgress;uniform float uUsePageLoadAnimation;uniform float uBrightness;float time;float hash21(vec2 p){p=fract(p*234.56);p+=dot(p,p+34.56);return fract(p.x*p.y);}float noise(vec2 p){return sin(p.x*10.0)*sin(p.y*(3.0+sin(time*0.090909)))+0.2;}mat2 rotate(float a){float c=cos(a);float s=sin(a);return mat2(c,-s,s,c);}float fbm(vec2 p){p*=1.1;float f=0.0;float amp=0.5*uNoiseAmp;mat2 m0=rotate(time*0.02);f+=amp*noise(p);p=m0*p*2.0;amp*=0.454545;mat2 m1=rotate(time*0.02);f+=amp*noise(p);p=m1*p*2.0;amp*=0.454545;mat2 m2=rotate(time*0.08);f+=amp*noise(p);return f;}float pattern(vec2 p,out vec2 q,out vec2 r){vec2 o1=vec2(1.0);vec2 o0=vec2(0.0);mat2 r01=rotate(0.1*time);mat2 r1=rotate(0.1);q=vec2(fbm(p+o1),fbm(r01*p+o1));r=vec2(fbm(r1*q+o0),fbm(q+o0));return fbm(p+r);}float digit(vec2 p){vec2 grid=uGridMul*15.0;vec2 s=floor(p*grid)/grid;p=p*grid;vec2 q,r;float intensity=pattern(s*0.1,q,r)*1.3-0.03;if(uUseMouse>0.5){vec2 mw=uMouse*uScale;float d=distance(s,mw);float mi=exp(-d*8.0)*uMouseStrength*10.0;intensity+=mi;float ripple=sin(d*20.0-iTime*5.0)*0.1*mi;intensity+=ripple;}if(uUsePageLoadAnimation>0.5){float cr=fract(sin(dot(s,vec2(12.9898,78.233)))*43758.5453);float cd=cr*0.8;float cp=clamp((uPageLoadProgress-cd)/0.2,0.0,1.0);intensity*=smoothstep(0.0,1.0,cp);}p=fract(p);p*=uDigitSize;float px5=p.x*5.0;float py5=(1.0-p.y)*5.0;float x=fract(px5);float y=fract(py5);float i=floor(py5)-2.0;float j=floor(px5)-2.0;float n=i*i+j*j;float f=n*0.0625;float isOn=step(0.1,intensity-f);float b=isOn*(0.2+y*0.8)*(0.75+x*0.25);return step(0.0,p.x)*step(p.x,1.0)*step(0.0,p.y)*step(p.y,1.0)*b;}float onOff(float a,float b,float c){return step(c,sin(iTime+a*cos(iTime*b)))*uFlickerAmount;}float displace(vec2 l){float y=l.y-mod(iTime*0.25,1.0);float w=1.0/(1.0+50.0*y*y);return sin(l.y*20.0+iTime)*0.0125*onOff(4.0,2.0,0.8)*(1.0+cos(iTime*60.0))*w;}vec3 getColor(vec2 p){float bar=step(mod(p.y+time*20.0,1.0),0.2)*0.4+1.0;bar*=uScanlineIntensity;float d=displace(p);p.x+=d;if(uGlitchAmount!=1.0){float e=d*(uGlitchAmount-1.0);p.x+=e;}float m=digit(p);const float off=0.002;float s=digit(p+vec2(-off,-off))+digit(p+vec2(0.0,-off))+digit(p+vec2(off,-off))+digit(p+vec2(-off,0.0))+digit(p+vec2(0.0,0.0))+digit(p+vec2(off,0.0))+digit(p+vec2(-off,off))+digit(p+vec2(0.0,off))+digit(p+vec2(off,off));vec3 bc=vec3(0.9)*m+s*0.1*vec3(1.0)*bar;return bc;}vec2 barrel(vec2 uv){vec2 c=uv*2.0-1.0;float r2=dot(c,c);c*=1.0+uCurvature*r2;return c*0.5+0.5;}void main(){time=iTime*0.333333;vec2 uv=vUv;if(uCurvature!=0.0){uv=barrel(uv);}vec2 p=uv*uScale;vec3 col=getColor(p);col*=uTint;col*=uBrightness;if(uLightMode>0.5){float e=max(max(col.r,col.g),col.b);float cov=clamp(smoothstep(0.0,0.72,e)*0.9,0.0,0.9);vec3 ink=clamp(col*0.42,0.0,0.76);col=mix(vec3(1.0),ink,cov);}gl_FragColor=vec4(col,1.0);}`;
+function hexToRgb(h){let x=h.replace('#','').trim();if(x.length===3)x=x.split('').map(c=>c+c).join('');const n=parseInt(x.slice(0,6),16);return[(n>>16&255)/255,(n>>8&255)/255,(n&255)/255];}
+const ctn=document.getElementById('faulty-terminal');
+if(ctn){
+  const renderer=new Renderer({dpr:Math.min(window.devicePixelRatio||1,1.5)});
+  const gl=renderer.gl; gl.clearColor(0,0,0,1);
+  const geometry=new Triangle(gl);
+  const tint=hexToRgb('#D97757');
+  const program=new Program(gl,{vertex,fragment,uniforms:{
+    iTime:{value:0}, iResolution:{value:new Color(gl.canvas.width,gl.canvas.height,gl.canvas.width/gl.canvas.height)},
+    uScale:{value:1.15}, uGridMul:{value:new Float32Array([2,1])}, uDigitSize:{value:1.5}, uScanlineIntensity:{value:0.25},
+    uGlitchAmount:{value:1}, uFlickerAmount:{value:0.9}, uNoiseAmp:{value:0.9}, uChromaticAberration:{value:0},
+    uDither:{value:0}, uCurvature:{value:0.18}, uTint:{value:new Color(tint[0]*0.9,tint[1]*0.6,tint[2]*0.45)},
+    uMouse:{value:new Float32Array([0.5,0.5])}, uMouseStrength:{value:0.18}, uUseMouse:{value:1},
+    uPageLoadProgress:{value:0}, uUsePageLoadAnimation:{value:1}, uBrightness:{value:1.05}, uLightMode:{value:0}
+  }});
+  const mesh=new Mesh(gl,{geometry,program});
+  let mouse={x:0.5,y:0.5}, smooth={x:0.5,y:0.5}, raf=0, t0=0, start=0; const ro=new ResizeObserver(()=>{renderer.setSize(ctn.offsetWidth,ctn.offsetHeight); program.uniforms.iResolution.value=new Color(gl.canvas.width,gl.canvas.height,gl.canvas.width/gl.canvas.height);}); ro.observe(ctn); renderer.setSize(ctn.offsetWidth,ctn.offsetHeight);
+  ctn.appendChild(gl.canvas);
+  ctn.addEventListener('mousemove',e=>{const r=ctn.getBoundingClientRect(); mouse.x=(e.clientX-r.left)/r.width; mouse.y=1-(e.clientY-r.top)/r.height;});
+  const upd=t=>{raf=requestAnimationFrame(upd); if(!start) start=t; const elapsed=(t*0.001+Math.random()*0.01)*0.3; program.uniforms.iTime.value=elapsed; const prog=Math.min((t-start)/2000,1); program.uniforms.uPageLoadProgress.value=prog; const d=0.08; smooth.x+=(mouse.x-smooth.x)*d; smooth.y+=(mouse.y-smooth.y)*d; program.uniforms.uMouse.value[0]=smooth.x; program.uniforms.uMouse.value[1]=smooth.y; renderer.render({scene:mesh});}; raf=requestAnimationFrame(upd);
+}
+</script>
 </body>
 </html>
 
