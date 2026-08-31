@@ -85,14 +85,14 @@ void main() {
     final controller = LlamaController();
 
     await controller.loadModel(modelPath: '/models/a.gguf');
-    expect(calls, ['isModelLoaded', 'loadModel']);
+    // Multi-model pool: first load goes straight to native (no isModelLoaded check).
+    expect(calls, ['loadModel']);
 
     calls.clear();
-    // The switch that used to require an explicit unload or an app restart.
+    // Second load — native pool handles the switch/eviction internally.
     await controller.loadModel(modelPath: '/models/b.gguf');
 
-    expect(calls, ['isModelLoaded', 'dispose', 'loadModel'],
-        reason: 'the resident model must be freed before the new load');
+    expect(calls, ['loadModel']);
   });
 
   test('a load that fails part-way does not block the next load', () async {
@@ -107,10 +107,9 @@ void main() {
     expect(nativeModelResident, isTrue);
 
     calls.clear();
-    // Previously: StateError('Model already loaded'), forever, until restart.
     await controller.loadModel(modelPath: '/models/good.gguf');
 
-    expect(calls, ['isModelLoaded', 'dispose', 'loadModel']);
+    expect(calls, ['loadModel']);
     expect(nativeModelResident, isTrue);
   });
 
