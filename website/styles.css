@@ -182,45 +182,32 @@ a{color:inherit;text-decoration:none}
   .footer-copy{text-align:left}
 }
 
-/* ── THEME TOGGLE ── */
-.theme-toggle{width:40px;height:40px;border-radius:50%;border:2px solid var(--white);background:transparent;color:var(--white);cursor:pointer;display:grid;place-items:center;font-size:16px;transition:background .2s,color .2s;flex-shrink:0}
-.theme-toggle:hover{background:var(--white);color:var(--black)}
-[data-theme="light"] body{background:var(--offwhite);color:var(--black)}
-[data-theme="light"] .nav-logo{color:var(--black)}
-[data-theme="light"] .nav-pill a{color:var(--black)}
-[data-theme="light"] .nav-pill a:hover{background:var(--black);color:var(--white)}
-[data-theme="light"] .nav-social a{border-color:var(--black);color:var(--black)}
-[data-theme="light"] .nav-social a:hover{background:var(--black);color:var(--white)}
-[data-theme="light"] .theme-toggle{border-color:var(--black);color:var(--black)}
-[data-theme="light"] .theme-toggle:hover{background:var(--black);color:var(--white)}
+/* ── LUCIDE ANIMATED ICONS ── */
+.lucide{display:inline-block;vertical-align:middle;transition:transform .3s cubic-bezier(.16,1,.3,1)}
 
-[data-theme="light"] .download{background:var(--offwhite);color:var(--black)}
-[data-theme="light"] .download-card{border-color:rgba(0,0,0,.15);color:var(--black)}
-[data-theme="light"] .download-card:hover{background:rgba(0,0,0,.03)}
-[data-theme="light"] .download-card-arrow{color:var(--black)}
-[data-theme="light"] .about-detail{background:var(--offwhite);color:var(--black)}
-[data-theme="light"] .about-card{border-color:rgba(0,0,0,.1)}
-[data-theme="light"] .about-card:hover{background:rgba(0,0,0,.03)}
-[data-theme="light"] .about-card-text{color:rgba(0,0,0,.55)}
-[data-theme="light"] .about-stat-label{color:rgba(0,0,0,.5)}
-[data-theme="light"] .features-detail{background:var(--offwhite);color:var(--black)}
-[data-theme="light"] .feature-card{border-color:rgba(0,0,0,.1)}
-[data-theme="light"] .feature-card:hover{background:rgba(0,0,0,.03)}
-[data-theme="light"] .feature-card-text{color:rgba(0,0,0,.55)}
-[data-theme="light"] .feature-card-tag{border-color:rgba(255,77,0,.3);color:var(--orange)}
-[data-theme="light"] .models{background:var(--offwhite);color:var(--black)}
-[data-theme="light"] .models-tab{border-color:rgba(0,0,0,.2);color:rgba(0,0,0,.6)}
-[data-theme="light"] .models-tab.active,.models-tab:hover{background:var(--orange);border-color:var(--orange);color:var(--black)}
-[data-theme="light"] .models-table thead{border-color:rgba(0,0,0,.15)}
-[data-theme="light"] .models-table th{color:var(--orange)}
-[data-theme="light"] .models-table td{border-color:rgba(0,0,0,.06)}
-[data-theme="light"] .models-table tbody tr:hover{background:rgba(0,0,0,.03)}
-[data-theme="light"] .models-table-group-label{color:rgba(0,0,0,.35)}
-[data-theme="light"] .cloud{background:var(--offwhite);color:var(--black)}
-[data-theme="light"] .cloud-chip{border-color:rgba(0,0,0,.12);color:rgba(0,0,0,.75)}
-[data-theme="light"] .cloud-chip:hover{border-color:var(--orange);color:var(--black);background:rgba(255,77,0,.06)}
-[data-theme="light"] .techstack{background:var(--offwhite);color:var(--black)}
-[data-theme="light"] .techstack-card{border-color:rgba(0,0,0,.1)}
-[data-theme="light"] .techstack-card:hover{background:rgba(0,0,0,.03)}
-[data-theme="light"] .techstack-item{border-color:rgba(0,0,0,.12);color:rgba(0,0,0,.7)}
-/* Footer always light — no theme override needed, it's already light */
+/* Hover pulse on nav social */
+.nav-social a:hover .lucide{animation:icon-pulse .4s ease}
+@keyframes icon-pulse{0%{transform:scale(1)}50%{transform:scale(1.25)}100%{transform:scale(1)}}
+
+/* Service arrows: rotate on hover */
+.service-arrow .lucide{transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.service-item:hover .service-arrow .lucide{transform:rotate(-45deg) scale(1)}
+
+/* Download arrows: slide right on card hover */
+.download-card:hover .download-card-arrow .lucide{transform:translateX(4px)}
+
+/* Feature card icons: subtle float */
+.feature-card:hover .feature-card-icon .lucide{animation:icon-float .6s ease}
+@keyframes icon-float{0%{transform:translateY(0)}50%{transform:translateY(-4px)}100%{transform:translateY(0)}}
+
+/* About card icons: spin-in on hover */
+.about-card:hover .about-card-icon .lucide{animation:icon-spin .5s ease}
+@keyframes icon-spin{0%{transform:rotate(0deg) scale(1)}50%{transform:rotate(180deg) scale(1.1)}100%{transform:rotate(360deg) scale(1)}}
+
+/* Hero scroll arrow: bounce */
+.hero-scroll .lucide{animation:icon-bounce 2s ease-in-out infinite}
+@keyframes icon-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+
+/* Download card icons: scale on card hover */
+.download-card:hover .download-card-icon .lucide{animation:icon-scale .3s ease}
+@keyframes icon-scale{0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}}

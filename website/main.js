@@ -73,23 +73,7 @@
   window.addEventListener('resize',function(){setTimeout(update,0);});
 })();
 
-/* ── Theme Toggle ── */
-(function(){
-  var btn=document.getElementById('theme-toggle');
-  if(!btn)return;
-  var html=document.documentElement;
-  var saved=localStorage.getItem('cubiclm-theme');
-  if(saved){html.setAttribute('data-theme',saved);updateIcon(saved);}
-  btn.addEventListener('click',function(){
-    var current=html.getAttribute('data-theme');
-    var next=current==='light'?'dark':'light';
-    html.setAttribute('data-theme',next);
-    localStorage.setItem('cubiclm-theme',next);
-    updateIcon(next);
-  });
-  function updateIcon(theme){
-    btn.innerHTML=theme==='light'?'<i class="ri-moon-line"></i>':'<i class="ri-sun-line"></i>';
-  }
-})();
+/* ── Initialize Lucide icons ── */
+if(typeof lucide!=='undefined'){lucide.createIcons();}
 
 })();
