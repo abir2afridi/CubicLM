@@ -30,15 +30,16 @@ a{color:inherit;text-decoration:none}
 /* Noise overlay */
 #grain{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;opacity:.12;mix-blend-mode:overlay}
 
-/* ── NAV ── */
-.nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 32px;display:flex;align-items:center;justify-content:space-between}
-.nav-logo{font-family:'Archivo Black',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:-.04em;color:var(--white)}
-.nav-pill{position:absolute;left:50%;transform:translateX(-50%);background:var(--white);border-radius:999px;padding:10px 28px;display:flex;gap:28px}
-.nav-pill a{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:-.02em;color:var(--black);text-transform:uppercase;transition:background .2s,color .2s;padding:4px 12px;border-radius:999px}
-.nav-pill a:hover{background:var(--black);color:var(--white)}
-.nav-social{display:flex;gap:16px}
-.nav-social a{width:40px;height:40px;border:2px solid var(--white);border-radius:50%;display:grid;place-items:center;font-size:16px;color:var(--white);transition:background .2s,color .2s}
-.nav-social a:hover{background:var(--white);color:var(--black)}
+/* ── NAV (Glass Surface) ── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(16px) saturate(1.8) brightness(1.1);-webkit-backdrop-filter:blur(16px) saturate(1.8) brightness(1.1);background:rgba(0,0,0,.35);border-bottom:1px solid rgba(255,255,255,.08);box-shadow:0 4px 30px rgba(0,0,0,.15)}
+.nav-logo{font-family:'Archivo Black',sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:-.04em;color:var(--white);position:relative;z-index:2}
+.nav-pill{position:absolute;left:50%;transform:translateX(-50%);border-radius:999px;padding:10px 28px;display:flex;gap:28px;backdrop-filter:blur(20px) saturate(2) brightness(1.15);-webkit-backdrop-filter:blur(20px) saturate(2) brightness(1.15);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);box-shadow:0 0 2px 1px rgba(255,255,255,.08) inset,0 0 10px 4px rgba(255,255,255,.04) inset,0 8px 32px rgba(0,0,0,.12);transition:background .3s,border-color .3s,box-shadow .3s}
+.nav-pill:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.28);box-shadow:0 0 2px 1px rgba(255,255,255,.12) inset,0 0 10px 4px rgba(255,255,255,.06) inset,0 8px 32px rgba(0,0,0,.18)}
+.nav-pill a{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:-.02em;color:var(--white);text-transform:uppercase;transition:background .2s,color .2s;padding:4px 12px;border-radius:999px;opacity:.7}
+.nav-pill a:hover{background:rgba(255,255,255,.15);color:var(--white);opacity:1}
+.nav-social{display:flex;gap:16px;position:relative;z-index:2}
+.nav-social a{width:40px;height:40px;border:1px solid rgba(255,255,255,.2);border-radius:50%;display:grid;place-items:center;font-size:16px;color:var(--white);transition:background .3s,color .3s,border-color .3s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);background:rgba(255,255,255,.06)}
+.nav-social a:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.35);color:var(--white)}
 
 /* ── HERO (Cinematic Noir) ── */
 .hero{min-height:100vh;min-height:857px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;background:var(--black)}
@@ -204,6 +205,24 @@ a{color:inherit;text-decoration:none}
 <body>
 
 <canvas id="grain"></canvas>
+
+<!-- ════ GLASS SVG FILTER ════ -->
+<svg style="position:absolute;width:0;height:0" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="glass-filter" colorInterpolationFilters="sRGB" x="0%" y="0%" width="100%" height="100%">
+      <feImage id="glass-map" x="0" y="0" width="100%" height="100%" preserveAspectRatio="none" result="map"/>
+      <feDisplacementMap id="glass-red" in="SourceGraphic" in2="map" scale="-180" xChannelSelector="R" yChannelSelector="G" result="dispRed"/>
+      <feColorMatrix in="dispRed" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="red"/>
+      <feDisplacementMap id="glass-green" in="SourceGraphic" in2="map" scale="-170" xChannelSelector="R" yChannelSelector="G" result="dispGreen"/>
+      <feColorMatrix in="dispGreen" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="green"/>
+      <feDisplacementMap id="glass-blue" in="SourceGraphic" in2="map" scale="-160" xChannelSelector="R" yChannelSelector="G" result="dispBlue"/>
+      <feColorMatrix in="dispBlue" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="blue"/>
+      <feBlend in="red" in2="green" mode="screen" result="rg"/>
+      <feBlend in="rg" in2="blue" mode="screen" result="output"/>
+      <feGaussianBlur id="glass-blur" in="output" stdDeviation="0.7"/>
+    </filter>
+  </defs>
+</svg>
 
 <!-- ════ NAV ════ -->
 <nav class="nav">
