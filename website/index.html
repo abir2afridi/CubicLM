@@ -71,8 +71,6 @@
       <a href="#models">Models</a>
       <a href="#providers">Providers</a>
       <a href="#tech">Tech</a>
-      <a href="#changelog">Changelog</a>
-      <a href="#report">Issues</a>
       <a href="https://github.com/abir2afridi/CubicLM" target="_blank">GitHub</a>
     </div>
   </div>
@@ -488,200 +486,100 @@
   </div>
 </section>
 
-<!-- ════ CHANGELOG ════ -->
-<section id="changelog" class="changelog">
-  <div class="changelog-label">What's New</div>
-  <div class="changelog-title">Changelog</div>
-  <div class="changelog-timeline">
-    <div class="changelog-item latest">
-      <div class="changelog-version">v1.2.0<span class="ver-tag">Latest</span></div>
-      <div class="changelog-date">2026-08-28 · build 7</div>
-      <div class="changelog-section-title">Added</div>
-      <ul>
-        <li>15 languages with instant-switch Apple-style picker in App Settings</li>
-        <li>GitHub community infrastructure — issue forms, PR template, CONTRIBUTING, 51 synced labels</li>
-      </ul>
-      <div class="changelog-section-title">Fixed</div>
-      <ul>
-        <li>Android build stability — Gradle JVM heap reduced to prevent cache OOM</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <div class="changelog-version">v1.1.0</div>
-      <div class="changelog-date">2026-08-28 · build 6</div>
-      <div class="changelog-section-title">Added</div>
-      <ul>
-        <li>Windows Desktop production — signed cubiclm.exe (41.1 MB / 16.22 MB zip) ships alongside Android APK</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <div class="changelog-version">v1.0.5</div>
-      <div class="changelog-date">2026-08-28 · build 5</div>
-      <div class="changelog-section-title">Added</div>
-      <ul>
-        <li>Windows Desktop shell + window_manager, cross-platform About, startup auto-load with crash-loop guard</li>
-        <li>Warm native splash (#F8F4ED), smooth splash exit, header & composer sync fixes</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <div class="changelog-version">v1.0.4</div>
-      <div class="changelog-date">2026-08-21</div>
-      <div class="changelog-section-title">Added</div>
-      <ul>
-        <li>Skills + MCP 4-way toggle in Explore, GitHub/URL skill import, notification history, ThinkingOrbs picker</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <div class="changelog-version">v1.0.0</div>
-      <div class="changelog-date">2026-08-01</div>
-      <ul>
-        <li>Initial Android release — local llama.cpp/LiteRT-LM + cloud providers + OpenAI-compatible server</li>
-      </ul>
-    </div>
-  </div>
-  <div class="changelog-more"><a href="https://github.com/abir2afridi/CubicLM/blob/main/CHANGELOG.md" target="_blank">View Full Changelog on GitHub</a></div>
-</section>
-
 <!-- ════ PROJECT STRUCTURE ════ -->
 <section id="structure" class="structure">
-  <div class="structure-label">Under the Hood</div>
+  <div class="structure-label">Codebase</div>
   <div class="structure-title">Project Structure</div>
-  <div class="structure-desc">One product, three shells — the same lib/ codebase ships to Android, Windows, and Web without forks.</div>
-  <div class="structure-grid">
-    <div class="structure-card">
-      <div class="structure-card-icon"><i class="ri-folder-2-line"></i></div>
-      <div class="structure-card-title">lib/</div>
-      <div class="structure-card-desc">Shared application core — 100% reused across all platforms.</div>
-      <div class="structure-card-files">
-        <span>core/</span> — colors, constants, routes, theme, 15-lang translations<br>
-        <span>models/</span> — chat, session, skill, web source, notification<br>
-        <span>controllers/</span> — chat, model, settings, home, server<br>
-        <span>services/</span> — inference, cloud providers, skills, MCP, Hive<br>
-        <span>views/</span> — splash, onboarding, chat, model hub, settings<br>
-        <span>widgets/</span> — chat bubble, code block, thinking orb<br>
-        <span>ffi/</span> — SD native bindings
-      </div>
+  <pre class="structure-tree">
+lib/
+├── main.dart
+├── core/                # Colors, constants, routes, theme, languages, translations
+├── models/              # AI model, chat message, session, skill, notification
+├── controllers/         # Chat, cloud, home, model, server, settings, task
+├── services/            # Cloud providers, inference, download, Hive, skills, MCP, device info, web fetch, etc.
+├── views/               # Splash, onboarding, home, chat, model, settings, about, log, task
+├── widgets/             # Chat bubble, code block, thinking orb, model switcher, etc.
+├── ffi/                 # SD FFI bindings
+├── utils/               # Snackbar, thought parser
+└── shared/              # Platform links, theme tokens
+shared/                  # Root shared (for future shells)
+android/                 # Android native (Kotlin, Gradle)
+windows/                 # Windows Flutter shell
+web/                     # Web shell
+local_plugins/           # llama.cpp, LiteRT-LM, SD Flutter plugins
+scripts/                 # Build scripts
+assets/skills/           # 5 bundled skills
+docs/                    # Architecture, platform differences, build guide
+  </pre>
+</section>
+
+<!-- ════ CHANGELOG ════ -->
+<section id="changelog" class="changelog">
+  <div class="changelog-label">Releases</div>
+  <div class="changelog-title">Changelog</div>
+  <div class="changelog-list">
+    <div class="changelog-item">
+      <h3>v1.2.0+7 <span class="changelog-date">2026-08-28</span></h3>
+      <ul>
+        <li><span class="tag added">Added</span> 15 languages (EN, BN, HI, AR, ZH, ES, FR, JA, KO, PT, DE, TR, ID, RU, UR) with instant switch.</li>
+        <li><span class="tag added">Added</span> GitHub issue forms, PR template, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, SUPPORT, auto-label workflows.</li>
+        <li><span class="tag fixed">Fixed</span> Android build stability (Gradle heap reduced to 3 GB).</li>
+      </ul>
     </div>
-    <div class="structure-card">
-      <div class="structure-card-icon"><i class="ri-smartphone-line"></i></div>
-      <div class="structure-card-title">android/</div>
-      <div class="structure-card-desc">Primary platform — full local inference.</div>
-      <div class="structure-card-files">
-        <span>ModelDownloadService.kt</span> — FGS download, Range resume, START_STICKY<br>
-        <span>MainActivity.kt</span> — Flutter engine + channel wiring<br>
-        <span>Gradle 8.14</span> — AGP 8.11.1, Kotlin 2.2.20, minSdk 28
-      </div>
+    <div class="changelog-item">
+      <h3>v1.1.0+6 <span class="changelog-date">2026-08-28</span></h3>
+      <ul>
+        <li><span class="tag added">Added</span> Windows Desktop production build (signed .exe bundle).</li>
+        <li><span class="tag fixed">Fixed</span> Windows build issues (CMake policy, MSVC warnings, ATL headers).</li>
+        <li><span class="tag known">Known</span> Web build blocked by dart:ffi (tracked for next release).</li>
+      </ul>
     </div>
-    <div class="structure-card">
-      <div class="structure-card-icon"><i class="ri-window-2-line"></i></div>
-      <div class="structure-card-title">windows/ web/</div>
-      <div class="structure-card-desc">Desktop + web shells reusing lib/.</div>
-      <div class="structure-card-files">
-        <span>windows/</span> — CMake runner, window_manager, app icon<br>
-        <span>web/</span> — static shell, Hive IndexedDB, dart:io stubs
-      </div>
+    <div class="changelog-item">
+      <h3>v1.0.5+5 <span class="changelog-date">2026-08-28</span></h3>
+      <ul>
+        <li><span class="tag added">Added</span> Windows Flutter shell, shared platform links, cross-platform About.</li>
+        <li><span class="tag added">Added</span> Startup auto-load last model (optional).</li>
+        <li><span class="tag changed">Changed</span> Warm native splash (#F8F4ED), smoother splash exit, header/composer sync, download resume fixes.</li>
+        <li><span class="tag fixed">Fixed</span> Hive timeouts, chat controller box closure, inference service list, skill registry brace.</li>
+      </ul>
     </div>
-    <div class="structure-card">
-      <div class="structure-card-icon"><i class="ri-plug-2-line"></i></div>
-      <div class="structure-card-title">local_plugins/</div>
-      <div class="structure-card-desc">Custom native inference plugins.</div>
-      <div class="structure-card-files">
-        <span>llama_flutter_android</span> — llama.cpp GGUF inference<br>
-        <span>flutter_litert_lm</span> — Google LiteRT-LM runtime<br>
-        <span>sd_flutter_android</span> — Stable Diffusion 1.5
-      </div>
+    <div class="changelog-item">
+      <h3>v1.0.4 <span class="changelog-date">2026-08-21</span></h3>
+      <ul>
+        <li><span class="tag added">Added</span> Skills + MCP 4-way toggle in Explore, GitHub/URL skill import, MCP remote HTTP/SSE, notification history, web source favicon chips, ThinkingOrbs per-context picker.</li>
+        <li><span class="tag fixed">Fixed</span> Model switcher free filter, serial numbers, header row non-tappable, sticky Explore toggle.</li>
+      </ul>
     </div>
-    <div class="structure-card">
-      <div class="structure-card-icon"><i class="ri-book-open-line"></i></div>
-      <div class="structure-card-title">docs/</div>
-      <div class="structure-card-desc">Architecture and platform docs.</div>
-      <div class="structure-card-files">
-        <span>ARCHITECTURE.md</span> — one product, three shells<br>
-        <span>PLATFORM_DIFFERENCES.md</span> — platform support matrix<br>
-        <span>BUILD_AND_RUN.md</span> — clean clone → all builds<br>
-        <span>PLATFORM_LINKS.md</span> — single-file link editing
-      </div>
+    <div class="changelog-item">
+      <h3>v1.0.0 <span class="changelog-date">2026-08-01</span></h3>
+      <ul>
+        <li><span class="tag added">Added</span> Initial Android release — local llama.cpp/LiteRT-LM + cloud providers + OpenAI-compatible server.</li>
+      </ul>
     </div>
-    <div class="structure-card">
-      <div class="structure-card-icon"><i class="ri-tools-line"></i></div>
-      <div class="structure-card-title">scripts/ assets/</div>
-      <div class="structure-card-desc">Build automation and bundled content.</div>
-      <div class="structure-card-files">
-        <span>build-all.ps1 / .sh</span> — one-command Android+Web+Windows<br>
-        <span>assets/skills/</span> — 5 bundled starter skills
-      </div>
+    <div class="changelog-more">
+      <a href="https://github.com/abir2afridi/CubicLM/blob/main/CHANGELOG.md" target="_blank">Full changelog on GitHub →</a>
     </div>
   </div>
 </section>
 
 <!-- ════ REPORT ISSUE ════ -->
 <section id="report" class="report">
-  <div class="report-label">Community</div>
+  <div class="report-label">Feedback</div>
   <div class="report-title">Report an Issue</div>
-  <div class="report-desc">Spotted a bug or have an idea? Pick an issue type below — it opens a structured GitHub issue form that auto-labels and routes your report to the right place.</div>
-  <div class="report-grid">
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=01-bug-report.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-bug-line"></i></div>
-      <div class="report-chip-text">Bug Report</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=02-feature-request.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-lightbulb-line"></i></div>
-      <div class="report-chip-text">Feature Request</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=03-documentation.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-file-text-line"></i></div>
-      <div class="report-chip-text">Documentation</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=04-performance.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-speed-up-line"></i></div>
-      <div class="report-chip-text">Performance</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=05-ui-ux.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-palette-line"></i></div>
-      <div class="report-chip-text">UI / UX</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=06-security-advisory.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-shield-keyhole-line"></i></div>
-      <div class="report-chip-text">Security Advisory</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=07-accessibility.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-universal-access-line"></i></div>
-      <div class="report-chip-text">Accessibility</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=08-api-issue.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-code-s-slash-line"></i></div>
-      <div class="report-chip-text">API Issue</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=09-mobile-bug.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-smartphone-line"></i></div>
-      <div class="report-chip-text">Mobile Bug</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=10-regression.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-arrow-go-back-line"></i></div>
-      <div class="report-chip-text">Regression</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=12-build-failure.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-hammer-line"></i></div>
-      <div class="report-chip-text">Build Failure</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=13-integration-request.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-links-line"></i></div>
-      <div class="report-chip-text">Integration Request</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=14-translation.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-translate-2"></i></div>
-      <div class="report-chip-text">Translation</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues/new?template=15-question.yml" target="_blank">
-      <div class="report-chip-icon"><i class="ri-question-line"></i></div>
-      <div class="report-chip-text">Question</div>
-    </a>
-    <a class="report-chip" href="https://github.com/abir2afridi/CubicLM/issues" target="_blank">
-      <div class="report-chip-icon"><i class="ri-list-check-2"></i></div>
-      <div class="report-chip-text">Browse All Issues</div>
-    </a>
-  </div>
-  <div class="report-note">Each option opens the matching GitHub issue form — auto-labeled and routed</div>
+  <div class="report-desc">Found a bug or have a suggestion? Help improve CubicLM by reporting it directly on GitHub.</div>
+  <form class="report-form" action="https://github.com/abir2afridi/CubicLM/issues/new" method="GET" target="_blank">
+    <input type="hidden" name="template" value="bug_report.md">
+    <div class="report-field">
+      <label for="issue-title">Title</label>
+      <input type="text" id="issue-title" name="title" placeholder="Brief description of the issue" required>
+    </div>
+    <div class="report-field">
+      <label for="issue-body">Description</label>
+      <textarea id="issue-body" name="body" rows="5" placeholder="Steps to reproduce, expected vs actual behavior, screenshots, device info..." required></textarea>
+    </div>
+    <button type="submit" class="report-btn">Create GitHub Issue</button>
+  </form>
+  <p class="report-note">You'll be redirected to GitHub to complete the issue creation (requires GitHub account).</p>
 </section>
 
 <!-- ════ CTA ════ -->
@@ -701,9 +599,6 @@
       <a href="https://github.com/abir2afridi/CubicLM" target="_blank">GitHub</a>
       <a href="https://github.com/abir2afridi/CubicLM/releases" target="_blank">Releases</a>
       <a href="https://github.com/abir2afridi/CubicLM/blob/main/LICENSE" target="_blank">License</a>
-      <a href="#changelog">Changelog</a>
-      <a href="#report">Report Issue</a>
-      <a href="https://github.com/abir2afridi/CubicLM/issues" target="_blank">Browse Issues</a>
     </div>
     <div class="footer-col">
       <div class="footer-col-title">Contact</div>
