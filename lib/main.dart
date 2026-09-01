@@ -27,6 +27,7 @@ import 'services/image_generation_notification_service.dart';
 import 'services/notification_history_service.dart';
 import 'services/skills/skill_registry_service.dart';
 import 'services/mcp/mcp_registry_service.dart';
+import 'services/tts_service.dart';
 import 'core/constants.dart';
 import 'core/languages.dart';
 import 'core/app_translations.dart';
@@ -192,6 +193,9 @@ void main() {
       Get.put(LocalImageService());
       Get.put(ServerController(), permanent: true);
       Get.put(ModelController());
+      // TTS — GetxService, async init deferred but instance available immediately.
+      Get.put(TtsService());
+      unawaited(Get.find<TtsService>().init().then((_) {}, onError: (_) {}));
     } catch (e, s) {
       appLog.error('Sync service put failed',
           details: '$e\n$s', category: LogCategory.system);

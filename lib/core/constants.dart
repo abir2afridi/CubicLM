@@ -100,6 +100,9 @@ class AppConstants {
   // Language
   static const String keyLanguage = 'app_language';
 
+  // TTS
+  static const String keyReadAloud = 'read_aloud_enabled';
+
   // Onboarding
   static const String keyOnboardingDone = 'onboarding_done_v1';
 

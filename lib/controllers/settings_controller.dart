@@ -133,6 +133,9 @@ class SettingsController extends GetxController {
   // Startup — auto-load last model without asking dialog.
   final autoLoadLastModel = false.obs;
 
+  // TTS — read aloud assistant messages.
+  final readAloudEnabled = true.obs;
+
   // Persistent text controllers for settings fields
   final openaiKeyController = TextEditingController();
   final anthropicKeyController = TextEditingController();
@@ -403,6 +406,10 @@ class SettingsController extends GetxController {
             AppConstants.keyAutoLoadLastModel,
             defaultValue: false) ??
         false;
+    readAloudEnabled.value = _hive.getSetting<bool>(
+            AppConstants.keyReadAloud,
+            defaultValue: true) ??
+        true;
 
     // Sync controllers with loaded values
     openaiKeyController.text = openaiKey.value;
@@ -1416,6 +1423,11 @@ class SettingsController extends GetxController {
   Future<void> setAutoLoadLastModel(bool enabled) async {
     autoLoadLastModel.value = enabled;
     await _hive.setSetting(AppConstants.keyAutoLoadLastModel, enabled);
+  }
+
+  Future<void> setReadAloudEnabled(bool enabled) async {
+    readAloudEnabled.value = enabled;
+    await _hive.setSetting(AppConstants.keyReadAloud, enabled);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

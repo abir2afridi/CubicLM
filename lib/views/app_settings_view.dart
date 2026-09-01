@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import '../services/tts_service.dart';
 import 'about_view.dart';
 import 'language_picker_view.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -94,6 +95,32 @@ class AppSettingsView extends GetView<SettingsController> {
                     slot: 'analysis',
                     selection: controller.orbAnalysisAnim,
                     showDivider: false),
+              ]),
+              const SizedBox(height: 28),
+              _sectionLabel(context, 'READ ALOUD'),
+              _appleGroupedCard(context, isDark, children: [
+                Obx(() => _appleSwitchTile(
+                      context,
+                      isDark,
+                      leading: const Icon(LucideIcons.volume2,
+                          size: 20, color: Dt.accent),
+                      title: 'Read aloud',
+                      subtitle: controller.readAloudEnabled.value
+                          ? 'Tap speaker on assistant messages to hear them'
+                          : 'Text-to-speech is off',
+                      value: controller.readAloudEnabled.value,
+                      onChanged: (v) {
+                        controller.setReadAloudEnabled(v);
+                        // Stop any ongoing speech when turning off (web stub is no-op).
+                        if (!v) {
+                          try {
+                            if (Get.isRegistered<TtsService>()) {
+                              Get.find<TtsService>().stop();
+                            }
+                          } catch (_) {}
+                        }
+                      },
+                    )),
               ]),
               const SizedBox(height: 28),
               _sectionLabel(context, 'settings_startup'.tr),

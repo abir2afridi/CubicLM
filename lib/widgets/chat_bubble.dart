@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:share_plus/share_plus.dart';
@@ -10,6 +12,7 @@ import '../models/web_source.dart';
 import '../utils/thought_parser.dart';
 import '../core/colors.dart';
 import '../theme/design_tokens.dart';
+import '../services/tts_service.dart';
 import 'attachment_preview.dart';
 import 'code_block.dart';
 import 'image_viewer.dart';
@@ -336,7 +339,7 @@ class _ChatBubbleState extends State<ChatBubble> {
               size: iconSize,
             ),
           ] else ...[
-            // Assistant: Copy + Share + Regenerate + Branch
+            // Assistant: Copy + Read aloud + Share + Regenerate + Branch
             _actionButton(
               icon: _copied ? Icons.check_rounded : Icons.copy_rounded,
               tooltip: _copied ? 'Copied!' : 'Copy',
@@ -351,6 +354,7 @@ class _ChatBubbleState extends State<ChatBubble> {
               color: iconColor,
               size: iconSize,
             ),
+            if (!kIsWeb) _buildTtsButton(iconColor, iconSize),
             _actionButton(
               icon: Icons.ios_share_rounded,
               tooltip: 'Share',
@@ -407,6 +411,44 @@ class _ChatBubbleState extends State<ChatBubble> {
     );
   }
 
+  Widget _buildTtsButton(Color iconColor, double iconSize) {
+    // Resolve the speakable text (answer without thinking tags / file footer).
+    String resolveSpeakText() {
+      final visible = widget.message.fileName == null
+          ? widget.message.content
+          : widget.message.content.split('\n\nAttached file:').first;
+      final parts = splitThoughtTags(_cleanAssistantText(visible));
+      final answer = parts.answer.trim();
+      return answer.isEmpty ? widget.message.content : answer;
+    }
+
+    if (kIsWeb) return const SizedBox.shrink();
+    if (!Get.isRegistered<TtsService>()) {
+      return _actionButton(
+        icon: Icons.volume_up_rounded,
+        tooltip: 'Read aloud',
+        onTap: () {
+          if (Get.isRegistered<TtsService>()) {
+            Get.find<TtsService>().speak(resolveSpeakText());
+          }
+        },
+        color: iconColor,
+        size: iconSize,
+      );
+    }
+    return Obx(() {
+      final tts = Get.find<TtsService>();
+      final isSpeaking = tts.isSpeaking.value;
+      return _actionButton(
+        icon: isSpeaking ? Icons.stop_rounded : Icons.volume_up_rounded,
+        tooltip: isSpeaking ? 'Stop' : 'Read aloud',
+        onTap: () => tts.speak(resolveSpeakText()),
+        color: iconColor,
+        size: iconSize,
+      );
+    });
+  }
+
   void _showContextMenu(BuildContext context, bool isUser) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final content = widget.message.content;
@@ -449,6 +491,23 @@ class _ChatBubbleState extends State<ChatBubble> {
                 if (text.isNotEmpty) Share.share(text);
               },
             ),
+            if (!isUser && !kIsWeb)
+              _menuTile(
+                icon: Icons.volume_up_rounded,
+                label: 'Read aloud',
+                isDark: isDark,
+                onTap: () {
+                  Navigator.pop(context);
+                  if (Get.isRegistered<TtsService>()) {
+                    final visible = widget.message.fileName == null
+                        ? widget.message.content
+                        : widget.message.content.split('\n\nAttached file:').first;
+                    final parts = splitThoughtTags(_cleanAssistantText(visible));
+                    final text = parts.answer.trim().isEmpty ? widget.message.content : parts.answer.trim();
+                    Get.find<TtsService>().speak(text);
+                  }
+                },
+              ),
             if (!isUser && widget.onRetry != null)
               _menuTile(
                 icon: Icons.refresh_rounded,

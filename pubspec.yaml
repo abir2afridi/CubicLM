@@ -60,6 +60,7 @@ dependencies:
   gal: ^2.3.2
   syncfusion_flutter_pdf: ^33.2.6
   speech_to_text: ^7.0.0
+  flutter_tts: ^4.2.2
   firebase_crashlytics: ^4.3.10
   package_info_plus: ^9.0.1
   device_info_plus: ^12.4.0
