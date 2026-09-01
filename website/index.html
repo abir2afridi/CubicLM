@@ -513,52 +513,61 @@ docs/                    # Architecture, platform differences, build guide
   </pre>
 </section>
 
-<!-- ════ CHANGELOG ════ -->
+<!-- ════ CHANGELOG (TABBED) ════ -->
 <section id="changelog" class="changelog">
   <div class="changelog-label">Releases</div>
   <div class="changelog-title">Changelog</div>
-  <div class="changelog-list">
-    <div class="changelog-item">
-      <h3>v1.2.0+7 <span class="changelog-date">2026-08-28</span></h3>
-      <ul>
-        <li><span class="tag added">Added</span> 15 languages (EN, BN, HI, AR, ZH, ES, FR, JA, KO, PT, DE, TR, ID, RU, UR) with instant switch.</li>
-        <li><span class="tag added">Added</span> GitHub issue forms, PR template, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, SUPPORT, auto-label workflows.</li>
-        <li><span class="tag fixed">Fixed</span> Android build stability (Gradle heap reduced to 3 GB).</li>
-      </ul>
+  <div class="changelog-box">
+    <div class="changelog-tabs" id="changelog-tabs">
+      <button class="changelog-tab active" data-version="v1.2.0+7">v1.2.0+7 <span class="tab-date">2026-08-28</span></button>
+      <button class="changelog-tab" data-version="v1.1.0+6">v1.1.0+6 <span class="tab-date">2026-08-28</span></button>
+      <button class="changelog-tab" data-version="v1.0.5+5">v1.0.5+5 <span class="tab-date">2026-08-28</span></button>
+      <button class="changelog-tab" data-version="v1.0.4">v1.0.4 <span class="tab-date">2026-08-21</span></button>
+      <button class="changelog-tab" data-version="v1.0.0">v1.0.0 <span class="tab-date">2026-08-01</span></button>
     </div>
-    <div class="changelog-item">
-      <h3>v1.1.0+6 <span class="changelog-date">2026-08-28</span></h3>
-      <ul>
-        <li><span class="tag added">Added</span> Windows Desktop production build (signed .exe bundle).</li>
-        <li><span class="tag fixed">Fixed</span> Windows build issues (CMake policy, MSVC warnings, ATL headers).</li>
-        <li><span class="tag known">Known</span> Web build blocked by dart:ffi (tracked for next release).</li>
-      </ul>
+    <div class="changelog-panel">
+      <div class="changelog-detail" id="changelog-v1.2.0+7">
+        <h3>v1.2.0+7 <span class="changelog-date">2026-08-28</span></h3>
+        <ul>
+          <li><span class="tag added">Added</span> 15 languages (EN, BN, HI, AR, ZH, ES, FR, JA, KO, PT, DE, TR, ID, RU, UR) with instant switch.</li>
+          <li><span class="tag added">Added</span> GitHub issue forms, PR template, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, SUPPORT, auto-label workflows.</li>
+          <li><span class="tag fixed">Fixed</span> Android build stability (Gradle heap reduced to 3 GB).</li>
+        </ul>
+      </div>
+      <div class="changelog-detail" id="changelog-v1.1.0+6" style="display:none">
+        <h3>v1.1.0+6 <span class="changelog-date">2026-08-28</span></h3>
+        <ul>
+          <li><span class="tag added">Added</span> Windows Desktop production build (signed .exe bundle).</li>
+          <li><span class="tag fixed">Fixed</span> Windows build issues (CMake policy, MSVC warnings, ATL headers).</li>
+          <li><span class="tag known">Known</span> Web build blocked by dart:ffi (tracked for next release).</li>
+        </ul>
+      </div>
+      <div class="changelog-detail" id="changelog-v1.0.5+5" style="display:none">
+        <h3>v1.0.5+5 <span class="changelog-date">2026-08-28</span></h3>
+        <ul>
+          <li><span class="tag added">Added</span> Windows Flutter shell, shared platform links, cross-platform About.</li>
+          <li><span class="tag added">Added</span> Startup auto-load last model (optional).</li>
+          <li><span class="tag changed">Changed</span> Warm native splash (#F8F4ED), smoother splash exit, header/composer sync, download resume fixes.</li>
+          <li><span class="tag fixed">Fixed</span> Hive timeouts, chat controller box closure, inference service list, skill registry brace.</li>
+        </ul>
+      </div>
+      <div class="changelog-detail" id="changelog-v1.0.4" style="display:none">
+        <h3>v1.0.4 <span class="changelog-date">2026-08-21</span></h3>
+        <ul>
+          <li><span class="tag added">Added</span> Skills + MCP 4-way toggle in Explore, GitHub/URL skill import, MCP remote HTTP/SSE, notification history, web source favicon chips, ThinkingOrbs per-context picker.</li>
+          <li><span class="tag fixed">Fixed</span> Model switcher free filter, serial numbers, header row non-tappable, sticky Explore toggle.</li>
+        </ul>
+      </div>
+      <div class="changelog-detail" id="changelog-v1.0.0" style="display:none">
+        <h3>v1.0.0 <span class="changelog-date">2026-08-01</span></h3>
+        <ul>
+          <li><span class="tag added">Added</span> Initial Android release — local llama.cpp/LiteRT-LM + cloud providers + OpenAI-compatible server.</li>
+        </ul>
+      </div>
     </div>
-    <div class="changelog-item">
-      <h3>v1.0.5+5 <span class="changelog-date">2026-08-28</span></h3>
-      <ul>
-        <li><span class="tag added">Added</span> Windows Flutter shell, shared platform links, cross-platform About.</li>
-        <li><span class="tag added">Added</span> Startup auto-load last model (optional).</li>
-        <li><span class="tag changed">Changed</span> Warm native splash (#F8F4ED), smoother splash exit, header/composer sync, download resume fixes.</li>
-        <li><span class="tag fixed">Fixed</span> Hive timeouts, chat controller box closure, inference service list, skill registry brace.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <h3>v1.0.4 <span class="changelog-date">2026-08-21</span></h3>
-      <ul>
-        <li><span class="tag added">Added</span> Skills + MCP 4-way toggle in Explore, GitHub/URL skill import, MCP remote HTTP/SSE, notification history, web source favicon chips, ThinkingOrbs per-context picker.</li>
-        <li><span class="tag fixed">Fixed</span> Model switcher free filter, serial numbers, header row non-tappable, sticky Explore toggle.</li>
-      </ul>
-    </div>
-    <div class="changelog-item">
-      <h3>v1.0.0 <span class="changelog-date">2026-08-01</span></h3>
-      <ul>
-        <li><span class="tag added">Added</span> Initial Android release — local llama.cpp/LiteRT-LM + cloud providers + OpenAI-compatible server.</li>
-      </ul>
-    </div>
-    <div class="changelog-more">
-      <a href="https://github.com/abir2afridi/CubicLM/blob/main/CHANGELOG.md" target="_blank">Full changelog on GitHub →</a>
-    </div>
+  </div>
+  <div class="changelog-more">
+    <a href="https://github.com/abir2afridi/CubicLM/blob/main/CHANGELOG.md" target="_blank">Full changelog on GitHub →</a>
   </div>
 </section>
 

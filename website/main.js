@@ -73,4 +73,27 @@
   window.addEventListener('resize',function(){setTimeout(update,0);});
 })();
 
+/* ── Changelog tabs ── */
+(function(){
+  var tabs=document.querySelectorAll('.changelog-tab');
+  if(!tabs.length)return;
+  function showVersion(version){
+    document.querySelectorAll('.changelog-detail').forEach(function(el){
+      el.style.display='none';
+    });
+    var target=document.getElementById('changelog-'+version);
+    if(target)target.style.display='block';
+    tabs.forEach(function(tab){
+      tab.classList.toggle('active',tab.dataset.version===version);
+    });
+  }
+  tabs.forEach(function(tab){
+    tab.addEventListener('click',function(){
+      showVersion(this.dataset.version);
+    });
+  });
+  var active=document.querySelector('.changelog-tab.active');
+  if(active)showVersion(active.dataset.version);
+})();
+
 })();
