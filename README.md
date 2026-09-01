@@ -50,13 +50,15 @@
   - Orange warnings appear past the device's recommended limit but values stay selectable
 - **Inference temperature** — applied on every generation, local and cloud
 - **Context window changes** auto-reload the resident model after the slider settles
+- **RAM guard (new)** — `DeviceInfoService.canAllocateContextSize()` (`fileBytes + KV~2.5KB×context` vs 80% available RAM); `SettingsController.setContextSize` clamps to `maxSafeContextSize` with snackbar, `ModelController._confirmModelLoadSafety` includes KV estimate before showing *Restart recommended*
 - **Sampling steps** and **synthesis resolution** for image generation (Auto mode scales by available RAM)
 - **Compute backend toggle** (CPU / Vulkan / OpenCL) for image generation with automatic model reload
 
-### 🚀 Startup & Splash
+### 🚀 Startup, Onboarding & Splash
 
 - **Warm native splash** — `launch_background` is `#F8F4ED` (same as `Dt.canvas`), no white flash on cold start; `NormalTheme` matches
-- **Animated CubicLM** — 44–48sp PlusJakartaSans w900, shimmer `LinearGradient` isolated in `RepaintBoundary` + `760ms` fade-in/out, `1380ms` dwell → `Get.offAllNamed(home)` — no jank after `runApp()` was moved to critical path
+- **Animated CubicLM** — 44–48sp PlusJakartaSans w900, shimmer `LinearGradient` isolated in `RepaintBoundary` + `760ms` fade-in/out, `1380ms` dwell → onboarding/home — no jank after `runApp()` was moved to critical path
+- **First-run onboarding (new)** — `onboarding_view.dart` 3-page `PageView`: *Private by Default* (shield) → *Or Use Any Cloud* (20+ providers) → *Pick Your First Model* (recommended chip) with dots + `Skip/Next/Start Chatting` (Hive `onboarding_done_v1`, i18n `onboarding_*` EN+BN, fallback for 13 langs)
 - **Deferred heavy init** — `NotificationHistory/Skill/MCP/DeviceInfo/CrashReporting/ImageNotifications` start `2200ms` after `runApp()` (after splash), plus `Hive` per-box `3s` timeout with `_MemoryBox` fallback — native `launch_background` never hangs
 - **Auto-load last model** — `App Settings → STARTUP` switch (`AppConstants.keyAutoLoadLastModel`). **ON**: after chat UI is idle (splash gone + `DeviceInfo` ready + `1200ms`), checks `isModelLoaded` resident, `90s` crash-loop guard, `80%` RAM guard, then `loadModel().timeout(90s)` off the UI frame. **OFF** (default): shows `Resume Session?` dialog after `520ms`. Prevents `mmap 2-7GB` during splash which previously froze 2nd open
 
@@ -136,8 +138,8 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
   - **Explore** now has a 4-way toggle — **Local** (on-device models) / **Online** (cloud providers) / **Skills** (offline prompt extensions) / **MCP** (custom remote server) — so models, skills, and MCP are discoverable in one hub
   - **Nodes** page has two tabs — **Node** (local API server) and **Config** (diagnostics, hardware capabilities, inference mode, system prompt, Skills, Custom MCP Server, local model & imaging parameters)
   - **App Settings** is its own destination — theme mode, typography scale, **Thinking Orbs** (custom animation per context: chatting / image generation / analyzing — each set to **Random** or any of the 9 states with live preview), **Language** (15 languages including Bangla, Hindi, Arabic, Chinese, Spanish, French, Japanese, Korean, Portuguese, German, Turkish, Indonesian, Russian, Urdu — instant switch, Hive-persisted), **Startup → Auto-load last model**, and app info (tap to open **About** page with feature highlights, tech stack, and GitHub link)
-- Multi-session chat with history (Hive persistence) and a searchable sidebar drawer with swipe-to-delete
-- **Message actions** — copy, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
+- Multi-session chat with history (Hive persistence) and a **full-text searchable** sidebar drawer (`HiveService.searchMessages` scans `content`) with swipe-to-delete, long-press Export/Delete, and header Export (`share_plus` Markdown)
+- **Message actions** — copy, **share**, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
 - **Code blocks** with syntax highlighting, one-tap copy, and export/share
 - **Thinking Orbs** — 3D particle sphere animation (9 states: Working, Searching, Solving, Listening, Connecting, Weaving, Composing, Breathing, Shaping) with grayscale ink, size-aware speeds, and phase-continuous hard cuts; shown during chat responses, thought analysis, and image synthesis — each context configurable to **Random** shuffle or a fixed state via **App Settings › Thinking Orbs** (live orb previews in the picker)
 - **Empty state** — `assets/icons/CubicLM.png` 64×64 + animated `CubicLM` shimmer (same engine as splash) above suggestions — never a blank screen
@@ -147,7 +149,7 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
 - Attachments from camera, gallery, or files (PDF/text extraction)
 - Image sharing and export
 - Dark/light theme with adjustable font scale
-- **Background model download** with foreground service — downloads keep running when the app is closed or swiped away; notification with Pause/Cancel actions; HTTP Range resume picks up at the exact byte offset after pause or app restart (START_STICKY). **Resume race fixed** — `download_service.dart:318-377` cleans stale `paused_downloads.json` entries when `isModelDownloaded` true and forces `ModelController.refreshDownloaded()` so “completed but still shows downloading → Resume shows already downloaded” no longer happens
+- **Background model download** with foreground service — downloads keep running when the app is closed or swiped away; notification with Pause/Cancel actions; HTTP Range resume picks up at the exact byte offset after pause or app restart (START_STICKY). **Resume race + atomicity fixed (new)** — `download_service:68` atomic `.tmp→rename` for `paused_downloads.json`, `download_native:427` `validateDownloadedFile()` (GGUF `GGUF` / litertlm `LITERTLM` / safetensors `{` + 1% size), `reconcileActiveDownloads` prefers native and cleans stale completed before restore, `model_controller:199` async header check for imported files
 - Firebase Crashlytics integration
 - Background service and boot persistence
 - In-app model download with byte-exact pause / resume / cancel, plus file import
@@ -223,7 +225,7 @@ Opened from the chat header — mirrors the Explore page's layout:
 - **Framework:** Flutter 3.x
 - **Language:** Dart, Kotlin, C++ (native plugins)
 - **State Management:** GetX
-- **Localization:** 15 languages — EN, BN, HI, AR, ZH, ES, FR, JA, KO, PT, DE, TR, ID, RU, UR (GetX Translations, Hive-persisted)
+- **Localization:** 15 languages — EN, BN, HI, AR, ZH, ES, FR, JA, KO, PT, DE, TR, ID, RU, UR (GetX Translations, Hive-persisted) — **90+ keys** (`nav_*`, `chat_*`, `model_*`, `nodes_*`, `about_*`, `settings_*`, `onboarding_*`) with `fallbackLocale EN`; App Settings + bottom nav + all 5 views now reactive via `'.tr'`
 - **Local Storage:** Hive
 - **Networking:** dio, http
 - **Local Inference:** llama_flutter_android, flutter_litert_lm, sd_flutter_android (custom plugins)
@@ -237,12 +239,12 @@ lib/
 ├── main.dart                    # App entry point — window_manager on Windows + critical path (Hive 5s + Settings) before runApp(), heavy services 2200ms after first frame, _MemoryBox fallback
 ├── core/
 │   ├── colors.dart              # App color palette (warm Claude-inspired)
-│   ├── constants.dart           # Settings keys (incl. autoLoadLastModel, keyLanguage), model catalog, API endpoints
+│   ├── constants.dart           # Settings keys (incl. autoLoadLastModel, keyLanguage, keyOnboardingDone), model catalog, API endpoints
 │   ├── routes.dart              # Route definitions
 │   ├── theme.dart               # Light/dark theme with warm accent palette
 │   ├── design_tokens.dart       # Claude APK-measured warm palette (canvas #F8F4ED, pill, accent, hairline)
 │   ├── languages.dart           # 15 supported languages (code, name, nativeName, flag, Locale)
-│   └── app_translations.dart    # GetX Translations — ~70 keys × 15 languages (settings, chat, navigation, common)
+│   └── app_translations.dart    # GetX Translations — ~160 keys × 15 languages (settings, chat, navigation, common, onboarding)
 ├── models/
 │   ├── ai_model.dart            # AI model data class
 │   ├── chat_message.dart        # Chat message model (with revision history + webSources + usedSkills)
@@ -293,7 +295,7 @@ lib/
 │   ├── download_native.dart         # Resumable streaming downloader (HTTP Range) + native bridges
 ├── download_web.dart            # Web stubs
 ├── download_service.dart        # Download orchestrator (native FGS + Dart fallback, stale-paused cleanup + isModelDownloaded guard)
-│   ├── hive_service.dart        # Local persistence (7 boxes, per-box 3s timeout, _MemoryBox fallback, isFallback flag)
+│   ├── hive_service.dart        # Local persistence (7 boxes, per-box 3s timeout, _MemoryBox fallback, isFallback flag) + `searchMessages()` full-text
 │   ├── notification_history_service.dart # Model-switch history (Hive, max 100, unread count)
 │   ├── skills/
 │   │   ├── skill_registry_service.dart # Hive skillsBox, import, enable/disable, file fallback
@@ -314,7 +316,8 @@ lib/
 │   ├── app_log_service.dart     # App logging with categories, search, crash pattern detection
 │   └── crash_reporting_service.dart  # Firebase Crashlytics
 ├── views/
-│   ├── splash_view.dart         # 1380ms shimmer + 760ms fade-out → home (RepaintBoundary isolated)
+│   ├── splash_view.dart         # 1380ms shimmer + 760ms fade-out → onboarding/home (checks `onboarding_done_v1`)
+│   ├── onboarding_view.dart     # 3-page PageView (Private/Cloud/Model) + dots + Hive persist, i18n
 │   ├── home_view.dart           # Main navigation scaffold (Stateful, one-shot checkResumeModel in initState)
 │   ├── chat_view.dart           # Chat interface (drawer + _AnimatedAppName 64px icon + header/composer Obx sync, Flexible pill 14-char)
 │   ├── model_view.dart          # Model Hub — 4-way toggle (Local / Online / Skills / MCP)
