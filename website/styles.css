@@ -151,8 +151,8 @@ a{color:inherit;text-decoration:none}
 .tree-spacer{height:16px}
 .tree-line{color:rgba(255,255,255,.2);flex-shrink:0;user-select:none}
 .tree-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+.tree-icon img{width:16px;height:16px;border-radius:2px;object-fit:contain}
 .tree-icon--folder{color:#FFC107}
-.tree-icon--dart{color:#0175C2}
 .tree-icon--kt{color:#7F52FF}
 .tree-icon--html{color:#E34F26}
 .tree-icon--json{color:#FFB300}
