@@ -97,3 +97,15 @@
 })();
 
 })();
+
+// ── Cloud marquee: clone each track's set once for a seamless infinite loop ──
+(function(){
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  document.querySelectorAll('.cloud-marquee-track').forEach(function(track){
+    var set = track.querySelector('.cloud-marquee-set');
+    if (!set || track.querySelector('.cloud-marquee-set + .cloud-marquee-set')) return;
+    var clone = set.cloneNode(true);
+    clone.setAttribute('aria-hidden', 'true');
+    track.appendChild(clone);
+  });
+})();

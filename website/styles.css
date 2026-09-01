@@ -132,26 +132,36 @@ a{color:inherit;text-decoration:none}
 .models-table tbody tr:last-child td{border-bottom:0}
 
 /* ── CLOUD PROVIDERS ── */
-.cloud{background:var(--black);color:var(--white);padding:100px 32px;border-top:1px solid rgba(255,255,255,.1)}
+.cloud{background:var(--black);color:var(--white);padding:100px 32px 110px;border-top:1px solid rgba(255,255,255,.1)}
 .cloud-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:12px}
 .cloud-title{font-family:'Instrument Serif',serif;font-size:clamp(36px,6vw,72px);font-weight:400;letter-spacing:-.03em;line-height:1;margin-bottom:20px}
-.cloud-desc{font-size:15px;line-height:1.7;opacity:.5;max-width:640px;margin-bottom:48px}
-.cloud-grid{display:flex;flex-wrap:wrap;gap:12px;max-width:1000px;margin:0 auto}
-.cloud-chip{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border:1px solid rgba(255,255,255,.12);border-radius:999px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.02em;color:rgba(255,255,255,.75);transition:all .3s;cursor:default}
-.cloud-chip:hover{border-color:var(--orange);color:var(--white);background:rgba(255,77,0,.06)}
-.cloud-chip-dot{width:6px;height:6px;border-radius:50%;background:var(--orange);flex-shrink:0}
-.cloud-chip-free{font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:rgba(52,211,153,.15);color:#34d399;padding:2px 8px;border-radius:999px;margin-left:4px}
+.cloud-desc{font-size:15px;line-height:1.7;opacity:.5;max-width:640px;margin-bottom:110px}
+.cloud-marquee{max-width:1000px;margin:0 auto;overflow:hidden;padding:8px 0;-webkit-mask-image:linear-gradient(to right,transparent,#000 12%,#000 88%,transparent);mask-image:linear-gradient(to right,transparent,#000 12%,#000 88%,transparent)}
+.cloud-marquee-track{display:flex;gap:16px;width:max-content;animation:cloud-marquee-scroll 70s linear infinite}
+.cloud-marquee-track--reverse{animation-direction:reverse}
+.cloud-marquee + .cloud-marquee{margin-top:4px}
+.cloud-marquee:hover .cloud-marquee-track{animation-play-state:paused}
+.cloud-marquee-set{display:flex;gap:16px;flex-shrink:0}
+@keyframes cloud-marquee-scroll{from{transform:translateX(0)}to{transform:translateX(calc(-50% - 8px))}}
+@media(prefers-reduced-motion:reduce){.cloud-marquee-track{animation:none;flex-wrap:wrap;width:auto}}
+.cloud-chip{display:inline-flex;align-items:center;gap:16px;padding:18px 36px;border:1px solid rgba(255,255,255,.12);border-radius:999px;font-family:'Space Mono',monospace;font-size:22px;letter-spacing:.02em;color:rgba(255,255,255,.88);transition:all .3s;cursor:default;white-space:nowrap}
+.cloud-chip:hover{border-color:var(--orange);color:var(--white);background:rgba(255,77,0,.08);box-shadow:0 0 18px rgba(255,77,0,.15)}
+.cloud-chip img{width:40px;height:40px;border-radius:8px;flex-shrink:0}
+.cloud-chip-free{font-size:13px;letter-spacing:.08em;text-transform:uppercase;background:rgba(52,211,153,.15);color:#34d399;padding:4px 14px;border-radius:999px;margin-left:4px}
 
 /* ── TECH STACK ── */
 .techstack{background:var(--black);color:var(--white);padding:100px 32px;border-top:1px solid rgba(255,255,255,.1)}
 .techstack-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:12px}
 .techstack-title{font-family:'Instrument Serif',serif;font-size:clamp(36px,6vw,72px);font-weight:400;letter-spacing:-.03em;line-height:1;margin-bottom:60px}
-.techstack-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:1000px;margin:0 auto}
-.techstack-card{padding:32px;border:1px solid rgba(255,255,255,.1);transition:border-color .3s,background .3s}
-.techstack-card:hover{border-color:var(--orange);background:rgba(255,255,255,.03)}
-.techstack-card-label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:14px}
-.techstack-card-items{display:flex;flex-wrap:wrap;gap:8px}
-.techstack-item{font-family:'Space Mono',monospace;font-size:12px;padding:6px 14px;border:1px solid rgba(255,255,255,.12);border-radius:999px;color:rgba(255,255,255,.7);white-space:nowrap}
+.techstack-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:1000px;margin:0 auto;counter-reset:techstack}
+.techstack-card{padding:28px 24px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.02);transition:border-color .3s,background .3s,box-shadow .3s}
+.techstack-card:hover{border-color:var(--orange);background:rgba(255,77,0,.04);box-shadow:0 0 24px rgba(255,77,0,.12)}
+.techstack-card-label{font-family:'Space Mono',monospace;font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:20px;display:flex;align-items:center;gap:10px}
+.techstack-card-label::before{counter-increment:techstack;content:"0" counter(techstack);font-size:12px;color:rgba(255,77,0,.5)}
+.techstack-card-items{display:flex;flex-wrap:wrap;gap:12px}
+.techstack-item{display:inline-flex;align-items:center;gap:10px;font-family:'Space Mono',monospace;font-size:17px;padding:10px 20px;border:1px solid rgba(255,255,255,.12);border-radius:999px;color:rgba(255,255,255,.88);white-space:nowrap;transition:border-color .3s,color .3s,background .3s}
+.techstack-item:hover{border-color:var(--orange);color:var(--white);background:rgba(255,77,0,.08)}
+.techstack-item img{width:28px;height:28px;border-radius:5px;flex-shrink:0}
 
 /* ── PROJECT STRUCTURE ── */
 .structure{background:var(--black);color:var(--white);padding:100px 32px;border-top:1px solid rgba(255,255,255,.1)}
@@ -249,8 +259,10 @@ a{color:inherit;text-decoration:none}
   .features-detail-grid{grid-template-columns:1fr}
   .models-tabs{gap:8px}
   .models-tab{padding:8px 16px;font-size:11px}
-  .cloud-grid{gap:8px}
-  .cloud-chip{padding:10px 16px;font-size:11px}
+  .cloud-marquee{padding:4px 0}
+  .cloud-chip{padding:15px 26px;font-size:18px}
+  .cloud-chip img{width:30px;height:30px}
+  .cloud-chip-free{font-size:9px;padding:2px 7px}
   .techstack-grid{grid-template-columns:1fr}
   .footer-grid{grid-template-columns:1fr;gap:40px}
   .footer-copy{text-align:left}

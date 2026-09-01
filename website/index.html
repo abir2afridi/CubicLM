@@ -450,28 +450,60 @@
   <div class="cloud-label">Multi-Provider Cloud</div>
   <div class="cloud-title">Cloud Providers</div>
   <div class="cloud-desc">A unified plugin architecture — each provider implements the CloudProvider interface with auto-fetched model lists, free tier tagging, and per-provider company filters.</div>
-  <div class="cloud-grid">
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>OpenRouter<span class="cloud-chip-free">Free</span></div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Hugging Face</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>xKiro<span class="cloud-chip-free">Free</span></div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>TokenRouter</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>OpenAI</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Anthropic</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Google Gemini</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>DeepSeek</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Z.AI</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Groq</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Mistral AI</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Together AI</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>xAI Grok</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Perplexity</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Cerebras</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Fireworks AI</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Cohere</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>NVIDIA NIM</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Stability AI</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Kimi</div>
-    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Custom</div>
+  <div class="cloud-marquee">
+    <div class="cloud-marquee-track cloud-marquee-track--reverse">
+      <div class="cloud-marquee-set">
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/openrouter-color.svg" alt="" width="20" height="20">OpenRouter<span class="cloud-chip-free">Free</span></div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/hugging-face.svg" alt="" width="20" height="20">Hugging Face</div>
+        <div class="cloud-chip"><img src="https://docs.xkiro.com/images/logo/logo-xt-light.png" alt="" width="20" height="20">xKiro<span class="cloud-chip-free">Free</span></div>
+        <div class="cloud-chip"><img src="https://img.icons8.com/fluency/48/workflow.png" alt="" width="20" height="20">TokenRouter</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/selfhst/icons/svg/openai.svg" alt="" width="20" height="20">OpenAI</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/anthropic.svg" alt="" width="20" height="20">Anthropic</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/google-gemini.svg" alt="" width="20" height="20">Google Gemini</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/deepseek.svg" alt="" width="20" height="20">DeepSeek</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/z-ai.svg" alt="" width="20" height="20">Z.AI</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-png@latest/dark/groq.png" alt="" width="20" height="20">Groq</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/mistral-color.svg" alt="" width="20" height="20">Mistral AI</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/together-color.svg" alt="" width="20" height="20">Together AI</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/grok-dark.png" alt="" width="20" height="20">xAI Grok</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/selfhst/icons/svg/perplexity-ai.svg" alt="" width="20" height="20">Perplexity</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/cerebras-color.svg" alt="" width="20" height="20">Cerebras</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/fireworks-color.svg" alt="" width="20" height="20">Fireworks AI</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/cohere-color.svg" alt="" width="20" height="20">Cohere</div>
+        <div class="cloud-chip"><img src="https://img.icons8.com/color/48/nvidia.png" alt="" width="20" height="20">NVIDIA NIM</div>
+        <div class="cloud-chip"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAY1BMVEVHcEyXg8iYf92Xfd6afOmDcbCagN2afemehd2bgOOQddSehd6jieiRfr5vYJQ2MkEXGRMOEgRRSWWEdKufiNgeHh6gjNOkjtmijs+kksqilMCgkb+llsWsmtGnmcGnmcGZirfKoScjAAAAIXRSTlMAPnWjyhSF07fKIsrH0N72///s1sr/zMjKy3qjycfK0iIc6CAcAAABjElEQVR4AW2TB5KDMBAERYZDWWQk7P+/8naWMo7t7B5tcBAvZHlREkWeiR9UddM0JUNP6urT5yQvkMnfj7dvviOa9qXI35u9+LvOv9qLvu8fNdrTyU6pUsqHJtprvo60NtY5Z32QsGAYcm7Q4IQ0bmSs06cFE5rU7L0jZ6nCaLVkCz/VFGg6AG900N44PT88IUSGQB8ceSl7KWVAAG5ZlmnNRN6DgAmkxLl5hoYHmyh6hkfUChZ+OVnXXbTspXa8wejVzBaSETQxhpbaOssZP7/oGAXJs/OsPWesSdCwQLTXTpQJhhIuQEIDUcBeeyVKWB1jSon1sYscmo4qKkABj0BavfHQx20T2YTqwVmvlQqeW6CO8+mgQCbENHGA5ifOIVfsYziALwvdFRRjRxUjHn3iDkJU00LjTX50wHrqnMLozIEClSBy8jRemkII6pz+SHThAky7MM/dyTFRnFSnB5dnuAG4n/a9wO24v/5xvn2sxCvbFTg15nun2m43eFjSlfhBtu3xiHHfMvHkH01bPHwaAblBAAAAAElFTkSuQmCC" alt="" width="20" height="20">Stability AI</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/kimi-color.svg" alt="" width="20" height="20">Kimi</div>
+        <div class="cloud-chip"><img src="https://img.icons8.com/color/48/settings.png" alt="" width="20" height="20">Custom</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cloud-marquee">
+    <div class="cloud-marquee-track">
+      <div class="cloud-marquee-set">
+        <div class="cloud-chip"><img src="https://img.icons8.com/color/48/settings.png" alt="" width="20" height="20">Custom</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/kimi-color.svg" alt="" width="20" height="20">Kimi</div>
+        <div class="cloud-chip"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAY1BMVEVHcEyXg8iYf92Xfd6afOmDcbCagN2afemehd2bgOOQddSehd6jieiRfr5vYJQ2MkEXGRMOEgRRSWWEdKufiNgeHh6gjNOkjtmijs+kksqilMCgkb+llsWsmtGnmcGnmcGZirfKoScjAAAAIXRSTlMAPnWjyhSF07fKIsrH0N72///s1sr/zMjKy3qjycfK0iIc6CAcAAABjElEQVR4AW2TB5KDMBAERYZDWWQk7P+/8naWMo7t7B5tcBAvZHlREkWeiR9UddM0JUNP6urT5yQvkMnfj7dvviOa9qXI35u9+LvOv9qLvu8fNdrTyU6pUsqHJtprvo60NtY5Z32QsGAYcm7Q4IQ0bmSs06cFE5rU7L0jZ6nCaLVkCz/VFGg6AG900N44PT88IUSGQB8ceSl7KWVAAG5ZlmnNRN6DgAmkxLl5hoYHmyh6hkfUChZ+OVnXXbTspXa8wejVzBaSETQxhpbaOssZP7/oGAXJs/OsPWesSdCwQLTXTpQJhhIuQEIDUcBeeyVKWB1jSon1sYscmo4qKkABj0BavfHQx20T2YTqwVmvlQqeW6CO8+mgQCbENHGA5ifOIVfsYziALwvdFRRjRxUjHn3iDkJU00LjTX50wHrqnMLozIEClSBy8jRemkII6pz+SHThAky7MM/dyTFRnFSnB5dnuAG4n/a9wO24v/5xvn2sxCvbFTg15nun2m43eFjSlfhBtu3xiHHfMvHkH01bPHwaAblBAAAAAElFTkSuQmCC" alt="" width="20" height="20">Stability AI</div>
+        <div class="cloud-chip"><img src="https://img.icons8.com/color/48/nvidia.png" alt="" width="20" height="20">NVIDIA NIM</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/cohere-color.svg" alt="" width="20" height="20">Cohere</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/fireworks-color.svg" alt="" width="20" height="20">Fireworks AI</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/cerebras-color.svg" alt="" width="20" height="20">Cerebras</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/selfhst/icons/svg/perplexity-ai.svg" alt="" width="20" height="20">Perplexity</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/grok-dark.png" alt="" width="20" height="20">xAI Grok</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/together-color.svg" alt="" width="20" height="20">Together AI</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/mistral-color.svg" alt="" width="20" height="20">Mistral AI</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-png@latest/dark/groq.png" alt="" width="20" height="20">Groq</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/z-ai.svg" alt="" width="20" height="20">Z.AI</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/deepseek.svg" alt="" width="20" height="20">DeepSeek</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/google-gemini.svg" alt="" width="20" height="20">Google Gemini</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/anthropic.svg" alt="" width="20" height="20">Anthropic</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/selfhst/icons/svg/openai.svg" alt="" width="20" height="20">OpenAI</div>
+        <div class="cloud-chip"><img src="https://img.icons8.com/fluency/48/workflow.png" alt="" width="20" height="20">TokenRouter</div>
+        <div class="cloud-chip"><img src="https://docs.xkiro.com/images/logo/logo-xt-light.png" alt="" width="20" height="20">xKiro<span class="cloud-chip-free">Free</span></div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/hugging-face.svg" alt="" width="20" height="20">Hugging Face</div>
+        <div class="cloud-chip"><img src="https://cdn.jsdelivr.net/npm/@lobehub/icons-static-svg@latest/icons/openrouter-color.svg" alt="" width="20" height="20">OpenRouter<span class="cloud-chip-free">Free</span></div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -483,44 +515,44 @@
     <div class="techstack-card">
       <div class="techstack-card-label">Framework</div>
       <div class="techstack-card-items">
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/flutter.png" width="16" height="16" alt="Flutter 3.x"> Flutter 3.x</span>
+        <span class="techstack-item"><img src="https://img.icons8.com/color/48/flutter.png" width="20" height="20" alt="Flutter 3.x"> Flutter 3.x</span>
       </div>
     </div>
     <div class="techstack-card">
       <div class="techstack-card-label">Languages</div>
       <div class="techstack-card-items">
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/dart.png" width="16" height="16" alt="Dart"> Dart</span>
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/kotlin.png" width="16" height="16" alt="Kotlin"> Kotlin</span>
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/c-plus-plus.png" width="16" height="16" alt="C++"> C++</span>
+        <span class="techstack-item"><img src="https://img.icons8.com/color/48/dart.png" width="20" height="20" alt="Dart"> Dart</span>
+        <span class="techstack-item"><img src="https://img.icons8.com/color/48/kotlin.png" width="20" height="20" alt="Kotlin"> Kotlin</span>
+        <span class="techstack-item"><img src="https://img.icons8.com/?size=96&id=TpULddJc4gTh&format=png" width="20" height="20" alt="C++"> C++</span>
       </div>
     </div>
     <div class="techstack-card">
       <div class="techstack-card-label">State Management</div>
       <div class="techstack-card-items">
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/gear.png" width="16" height="16" alt="GetX"> GetX</span>
+        <span class="techstack-item"><img src="https://cdn.simpleicons.org/getx/8A2BE2" width="20" height="20" alt="GetX"> GetX</span>
       </div>
     </div>
     <div class="techstack-card">
       <div class="techstack-card-label">Local Storage</div>
       <div class="techstack-card-items">
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/database.png" width="16" height="16" alt="Hive"> Hive</span>
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/lock.png" width="16" height="16" alt="SecureStorage"> SecureStorage</span>
+        <span class="techstack-item"><img src="https://cdn-icons-png.flaticon.com/128/1888/1888419.png" width="20" height="20" alt="Hive"> Hive</span>
+        <span class="techstack-item"><img src="https://img.icons8.com/?size=160&id=97505&format=png" width="20" height="20" alt="SecureStorage"> SecureStorage</span>
       </div>
     </div>
     <div class="techstack-card">
       <div class="techstack-card-label">Inference Engines</div>
       <div class="techstack-card-items">
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/ai.png" width="16" height="16" alt="llama.cpp"> llama.cpp</span>
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/ai.png" width="16" height="16" alt="LiteRT-LM"> LiteRT-LM</span>
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/image.png" width="16" height="16" alt="SD FFI"> SD FFI</span>
+        <span class="techstack-item"><img src="https://cdn.jsdelivr.net/gh/selfhst/icons/png/llama-cpp.png" width="20" height="20" alt="llama.cpp"> llama.cpp</span>
+        <span class="techstack-item"><img src="https://cdn.jsdelivr.net/gh/selfhst/icons/png/litellm.png" width="20" height="20" alt="LiteRT-LM"> LiteRT-LM</span>
+        <span class="techstack-item"><img src="https://img.icons8.com/?size=96&id=qttvoCUQtWli&format=png" width="20" height="20" alt="SD FFI"> SD FFI</span>
       </div>
     </div>
     <div class="techstack-card">
       <div class="techstack-card-label">Cloud & Services</div>
       <div class="techstack-card-items">
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/firebase.png" width="16" height="16" alt="Firebase Core"> Firebase Core</span>
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/bug.png" width="16" height="16" alt="Crashlytics"> Crashlytics</span>
-        <span class="techstack-item"><img src="https://img.icons8.com/color/48/message.png" width="16" height="16" alt="Messaging"> Messaging</span>
+        <span class="techstack-item"><img src="https://img.icons8.com/color/48/firebase.png" width="20" height="20" alt="Firebase Core"> Firebase Core</span>
+        <span class="techstack-item"><img src="https://img.icons8.com/color/48/bug.png" width="20" height="20" alt="Crashlytics"> Crashlytics</span>
+        <span class="techstack-item"><img src="https://img.icons8.com/?size=160&id=XTk8kozwO49R&format=png" width="20" height="20" alt="Messaging"> Messaging</span>
       </div>
     </div>
   </div>
