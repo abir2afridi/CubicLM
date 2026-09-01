@@ -26,6 +26,35 @@ class HomeController extends GetxController {
     }
   }
 
+  Future<void> handleOnboardingHubDeepLink() async {
+    try {
+      if (!Get.isRegistered<HiveService>()) return;
+      final hive = Get.find<HiveService>();
+      final shouldOpen =
+          hive.getSetting<bool>('onboarding_open_hub', defaultValue: false) ??
+              false;
+      if (!shouldOpen) return;
+      await hive.deleteSetting('onboarding_open_hub');
+      changeTab(1);
+      Future.delayed(const Duration(milliseconds: 400), () {
+        AppSnackbar.showTop(
+          'Explore → Local for recommended model',
+          'Open the Local tab to download your recommended model',
+          icon: LucideIcons.compass,
+          iconName: 'compass',
+          duration: const Duration(seconds: 3),
+          logHistory: false,
+        );
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void onReady() {
+    super.onReady();
+    handleOnboardingHubDeepLink();
+  }
+
   /// One-time startup resume: if [autoLoadLastModel] is on, loads silently;
   /// otherwise shows a dialog. Delayed to let splash→home transition finish
   /// without jank and to avoid blocking the first frame with sync file checks.

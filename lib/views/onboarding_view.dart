@@ -45,6 +45,17 @@ class _OnboardingViewState extends State<OnboardingView> {
     Get.offAllNamed(AppRoutes.home);
   }
 
+  Future<void> _openHub() async {
+    try {
+      if (Get.isRegistered<HiveService>()) {
+        final hive = Get.find<HiveService>();
+        await hive.setSetting(AppConstants.keyOnboardingDone, true);
+        await hive.setSetting('onboarding_open_hub', true);
+      }
+    } catch (_) {}
+    Get.offAllNamed(AppRoutes.home);
+  }
+
   @override
   void dispose() {
     _page.dispose();
@@ -166,10 +177,7 @@ class _OnboardingViewState extends State<OnboardingView> {
             const SizedBox(height: 16),
             if (_index == 2)
               TextButton(
-                onPressed: () async {
-                  await _finish();
-                  // After finish, user will be on home; Model Hub is Explore tab. No direct deep link needed.
-                },
+                onPressed: _openHub,
                 child: Text('onboarding_open_hub'.tr,
                     style: GoogleFonts.plusJakartaSans(color: Dt.accent, fontWeight: FontWeight.w600)),
               ),

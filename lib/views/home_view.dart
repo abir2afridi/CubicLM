@@ -7,7 +7,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../controllers/chat_controller.dart';
 import '../controllers/home_controller.dart';
 import '../core/colors.dart';
+import '../services/hive_service.dart';
 import '../theme/design_tokens.dart';
+import '../utils/app_snackbar.dart';
 import 'chat_view.dart';
 import 'model_view.dart';
 import 'server_view.dart';
@@ -23,12 +25,36 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   late final HomeController controller;
 
+  Future<void> _handleOnboardingDeepLink() async {
+    try {
+      if (!Get.isRegistered<HiveService>()) return;
+      final hive = Get.find<HiveService>();
+      final shouldOpen =
+          hive.getSetting<bool>('onboarding_open_hub', defaultValue: false) ??
+              false;
+      if (!shouldOpen) return;
+      await hive.deleteSetting('onboarding_open_hub');
+      controller.changeTab(1);
+      Future.delayed(const Duration(milliseconds: 400), () {
+        AppSnackbar.showTop(
+          'Explore → Local for recommended model',
+          'Check the Local tab for your recommended model',
+          icon: LucideIcons.compass,
+          iconName: 'compass',
+          duration: const Duration(seconds: 3),
+          logHistory: false,
+        );
+      });
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
     controller = Get.find<HomeController>();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) controller.checkResumeModel(context);
+      if (mounted) _handleOnboardingDeepLink();
     });
   }
 

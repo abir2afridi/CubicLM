@@ -1093,6 +1093,129 @@ class ChatView extends GetView<ChatController> {
                     },
                   ));
             }),
+            // Web URL preview pills — shows chips for https:// links in input
+            Obx(() {
+              final text = controller.inputText.value;
+              final urlRegExp = RegExp(r'https?://[^\s]+');
+              final urls = urlRegExp
+                  .allMatches(text)
+                  .map((m) => m.group(0)!)
+                  .toSet()
+                  .toList();
+              if (urls.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: urls.map((url) {
+                    String domain;
+                    try {
+                      final cleanUrl =
+                          url.replaceAll(RegExp(r'[.,;:!?\)\]]+$'), '');
+                      domain =
+                          Uri.parse(cleanUrl).host.replaceFirst('www.', '');
+                      if (domain.isEmpty) domain = cleanUrl;
+                    } catch (_) {
+                      domain = url;
+                    }
+                    final displayDomain = domain.length > 28
+                        ? '${domain.substring(0, 28)}…'
+                        : domain;
+                    final faviconUrl =
+                        'https://www.google.com/s2/favicons?domain=$domain&sz=32';
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : Colors.black.withValues(alpha: 0.06),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Image.network(
+                              faviconUrl,
+                              width: 16,
+                              height: 16,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 16,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF3B82F6)
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                                child: const Icon(LucideIcons.globe,
+                                    size: 10, color: Color(0xFF3B82F6)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              displayDomain,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: isDark
+                                    ? AppColors.textPrimary
+                                    : Dt.textPrimary,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: () {
+                              final current =
+                                  controller.textController.text;
+                              final updated = current
+                                  .replaceAll(url, '')
+                                  .replaceAll(RegExp(r'\s{2,}'), ' ')
+                                  .trim();
+                              controller.textController.text = updated;
+                              controller.textController.selection =
+                                  TextSelection.collapsed(
+                                      offset: updated.length);
+                              controller.inputText.value = updated;
+                            },
+                            child: Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : Colors.black.withValues(alpha: 0.06),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                LucideIcons.x,
+                                size: 10,
+                                color: isDark
+                                    ? AppColors.textSecondary
+                                    : Dt.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              );
+            }),
             // STT listening indicator
             Obx(() {
               if (!controller.isListening.value) return const SizedBox.shrink();
