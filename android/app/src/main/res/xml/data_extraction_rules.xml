@@ -2,8 +2,16 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="hive/" />
+        <exclude domain="file" path="paused_downloads.json" />
+        <exclude domain="file" path="cubiclm_logs.json" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+        <exclude domain="database" path="." />
+        <exclude domain="file" path="hive/" />
+        <exclude domain="file" path="paused_downloads.json" />
+        <exclude domain="file" path="cubiclm_logs.json" />
     </device-transfer>
 </data-extraction-rules>

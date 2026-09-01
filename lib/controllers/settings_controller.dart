@@ -906,8 +906,7 @@ class SettingsController extends GetxController {
         AppConstants.keyCustomCloudName, customCloudName.value);
     await _hive.setSetting(
         AppConstants.keyCustomCloudBaseUrl, customCloudBaseUrl.value);
-    await _hive.setSetting(
-        AppConstants.keyCustomCloudKey, customCloudKey.value);
+    await _keys.write(AppConstants.keyCustomCloudKey, customCloudKey.value);
     await _hive.setSetting(
         AppConstants.keyCustomCloudModel, customCloudModel.value);
     await _saveCustomCloudProfiles();
@@ -970,8 +969,7 @@ class SettingsController extends GetxController {
         AppConstants.keyCustomCloudName, customCloudName.value);
     await _hive.setSetting(
         AppConstants.keyCustomCloudBaseUrl, customCloudBaseUrl.value);
-    await _hive.setSetting(
-        AppConstants.keyCustomCloudKey, customCloudKey.value);
+    await _keys.write(AppConstants.keyCustomCloudKey, customCloudKey.value);
     await _hive.setSetting(
         AppConstants.keyCustomCloudModel, customCloudModel.value);
     await _hive.setSetting(AppConstants.keyCustomCloudProfileIndex, index);

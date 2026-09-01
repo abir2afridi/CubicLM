@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
-    <!-- API keys are now in EncryptedSharedPreferences (secure storage) which
-         is device-encrypted and not useful on another device; exclude it anyway. -->
     <exclude domain="sharedpref" path="FlutterSecureStorage.xml" />
+    <exclude domain="database" path="." />
+    <exclude domain="file" path="hive/" />
+    <exclude domain="file" path="paused_downloads.json" />
+    <exclude domain="file" path="cubiclm_logs.json" />
 </full-backup-content>

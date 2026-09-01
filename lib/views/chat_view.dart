@@ -8,6 +8,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../controllers/chat_controller.dart';
@@ -32,6 +33,7 @@ import '../core/colors.dart';
 import '../services/notification_history_service.dart';
 import 'notification_history_view.dart';
 
+// ignore: must_be_immutable
 class ChatView extends GetView<ChatController> {
   ChatView({super.key});
 
@@ -158,13 +160,32 @@ class ChatView extends GetView<ChatController> {
     if (now.difference(day).inDays < 7 && now.isAfter(day)) {
       return _weekday(d.weekday);
     }
-    return '${_month(d.month)} ${d.day}, ${d.year}';
+    try {
+      final locale = Get.locale?.languageCode ?? 'en';
+      return DateFormat('yMMMd', locale).format(d);
+    } catch (_) {
+      return '${_month(d.month)} ${d.day}, ${d.year}';
+    }
   }
 
-  String _weekday(int w) =>
-      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][w - 1];
-  String _month(int m) =>
-      ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1];
+  String _weekday(int w) {
+    try {
+      final locale = Get.locale?.languageCode ?? 'en';
+      // 2024-01-01 is Monday, so offset w-1
+      return DateFormat('EEE', locale).format(DateTime(2024, 1, w));
+    } catch (_) {
+      return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][w - 1];
+    }
+  }
+
+  String _month(int m) {
+    try {
+      final locale = Get.locale?.languageCode ?? 'en';
+      return DateFormat('MMM', locale).format(DateTime(2024, m, 1));
+    } catch (_) {
+      return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1];
+    }
+  }
 
   Widget _dateChip(DateTime date, bool isDark) {
     return Padding(
@@ -1343,6 +1364,17 @@ class ChatView extends GetView<ChatController> {
                                   onTap: () => showModelSwitcherSheet(context),
                                 )),
                           ),
+                          const SizedBox(width: 6),
+                          Obx(() {
+                            final enabled = Get.find<SettingsController>().webFetchEnabled.value;
+                            return AppCircleButton(
+                              icon: LucideIcons.globe,
+                              tooltip: 'chat_web_access'.tr,
+                              iconColor: enabled ? Dt.accent : null,
+                              onTap: () => Get.find<SettingsController>()
+                                  .setWebFetchEnabled(!enabled),
+                            );
+                          }),
                           const Spacer(),
                           // Right cluster: mic (muted circle) + primary CTA (solid dark)
                           // Spacer pushes this cluster to the far right corner,
@@ -1502,6 +1534,8 @@ class ChatView extends GetView<ChatController> {
 
   final RxString _sidebarQuery = ''.obs;
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  final RxSet<String> _searchHits = <String>{}.obs;
   Widget _buildSidebar(BuildContext context, bool isDark) {
     return Drawer(
       backgroundColor: isDark ? AppColors.bg : Dt.sidebar,
@@ -1575,8 +1609,22 @@ class ChatView extends GetView<ChatController> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: TextField(
             controller: _searchController,
-            onChanged: (v) =>
-                setState(() => _sidebarQuery.value = v.trim().toLowerCase()),
+            onChanged: (v) {
+              final trimmed = v.trim().toLowerCase();
+              setState(() => _sidebarQuery.value = trimmed);
+              _searchDebounce?.cancel();
+              if (trimmed.isEmpty) {
+                _searchHits.clear();
+                return;
+              }
+              _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+                try {
+                  _searchHits.assignAll(Get.find<HiveService>().searchMessages(trimmed));
+                } catch (_) {
+                  _searchHits.clear();
+                }
+              });
+            },
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 14, fontWeight: FontWeight.w500),
             decoration: InputDecoration(
@@ -1594,6 +1642,8 @@ class ChatView extends GetView<ChatController> {
                           size: 18, color: AppColors.textMuted),
                       onPressed: () {
                         _searchController.clear();
+                        _searchDebounce?.cancel();
+                        _searchHits.clear();
                         setState(() => _sidebarQuery.value = '');
                       },
                       padding: EdgeInsets.zero,
@@ -1633,8 +1683,7 @@ class ChatView extends GetView<ChatController> {
           child: Obx(() {
             final all = controller.sessions;
             final q = _sidebarQuery.value;
-            final Set<String> messageHits =
-                q.isEmpty ? <String>{} : Get.find<HiveService>().searchMessages(q);
+            final messageHits = _searchHits.toSet();
             final filtered = q.isEmpty
                 ? all
                 : all

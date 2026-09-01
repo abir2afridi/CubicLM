@@ -123,20 +123,27 @@ extension BackendExtension on Backend {
     }
   }
 
+  static final Map<Backend, bool> _availabilityCache = {};
+
   /// Checks if the backend's native library file is present in the APK.
-  /// This does a lightweight existence check without fully loading the library.
+  /// Memoized to avoid leaking DynamicLibrary handles on repeated calls.
   bool get isAvailable {
-    if (this == Backend.cpu) return true;
-    if (!Platform.isAndroid) return false;
-    try {
-      // Try to open the library — if it fails, the .so isn't bundled
-      DynamicLibrary.open(libraryName);
-      // Don't keep it open here; just verify it exists
-      // (DynamicLibrary doesn't have a close() method in Dart FFI)
-      return true;
-    } catch (e) {
-      return false;
+    if (_availabilityCache.containsKey(this)) return _availabilityCache[this]!;
+    bool result;
+    if (this == Backend.cpu) {
+      result = true;
+    } else if (!Platform.isAndroid) {
+      result = false;
+    } else {
+      try {
+        DynamicLibrary.open(libraryName);
+        result = true;
+      } catch (e) {
+        result = false;
+      }
     }
+    _availabilityCache[this] = result;
+    return result;
   }
 }
 
