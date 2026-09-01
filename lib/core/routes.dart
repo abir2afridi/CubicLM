@@ -8,12 +8,14 @@ import '../views/home_view.dart';
 import '../views/chat_view.dart';
 import '../views/task_view.dart';
 import '../views/splash_view.dart';
+import '../views/onboarding_view.dart';
 
 abstract class AppRoutes {
   static const splash = '/splash';
   static const home = '/';
   static const chat = '/chat';
   static const task = '/task';
+  static const onboarding = '/onboarding';
 }
 
 class AppPages {
@@ -21,6 +23,10 @@ class AppPages {
     GetPage(
       name: AppRoutes.splash,
       page: () => const SplashView(),
+    ),
+    GetPage(
+      name: AppRoutes.onboarding,
+      page: () => const OnboardingView(),
     ),
     GetPage(
       name: AppRoutes.home,

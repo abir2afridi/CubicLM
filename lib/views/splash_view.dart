@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/routes.dart';
+import '../core/constants.dart';
+import '../services/hive_service.dart';
 import '../theme/design_tokens.dart';
 
 class SplashView extends StatefulWidget {
@@ -29,14 +31,22 @@ class _SplashViewState extends State<SplashView>
       ..forward();
     _fadeIn = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOutCubic);
 
-    // Smooth exit: fade out then instant switch (fade handled here, no route transition needed).
+    // Smooth exit: fade out then check onboarding → home/onboarding.
     Future.delayed(const Duration(milliseconds: 1380), () async {
       if (!mounted) return;
       try {
         await _fadeCtrl.reverse().orCancel;
       } catch (_) {}
       if (!mounted) return;
-      Get.offAllNamed(AppRoutes.home);
+      String next = AppRoutes.home;
+      try {
+        if (Get.isRegistered<HiveService>()) {
+          final hive = Get.find<HiveService>();
+          final done = hive.getSetting<bool>(AppConstants.keyOnboardingDone) ?? false;
+          if (!done) next = AppRoutes.onboarding;
+        }
+      } catch (_) {}
+      Get.offAllNamed(next);
     });
   }
 

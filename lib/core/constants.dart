@@ -100,6 +100,9 @@ class AppConstants {
   // Language
   static const String keyLanguage = 'app_language';
 
+  // Onboarding
+  static const String keyOnboardingDone = 'onboarding_done_v1';
+
   // Default Model Config
   static const double defaultTemperature = 0.7;
   static const int defaultMaxTokens = 1024;

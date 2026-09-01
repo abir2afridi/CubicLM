@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import '../core/constants.dart';
 import 'hive_service.dart';
+import 'secure_key_store.dart';
 import 'cloud/cloud_provider.dart';
 import 'cloud/cloud_provider_registry.dart';
 import 'cloud/providers/openai_compatible_provider.dart';
@@ -23,14 +24,20 @@ class CloudService extends GetxService {
   String get _apiKey => _readApiKey(_provider);
   String get _model => _readModel(_provider);
 
+  String _readSecure(String key) {
+    if (Get.isRegistered<SecureKeyStore>()) {
+      final v = Get.find<SecureKeyStore>().read(key);
+      if (v.isNotEmpty) return v;
+    }
+    return _hive.getSetting(key) ?? '';
+  }
+
   bool get isConfigured {
     if (_provider == 'custom') {
       return (_hive.getSetting(AppConstants.keyCustomCloudBaseUrl) ?? '')
               .toString()
               .isNotEmpty &&
-          (_hive.getSetting(AppConstants.keyCustomCloudKey) ?? '')
-              .toString()
-              .isNotEmpty;
+          _readSecure(AppConstants.keyCustomCloudKey).isNotEmpty;
     }
     return _apiKey.isNotEmpty;
   }
@@ -107,49 +114,73 @@ class CloudService extends GetxService {
   }
 
   String _readApiKey(String provider) {
+    String key;
     switch (provider) {
       case 'anthropic':
-        return _hive.getSetting(AppConstants.keyAnthropicKey) ?? '';
+        key = AppConstants.keyAnthropicKey;
+        break;
       case 'google':
-        return _hive.getSetting(AppConstants.keyGoogleKey) ?? '';
+        key = AppConstants.keyGoogleKey;
+        break;
       case 'kimi':
-        return _hive.getSetting(AppConstants.keyKimiKey) ?? '';
+        key = AppConstants.keyKimiKey;
+        break;
       case 'stability':
-        return _hive.getSetting(AppConstants.keyStabilityKey) ?? '';
+        key = AppConstants.keyStabilityKey;
+        break;
       case 'nvidia':
-        return _hive.getSetting(AppConstants.keyNvidiaKey) ?? '';
+        key = AppConstants.keyNvidiaKey;
+        break;
       case 'openrouter':
-        return _hive.getSetting(AppConstants.keyOpenRouterKey) ?? '';
+        key = AppConstants.keyOpenRouterKey;
+        break;
       case 'deepseek':
-        return _hive.getSetting(AppConstants.keyDeepSeekKey) ?? '';
+        key = AppConstants.keyDeepSeekKey;
+        break;
       case 'zai':
-        return _hive.getSetting(AppConstants.keyZaiKey) ?? '';
+        key = AppConstants.keyZaiKey;
+        break;
       case 'groq':
-        return _hive.getSetting(AppConstants.keyGroqKey) ?? '';
+        key = AppConstants.keyGroqKey;
+        break;
       case 'mistral':
-        return _hive.getSetting(AppConstants.keyMistralKey) ?? '';
+        key = AppConstants.keyMistralKey;
+        break;
       case 'together':
-        return _hive.getSetting(AppConstants.keyTogetherKey) ?? '';
+        key = AppConstants.keyTogetherKey;
+        break;
       case 'xai':
-        return _hive.getSetting(AppConstants.keyXaiKey) ?? '';
+        key = AppConstants.keyXaiKey;
+        break;
       case 'perplexity':
-        return _hive.getSetting(AppConstants.keyPerplexityKey) ?? '';
+        key = AppConstants.keyPerplexityKey;
+        break;
       case 'cerebras':
-        return _hive.getSetting(AppConstants.keyCerebrasKey) ?? '';
+        key = AppConstants.keyCerebrasKey;
+        break;
       case 'fireworks':
-        return _hive.getSetting(AppConstants.keyFireworksKey) ?? '';
+        key = AppConstants.keyFireworksKey;
+        break;
       case 'cohere':
-        return _hive.getSetting(AppConstants.keyCohereKey) ?? '';
+        key = AppConstants.keyCohereKey;
+        break;
       case 'huggingface':
-        return _hive.getSetting(AppConstants.keyHuggingFaceKey) ?? '';
+        key = AppConstants.keyHuggingFaceKey;
+        break;
       case 'xkiro':
-        return _hive.getSetting(AppConstants.keyXkiroKey) ?? '';
+        key = AppConstants.keyXkiroKey;
+        break;
       case 'tokenrouter':
-        return _hive.getSetting(AppConstants.keyTokenRouterKey) ?? '';      case 'custom':
-        return _hive.getSetting(AppConstants.keyCustomCloudKey) ?? '';
+        key = AppConstants.keyTokenRouterKey;
+        break;
+      case 'custom':
+        key = AppConstants.keyCustomCloudKey;
+        break;
       default:
-        return _hive.getSetting(AppConstants.keyOpenaiKey) ?? '';
+        key = AppConstants.keyOpenaiKey;
+        break;
     }
+    return _readSecure(key);
   }
 
   String _readModel(String provider) {

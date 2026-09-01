@@ -141,6 +141,22 @@ class AppTranslations extends Translations {
     'about_tech_stack': 'Tech Stack',
     'about_github': 'GitHub',
     'about_license': 'License',
+
+    // Onboarding
+    'onboarding_skip': 'Skip',
+    'onboarding_next': 'Next',
+    'onboarding_start': 'Start Chatting',
+    'onboarding_page1_title': 'Private by Default',
+    'onboarding_page1_desc':
+        'LLMs run directly on your device via GPU-accelerated llama.cpp. Your chats never leave the phone.',
+    'onboarding_page2_title': 'Or Use Any Cloud',
+    'onboarding_page2_desc':
+        'Connect 20+ providers — OpenAI, Claude, Gemini, Groq and more — with your own API keys. Switch per chat.',
+    'onboarding_page3_title': 'Pick Your First Model',
+    'onboarding_page3_desc': 'We recommend a model for your RAM. Download once, chat offline forever.',
+    'onboarding_recommended': 'Recommended for your device',
+    'onboarding_download': 'Download',
+    'onboarding_open_hub': 'Open Model Hub',
   };
 
   // ── Bangla (বাংলা) ──
@@ -264,6 +280,22 @@ class AppTranslations extends Translations {
     'about_tech_stack': 'টেক স্ট্যাক',
     'about_github': 'GitHub',
     'about_license': 'লাইসেন্স',
+
+    // Onboarding
+    'onboarding_skip': 'এড়িয়ে যান',
+    'onboarding_next': 'পরবর্তী',
+    'onboarding_start': 'চ্যাট শুরু করুন',
+    'onboarding_page1_title': 'ডিফল্টে প্রাইভেট',
+    'onboarding_page1_desc':
+        'LLM সরাসরি আপনার ফোনে GPU-ত্বরান্বিত llama.cpp দিয়ে চলে। আপনার চ্যাট কখনো ফোনের বাইরে যায় না।',
+    'onboarding_page2_title': 'অথবা যেকোনো ক্লাউড',
+    'onboarding_page2_desc':
+        '২০+ প্রোভাইডার — OpenAI, Claude, Gemini, Groq — আপনার API কী দিয়ে। প্রতি চ্যাটে বদলান।',
+    'onboarding_page3_title': 'প্রথম মডেল বেছে নিন',
+    'onboarding_page3_desc': 'আপনার RAM এর জন্য মডেল সুপারিশ করি। একবার ডাউনলোড, চিরকাল অফলাইন।',
+    'onboarding_recommended': 'আপনার ডিভাইসের জন্য সুপারিশকৃত',
+    'onboarding_download': 'ডাউনলোড',
+    'onboarding_open_hub': 'মডেল হাব খুলুন',
   };
 
   // ── Hindi (हिन्दी) ──
