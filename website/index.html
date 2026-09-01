@@ -490,27 +490,128 @@
 <section id="structure" class="structure">
   <div class="structure-label">Codebase</div>
   <div class="structure-title">Project Structure</div>
-  <pre class="structure-tree">
+<pre class="structure-tree">
 lib/
-├── main.dart
-├── core/                # Colors, constants, routes, theme, languages, translations
-├── models/              # AI model, chat message, session, skill, notification
-├── controllers/         # Chat, cloud, home, model, server, settings, task
-├── services/            # Cloud providers, inference, download, Hive, skills, MCP, device info, web fetch, etc.
-├── views/               # Splash, onboarding, home, chat, model, settings, about, log, task
-├── widgets/             # Chat bubble, code block, thinking orb, model switcher, etc.
-├── ffi/                 # SD FFI bindings
-├── utils/               # Snackbar, thought parser
-└── shared/              # Platform links, theme tokens
-shared/                  # Root shared (for future shells)
-android/                 # Android native (Kotlin, Gradle)
-windows/                 # Windows Flutter shell
-web/                     # Web shell
-local_plugins/           # llama.cpp, LiteRT-LM, SD Flutter plugins
-scripts/                 # Build scripts
-assets/skills/           # 5 bundled skills
-docs/                    # Architecture, platform differences, build guide
-  </pre>
+├── main.dart                    # App entry point
+├── core/
+│   ├── colors.dart              # App color palette
+│   ├── constants.dart           # Settings keys, model catalog
+│   ├── routes.dart              # Route definitions
+│   ├── theme.dart               # Light/dark theme
+│   ├── design_tokens.dart       # Warm palette
+│   ├── languages.dart           # 15 supported languages
+│   └── app_translations.dart    # GetX translations
+├── models/
+│   ├── ai_model.dart            # AI model data class
+│   ├── chat_message.dart        # Chat message with revisions
+│   ├── chat_session.dart        # Chat session model
+│   ├── web_source.dart          # Web source data
+│   ├── task_model.dart          # Automated task model
+│   ├── notification_entry.dart  # Model-switch history
+│   └── skill_model.dart         # Skill model
+├── controllers/
+│   ├── chat_controller.dart     # Chat logic, streaming
+│   ├── cloud_model_controller.dart # Cloud model selection
+│   ├── home_controller.dart     # Tab navigation, model resume
+│   ├── model_controller.dart    # Model download/import
+│   ├── server_controller.dart   # Local API server
+│   ├── settings_controller.dart # App settings + locale
+│   └── task_controller.dart     # Automated tasks
+├── services/
+│   ├── cloud_service.dart       # Multi-provider API
+│   ├── cloud/                   # Cloud provider plugins
+│   │   ├── cloud_provider.dart
+│   │   ├── cloud_provider_registry.dart
+│   │   └── providers/           # 20+ providers
+│   ├── inference_service.dart   # Cross-platform inference
+│   ├── inference_android.dart   # Android engine bridge
+│   ├── openai_server_service.dart # Built-in server
+│   ├── download_native.dart     # Resumable downloader
+│   ├── download_web.dart        # Web stubs
+│   ├── download_service.dart    # Download orchestrator
+│   ├── hive_service.dart        # Local persistence
+│   ├── notification_history_service.dart
+│   ├── skills/                  # Skills registry, injector
+│   ├── mcp/                     # MCP config, connection
+│   ├── device_info_service.dart # RAM/tier + SoC/GPU
+│   ├── web_fetch_service.dart   # URL fetching
+│   ├── execution_service.dart   # Task execution
+│   ├── document_extractor_service.dart # PDF/text extraction
+│   ├── local_image_service.dart # Stable Diffusion
+│   ├── sd_isolate_processor.dart # SD in isolates
+│   ├── image_generation_notification_service.dart
+│   ├── app_log_service.dart     # Logging with categories
+│   └── crash_reporting_service.dart # Firebase Crashlytics
+├── views/
+│   ├── splash_view.dart         # Shimmer + fade-out
+│   ├── onboarding_view.dart     # 3-page wizard
+│   ├── home_view.dart           # Main navigation scaffold
+│   ├── chat_view.dart           # Chat interface
+│   ├── model_view.dart          # Model Hub — 4-way toggle
+│   ├── explore_skills_mcp_tabs.dart
+│   ├── server_view.dart         # Nodes page
+│   ├── settings_view.dart       # Config sections
+│   ├── app_settings_view.dart   # Theme, language, orbs
+│   ├── language_picker_view.dart # Full-page picker
+│   ├── about_view.dart          # About page
+│   ├── notification_history_view.dart
+│   ├── log_view.dart            # System diagnostics
+│   └── task_view.dart           # Automated tasks
+├── widgets/
+│   ├── chat_bubble.dart         # Message bubble with actions
+│   ├── code_block.dart          # Syntax-highlighted code
+│   ├── model_switcher_sheet.dart
+│   ├── attachment_preview.dart
+│   ├── image_viewer.dart
+│   ├── thought_disclosure.dart  # Reasoning tags
+│   ├── thinking_orb.dart        # 3D particle sphere
+│   └── typing_indicator.dart
+├── ffi/
+│   └── sd_ffi_bindings.dart     # FFI for SD native lib
+├── utils/
+│   ├── app_snackbar.dart        # Top spring-animated toast
+│   └── thought_parser.dart      # &lt;thought&gt; tag parser
+└── shared/                      # Re-export for Flutter
+    ├── constants/platform_links.dart
+    └── theme/tokens.dart
+
+shared/                          # Root single source
+├── constants/platform_links.dart
+└── theme/tokens.dart
+
+windows/                         # Flutter Windows shell
+├── runner/
+├── CMakeLists.txt
+└── updater_config.json
+
+web/                             # Flutter Web shell
+├── index.html
+└── manifest.json
+
+scripts/
+├── build-all.ps1
+└── build-all.sh
+
+local_plugins/
+├── llama_flutter_android/       # llama.cpp plugin
+├── flutter_litert_lm/           # LiteRT-LM plugin
+└── sd_flutter_android/          # Stable Diffusion plugin
+
+android/
+└── app/src/main/kotlin/com/cubiclm/app/
+    ├── MainActivity.kt
+    └── ModelDownloadService.kt
+
+assets/
+└── skills/                      # 5 bundled starters
+
+docs/
+├── ARCHITECTURE.md
+├── PLATFORM_DIFFERENCES.md
+├── BUILD_AND_RUN.md
+├── PLATFORM_LINKS.md
+└── CHANGELOG.md
+</pre>
 </section>
 
 <!-- ════ CHANGELOG (TABBED) ════ -->
