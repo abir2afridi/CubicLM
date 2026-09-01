@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get/get.dart';
 
@@ -8,6 +11,7 @@ import 'app_log_service.dart';
 /// plaintext Hive settings box.
 class SecureKeyStore extends GetxService {
   static const _optionKey = 'clm_key_';
+  static const _hiveKeyStorageKey = 'clm_hive_enc_key';
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
@@ -66,4 +70,29 @@ class SecureKeyStore extends GetxService {
   bool has(String optionKey) => read(optionKey).isNotEmpty;
 
   Future<void> delete(String optionKey) => write(optionKey, '');
+
+  /// Returns the 32-byte AES key for Hive box encryption.
+  /// Generates and persists a new key on first call.
+  Future<List<int>> hiveEncryptionKey() async {
+    try {
+      final existing = await _storage.read(key: _hiveKeyStorageKey);
+      if (existing != null && existing.isNotEmpty) {
+        return base64Url.decode(existing);
+      }
+    } catch (e) {
+      _log('hiveEncryptionKey read failed: $e');
+    }
+
+    // Generate a new 32-byte key.
+    final rng = Random.secure();
+    final key = List<int>.generate(32, (_) => rng.nextInt(256));
+
+    try {
+      await _storage.write(key: _hiveKeyStorageKey, value: base64Url.encode(key));
+    } catch (e) {
+      _log('hiveEncryptionKey write failed: $e');
+    }
+
+    return key;
+  }
 }

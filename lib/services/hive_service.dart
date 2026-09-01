@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../core/constants.dart';
+import 'secure_key_store.dart';
 
 /// In-memory fallback that implements Hive [Box] without disk I/O.
 /// Used when Hive is corrupted / storage slow — app stays usable with
@@ -141,6 +142,8 @@ class HiveService extends GetxService {
   bool _isFallback = false;
   bool get isFallback => _isFallback;
 
+  HiveAesCipher? _encryptionCipher;
+
   Box get sessionsBox => _sessionsBox;
   Box get messagesBox => _messagesBox;
   Box get tasksBox => _tasksBox;
@@ -174,12 +177,41 @@ class HiveService extends GetxService {
   }
 
   Future<Box> _openBoxWithFallback(String name) async {
-    // Try normal open with short timeout.
+    // Try normal open with short timeout, using encryption if available.
     try {
-      return await Hive.openBox(name)
+      return await Hive.openBox(name,
+              encryptionCipher: _encryptionCipher)
           .timeout(const Duration(seconds: 3));
     } catch (_) {
-      // Try delete + retry once.
+      // Encrypted open failed — might be migrating from plain-text.
+      // Try to read data with no cipher, then re-encrypt.
+      if (_encryptionCipher != null) {
+        try {
+          final plainBox =
+              await Hive.openBox(name).timeout(const Duration(seconds: 3));
+          if (plainBox.isNotEmpty) {
+            final data = <dynamic, dynamic>{};
+            for (final key in plainBox.keys) {
+              data[key] = plainBox.get(key);
+            }
+            await plainBox.close();
+            await Hive.deleteBoxFromDisk(name);
+            final encryptedBox = await Hive.openBox(name,
+                    encryptionCipher: _encryptionCipher)
+                .timeout(const Duration(seconds: 3));
+            await encryptedBox.putAll(data);
+            return encryptedBox;
+          }
+          // Empty plain box — just close and reopen encrypted.
+          await plainBox.close();
+          await Hive.deleteBoxFromDisk(name);
+          return await Hive.openBox(name,
+                  encryptionCipher: _encryptionCipher)
+              .timeout(const Duration(seconds: 3));
+        } catch (_) {}
+      }
+
+      // Try delete + retry once (no encryption, fallback path).
       try {
         await Hive.deleteBoxFromDisk(name);
       } catch (_) {}
@@ -194,7 +226,17 @@ class HiveService extends GetxService {
     }
   }
 
-  Future<HiveService> init() async {
+  Future<HiveService> init({SecureKeyStore? secureKeyStore}) async {
+    // Set up AES encryption cipher if SecureKeyStore is available.
+    if (secureKeyStore != null) {
+      try {
+        final key = await secureKeyStore.hiveEncryptionKey();
+        _encryptionCipher = HiveAesCipher(key);
+      } catch (_) {
+        // Encryption setup failed — proceed without encryption.
+      }
+    }
+
     // Open each box individually so one corrupted box doesn't kill all 7.
     final results = await Future.wait<Box>([
       _openBoxWithFallback(AppConstants.chatSessionsBox),

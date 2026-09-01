@@ -110,8 +110,30 @@ void main() {
       } catch (_) {}
     }
 
+    // ── Secure storage for API keys (needed before HiveService for encryption) ──
     try {
-      await withTimeout(Get.putAsync(() => HiveService().init()), 'HiveService',
+      await withTimeout(Get.putAsync(() => SecureKeyStore().init()),
+          'SecureKeyStore',
+          timeout: const Duration(seconds: 4));
+    } catch (e) {
+      appLog.error('SecureKeyStore init failed — API keys stay in memory',
+          details: e.toString(), category: LogCategory.system);
+      if (!Get.isRegistered<SecureKeyStore>()) {
+        Get.put(SecureKeyStore(), permanent: true);
+        unawaited(Get.find<SecureKeyStore>().init());
+      }
+    }
+
+    // ── Hive with encrypted storage ──
+    SecureKeyStore? secureKeyStore;
+    if (Get.isRegistered<SecureKeyStore>()) {
+      secureKeyStore = Get.find<SecureKeyStore>();
+    }
+
+    try {
+      await withTimeout(
+          Get.putAsync(() => HiveService().init(secureKeyStore: secureKeyStore)),
+          'HiveService',
           timeout: const Duration(seconds: 5));
     } catch (e) {
       appLog.error('HiveService init failed — using memory fallback',
@@ -120,7 +142,8 @@ void main() {
         try {
           await Hive.deleteFromDisk();
           await Hive.initFlutter().timeout(const Duration(seconds: 3));
-          await Get.putAsync(() => HiveService().init())
+          await Get.putAsync(
+                  () => HiveService().init(secureKeyStore: secureKeyStore))
               .timeout(const Duration(seconds: 5));
         } catch (_) {
           Get.put(HiveService.fallback());
@@ -140,20 +163,6 @@ void main() {
       appLog.warning(
           'Running with in-memory storage — settings will not persist until storage is cleared or app is reinstalled',
           category: LogCategory.system);
-    }
-
-    // ── Secure storage for API keys ──
-    try {
-      await withTimeout(Get.putAsync(() => SecureKeyStore().init()),
-          'SecureKeyStore',
-          timeout: const Duration(seconds: 4));
-    } catch (e) {
-      appLog.error('SecureKeyStore init failed — API keys stay in memory',
-          details: e.toString(), category: LogCategory.system);
-      if (!Get.isRegistered<SecureKeyStore>()) {
-        Get.put(SecureKeyStore(), permanent: true);
-        unawaited(Get.find<SecureKeyStore>().init());
-      }
     }
 
     // One-time migration: Hive plaintext API keys → secure storage.
