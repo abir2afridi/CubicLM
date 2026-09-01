@@ -1,8 +1,10 @@
 import 'dart:async';
-import 'dart:io' show File, Platform;
+import 'dart:io' show Directory, File, Platform;
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:image/image.dart' as img;
+import 'package:path_provider/path_provider.dart';
 import 'package:sd_flutter_android/sd_flutter_android.dart';
 import '../core/constants.dart';
 import '../ffi/sd_ffi_bindings.dart';
@@ -387,6 +389,13 @@ class LocalImageService extends GetxService {
       final pngBytes = Uint8List.fromList(img.encodePng(image));
       print('[LocalImageService] PNG encoded: ${pngBytes.length} bytes');
 
+      // Persist to gallery history (Hive box 'image_history')
+      try {
+        await _saveToGallery(pngBytes, prompt, result.width, result.height);
+      } catch (e) {
+        print('[LocalImageService] Gallery history save failed: $e');
+      }
+
       isGenerating.value = false;
       return pngBytes;
     } catch (e, stack) {
@@ -400,6 +409,35 @@ class LocalImageService extends GetxService {
               'backend=${currentBackend.value.displayName}, model=${loadedModelName.value}, error=$e',
           category: LogCategory.image);
       return null;
+    }
+  }
+
+  Future<void> _saveToGallery(
+      Uint8List bytes, String prompt, int width, int height) async {
+    if (kIsWeb) return;
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final galleryDir = Directory('${dir.path}/gallery_images');
+      if (!await galleryDir.exists()) {
+        await galleryDir.create(recursive: true);
+      }
+      final now = DateTime.now();
+      final id = now.millisecondsSinceEpoch.toString();
+      final file = File('${galleryDir.path}/gallery_$id.png');
+      await file.writeAsBytes(bytes, flush: true);
+      final entry = <String, dynamic>{
+        'id': id,
+        'path': file.path,
+        'prompt': prompt,
+        'timestamp': now.toIso8601String(),
+        'timestampMs': now.millisecondsSinceEpoch,
+        'size': '${width}x$height',
+        'bytes': bytes.length,
+      };
+      await _hive.saveImageHistory(id, entry);
+      print('[LocalImageService] Gallery saved: ${file.path}');
+    } catch (e) {
+      print('[LocalImageService] _saveToGallery error: $e');
     }
   }
 }

@@ -28,6 +28,7 @@ import 'services/notification_history_service.dart';
 import 'services/skills/skill_registry_service.dart';
 import 'services/mcp/mcp_registry_service.dart';
 import 'services/tts_service.dart';
+import 'services/update_service.dart';
 import 'core/constants.dart';
 import 'core/languages.dart';
 import 'core/app_translations.dart';
@@ -322,6 +323,14 @@ Future<void> _initDeferredServices(
       timeout: const Duration(seconds: 4));
   await safePut(() => DeviceInfoService().init(), 'DeviceInfoService',
       timeout: const Duration(seconds: 4));
+  await safePut(() => UpdateService().init(), 'UpdateService',
+      timeout: const Duration(seconds: 4));
+  // Kick off auto-check (3s delay + 24h throttle inside the service).
+  try {
+    if (Get.isRegistered<UpdateService>()) {
+      unawaited(Get.find<UpdateService>().check());
+    }
+  } catch (_) {}
 
   // Upgrade crash reporting from dummy to real.
   try {

@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import '../services/update_service.dart';
 import '../shared/constants/platform_links.dart';
 import '../theme/design_tokens.dart';
 
@@ -160,6 +161,29 @@ class AboutView extends StatelessWidget {
                           isDark ? AppColors.textSecondary : Dt.textSecondary),
                 ),
               ]),
+            ),
+            const SizedBox(height: 16),
+            // ── Check for updates ──
+            Center(
+              child: OutlinedButton.icon(
+                icon: const Icon(LucideIcons.download, size: 16),
+                label: Text('Check for updates',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13, fontWeight: FontWeight.w700)),
+                style: OutlinedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                  side: BorderSide(color: Dt.accent.withValues(alpha: 0.25)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onPressed: () async {
+                  final svc = Get.isRegistered<UpdateService>()
+                      ? Get.find<UpdateService>()
+                      : Get.put(UpdateService());
+                  await svc.check(force: true, silent: false);
+                },
+              ),
             ),
             const SizedBox(height: 28),
 

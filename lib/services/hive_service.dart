@@ -136,6 +136,7 @@ class HiveService extends GetxService {
   late Box _notificationsBox;
   late Box _skillsBox;
   late Box _mcpBox;
+  late Box _imageHistoryBox;
 
   bool _isFallback = false;
   bool get isFallback => _isFallback;
@@ -147,6 +148,7 @@ class HiveService extends GetxService {
   Box get notificationsBox => _notificationsBox;
   Box get skillsBox => _skillsBox;
   Box get mcpBox => _mcpBox;
+  Box get imageHistoryBox => _imageHistoryBox;
 
   /// Pure memory fallback — no Hive disk access.
   HiveService.fallback() {
@@ -158,6 +160,7 @@ class HiveService extends GetxService {
     _notificationsBox = _MemoryBox();
     _skillsBox = _MemoryBox();
     _mcpBox = _MemoryBox();
+    _imageHistoryBox = _MemoryBox();
   }
 
   HiveService();
@@ -201,6 +204,7 @@ class HiveService extends GetxService {
       _openBoxWithFallback(AppConstants.notificationsBox),
       _openBoxWithFallback(AppConstants.skillsBox),
       _openBoxWithFallback(AppConstants.mcpBox),
+      _openBoxWithFallback(AppConstants.imageHistoryBox),
     ]);
     _sessionsBox = results[0];
     _messagesBox = results[1];
@@ -209,6 +213,7 @@ class HiveService extends GetxService {
     _notificationsBox = results[4];
     _skillsBox = results[5];
     _mcpBox = results[6];
+    _imageHistoryBox = results[7];
 
     // One-time migration: prefix message keys with chatId for O(1) lookup.
     try {
@@ -538,6 +543,59 @@ class HiveService extends GetxService {
     } catch (_) {
       return false;
     }
+  }
+
+  // ─── Image History (Gallery) ─────────────────
+
+  List<Map<dynamic, dynamic>> getAllImageHistory() {
+    try {
+      if (!_isBoxUsable(_imageHistoryBox)) return [];
+      final list = _imageHistoryBox.values
+          .map((v) => Map<dynamic, dynamic>.from(v as Map))
+          .toList();
+      list.sort((a, b) {
+        final at = (a['timestampMs'] as num?)?.toInt() ?? 0;
+        final bt = (b['timestampMs'] as num?)?.toInt() ?? 0;
+        return bt.compareTo(at);
+      });
+      return list;
+    } on HiveError {
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveImageHistory(String id, Map<String, dynamic> data) async {
+    try {
+      if (!_isBoxUsable(_imageHistoryBox)) return;
+      await _imageHistoryBox.put(id, data);
+    } on HiveError {
+      // gallery write failures are non-fatal
+    } catch (_) {}
+  }
+
+  Future<void> deleteImageHistory(String id) async {
+    try {
+      if (!_isBoxUsable(_imageHistoryBox)) return;
+      final existing = _imageHistoryBox.get(id);
+      if (existing is Map) _deleteImageFile(existing['path'] as String?);
+      await _imageHistoryBox.delete(id);
+    } on HiveError {
+      // gallery delete failures are non-fatal
+    } catch (_) {}
+  }
+
+  Future<void> clearImageHistory() async {
+    try {
+      if (!_isBoxUsable(_imageHistoryBox)) return;
+      for (final v in _imageHistoryBox.values) {
+        if (v is Map) _deleteImageFile(v['path'] as String?);
+      }
+      await _imageHistoryBox.clear();
+    } on HiveError {
+      // gallery clear failures are non-fatal
+    } catch (_) {}
   }
 
   void _deleteImageFile(String? path) {

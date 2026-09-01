@@ -15,6 +15,7 @@ import '../services/download_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import 'explore_skills_mcp_tabs.dart';
+import 'gallery_view.dart';
 
 class ModelView extends GetView<ModelController> {
   const ModelView({super.key});
@@ -139,6 +140,8 @@ class ModelView extends GetView<ModelController> {
                   _buildSkillsTab(context),
                 ] else if (controller.modelScope.value == 'mcp') ...[
                   _buildMcpTab(context),
+                ] else if (controller.modelScope.value == 'gallery') ...[
+                  _buildGalleryTab(context),
                 ],
               ],
             )),
@@ -151,9 +154,15 @@ class ModelView extends GetView<ModelController> {
 
   Widget _buildScopeToggle(BuildContext context) {
     return Obx(() {
-      // Ensure legacy value 'online' still works; keep 4-way toggle.
+      // Ensure legacy value still works; keep 5-way toggle incl. gallery.
       final sel = controller.modelScope.value;
-      final normalized = (sel == 'local' || sel == 'online' || sel == 'skills' || sel == 'mcp') ? sel : 'local';
+      final normalized = (sel == 'local' ||
+              sel == 'online' ||
+              sel == 'skills' ||
+              sel == 'mcp' ||
+              sel == 'gallery')
+          ? sel
+          : 'local';
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: SegmentedButton<String>(
@@ -177,6 +186,11 @@ class ModelView extends GetView<ModelController> {
               value: 'mcp',
               icon: const Icon(LucideIcons.plug, size: 16),
               label: Text('explore_mcp'.tr, style: const TextStyle(fontSize: 13)),
+            ),
+            const ButtonSegment(
+              value: 'gallery',
+              icon: Icon(LucideIcons.image, size: 16),
+              label: Text('Gallery', style: TextStyle(fontSize: 13)),
             ),
           ],
           selected: {normalized},
@@ -590,6 +604,10 @@ class ModelView extends GetView<ModelController> {
 
   Widget _buildMcpTab(BuildContext context) {
     return const ExploreMcpTab();
+  }
+
+  Widget _buildGalleryTab(BuildContext context) {
+    return const GalleryView();
   }
 
   Widget _buildProviderCard(BuildContext context, CloudProviderInfo provider) {

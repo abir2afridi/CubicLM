@@ -34,6 +34,8 @@ class AppSnackbar {
     String iconName = 'sparkles',
     Duration duration = const Duration(seconds: 2),
     bool logHistory = true,
+    TextButton? mainButton,
+    VoidCallback? onTap,
   }) {
     if (logHistory && type != 'general') {
       _logHistory(title, message, type, iconName);
@@ -121,6 +123,8 @@ class AppSnackbar {
           ? Colors.white.withValues(alpha: 0.07)
           : Dt.hairline.withValues(alpha: 0.5),
       borderWidth: 1,
+      mainButton: mainButton,
+      onTap: onTap == null ? null : (_) => onTap(),
     );
   }
 

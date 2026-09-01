@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
 import '../services/tts_service.dart';
+import '../services/update_service.dart';
 import 'about_view.dart';
 import 'language_picker_view.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -153,6 +154,27 @@ class AppSettingsView extends GetView<SettingsController> {
                       size: 18, color: Theme.of(context).hintColor),
                   showDivider: false,
                   onTap: () => Get.to(() => const LanguagePickerView()),
+                ),
+              ]),
+              const SizedBox(height: 28),
+              _sectionLabel(context, 'Updates'),
+              _appleGroupedCard(context, isDark, children: [
+                _appleListTile(
+                  context,
+                  isDark,
+                  leading: const Icon(LucideIcons.download,
+                      size: 20, color: Dt.accent),
+                  title: 'Check for updates',
+                  subtitle: 'Poll GitHub Releases for a newer version',
+                  trailing: Icon(LucideIcons.chevronRight,
+                      size: 18, color: Theme.of(context).hintColor),
+                  showDivider: false,
+                  onTap: () async {
+                    final svc = Get.isRegistered<UpdateService>()
+                        ? Get.find<UpdateService>()
+                        : Get.put(UpdateService());
+                    await svc.check(force: true, silent: false);
+                  },
                 ),
               ]),
               const SizedBox(height: 28),
