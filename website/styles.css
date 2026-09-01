@@ -149,7 +149,7 @@ a{color:inherit;text-decoration:none}
 .structure-tree{font-family:'Space Mono',monospace;font-size:13px;line-height:2;color:rgba(255,255,255,.75);background:rgba(255,255,255,.03);padding:32px 40px;border:1px solid rgba(255,255,255,.08);border-radius:12px;max-width:1000px;margin:0 auto;overflow-x:auto}
 .tree-row{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .tree-spacer{height:16px}
-.tree-line{color:rgba(255,255,255,.2);flex-shrink:0;user-select:none}
+.tree-line{color:rgba(255,255,255,.1);flex-shrink:0;user-select:none}
 .tree-icon{width:18px;height:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
 .tree-icon img{width:16px;height:16px;border-radius:2px;object-fit:contain}
 .tree-icon--folder{color:#FFC107}
