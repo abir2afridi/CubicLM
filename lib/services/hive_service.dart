@@ -488,6 +488,58 @@ class HiveService extends GetxService {
     } catch (_) {}
   }
 
+  // ─── Search ────────────────────────────────────
+
+  /// Case-insensitive full-text search across all stored messages.
+  /// Returns the set of session IDs that have at least one message whose
+  /// `content` contains [query] (case-insensitive).
+  Set<String> searchMessages(String query) {
+    final q = query.toLowerCase().trim();
+    if (q.isEmpty) return <String>{};
+    final ids = <String>{};
+    try {
+      if (!_isBoxUsable(_messagesBox)) return ids;
+      for (final v in _messagesBox.values) {
+        if (v is Map) {
+          final content = (v['content'] ?? '').toString().toLowerCase();
+          if (content.contains(q)) {
+            final chatId = v['chatId']?.toString();
+            if (chatId != null && chatId.isNotEmpty) ids.add(chatId);
+          }
+        }
+      }
+    } catch (_) {}
+    return ids;
+  }
+
+  /// Returns true if [sessionId] has any message whose content contains
+  /// [queryLower] (already lower-cased).
+  bool sessionHasMessageMatching(String sessionId, String queryLower) {
+    if (queryLower.isEmpty) return false;
+    try {
+      if (!_isBoxUsable(_messagesBox)) return false;
+      final prefix = '$sessionId/';
+      for (final k
+          in _messagesBox.keys.where((k) => k.toString().startsWith(prefix))) {
+        final v = _messagesBox.get(k);
+        if (v is Map) {
+          final content = (v['content'] ?? '').toString().toLowerCase();
+          if (content.contains(queryLower)) return true;
+        }
+      }
+      // Fallback for pre-migration keys without prefix.
+      for (final v in _messagesBox.values) {
+        if (v is Map && v['chatId'] == sessionId) {
+          final content = (v['content'] ?? '').toString().toLowerCase();
+          if (content.contains(queryLower)) return true;
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   void _deleteImageFile(String? path) {
     if (path == null || path.isEmpty) return;
     try {

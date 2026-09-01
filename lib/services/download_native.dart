@@ -425,3 +425,69 @@ Future<List<Map<String, dynamic>>> getActiveNativeDownloads() async {
     return [];
   }
 }
+
+/// Simple size/checksum validation helper.
+///
+/// Checks that [path] exists, has non-zero size, and optionally that its
+/// size matches [expectedBytes] within a small tolerance (≈1%). When
+/// [checkHeader] is true, also validates file header magic for known model
+/// types (GGUF, LiteRT-LM, safetensors) to detect truncated / corrupt files.
+Future<bool> validateDownloadedFile(
+  String path, {
+  int? expectedBytes,
+  bool checkHeader = true,
+}) async {
+  final file = File(path);
+  if (!await file.exists()) return false;
+  final size = await file.length();
+  if (size <= 0) return false;
+  if (expectedBytes != null && expectedBytes > 0) {
+    // Allow ~1% rounding tolerance for catalog sizes (decimal GB/MB).
+    if (size < (expectedBytes * 0.99).round()) return false;
+  }
+  if (!checkHeader) return true;
+  RandomAccessFile? raf;
+  try {
+    raf = await file.open();
+    final header = await raf.read(16);
+    if (header.length < 4) return false;
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.gguf')) {
+      // GGUF magic: 'GGUF' 0x47 0x47 0x55 0x46 at offset 0
+      if (header.length < 4 ||
+          header[0] != 0x47 ||
+          header[1] != 0x47 ||
+          header[2] != 0x55 ||
+          header[3] != 0x46) {
+        return false;
+      }
+    } else if (lower.endsWith('.litertlm')) {
+      if (header.length < 8) return false;
+      final isLlm = header[0] == 0x4C && // 'L'
+          header[1] == 0x49 && // 'I'
+          header[2] == 0x54 && // 'T'
+          header[3] == 0x45 && // 'E'
+          header[4] == 0x52 && // 'R'
+          header[5] == 0x54 && // 'T'
+          header[6] == 0x4C && // 'L'
+          header[7] == 0x4D; // 'M'
+      if (!isLlm) return false;
+    } else if (lower.endsWith('.safetensors')) {
+      if (header.length < 9) return false;
+      var headerLen = 0;
+      for (var i = 0; i < 8; i++) {
+        headerLen += header[i] << (8 * i);
+      }
+      if (headerLen <= 2 || headerLen > size - 8) return false;
+      if (headerLen > 64 * 1024 * 1024) return false;
+      if (header[8] != 0x7B) return false; // '{'
+    }
+    return true;
+  } catch (_) {
+    return false;
+  } finally {
+    try {
+      await raf?.close();
+    } catch (_) {}
+  }
+}

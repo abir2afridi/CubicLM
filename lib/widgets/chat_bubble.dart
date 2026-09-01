@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/chat_message.dart';
 import '../models/web_source.dart';
@@ -301,7 +302,7 @@ class _ChatBubbleState extends State<ChatBubble> {
           ],
 
           if (isUser) ...[
-            // User: Edit + Copy
+            // User: Edit + Copy + Share
             if (widget.onEdit != null)
               _actionButton(
                 icon: Icons.edit_outlined,
@@ -324,8 +325,18 @@ class _ChatBubbleState extends State<ChatBubble> {
               color: iconColor,
               size: iconSize,
             ),
+            _actionButton(
+              icon: Icons.ios_share_rounded,
+              tooltip: 'Share',
+              onTap: () {
+                final text = widget.message.content.trim();
+                if (text.isNotEmpty) Share.share(text);
+              },
+              color: iconColor,
+              size: iconSize,
+            ),
           ] else ...[
-            // Assistant: Copy + Regenerate + Branch
+            // Assistant: Copy + Share + Regenerate + Branch
             _actionButton(
               icon: _copied ? Icons.check_rounded : Icons.copy_rounded,
               tooltip: _copied ? 'Copied!' : 'Copy',
@@ -336,6 +347,16 @@ class _ChatBubbleState extends State<ChatBubble> {
                 Future.delayed(const Duration(seconds: 2), () {
                   if (mounted) setState(() => _copied = false);
                 });
+              },
+              color: iconColor,
+              size: iconSize,
+            ),
+            _actionButton(
+              icon: Icons.ios_share_rounded,
+              tooltip: 'Share',
+              onTap: () {
+                final text = widget.message.content.trim();
+                if (text.isNotEmpty) Share.share(text);
               },
               color: iconColor,
               size: iconSize,
@@ -416,6 +437,16 @@ class _ChatBubbleState extends State<ChatBubble> {
                 Navigator.pop(context);
                 Clipboard.setData(ClipboardData(text: content));
                 HapticFeedback.selectionClick();
+              },
+            ),
+            _menuTile(
+              icon: Icons.ios_share_rounded,
+              label: 'Share',
+              isDark: isDark,
+              onTap: () {
+                Navigator.pop(context);
+                final text = content.trim();
+                if (text.isNotEmpty) Share.share(text);
               },
             ),
             if (!isUser && widget.onRetry != null)

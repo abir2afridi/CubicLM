@@ -109,4 +109,15 @@ class DeviceInfoService extends GetxService {
         return '📱 ${totalRamGB.value.toStringAsFixed(1)}GB RAM detected';
     }
   }
+
+  /// Estimated KV cache per token ~ 2-3 KB (layers * hidden * 2 bytes). Use 2.5KB.
+  int estimatedKvBytes(int contextSize) => (contextSize * 2560).toInt();
+
+  bool canAllocateContextSize(int requested, {int fileBytes = 0}) {
+    if (requested <= maxSafeContextSize) return true;
+    final need = fileBytes + estimatedKvBytes(requested);
+    final available = (availableRamGB.value * 1024 * 1024 * 1024).toInt();
+    // Require at least 20% headroom
+    return need < (available * 0.8).toInt();
+  }
 }

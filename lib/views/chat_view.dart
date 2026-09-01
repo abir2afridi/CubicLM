@@ -1,16 +1,22 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../controllers/chat_controller.dart';
 import '../models/chat_message.dart';
+import '../models/chat_session.dart';
 import '../controllers/settings_controller.dart';
 import '../controllers/model_controller.dart';
 import '../controllers/home_controller.dart';
+import '../services/hive_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../ffi/sd_ffi_bindings.dart';
@@ -147,8 +153,8 @@ class ChatView extends GetView<ChatController> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final day = DateTime(d.year, d.month, d.day);
-    if (day == today) return 'Today';
-    if (day == today.subtract(const Duration(days: 1))) return 'Yesterday';
+    if (day == today) return 'chat_today'.tr;
+    if (day == today.subtract(const Duration(days: 1))) return 'chat_yesterday'.tr;
     if (now.difference(day).inDays < 7 && now.isAfter(day)) {
       return _weekday(d.weekday);
     }
@@ -183,16 +189,16 @@ class ChatView extends GetView<ChatController> {
         backgroundColor: isDark ? Dt.cardDark : Dt.card,
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Delete message?',
+        title: Text('chat_delete_title'.tr,
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-        content: Text('This message will be permanently deleted.',
+        content: Text('chat_delete_desc'.tr,
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 color: isDark ? AppColors.textSecondary : Dt.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel',
+            child: Text('common_cancel'.tr,
                 style: GoogleFonts.plusJakartaSans(
                     color: isDark ? AppColors.textMuted : Dt.textMuted)),
           ),
@@ -202,7 +208,7 @@ class ChatView extends GetView<ChatController> {
               Navigator.pop(ctx);
               controller.deleteMessage(msg);
             },
-            child: Text('Delete',
+            child: Text('common_delete'.tr,
                 style: GoogleFonts.plusJakartaSans(
                     fontWeight: FontWeight.w600)),
           ),
@@ -231,7 +237,7 @@ class ChatView extends GetView<ChatController> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: isDark ? AppColors.surface : Colors.white,
-        title: Text('Edit message',
+        title: Text('chat_edit_title'.tr,
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
         content: TextField(
           controller: editController,
@@ -240,7 +246,7 @@ class ChatView extends GetView<ChatController> {
           autofocus: true,
           style: GoogleFonts.plusJakartaSans(fontSize: 15),
           decoration: InputDecoration(
-            hintText: 'Edit your message...',
+            hintText: 'chat_edit_hint'.tr,
             hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.textMuted),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -256,7 +262,7 @@ class ChatView extends GetView<ChatController> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel',
+            child: Text('common_cancel'.tr,
                 style: GoogleFonts.plusJakartaSans(color: AppColors.textMuted)),
           ),
           FilledButton(
@@ -267,6 +273,130 @@ class ChatView extends GetView<ChatController> {
                     GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Export helpers ──
+  String _buildMarkdownForSession(ChatSession session, List<ChatMessage> msgs) {
+    final buf = StringBuffer();
+    buf.writeln('# ${session.title}');
+    buf.writeln();
+    for (final m in msgs) {
+      final role = m.role == 'user'
+          ? 'User'
+          : m.role == 'assistant'
+              ? 'Assistant'
+              : m.role;
+      buf.writeln('$role: ${m.content}');
+      buf.writeln();
+    }
+    return buf.toString();
+  }
+
+  Future<void> _exportSession(BuildContext context, ChatSession session) async {
+    try {
+      final hive = Get.find<HiveService>();
+      final raw = hive.getMessagesForChat(session.id);
+      final msgs = raw.map((m) => ChatMessage.fromMap(m)).toList()
+        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      if (msgs.isEmpty) {
+        Get.snackbar('Nothing to export', 'This chat has no messages.',
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+      final markdown = _buildMarkdownForSession(session, msgs);
+      final safeTitle = session.title
+          .replaceAll(RegExp(r'[^\w\s-]'), '')
+          .replaceAll(RegExp(r'\s+'), '_');
+      final truncated = (safeTitle.isEmpty ? 'chat' : safeTitle)
+          .substring(0, safeTitle.length > 40 ? 40 : safeTitle.length);
+      final baseName = '${truncated}_${DateTime.now().millisecondsSinceEpoch}';
+      final fileName = '$baseName.md';
+
+      if (kIsWeb) {
+        await Share.share(markdown, subject: session.title);
+        return;
+      }
+      try {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$fileName');
+        await file.writeAsString(markdown);
+        await Share.shareXFiles(
+          [XFile(file.path, mimeType: 'text/markdown')],
+          text: session.title,
+          subject: session.title,
+        );
+      } catch (_) {
+        await Share.share(markdown, subject: session.title);
+      }
+    } catch (e) {
+      Get.snackbar('Export failed', '$e',
+          snackPosition: SnackPosition.BOTTOM);
+    }
+  }
+
+  Future<void> _exportCurrentSession(BuildContext context) async {
+    final sid = controller.currentSessionId.value;
+    if (sid.isEmpty) return;
+    final session =
+        controller.sessions.firstWhereOrNull((s) => s.id == sid);
+    if (session == null) return;
+    await _exportSession(context, session);
+  }
+
+  void _showChatActionsSheet(
+      BuildContext context, ChatSession session, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? AppColors.surface : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 16, top: 4),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceLight : Dt.hairline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: Icon(LucideIcons.share2,
+                  size: 22,
+                  color: isDark ? AppColors.textPrimary : Dt.textPrimary),
+              title: Text('Export as Markdown',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(context);
+                _exportSession(context, session);
+              },
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline_rounded,
+                  size: 22,
+                  color: isDark ? AppColors.textPrimary : Dt.textPrimary),
+              title: Text('Delete chat',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(context);
+                controller.deleteChat(session.id);
+              },
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            ),
+            const SizedBox(height: 4),
+          ]),
+        ),
       ),
     );
   }
@@ -308,7 +438,7 @@ class ChatView extends GetView<ChatController> {
             model =
                 '$backendEmoji $backendName · ${localImage.loadedModelName.value.replaceAll('.gguf', '').replaceAll('.GGUF', '')}';
           } else {
-            model = 'No model loaded';
+            model = 'chat_no_model'.tr;
           }
           if (model.length > 20) model = '${model.substring(0, 20)}…';
         } else {
@@ -354,7 +484,7 @@ class ChatView extends GetView<ChatController> {
                       color: statusColor)),
               const SizedBox(width: 6),
               Expanded(
-                  child: Text('$model · ${isLocal ? "Local" : "Cloud"}',
+                  child: Text('$model · ${isLocal ? 'chat_local'.tr : 'chat_cloud'.tr}',
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
@@ -376,6 +506,17 @@ class ChatView extends GetView<ChatController> {
       ),
       actions: [
         _notificationBell(context, isDark),
+        Obx(() {
+          final hasSession = controller.currentSessionId.value.isNotEmpty;
+          if (!hasSession) return const SizedBox.shrink();
+          return IconButton(
+            tooltip: 'Export chat',
+            icon: Icon(LucideIcons.share2,
+                size: Dt.iconSize - 2,
+                color: isDark ? AppColors.textPrimary : Dt.iconDefault),
+            onPressed: () => _exportCurrentSession(context),
+          );
+        }),
         Padding(
           padding: const EdgeInsets.only(right: 12),
           child: IconButton(
@@ -470,7 +611,7 @@ class ChatView extends GetView<ChatController> {
                         strokeWidth: 2.5, color: AppColors.primary)),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Text('Synchronizing Intelligence… $pct%',
+                  child: Text("${'chat_sync_intelligence'.tr} $pct%",
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           color:
@@ -568,13 +709,13 @@ class ChatView extends GetView<ChatController> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Context Usage',
+                    Text('chat_context_usage'.tr,
                         style: GoogleFonts.plusJakartaSans(
                             fontSize: 10,
                             color: Theme.of(context).hintColor,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.2)),
-                    Text('${_fmtK(used)} / ${_fmtK(total)} tokens',
+                    Text('${_fmtK(used)} / ${_fmtK(total)} ${'chat_tokens'.tr}',
                         style: GoogleFonts.plusJakartaSans(
                             fontSize: 10,
                             color: accent,
@@ -634,14 +775,14 @@ class ChatView extends GetView<ChatController> {
         const SizedBox(height: 16),
         _AnimatedAppName(isDark: isDark),
         const SizedBox(height: 20),
-        Text('What shall we explore?',
+        Text('chat_empty_title'.tr,
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 22,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.3,
                 color: isDark ? AppColors.textPrimary : Dt.textPrimary)),
         const SizedBox(height: 8),
-        Text('Start typing below or pick a topic.',
+        Text('chat_empty_subtitle'.tr,
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 14,
                 color: Dt.textSecondary,
@@ -665,14 +806,14 @@ class ChatView extends GetView<ChatController> {
                 const Icon(Icons.cloud_download_rounded,
                     color: AppColors.warning, size: 48),
                 const SizedBox(height: 16),
-                Text('No Local Models Found',
+                Text('chat_no_local_models_title'.tr,
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
                         color: isDark ? Colors.white : Colors.black)),
                 const SizedBox(height: 10),
                 Text(
-                    'Download a model to enable offline AI processing on your device.',
+                    'chat_no_local_models_desc'.tr,
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
@@ -682,7 +823,7 @@ class ChatView extends GetView<ChatController> {
                 FilledButton.icon(
                   onPressed: () => Get.find<HomeController>().changeTab(1),
                   icon: const Icon(Icons.arrow_right_alt_rounded, size: 22),
-                  label: const Text('Go to Model Hub'),
+                  label: Text('chat_go_to_hub'.tr),
                   style: FilledButton.styleFrom(
                       backgroundColor: AppColors.warning,
                       padding: const EdgeInsets.symmetric(
@@ -878,9 +1019,9 @@ class ChatView extends GetView<ChatController> {
   Widget _typingHint(BuildContext context, bool isDark,
       {String? attachmentType}) {
     final msg = attachmentType == 'image'
-        ? 'Analyzing image…'
+        ? 'chat_analyzing_image'.tr
         : attachmentType == 'audio'
-            ? 'Processing audio…'
+            ? 'chat_processing_audio'.tr
             : null;
     // Thinking orbs — dotted orb cycling through random states with a
     // shimmering status label (Working / Searching / Solving / …).
@@ -948,7 +1089,7 @@ class ChatView extends GetView<ChatController> {
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     const _PulsingDot(),
                     const SizedBox(width: 10),
-                    Text('System listening… tap to end',
+                    Text('chat_listening_hint'.tr,
                         style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             color: AppColors.error,
@@ -1088,7 +1229,7 @@ class ChatView extends GetView<ChatController> {
                           ),
                           child: Row(children: [
                             Expanded(
-                              child: Text('Unlock every cloud model',
+                              child: Text('chat_unlock_models'.tr,
                                   overflow: TextOverflow.ellipsis,
                                   style: GoogleFonts.plusJakartaSans(
                                       fontSize: 12.5,
@@ -1101,7 +1242,7 @@ class ChatView extends GetView<ChatController> {
                               onTap: () {
                                 Get.find<HomeController>().changeTab(1);
                               },
-                              child: Text('Add API keys',
+                              child: Text('chat_add_api_keys'.tr,
                                   style: GoogleFonts.plusJakartaSans(
                                       fontSize: 12.5,
                                       fontWeight: FontWeight.w700,
@@ -1159,7 +1300,7 @@ class ChatView extends GetView<ChatController> {
                                   : Dt.textPrimary,
                               fontWeight: FontWeight.w500),
                           decoration: InputDecoration(
-                            hintText: 'Message CubicLM…',
+                            hintText: 'chat_composer_hint'.tr,
                             hintStyle: GoogleFonts.plusJakartaSans(
                                 fontSize: 16,
                                 color: Dt.textPlaceholder,
@@ -1182,7 +1323,7 @@ class ChatView extends GetView<ChatController> {
                           // "+" opens the Add-to-Chat sheet (attachments, web access)
                           AppCircleButton(
                             icon: LucideIcons.plus,
-                            tooltip: 'Add to chat',
+                            tooltip: 'chat_add_to_chat'.tr,
                             onTap: () => _showAddToChatSheet(
                               context,
                               isDark: isDark,
@@ -1256,7 +1397,7 @@ class ChatView extends GetView<ChatController> {
     final s = Get.find<SettingsController>();
     if (s.inferenceMode.value == 'cloud') {
       final m = s.selectedCloudModelName;
-      if (m.isEmpty) return 'Cloud';
+      if (m.isEmpty) return 'chat_cloud'.tr;
       final short = m.contains('/') ? m.split('/').last : m;
       return short.length > 18 ? '${short.substring(0, 18)}…' : short;
     }
@@ -1267,7 +1408,7 @@ class ChatView extends GetView<ChatController> {
         : img.isModelLoaded.value
             ? img.loadedModelName.value
             : '';
-    if (name.isEmpty) return 'Local';
+    if (name.isEmpty) return 'chat_local'.tr;
     final stripped = name.replaceAll(
         RegExp(r'\.(gguf|litertlm|safetensors)$', caseSensitive: false), '');
     // 14 keeps the pill compact on 360dp screens (prevents 4-12px overflow).
@@ -1296,13 +1437,13 @@ class ChatView extends GetView<ChatController> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 AppSheetHeader(
-                    title: 'Add to chat',
+                    title: 'chat_add_to_chat'.tr,
                     onClose: () => Navigator.pop(sheetCtx)),
                 const SizedBox(height: 6),
                 Row(children: [
                   _AddTile(
                       icon: LucideIcons.camera,
-                      label: 'Camera',
+                      label: 'chat_camera'.tr,
                       onTap: () {
                         Navigator.pop(sheetCtx);
                         onCamera();
@@ -1310,7 +1451,7 @@ class ChatView extends GetView<ChatController> {
                   const SizedBox(width: 8),
                   _AddTile(
                       icon: LucideIcons.image,
-                      label: 'Photos',
+                      label: 'chat_photos'.tr,
                       onTap: () {
                         Navigator.pop(sheetCtx);
                         onImage();
@@ -1318,7 +1459,7 @@ class ChatView extends GetView<ChatController> {
                   const SizedBox(width: 8),
                   _AddTile(
                       icon: LucideIcons.fileUp,
-                      label: 'Files',
+                      label: 'chat_files'.tr,
                       onTap: () {
                         Navigator.pop(sheetCtx);
                         onFile();
@@ -1328,7 +1469,7 @@ class ChatView extends GetView<ChatController> {
                 // ── Choose model row (drills into the switcher) ──
                 AppSheetRowCard(
                   leading: const AppIconCircle(icon: LucideIcons.box),
-                  title: 'Choose model',
+                  title: 'chat_choose_model'.tr,
                   subtitle: _composerModelLabel(),
                   onTap: () {
                     Navigator.pop(sheetCtx);
@@ -1340,8 +1481,8 @@ class ChatView extends GetView<ChatController> {
                 const SizedBox(height: 10),
                 Obx(() => AppSheetRowCard(
                       leading: const AppIconCircle(icon: LucideIcons.globe),
-                      title: 'Web access',
-                      subtitle: 'Read links from your message into context',
+                      title: 'chat_web_access'.tr,
+                      subtitle: 'chat_web_access_desc'.tr,
                       trailing: Switch(
                         value: s.webFetchEnabled.value,
                         activeTrackColor:
@@ -1360,6 +1501,7 @@ class ChatView extends GetView<ChatController> {
   }
 
   final RxString _sidebarQuery = ''.obs;
+  final TextEditingController _searchController = TextEditingController();
   Widget _buildSidebar(BuildContext context, bool isDark) {
     return Drawer(
       backgroundColor: isDark ? AppColors.bg : Dt.sidebar,
@@ -1418,7 +1560,7 @@ class ChatView extends GetView<ChatController> {
                 Icon(LucideIcons.messageSquarePlus,
                     size: 20, color: isDark ? AppColors.primary : Dt.accent),
                 const SizedBox(width: 14),
-                Text('New chat',
+                Text('chat_new_chat'.tr,
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -1432,12 +1574,13 @@ class ChatView extends GetView<ChatController> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: TextField(
+            controller: _searchController,
             onChanged: (v) =>
                 setState(() => _sidebarQuery.value = v.trim().toLowerCase()),
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 14, fontWeight: FontWeight.w500),
             decoration: InputDecoration(
-              hintText: 'Search chats...',
+              hintText: 'chat_search_hint'.tr,
               hintStyle: GoogleFonts.plusJakartaSans(
                   fontSize: 14,
                   color: AppColors.textMuted.withValues(alpha: 0.6)),
@@ -1449,7 +1592,10 @@ class ChatView extends GetView<ChatController> {
                   ? IconButton(
                       icon: const Icon(Icons.close_rounded,
                           size: 18, color: AppColors.textMuted),
-                      onPressed: () => setState(() => _sidebarQuery.value = ''),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _sidebarQuery.value = '');
+                      },
                       padding: EdgeInsets.zero,
                       constraints:
                           const BoxConstraints(minWidth: 36, minHeight: 0),
@@ -1475,7 +1621,7 @@ class ChatView extends GetView<ChatController> {
         const SizedBox(height: 16),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text('Recents',
+          child: Text('chat_recents'.tr,
               style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -1486,15 +1632,16 @@ class ChatView extends GetView<ChatController> {
         Expanded(
           child: Obx(() {
             final all = controller.sessions;
-            final filtered = _sidebarQuery.value.isEmpty
+            final q = _sidebarQuery.value;
+            final Set<String> messageHits =
+                q.isEmpty ? <String>{} : Get.find<HiveService>().searchMessages(q);
+            final filtered = q.isEmpty
                 ? all
                 : all
                     .where((s) =>
-                        s.title.toLowerCase().contains(_sidebarQuery.value) ||
-                        (s.lastMessage
-                                ?.toLowerCase()
-                                .contains(_sidebarQuery.value) ??
-                            false))
+                        s.title.toLowerCase().contains(q) ||
+                        (s.lastMessage?.toLowerCase().contains(q) ?? false) ||
+                        messageHits.contains(s.id))
                     .toList();
             if (filtered.isEmpty) {
               return Center(
@@ -1508,8 +1655,8 @@ class ChatView extends GetView<ChatController> {
                   const SizedBox(height: 12),
                   Text(
                       _sidebarQuery.value.isEmpty
-                          ? 'No conversations yet'
-                          : 'No matches found',
+                          ? 'chat_no_conversations'.tr
+                          : 'chat_no_matches'.tr,
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -1578,7 +1725,7 @@ class ChatView extends GetView<ChatController> {
   }
 
   Widget _sidebarTile(
-      BuildContext context, dynamic s, bool active, bool isDark) {
+      BuildContext context, ChatSession s, bool active, bool isDark) {
     return Dismissible(
       key: ValueKey(s.id),
       direction: DismissDirection.endToStart,
@@ -1598,22 +1745,22 @@ class ChatView extends GetView<ChatController> {
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: isDark ? AppColors.surface : Colors.white,
-            title: Text('Delete chat?',
+            title: Text('chat_delete_chat_title'.tr,
                 style:
                     GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-            content: Text('This conversation will be permanently deleted.',
+            content: Text('chat_delete_chat_desc'.tr,
                 style: GoogleFonts.plusJakartaSans(fontSize: 14)),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: Text('Cancel',
+                  child: Text('common_cancel'.tr,
                       style: GoogleFonts.plusJakartaSans(
                           color: AppColors.textMuted))),
               FilledButton(
                   style:
                       FilledButton.styleFrom(backgroundColor: AppColors.error),
                   onPressed: () => Navigator.pop(ctx, true),
-                  child: Text('Delete',
+                  child: Text('common_delete'.tr,
                       style: GoogleFonts.plusJakartaSans(
                           fontWeight: FontWeight.w600))),
             ],
@@ -1632,6 +1779,7 @@ class ChatView extends GetView<ChatController> {
             controller.openChat(s.id);
             Navigator.pop(context);
           },
+          onLongPress: () => _showChatActionsSheet(context, s, isDark),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(children: [
@@ -1675,6 +1823,41 @@ class ChatView extends GetView<ChatController> {
                             color: AppColors.textMuted)),
                   ],
                 ),
+              ),
+              PopupMenuButton<String>(
+                padding: EdgeInsets.zero,
+                icon: Icon(Icons.more_horiz_rounded,
+                    size: 18, color: AppColors.textMuted.withValues(alpha: 0.7)),
+                tooltip: 'More',
+                onSelected: (v) {
+                  if (v == 'export') _exportSession(context, s);
+                  if (v == 'delete') controller.deleteChat(s.id);
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'export',
+                    child: Row(children: [
+                      const Icon(LucideIcons.share2, size: 16),
+                      const SizedBox(width: 10),
+                      Text('Export',
+                          style:
+                              GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ]),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(children: [
+                      const Icon(Icons.delete_outline_rounded,
+                          size: 16, color: AppColors.error),
+                      const SizedBox(width: 10),
+                      Text('common_delete'.tr,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.error)),
+                    ]),
+                  ),
+                ],
               ),
             ]),
           ),
@@ -2018,7 +2201,7 @@ class _ImageGenIndicatorState extends State<_ImageGenIndicator> {
           }),
           const SizedBox(height: 12),
           Text(
-            isDone ? 'Decoding artifact…' : 'Synthesizing image…',
+            isDone ? 'chat_decoding'.tr : 'chat_synthesizing'.tr,
             style: GoogleFonts.plusJakartaSans(
               fontSize: 14,
               color: widget.isDark ? Colors.white : Colors.black,
@@ -2049,7 +2232,7 @@ class _ImageGenIndicatorState extends State<_ImageGenIndicator> {
                 const SizedBox(height: 10),
                 Text(
                   isDone
-                      ? 'Reconstructing textures…'
+                      ? 'chat_reconstructing'.tr
                       : '${(pct * 100).toStringAsFixed(0)}% · Step $step / $total',
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
@@ -2095,8 +2278,7 @@ class _ImageGenIndicatorState extends State<_ImageGenIndicator> {
                         const Icon(Icons.close_rounded,
                             size: 14, color: AppColors.error),
                         const SizedBox(width: 6),
-                        Text(
-                          'Abort',
+                        Text('chat_abort'.tr,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 11,
                             color: AppColors.error,

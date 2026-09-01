@@ -69,8 +69,19 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
     if (kIsWeb) return;
     try {
       await _loadPausedRecords();
-      final f = File(_pausedStorePath!);
-      await f.writeAsString(jsonEncode(_pausedRecords), flush: true);
+      final targetPath = _pausedStorePath!;
+      final tmpPath = '$targetPath.tmp';
+      final tmpFile = File(tmpPath);
+      await tmpFile.writeAsString(jsonEncode(_pausedRecords), flush: true);
+      // Atomic replace: write to .tmp then rename. Delete existing first
+      // for platforms where rename fails if destination exists (Windows).
+      final targetFile = File(targetPath);
+      if (await targetFile.exists()) {
+        try {
+          await targetFile.delete();
+        } catch (_) {}
+      }
+      await tmpFile.rename(targetPath);
     } catch (e) {
       print('[DownloadService] Failed to save paused downloads: $e');
     }
@@ -240,6 +251,8 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
   Future<void> reconcileActiveDownloads() async {
     if (kIsWeb || !Platform.isAndroid) return;
     try {
+      // ── Prefer native state if available ──
+      // Query native first; native foreground-service is the primary stack on Android.
       final list = await platform_dl.getActiveNativeDownloads();
       final recoveredFilenames = <String>{};
       for (final item in list) {
@@ -254,32 +267,38 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
 
         final progress =
             activeDownloads[filename] ?? DownloadProgress(filename: filename);
+        // Prefer native progress over stale Dart state.
         progress.downloadedBytes.value = downloaded;
         progress.totalBytes.value = total;
         progress.bytesPerSecond.value = 0;
         progress.progress.value = total > 0 ? downloaded / total : 0;
         progress.isPaused.value = status == 'Paused';
-        if (!activeDownloads.containsKey(filename)) {
-          activeDownloads[filename] = progress;
-        }
+        activeDownloads[filename] = progress;
       }
 
       // Remove UI entries whose native DownloadManager jobs no longer exist.
+      // Prefer native: only remove if not owned by native foreground-service.
       final staleFilenames = _nativeDownloadIds.keys
           .where((filename) => !recoveredFilenames.contains(filename))
           .toList();
       for (final filename in staleFilenames) {
         _nativeDownloadIds.remove(filename);
-        activeDownloads.remove(filename);
+        if (!_nativeStreams.contains(filename)) {
+          activeDownloads.remove(filename);
+        }
       }
 
       // Merge native foreground-service downloads (Running/Paused/Failed).
+      // This is the primary download stack — prefer its state over Dart.
+      final nativeStreamFilenames = <String>{};
       if (!kIsWeb && Platform.isAndroid) {
         try {
           final streams = await platform_dl.getNativeStreamDownloads();
           for (final s in streams) {
             final fn = s['filename'] as String?;
             if (fn == null || fn.isEmpty) continue;
+            nativeStreamFilenames.add(fn);
+            recoveredFilenames.add(fn);
             final status = (s['status'] as String?) ?? 'Running';
             if (status == 'Running') {
               _nativeStreams.add(fn);
@@ -293,6 +312,7 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
             var dp = activeDownloads[fn];
             dp ??= DownloadProgress(filename: fn, url: url);
             dp.url ??= url;
+            // Prefer native progress — overwrite stale Dart progress.
             dp.downloadedBytes.value = downloaded;
             if (total > 0) {
               dp.totalBytes.value = total;
@@ -314,15 +334,75 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
         }
       }
 
-      // Restore paused downloads persisted from previous sessions so the
-      // Resume buttons survive an app restart.
+      // ── Cleanup: remove stale paused records for files that are now fully downloaded ──
+      // Must run BEFORE restoring persisted records to avoid completed file showing Resume.
       await _loadPausedRecords();
+      final completed = <String>[];
+      for (final e in _pausedRecords.entries.toList()) {
+        final fn = e.key;
+        final total = (e.value['total'] as num?)?.toInt() ?? 0;
+        final downloaded = (e.value['downloaded'] as num?)?.toInt() ?? 0;
+        final isProgressDone = total > 0 && downloaded >= (total * 0.99).round();
+        bool fileDone = false;
+        try {
+          fileDone = await isModelDownloaded(fn);
+        } catch (_) {}
+        // Optionally validate via size/checksum helper if available.
+        bool validatedDone = fileDone;
+        if (!validatedDone && isProgressDone) {
+          try {
+            validatedDone = await platform_dl.validateDownloadedFile(
+              await modelPath(fn),
+              expectedBytes: total > 0 ? total : null,
+            );
+          } catch (_) {
+            // Fallback to file existence check
+            try {
+              validatedDone = await isModelDownloaded(fn);
+            } catch (_) {}
+          }
+        }
+        if (validatedDone) {
+          completed.add(fn);
+          activeDownloads.remove(fn);
+          _nativeStreams.remove(fn);
+          _nativeDownloadIds.remove(fn);
+        }
+      }
+      if (completed.isNotEmpty) {
+        for (final fn in completed) {
+          _pausedRecords.remove(fn);
+        }
+        await _savePausedRecords();
+        try {
+          Get.find<ModelController>().refreshDownloaded();
+        } catch (_) {}
+      }
+
+      // Restore paused downloads persisted from previous sessions so the
+      // Resume buttons survive an app restart. Prefer native: skip if native owns it.
       for (final entry in _pausedRecords.entries) {
         final filename = entry.key;
-        if (_nativeDownloadIds.containsKey(filename)) continue;
-        if (activeDownloads.containsKey(filename)) continue;
+        if (recoveredFilenames.contains(filename) ||
+            nativeStreamFilenames.contains(filename)) {
+          continue;
+        }
+        if (_nativeDownloadIds.containsKey(filename)) {
+          continue;
+        }
+        if (activeDownloads.containsKey(filename)) {
+          continue;
+        }
+        // Clean stale: if file already downloaded, don't restore Resume.
+        try {
+          if (await isModelDownloaded(filename)) {
+            continue;
+          }
+        } catch (_) {}
         final url = entry.value['url'] as String?;
-        if (url == null || url.isEmpty) continue;
+        if (url == null || url.isEmpty) {
+          continue;
+        }
         final restored = DownloadProgress(
           filename: filename,
           url: url,
@@ -336,54 +416,6 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
           restored.progress.value = (downloaded / total).clamp(0.0, 1.0);
         }
         activeDownloads[filename] = restored;
-      }
-
-      // ── Cleanup: remove stale paused records for files that are now fully downloaded ──
-      // Fixes "download completed but still shows downloading → resume shows already downloaded".
-      final completed = <String>[];
-      for (final e in _pausedRecords.entries.toList()) {
-        final fn = e.key;
-        final total = (e.value['total'] as num?)?.toInt() ?? 0;
-        final downloaded = (e.value['downloaded'] as num?)?.toInt() ?? 0;
-        final isProgressDone = total > 0 && downloaded >= (total * 0.99);
-        bool fileDone = false;
-        try {
-          fileDone = await isModelDownloaded(fn);
-        } catch (_) {}
-        if (fileDone || isProgressDone) {
-          // Double-check file actually exists before discarding.
-          if (fileDone) {
-            completed.add(fn);
-            activeDownloads.remove(fn);
-            _nativeStreams.remove(fn);
-          } else if (isProgressDone) {
-            // Progress says done but file not yet visible (rename pending) — poll once more.
-            try {
-              if (await isModelDownloaded(fn)) {
-                completed.add(fn);
-                activeDownloads.remove(fn);
-                _nativeStreams.remove(fn);
-              }
-            } catch (_) {}
-          }
-        } else {
-          // If file is now visible even with stale progress, also clear.
-          try {
-            if (await isModelDownloaded(fn)) {
-              completed.add(fn);
-              activeDownloads.remove(fn);
-            }
-          } catch (_) {}
-        }
-      }
-      if (completed.isNotEmpty) {
-        for (final fn in completed) {
-          _pausedRecords.remove(fn);
-        }
-        await _savePausedRecords();
-        try {
-          Get.find<ModelController>().refreshDownloaded();
-        } catch (_) {}
       }
     } catch (e) {
       print('[DownloadService] Failed to reconcile active downloads: $e');

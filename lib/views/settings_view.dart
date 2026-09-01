@@ -45,7 +45,7 @@ class SettingsView extends GetView<SettingsController> {
             child: Container(color: Colors.transparent),
           ),
         ),
-        title: Text('Config',
+        title: Text('nodes_config'.tr,
             style:
                 GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -1)),
         toolbarHeight: 70,
@@ -61,32 +61,32 @@ class SettingsView extends GetView<SettingsController> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             children: [
               const SizedBox(height: 16),
-              _sectionLabel(context, 'DIAGNOSTICS'),
+              _sectionLabel(context, 'settings_section_diagnostics'.tr),
               _appleGroupedCard(context, isDark, children: [
                 _appleListTile(
                   context,
                   isDark,
                   leading:
                       _iconBox(AppColors.info, LucideIcons.terminal),
-                  title: 'System Logs',
-                  subtitle: 'Debug details & process monitoring',
+                  title: 'settings_system_logs'.tr,
+                  subtitle: 'settings_system_logs_desc'.tr,
                   trailing: const Icon(LucideIcons.chevronRight, size: 20),
                   showDivider: false,
                   onTap: () => Get.to(() => const LogView()),
                 ),
               ]),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'HARDWARE CAPABILITIES'),
+              _sectionLabel(context, 'settings_section_hardware'.tr),
               _buildDeviceCard(context, isDark),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'INFERENCE MODE'),
+              _sectionLabel(context, 'settings_section_inference'.tr),
               _appleGroupedCard(context, isDark, children: [
                 _appleListTile(
                   context,
                   isDark,
                   leading:
                       _iconBox(AppColors.success, LucideIcons.zap),
-                  title: 'Local (Privacy-First)',
+                  title: 'settings_local_privacy'.tr,
                   subtitle: _localSubtitle(),
                   trailing: controller.inferenceMode.value == 'local'
                       ? const Icon(LucideIcons.check,
@@ -100,7 +100,7 @@ class SettingsView extends GetView<SettingsController> {
                   context,
                   isDark,
                   leading: _iconBox(Dt.accent, LucideIcons.cloud),
-                  title: 'Cloud Assistant',
+                  title: 'settings_cloud_assistant'.tr,
                   subtitle: controller.cloudProvider.value.toUpperCase(),
                   trailing: controller.inferenceMode.value == 'cloud'
                       ? const Icon(LucideIcons.check,
@@ -112,14 +112,14 @@ class SettingsView extends GetView<SettingsController> {
                 ),
               ]),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'GLOBAL SYSTEM PROMPT'),
+              _sectionLabel(context, 'settings_section_system_prompt'.tr),
               _appleGroupedCard(context, isDark, children: [
                 Padding(
                   padding: const EdgeInsets.all(18),
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Defines base personality for all models',
+                        Text('settings_prompt_desc'.tr,
                             style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
@@ -151,18 +151,18 @@ class SettingsView extends GetView<SettingsController> {
                 ),
               ]),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'SKILLS'),
+              _sectionLabel(context, 'settings_section_skills'.tr),
               _buildSkillsSection(context, isDark),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'CUSTOM MCP SERVER'),
+              _sectionLabel(context, 'settings_section_mcp'.tr),
               const _McpSection(),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'LOCAL MODEL PARAMETERS'),
+              _sectionLabel(context, 'settings_section_local_params'.tr),
               _buildLiteRtCard(context, isDark),
               const SizedBox(height: 12),
               _buildModelParametersCard(context, isDark),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'SYNTHETIC IMAGING PARAMETERS'),
+              _sectionLabel(context, 'settings_section_image_params'.tr),
               _buildImageGenerationCard(context, isDark),
               const SizedBox(height: 50),
             ],
@@ -444,7 +444,7 @@ class SettingsView extends GetView<SettingsController> {
       _modelParameterSlider(
         context,
         isDark,
-        label: 'Inference Temperature',
+        label: 'settings_inference_temperature'.tr,
         value: controller.temperature.value,
         min: 0.0,
         max: 2.0,
@@ -466,7 +466,7 @@ class SettingsView extends GetView<SettingsController> {
                 size: 20,
                 color: auto ? Dt.accent : Theme.of(context).hintColor),
             title: Row(children: [
-              Text('Auto Tune',
+              Text('settings_auto_tune'.tr,
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 15, fontWeight: FontWeight.w700)),
               const SizedBox(width: 8),
@@ -519,7 +519,7 @@ class SettingsView extends GetView<SettingsController> {
             _ladderSlider(
               context,
               isDark,
-              label: 'Output Token Limit',
+              label: 'settings_output_limit'.tr,
               ladder: _tokLadder,
               value: controller.maxTokens.value,
               safeMax: Get.find<DeviceInfoService>().maxSafeTokens,
@@ -530,7 +530,7 @@ class SettingsView extends GetView<SettingsController> {
             _ladderSlider(
               context,
               isDark,
-              label: 'Context Window Size',
+              label: 'settings_context_window'.tr,
               ladder: _contextLadder(),
               value: controller.contextSize.value,
               safeMax:
@@ -579,7 +579,7 @@ class SettingsView extends GetView<SettingsController> {
         title: Row(children: [
           const Icon(LucideIcons.sparkles, color: Dt.accent),
           const SizedBox(width: 10),
-          Text('Auto Tune',
+          Text('settings_auto_tune'.tr,
               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
         ]),
         content: SingleChildScrollView(
@@ -609,7 +609,7 @@ class SettingsView extends GetView<SettingsController> {
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: const Text('Got it'),
+            child: Text('Got it'),
           ),
         ],
       ),
@@ -725,7 +725,7 @@ class SettingsView extends GetView<SettingsController> {
           Row(children: [
             Icon(LucideIcons.sparkles, size: 16, color: accent),
             const SizedBox(width: 10),
-            Text('Sampling Steps',
+            Text('settings_sampling_steps'.tr,
                 style: GoogleFonts.plusJakartaSans(
                     fontSize: 15, fontWeight: FontWeight.w700)),
             const Spacer(),
@@ -779,7 +779,7 @@ class SettingsView extends GetView<SettingsController> {
                 size: 16,
                 color: Dt.accent),
             const SizedBox(width: 10),
-            Text('Synthesis Resolution',
+            Text('settings_synthesis_resolution'.tr,
                 style: GoogleFonts.plusJakartaSans(
                     fontSize: 15, fontWeight: FontWeight.w700)),
             const Spacer(),
@@ -842,7 +842,7 @@ class SettingsView extends GetView<SettingsController> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Compute Backend',
+                    Text('settings_compute_backend'.tr,
                         style: GoogleFonts.plusJakartaSans(
                             fontSize: 15, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 2),
@@ -1376,11 +1376,11 @@ class SettingsView extends GetView<SettingsController> {
         actions: [
           TextButton(
               onPressed: () => Get.back(result: false),
-              child: const Text('Cancel')),
+              child: Text('common_cancel'.tr)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Dt.accent),
             onPressed: () => Get.back(result: true),
-            child: const Text('Fetch'),
+            child: Text('Fetch'),
           ),
         ],
       ),
@@ -1519,11 +1519,11 @@ class SettingsView extends GetView<SettingsController> {
         actions: [
           TextButton(
               onPressed: () => Get.back(result: false),
-              child: const Text('Cancel')),
+              child: Text('common_cancel'.tr)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Dt.accent),
             onPressed: () => Get.back(result: true),
-            child: const Text('Import'),
+            child: Text('Import'),
           ),
         ],
       ),
@@ -1639,11 +1639,11 @@ class SettingsView extends GetView<SettingsController> {
         actions: [
           TextButton(
               onPressed: () => Get.back(result: false),
-              child: const Text('Cancel')),
+              child: Text('common_cancel'.tr)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Dt.accent),
             onPressed: () => Get.back(result: true),
-            child: const Text('Import'),
+            child: Text('Import'),
           ),
         ],
       ),
@@ -1715,7 +1715,7 @@ class SettingsView extends GetView<SettingsController> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Close')),
+          TextButton(onPressed: () => Get.back(), child: Text('Close')),
         ],
       ),
     );
@@ -1732,14 +1732,14 @@ class SettingsView extends GetView<SettingsController> {
         content: Text('Delete "${skill.name}"? This cannot be undone.',
             style: GoogleFonts.plusJakartaSans(fontSize: 13)),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: () => Get.back(), child: Text('common_cancel'.tr)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () {
               Get.back();
               Get.find<SkillRegistryService>().delete(skill.id);
             },
-            child: const Text('Delete'),
+            child: Text('Delete'),
           ),
         ],
       ),
@@ -1858,11 +1858,11 @@ class _GithubBrowseSheetState extends State<_GithubBrowseSheet> {
           actions: [
             TextButton(
                 onPressed: () => Get.back(result: false),
-                child: const Text('Cancel')),
+                child: Text('common_cancel'.tr)),
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: Dt.accent),
               onPressed: () => Get.back(result: true),
-              child: const Text('Import'),
+              child: Text('Import'),
             ),
           ],
         ),
@@ -1985,7 +1985,7 @@ class _GithubBrowseSheetState extends State<_GithubBrowseSheet> {
                             setState(() => _future = _load(force: true)),
                         style: FilledButton.styleFrom(
                             backgroundColor: Dt.accent),
-                        child: const Text('Retry'),
+                        child: Text('Retry'),
                       ),
                       if (_error != null)
                         Padding(
@@ -2519,12 +2519,12 @@ class _McpSectionState extends State<_McpSection> {
                           actions: [
                             TextButton(
                                 onPressed: () => Get.back(result: false),
-                                child: const Text('Cancel')),
+                                child: Text('common_cancel'.tr)),
                             FilledButton(
                               style: FilledButton.styleFrom(
                                   backgroundColor: AppColors.error),
                               onPressed: () => Get.back(result: true),
-                              child: const Text('Remove'),
+                              child: Text('Remove'),
                             ),
                           ],
                         ),
@@ -2678,11 +2678,11 @@ class _McpSectionState extends State<_McpSection> {
         actions: [
           TextButton(
               onPressed: () => Get.back(result: false),
-              child: const Text('Cancel')),
+              child: Text('common_cancel'.tr)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Dt.accent),
             onPressed: () => Get.back(result: true),
-            child: const Text('Enable'),
+            child: Text('Enable'),
           ),
         ],
       ),

@@ -32,7 +32,7 @@ class ModelView extends GetView<ModelController> {
             child: Container(color: Colors.transparent),
           ),
         ),
-        title: Text('Model Hub',
+        title: Text('model_hub_title'.tr,
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)),
         actions: [
           Obx(() {
@@ -44,7 +44,7 @@ class ModelView extends GetView<ModelController> {
               children: [
                 IconButton(
                   icon: const Icon(LucideIcons.link),
-                  tooltip: 'Add Model URL',
+                  tooltip: 'model_add_url_title'.tr,
                   onPressed: () => _showAddUrlDialog(context),
                 ),
                 IconButton(
@@ -88,7 +88,7 @@ class ModelView extends GetView<ModelController> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'LOCAL MODELS (${controller.filteredDisplayedModels.length})',
+                        "${'model_local_models'.tr} (${controller.filteredDisplayedModels.length})",
                         style: GoogleFonts.plusJakartaSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -113,8 +113,8 @@ class ModelView extends GetView<ModelController> {
                               const SizedBox(width: 4),
                               Text(
                                 controller.sortSmallestFirst.value
-                                    ? 'Size'
-                                    : 'Name',
+                                    ? 'model_sort_size'.tr
+                                    : 'model_sort_name'.tr,
                                 style: GoogleFonts.plusJakartaSans(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
@@ -157,26 +157,26 @@ class ModelView extends GetView<ModelController> {
       return SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: SegmentedButton<String>(
-          segments: const [
+          segments: [
             ButtonSegment(
               value: 'local',
               icon: Icon(LucideIcons.smartphone, size: 16),
-              label: Text('Local', style: TextStyle(fontSize: 13)),
+              label: Text('explore_local'.tr, style: TextStyle(fontSize: 13)),
             ),
             ButtonSegment(
               value: 'online',
               icon: Icon(LucideIcons.cloud, size: 16),
-              label: Text('Online', style: TextStyle(fontSize: 13)),
+              label: Text('explore_online'.tr, style: TextStyle(fontSize: 13)),
             ),
             ButtonSegment(
               value: 'skills',
               icon: Icon(LucideIcons.sparkles, size: 16),
-              label: Text('Skills', style: TextStyle(fontSize: 13)),
+              label: Text('explore_skills'.tr, style: TextStyle(fontSize: 13)),
             ),
             ButtonSegment(
               value: 'mcp',
               icon: Icon(LucideIcons.plug, size: 16),
-              label: Text('MCP', style: TextStyle(fontSize: 13)),
+              label: Text('explore_mcp'.tr, style: TextStyle(fontSize: 13)),
             ),
           ],
           selected: {normalized},
@@ -202,7 +202,7 @@ class ModelView extends GetView<ModelController> {
                     ? null
                     : () => _showAddUrlDialog(context),
                 icon: const Icon(Icons.add_link, size: 16),
-                label: const Text('URL'),
+                label: Text('URL'),
               )),
         ),
         const SizedBox(width: 10),
@@ -213,7 +213,7 @@ class ModelView extends GetView<ModelController> {
                     ? null
                     : () => controller.importModelFromStorage(),
                 icon: const Icon(Icons.file_upload_outlined, size: 16),
-                label: const Text('Import'),
+                label: Text('Import'),
               )),
         ),
       ],
@@ -221,12 +221,12 @@ class ModelView extends GetView<ModelController> {
   }
 
   Widget _buildLocalFilterChips(BuildContext context) {
-    const labels = {
-      'downloaded': 'Downloaded',
-      'general': 'General',
-      'image': 'Image Gen',
-      'uncensored': 'Uncensored',
-      'vision': 'Vision',
+    final labels = {
+      'downloaded': 'model_filter_downloaded'.tr,
+      'general': 'model_filter_general'.tr,
+      'image': 'model_filter_image'.tr,
+      'uncensored': 'model_filter_uncensored'.tr,
+      'vision': 'model_filter_vision'.tr,
     };
     return Obx(() {
       final selected = controller.localFilter.value.isEmpty
@@ -294,11 +294,11 @@ class ModelView extends GetView<ModelController> {
         ? controller.defaultLocalFilter
         : controller.localFilter.value;
     final title = filter == 'downloaded'
-        ? 'No downloaded models yet'
+        ? 'model_no_downloaded'.tr
         : 'No ${filter == 'vision' ? 'vision' : filter == 'image' ? 'image generation' : filter} models found';
     final subtitle = filter == 'downloaded'
-        ? 'Import a local model or add a downloadable URL.'
-        : 'Try another filter or add a custom model URL.';
+        ? 'model_import_hint'.tr
+        : 'model_no_models_filtered'.tr;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -415,7 +415,7 @@ class ModelView extends GetView<ModelController> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isImage ? 'ACTIVE IMAGE ENGINE' : 'ACTIVE INTELLIGENCE',
+                    isImage ? 'model_active_image'.tr : 'model_active_intelligence'.tr,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 10,
                       color: Dt.accent,
@@ -539,7 +539,7 @@ class ModelView extends GetView<ModelController> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    'Importing custom model...',
+                    'model_importing'.tr,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -570,7 +570,7 @@ class ModelView extends GetView<ModelController> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'CLOUD AI PROVIDERS',
+          'model_cloud_providers'.tr,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 11,
             fontWeight: FontWeight.w700,
@@ -706,7 +706,7 @@ class ModelView extends GetView<ModelController> {
                     onChanged: (v) => cloudModels.searchByProvider[provider.id] = v,
                     style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w500),
                     decoration: InputDecoration(
-                      hintText: 'Search models...',
+                      hintText: 'model_search_hint'.tr,
                       prefixIcon: const Icon(LucideIcons.search, size: 18),
                       suffixIcon: Obx(() => (cloudModels.searchByProvider[provider.id] ?? '').isNotEmpty
                           ? IconButton(
@@ -782,7 +782,7 @@ class ModelView extends GetView<ModelController> {
                         return Center(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 24),
-                            child: Text('No matching models',
+                            child: Text('model_no_matching'.tr,
                               style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Theme.of(context).hintColor)),
                           ),
                         );
@@ -840,12 +840,12 @@ class ModelView extends GetView<ModelController> {
                                   : null,
                             ),
                             child: Text(isReallyActive
-                                ? 'Active Provider ✓'
+                                ? 'model_active_provider'.tr
                                 : configured
-                                    ? 'Set as Active'
+                                    ? 'model_set_as_active'.tr
                                     : provider.id == 'custom'
-                                        ? 'Configure Endpoint'
-                                        : 'Add API Key'),
+                                        ? 'model_configure_endpoint'.tr
+                                        : 'model_add_api_key'.tr),
                           ),
                         ),
                         if (configured) ...[
@@ -886,8 +886,8 @@ class ModelView extends GetView<ModelController> {
       spacing: 6,
       runSpacing: 6,
       children: [
-        if (model.isVision) _badge(context, 'Vision', Colors.orange),
-        if (controller.isUncensoredModel(model)) _badge(context, 'Uncensored', Colors.red),
+        if (model.isVision) _badge(context, 'model_filter_vision'.tr, Colors.orange),
+        if (controller.isUncensoredModel(model)) _badge(context, 'model_filter_uncensored'.tr, Colors.red),
         if (controller.isImageModel(model)) _badge(context, 'Imaging', Colors.purple),
         if (model.template == 'llama3') _badge(context, 'Llama 3', Colors.blue),
         if (model.template == 'gemma') _badge(context, 'Gemma', Colors.cyan),
@@ -1094,7 +1094,7 @@ class ModelView extends GetView<ModelController> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Initializing neural weights...',
+                'model_initializing'.tr,
                 style: GoogleFonts.plusJakartaSans(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -1130,19 +1130,19 @@ class ModelView extends GetView<ModelController> {
     final confirmed = await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: Text('Delete model?',
+            title: Text('model_delete_title'.tr,
                 style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-            content: Text('Are you sure you want to remove this model from storage?',
+            content: Text('model_delete_desc'.tr,
                 style: GoogleFonts.plusJakartaSans(fontSize: 14)),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel'),
+                child: Text('common_cancel'.tr),
               ),
               FilledButton(
                 style: FilledButton.styleFrom(backgroundColor: AppColors.error),
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Delete'),
+                child: Text('common_delete'.tr),
               ),
             ],
           ),
@@ -1168,7 +1168,7 @@ class ModelView extends GetView<ModelController> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                isToDownloadsFolder ? 'Save to Downloads' : 'Download Model',
+                isToDownloadsFolder ? 'model_save_to_downloads'.tr : 'model_download_title'.tr,
                 style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700),
               ),
             ),
@@ -1220,7 +1220,7 @@ class ModelView extends GetView<ModelController> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Ensure you are connected to Wi-Fi to avoid cellular data charges.',
+                      'model_wifi_warning'.tr,
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           color: AppColors.warning,
@@ -1238,7 +1238,7 @@ class ModelView extends GetView<ModelController> {
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 18),
             ),
-            child: Text('Cancel',
+            child: Text('common_cancel'.tr,
                 style: GoogleFonts.plusJakartaSans(
                     fontWeight: FontWeight.w700, color: Theme.of(ctx).hintColor)),
           ),
@@ -1256,7 +1256,7 @@ class ModelView extends GetView<ModelController> {
                   borderRadius: BorderRadius.circular(12)),
               padding: const EdgeInsets.symmetric(horizontal: 20),
             ),
-            child: Text(isToDownloadsFolder ? 'Save Now' : 'Download Now',
+            child: Text(isToDownloadsFolder ? 'model_save_now'.tr : 'model_download_now'.tr,
                 style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
@@ -1474,21 +1474,21 @@ class ModelView extends GetView<ModelController> {
                 TextButton.icon(
                   onPressed: () => controller.resumeDownload(model.filename),
                   icon: const Icon(LucideIcons.play, size: 16),
-                  label: const Text('Resume'),
+                  label: Text('Resume'),
                   style: TextButton.styleFrom(foregroundColor: AppColors.success),
                 )
               else
                 TextButton.icon(
                   onPressed: () => controller.pauseDownload(model.filename),
                   icon: const Icon(LucideIcons.pause, size: 16),
-                  label: const Text('Pause'),
+                  label: Text('Pause'),
                   style: TextButton.styleFrom(foregroundColor: AppColors.warning),
                 ),
               const SizedBox(width: 4),
               TextButton.icon(
                 onPressed: () => controller.cancelDownload(model.filename),
                 icon: const Icon(Icons.close, size: 16),
-                label: const Text('Cancel'),
+                label: Text('common_cancel'.tr),
                 style: TextButton.styleFrom(foregroundColor: AppColors.error),
               ),
             ],
@@ -1808,7 +1808,7 @@ class ModelView extends GetView<ModelController> {
       actions: [
         TextButton(
           onPressed: () => Get.back(closeOverlays: false),
-          child: Text('Cancel', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
+          child: Text('common_cancel'.tr, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
         ),
         ElevatedButton(
           onPressed: () async {
@@ -1988,7 +1988,7 @@ class ModelView extends GetView<ModelController> {
           style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           ),
-          child: Text('Cancel',
+          child: Text('common_cancel'.tr,
               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
         ),
         ElevatedButton(
@@ -2262,7 +2262,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Add Model URL',
+                          'model_add_url_title'.tr,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
@@ -2271,7 +2271,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Download a GGUF or LiteRT model from any URL',
+                          'model_url_desc'.tr,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
                             color: isDark
@@ -2455,7 +2455,7 @@ class _AddModelUrlSheetState extends State<_AddModelUrlSheet> {
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14)),
                             ),
-                            child: Text('Cancel',
+                            child: Text('common_cancel'.tr,
                                 style: GoogleFonts.plusJakartaSans(
                                     fontWeight: FontWeight.w600, fontSize: 14)),
                           ),

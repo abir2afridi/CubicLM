@@ -1124,8 +1124,22 @@ class SettingsController extends GetxController {
   }
 
   Future<void> setContextSize(int value) async {
-    contextSize.value = value;
-    await _hive.setSetting(AppConstants.keyContextSize, value);
+    int clamped = value;
+    if (Get.isRegistered<DeviceInfoService>()) {
+      final dev = Get.find<DeviceInfoService>();
+      if (clamped > dev.maxSafeContextSize) {
+        clamped = dev.maxSafeContextSize;
+        Get.snackbar('RAM Guard', 'Clamped to ${dev.maxSafeContextSize} for ${dev.deviceTier.value} tier',
+            snackPosition: SnackPosition.BOTTOM);
+      }
+      if (!dev.canAllocateContextSize(clamped)) {
+        clamped = dev.recommendedContextSize;
+        Get.snackbar('RAM Guard', 'Not enough RAM — using ${dev.recommendedContextSize}',
+            snackPosition: SnackPosition.BOTTOM);
+      }
+    }
+    contextSize.value = clamped;
+    await _hive.setSetting(AppConstants.keyContextSize, clamped);
     _scheduleContextReload();
   }
 

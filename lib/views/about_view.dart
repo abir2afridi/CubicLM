@@ -74,7 +74,7 @@ class AboutView extends StatelessWidget {
               color: isDark ? Colors.white : Dt.iconDefault),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('About',
+        title: Text('about_title'.tr,
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -150,11 +150,7 @@ class AboutView extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  'A cross-platform AI chat app with local on-device '
-                  'inference and multi-provider cloud AI — LLMs run '
-                  'directly on your phone via GPU-accelerated llama.cpp '
-                  'and Google LiteRT-LM, with a built-in OpenAI-compatible '
-                  'API server.',
+                  'about_description'.tr,
                   textAlign: TextAlign.center,
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 13.5,
@@ -168,32 +164,32 @@ class AboutView extends StatelessWidget {
             const SizedBox(height: 28),
 
             // ── Highlights ──
-            _sectionLabel('HIGHLIGHTS', isDark),
+            _sectionLabel('about_highlights'.tr, isDark),
             _groupedCard(isDark: isDark, children: [
-              for (final f in const [
-                (_Icons.brain, 'Local AI Inference',
-                    'GGUF models on llama.cpp with Vulkan/OpenCL GPU acceleration'),
-                (_Icons.zap, 'LiteRT-LM Engine',
-                    "Google's on-device runtime for .litertlm models"),
-                (_Icons.cloud, '20+ Cloud Providers',
-                    'OpenRouter, OpenAI, Anthropic, Gemini, Groq, DeepSeek and more'),
-                (_Icons.globe, 'Web Access',
-                    'Live web pages fetched into chat context — no API keys needed'),
-                (_Icons.image, 'Image Generation',
-                    'Stable Diffusion 1.5 on-device, plus cloud SD3.5'),
-                (_Icons.eye, 'Vision Models',
-                    'Understand images with Qwen2-VL and Gemma'),
-                (_Icons.plug, 'OpenAI-Compatible Server',
-                    'Expose local models on your network at port 8080'),
-                (_Icons.activity, 'System Diagnostics',
-                    'Health dashboard, crash patterns and searchable logs'),
+              for (final f in [
+                (_Icons.brain, 'about_feat_local'.tr,
+                    'about_feat_local_desc'.tr),
+                (_Icons.zap, 'about_feat_litert'.tr,
+                    'about_feat_litert_desc'.tr),
+                (_Icons.cloud, 'about_feat_cloud'.tr,
+                    'about_feat_cloud_desc'.tr),
+                (_Icons.globe, 'about_feat_web'.tr,
+                    'about_feat_web_desc'.tr),
+                (_Icons.image, 'about_feat_image'.tr,
+                    'about_feat_image_desc'.tr),
+                (_Icons.eye, 'about_feat_vision'.tr,
+                    'about_feat_vision_desc'.tr),
+                (_Icons.plug, 'about_feat_server'.tr,
+                    'about_feat_server_desc'.tr),
+                (_Icons.activity, 'about_feat_diagnostics'.tr,
+                    'about_feat_diagnostics_desc'.tr),
               ])
                 _featureRow(f.$1, f.$2, f.$3, isDark),
             ]),
             const SizedBox(height: 24),
 
             // ── Cross-platform discoverability (per §5.4) ──
-            _sectionLabel('AVAILABLE ON', isDark),
+            _sectionLabel('about_available_on'.tr, isDark),
             _groupedCard(isDark: isDark, children: [
               if (kIsWeb) ...[
                 // Web: link to Desktop + Android + changelog (no self)
@@ -277,7 +273,7 @@ class AboutView extends StatelessWidget {
               _platformLinkRow(
                 context, isDark,
                 icon: LucideIcons.sparkles,
-                title: "What's New",
+                title: 'about_whats_new'.tr,
                 subtitle: 'Changelog — single source of truth',
                 url: PlatformLinks.changelogUrl,
                 highlight: true,
@@ -286,7 +282,7 @@ class AboutView extends StatelessWidget {
             const SizedBox(height: 24),
 
             // ── Tech stack ──
-            _sectionLabel('TECH STACK', isDark),
+            _sectionLabel('about_tech_stack_label'.tr, isDark),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -316,13 +312,13 @@ class AboutView extends StatelessWidget {
             const SizedBox(height: 24),
 
             // ── Links ──
-            _sectionLabel('LINKS', isDark),
+            _sectionLabel('about_links'.tr, isDark),
             _groupedCard(isDark: isDark, children: [
               _linkRow(
                 context,
                 isDark,
                 icon: LucideIcons.github,
-                title: 'GitHub Repository',
+                title: 'about_github_repo'.tr,
                 subtitle: _repoUrl.replaceAll('https://', ''),
                 onTap: _openRepo,
               ),
@@ -331,15 +327,15 @@ class AboutView extends StatelessWidget {
                 context,
                 isDark,
                 icon: LucideIcons.scale,
-                title: 'License',
-                subtitle: 'MIT — free to use, modify and distribute',
+                title: 'about_license'.tr,
+                subtitle: 'about_license'.tr,
               ),
               _divider(isDark),
               _linkRow(
                 context,
                 isDark,
                 icon: LucideIcons.messageSquare,
-                title: 'Issues & Feedback',
+                title: 'about_issues'.tr,
                 subtitle: 'Report bugs or request features on GitHub',
                 onTap: _openRepo,
               ),
@@ -348,7 +344,7 @@ class AboutView extends StatelessWidget {
                 context,
                 isDark,
                 icon: LucideIcons.fileText,
-                title: 'Changelog',
+                title: 'about_changelog'.tr,
                 subtitle: PlatformLinks.changelogUrl.replaceAll('https://', ''),
                 onTap: _openChangelog,
               ),
@@ -356,7 +352,7 @@ class AboutView extends StatelessWidget {
             const SizedBox(height: 24),
 
             // ── Developer ──
-            _sectionLabel('DEVELOPER', isDark),
+            _sectionLabel('about_developer'.tr, isDark),
             _groupedCard(isDark: isDark, children: [
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -399,7 +395,7 @@ class AboutView extends StatelessWidget {
             const SizedBox(height: 28),
             Center(
               child: Text(
-                'Built with Flutter · Runs AI entirely on your device',
+                'about_footer'.tr,
                 style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,

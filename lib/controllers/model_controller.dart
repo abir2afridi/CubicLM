@@ -196,8 +196,43 @@ class ModelController extends GetxController {
         lower.startsWith('vae_');
   }
 
-  bool _isIncompleteCatalogFile(AiModel model, int fileBytes) {
-    if (model.url.trim().isEmpty || model.isImported || fileBytes <= 0) {
+  Future<bool> _isIncompleteCatalogFile(AiModel model, int fileBytes) async {
+    if (model.isImported) {
+      // Don't bypass for imported models when fileBytes is invalid — check header magic instead.
+      if (fileBytes <= 0) return true;
+      try {
+        final path = await _download.modelPath(model.filename);
+        final lower = model.filename.toLowerCase();
+        if (lower.endsWith('.safetensors')) {
+          if (!await _hasValidSafetensorsHeader(path)) return true;
+        } else if (lower.endsWith('.litertlm')) {
+          if (!await _hasLikelyValidLiteRtFile(path, fileBytes)) return true;
+        } else if (lower.endsWith('.gguf')) {
+          final file = File(path);
+          if (!await file.exists()) return true;
+          RandomAccessFile? raf;
+          try {
+            raf = await file.open();
+            final bytes = await raf.read(4);
+            if (bytes.length < 4 ||
+                bytes[0] != 0x47 ||
+                bytes[1] != 0x47 ||
+                bytes[2] != 0x55 ||
+                bytes[3] != 0x46) {
+              return true;
+            }
+          } finally {
+            await raf?.close();
+          }
+        } else {
+          if (fileBytes < 1024) return true;
+        }
+      } catch (_) {
+        return true;
+      }
+      return false;
+    }
+    if (model.url.trim().isEmpty || fileBytes <= 0) {
       return false;
     }
     final expectedBytes = _declaredModelBytes(model);
@@ -498,7 +533,7 @@ class ModelController extends GetxController {
     // pool and the LiteRT session live side by side, and generation picks
     // the engine matching the active model's runtime.
     final fileBytes = await _modelFileBytes(filename, path, model);
-    if (model != null && _isIncompleteCatalogFile(model, fileBytes)) {
+    if (model != null && await _isIncompleteCatalogFile(model, fileBytes)) {
       final actual = DownloadService.formatBytes(fileBytes);
       Get.find<AppLogService>().error(
         'Incomplete model file blocked',
@@ -877,8 +912,17 @@ class ModelController extends GetxController {
 
     final availableBytes = (availableRamGb * 1024 * 1024 * 1024).round();
     final hasMeasuredMemory = availableBytes > 0 && fileBytes > 0;
+    // Include KV cache estimate (contextSize * 2.5KB) for more accurate guard
+    int estimatedNeed = fileBytes;
+    try {
+      if (Get.isRegistered<SettingsController>() && Get.isRegistered<DeviceInfoService>()) {
+        final ctx = Get.find<SettingsController>().effectiveContextSize;
+        final dev = Get.find<DeviceInfoService>();
+        estimatedNeed = fileBytes + dev.estimatedKvBytes(ctx);
+      }
+    } catch (_) {}
     final isCriticallyLow = hasMeasuredMemory &&
-        (availableBytes < fileBytes || _isLowMemoryBytes(availableBytes));
+        (availableBytes < estimatedNeed || _isLowMemoryBytes(availableBytes));
 
     // Enough headroom (or nothing measurable to warn about) — load straight
     // away. Any resident model is freed by InferenceService.loadModel.

@@ -47,3 +47,10 @@ Future<String> streamDownload({
 }
 
 Future<void> deleteModel(String path) async {}
+
+Future<bool> validateDownloadedFile(
+  String path, {
+  int? expectedBytes,
+  bool checkHeader = true,
+}) async =>
+    false;

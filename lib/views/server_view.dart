@@ -29,7 +29,7 @@ class ServerView extends GetView<ServerController> {
             child: Container(color: Colors.transparent),
           ),
         ),
-        title: Text('Nodes',
+        title: Text('nav_nodes'.tr,
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)),
         bottom: TabBar(
           indicatorColor: accent,
@@ -41,9 +41,9 @@ class ServerView extends GetView<ServerController> {
               fontWeight: FontWeight.w800, fontSize: 13),
           unselectedLabelStyle: GoogleFonts.plusJakartaSans(
               fontWeight: FontWeight.w700, fontSize: 13),
-          tabs: const [
-            Tab(text: 'Node'),
-            Tab(text: 'Config'),
+          tabs: [
+            Tab(text: 'nodes_node'.tr),
+            Tab(text: 'nodes_config'.tr),
           ],
         ),
       ),
@@ -69,15 +69,15 @@ class ServerView extends GetView<ServerController> {
                             children: [
                           Text(
                               isRunning
-                                  ? 'Compute Active'
-                                  : 'Node Offline',
+                                  ? 'nodes_compute_active'.tr
+                                  : 'nodes_node_offline'.tr,
                               style: GoogleFonts.plusJakartaSans(
                                   fontSize: 16, fontWeight: FontWeight.w800)),
                           const SizedBox(height: 4),
                           Text(
                               isRunning
                                   ? controller.serverStatus.value
-                                  : 'Bridge local models to OpenAI-compatible clients.',
+                                  : 'nodes_bridge_desc'.tr,
                               style: GoogleFonts.plusJakartaSans(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
@@ -93,7 +93,7 @@ class ServerView extends GetView<ServerController> {
             const SizedBox(height: 28),
 
             // Model Information
-            _sectionLabel(context, 'CURRENT PAYLOAD'),
+            _sectionLabel(context, 'nodes_current_payload'.tr),
             _groupedCard(isDark, children: [
               Padding(
                   padding: const EdgeInsets.all(20),
@@ -127,8 +127,8 @@ class ServerView extends GetView<ServerController> {
                           const SizedBox(height: 2),
                           Text(
                               controller.hasLocalModel
-                                  ? 'Active weighting engine'
-                                  : 'Requires model initialization',
+                                  ? 'nodes_active_engine'.tr
+                                  : 'nodes_requires_init'.tr,
                               style: GoogleFonts.plusJakartaSans(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
@@ -139,11 +139,11 @@ class ServerView extends GetView<ServerController> {
             const SizedBox(height: 28),
 
             // Security
-            _sectionLabel(context, 'GATEWAY SECURITY'),
+            _sectionLabel(context, 'nodes_gateway_security'.tr),
             _groupedCard(isDark, children: [
               _switchTile(context, isDark,
-                  title: 'Encrypted Handshake',
-                  subtitle: 'Requires Bearer Token authentication',
+                  title: 'nodes_encrypted_handshake'.tr,
+                  subtitle: 'nodes_bearer_desc'.tr,
                   value: controller.useApiKey.value, onChanged: (v) {
                 controller.useApiKey.value = v;
                 controller.saveSettings();
@@ -161,17 +161,17 @@ class ServerView extends GetView<ServerController> {
                       onChanged: (v) => controller.apiKey.value = v,
                       onSubmitted: (_) => controller.saveSettings(),
                       style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w600),
-                      decoration: const InputDecoration(
-                          labelText: 'Access Token', hintText: 'Optional secure key'),
+                      decoration: InputDecoration(
+                          labelText: 'nodes_access_token'.tr, hintText: 'nodes_optional_key'.tr),
                     )),
                     const SizedBox(width: 8),
                     IconButton(
-                        tooltip: 'Rotate Key',
+                        tooltip: 'nodes_rotate_key'.tr,
                         onPressed: controller.generateApiKey,
                         icon: const Icon(LucideIcons.refreshCw,
                             size: 22, color: accent)),
                     IconButton(
-                        tooltip: 'Copy',
+                        tooltip: 'nodes_copy'.tr,
                         onPressed: hasKey
                             ? () => controller.copyText(
                                 controller.apiKey.value, 'API key')
@@ -183,14 +183,14 @@ class ServerView extends GetView<ServerController> {
             const SizedBox(height: 24),
 
             if (isRunning) ...[
-              _sectionLabel(context, 'ACTIVE ENDPOINTS'),
+              _sectionLabel(context, 'nodes_active_endpoints'.tr),
               _groupedCard(isDark, children: [
                 Padding(
                     padding: const EdgeInsets.all(18),
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _urlRow(context, isDark, 'Host',
+                          _urlRow(context, isDark, 'nodes_host'.tr,
                               controller.localUrl.value),
                           const SizedBox(height: 12),
                           FilledButton.icon(
@@ -199,7 +199,7 @@ class ServerView extends GetView<ServerController> {
                                   : () =>
                                       _testHealth(controller.localUrl.value!),
                               icon: const Icon(LucideIcons.activity, size: 18),
-                              label: const Text('Probe Connectivity'),
+                              label: Text('nodes_probe_connectivity'.tr),
                               style: FilledButton.styleFrom(
                                 backgroundColor: AppColors.success,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
@@ -207,18 +207,18 @@ class ServerView extends GetView<ServerController> {
                         ])),
               ]),
               const SizedBox(height: 24),
-              _sectionLabel(context, 'IMPLEMENTATION SNIPPETS'),
+              _sectionLabel(context, 'nodes_implementation_snippets'.tr),
               _groupedCard(isDark, children: [
                 Padding(
                     padding: const EdgeInsets.all(18),
                     child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _codeBlock(context, isDark, 'REST: Model List',
+                          _codeBlock(context, isDark, 'nodes_model_list'.tr,
                               'curl ${controller.baseUrl}/v1/models${_authHeader()}'),
-                          _codeBlock(context, isDark, 'REST: Completions',
+                          _codeBlock(context, isDark, 'nodes_completions'.tr,
                               'curl ${controller.baseUrl}/v1/chat/completions \\\n  -H "Content-Type: application/json"${_authHeader()} \\\n  -d \'{"model":"${controller.inference.loadedModelName.value}","messages":[{"role":"user","content":"Hello"}]}\''),
-                          _codeBlock(context, isDark, 'SDK: OpenAI Python',
+                          _codeBlock(context, isDark, 'nodes_sdk_python'.tr,
                               'from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${controller.baseUrl}/v1",\n    api_key="${controller.useApiKey.value ? controller.apiKey.value : "not-needed"}"\n)\n\nresponse = client.chat.completions.create(\n    model="${controller.inference.loadedModelName.value}",\n    messages=[{"role": "user", "content": "Hello"}],\n)\nprint(response.choices[0].message.content)'),
                         ])),
               ]),
@@ -316,12 +316,12 @@ class ServerView extends GetView<ServerController> {
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 13, fontWeight: FontWeight.w700))),
           Expanded(
-              child: SelectableText(url ?? 'Detecting node...',
+              child: SelectableText(url ?? 'nodes_detecting'.tr,
                   maxLines: 1,
                   style: GoogleFonts.firaCode(
                       fontSize: 12, fontWeight: FontWeight.w500, color: Theme.of(context).hintColor))),
           IconButton(
-              tooltip: 'Copy',
+              tooltip: 'nodes_copy'.tr,
               onPressed: url == null
                   ? null
                   : () => controller.copyText(url, '$label URL'),
@@ -346,7 +346,7 @@ class ServerView extends GetView<ServerController> {
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 13, fontWeight: FontWeight.w800, color: Dt.accent))),
           IconButton(
-              tooltip: 'Copy',
+              tooltip: 'nodes_copy'.tr,
               onPressed: () => controller.copyText(code, title),
               icon: Icon(LucideIcons.copy,
                   size: 16, color: Theme.of(context).hintColor)),
