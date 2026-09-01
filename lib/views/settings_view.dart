@@ -609,7 +609,7 @@ class SettingsView extends GetView<SettingsController> {
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: Text('Got it'),
+            child: const Text('Got it'),
           ),
         ],
       ),
@@ -1380,7 +1380,7 @@ class SettingsView extends GetView<SettingsController> {
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Dt.accent),
             onPressed: () => Get.back(result: true),
-            child: Text('Fetch'),
+            child: const Text('Fetch'),
           ),
         ],
       ),
@@ -1523,7 +1523,7 @@ class SettingsView extends GetView<SettingsController> {
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Dt.accent),
             onPressed: () => Get.back(result: true),
-            child: Text('Import'),
+            child: const Text('Import'),
           ),
         ],
       ),
@@ -1643,7 +1643,7 @@ class SettingsView extends GetView<SettingsController> {
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Dt.accent),
             onPressed: () => Get.back(result: true),
-            child: Text('Import'),
+            child: const Text('Import'),
           ),
         ],
       ),
@@ -1715,7 +1715,7 @@ class SettingsView extends GetView<SettingsController> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: Text('Close')),
+          TextButton(onPressed: () => Get.back(), child: const Text('Close')),
         ],
       ),
     );
@@ -1739,7 +1739,7 @@ class SettingsView extends GetView<SettingsController> {
               Get.back();
               Get.find<SkillRegistryService>().delete(skill.id);
             },
-            child: Text('Delete'),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -1862,7 +1862,7 @@ class _GithubBrowseSheetState extends State<_GithubBrowseSheet> {
             FilledButton(
               style: FilledButton.styleFrom(backgroundColor: Dt.accent),
               onPressed: () => Get.back(result: true),
-              child: Text('Import'),
+              child: const Text('Import'),
             ),
           ],
         ),
@@ -1985,7 +1985,7 @@ class _GithubBrowseSheetState extends State<_GithubBrowseSheet> {
                             setState(() => _future = _load(force: true)),
                         style: FilledButton.styleFrom(
                             backgroundColor: Dt.accent),
-                        child: Text('Retry'),
+                        child: const Text('Retry'),
                       ),
                       if (_error != null)
                         Padding(
@@ -2524,7 +2524,7 @@ class _McpSectionState extends State<_McpSection> {
                               style: FilledButton.styleFrom(
                                   backgroundColor: AppColors.error),
                               onPressed: () => Get.back(result: true),
-                              child: Text('Remove'),
+                              child: const Text('Remove'),
                             ),
                           ],
                         ),
@@ -2682,7 +2682,7 @@ class _McpSectionState extends State<_McpSection> {
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: Dt.accent),
             onPressed: () => Get.back(result: true),
-            child: Text('Enable'),
+            child: const Text('Enable'),
           ),
         ],
       ),

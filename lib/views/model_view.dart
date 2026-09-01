@@ -160,23 +160,23 @@ class ModelView extends GetView<ModelController> {
           segments: [
             ButtonSegment(
               value: 'local',
-              icon: Icon(LucideIcons.smartphone, size: 16),
-              label: Text('explore_local'.tr, style: TextStyle(fontSize: 13)),
+              icon: const Icon(LucideIcons.smartphone, size: 16),
+              label: Text('explore_local'.tr, style: const TextStyle(fontSize: 13)),
             ),
             ButtonSegment(
               value: 'online',
-              icon: Icon(LucideIcons.cloud, size: 16),
-              label: Text('explore_online'.tr, style: TextStyle(fontSize: 13)),
+              icon: const Icon(LucideIcons.cloud, size: 16),
+              label: Text('explore_online'.tr, style: const TextStyle(fontSize: 13)),
             ),
             ButtonSegment(
               value: 'skills',
-              icon: Icon(LucideIcons.sparkles, size: 16),
-              label: Text('explore_skills'.tr, style: TextStyle(fontSize: 13)),
+              icon: const Icon(LucideIcons.sparkles, size: 16),
+              label: Text('explore_skills'.tr, style: const TextStyle(fontSize: 13)),
             ),
             ButtonSegment(
               value: 'mcp',
-              icon: Icon(LucideIcons.plug, size: 16),
-              label: Text('explore_mcp'.tr, style: TextStyle(fontSize: 13)),
+              icon: const Icon(LucideIcons.plug, size: 16),
+              label: Text('explore_mcp'.tr, style: const TextStyle(fontSize: 13)),
             ),
           ],
           selected: {normalized},
@@ -202,7 +202,7 @@ class ModelView extends GetView<ModelController> {
                     ? null
                     : () => _showAddUrlDialog(context),
                 icon: const Icon(Icons.add_link, size: 16),
-                label: Text('URL'),
+                label: const Text('URL'),
               )),
         ),
         const SizedBox(width: 10),
@@ -213,7 +213,7 @@ class ModelView extends GetView<ModelController> {
                     ? null
                     : () => controller.importModelFromStorage(),
                 icon: const Icon(Icons.file_upload_outlined, size: 16),
-                label: Text('Import'),
+                label: const Text('Import'),
               )),
         ),
       ],
@@ -1474,14 +1474,14 @@ class ModelView extends GetView<ModelController> {
                 TextButton.icon(
                   onPressed: () => controller.resumeDownload(model.filename),
                   icon: const Icon(LucideIcons.play, size: 16),
-                  label: Text('Resume'),
+                  label: const Text('Resume'),
                   style: TextButton.styleFrom(foregroundColor: AppColors.success),
                 )
               else
                 TextButton.icon(
                   onPressed: () => controller.pauseDownload(model.filename),
                   icon: const Icon(LucideIcons.pause, size: 16),
-                  label: Text('Pause'),
+                  label: const Text('Pause'),
                   style: TextButton.styleFrom(foregroundColor: AppColors.warning),
                 ),
               const SizedBox(width: 4),
