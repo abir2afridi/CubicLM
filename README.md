@@ -7,6 +7,7 @@
 
 [![Release](https://img.shields.io/github/v/release/abir2afridi/CubicLM?label=release)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.2.0)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Windows-blue)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.2.0)
+[![Website](https://img.shields.io/badge/website-cubiclm.vercel.app-FF4D00)](https://cubiclm.vercel.app)
 
 > 📱⚡ A cross-platform AI chat application with local on-device inference and multi-provider cloud AI support. Runs LLMs directly on your Android device via GPU-accelerated llama.cpp 🦙 and Google's LiteRT-LM runtime ⚡, with an optional built-in OpenAI-compatible API server 🔌.
 
@@ -20,6 +21,7 @@
 | Windows (x64) | `cubiclm-v1.2.0-windows-x64.zip` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/cubiclm-v1.2.0-windows-x64.zip) — unzip & run `cubiclm.exe` (WebView2 required) |
 | Checksums | `checksums.sha256` | — | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.2.0/checksums.sha256) |
 
+> **Website:** [cubiclm.vercel.app](https://cubiclm.vercel.app) — landing + direct APK / Windows downloads
 > **Full notes:** [CHANGELOG.md](CHANGELOG.md) · [Release page](https://github.com/abir2afridi/CubicLM/releases/tag/v1.2.0)
 > Web (`dart:ffi`) is tracked for the next release — Android + Windows are the supported targets for `v1.2.0`.
 
@@ -158,7 +160,7 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
 - **Web (Flutter Web)** — `web/` static shell (`index.html`, `manifest.json`), Hive IndexedDB, `dart:io` stubs (`download_web.dart`, `inference_stub.dart`); `flutter build web` → `build/web`
 - **Windows Desktop (Flutter Windows, not Tauri per §8.5)** — `windows/` CMake runner, `window_manager 0.4.3` (`400×700` min, `1280×800` default, centered, `CubicLM` title, `waitUntilReadyToShow`), native file dialogs via `file_picker`, `flutter build windows` → `build/windows/runner/Release/cubiclm.exe`
 - **Why Flutter Windows, not Tauri?** Existing `shared` is Dart (`lib/`), not TS — Tauri would require rewriting `lib/` in TS/Svelte or bridging Dart→Rust; `flutter create --platforms=windows` reuses 100% of `lib/` for free (lower total cost, §8.5 justification)
-- **Single source of truth** — `shared/constants/platform_links.dart` + `lib/shared/constants/platform_links.dart` (`REPLACE_ME_*` placeholders). `About → AVAILABLE ON` links to the *other two* platforms + centralized `CHANGELOG.md` (`REPLACE_ME_WEBSITE_URL/changelog`), never to itself, via `launchUrl(externalApplication)` (Web `_blank`, Desktop OS browser, Android Browser tab) — see `docs/PLATFORM_LINKS.md`
+- **Single source of truth** — `shared/constants/platform_links.dart` + `lib/shared/constants/platform_links.dart` (now set to `https://cubiclm.vercel.app` + GitHub Releases). `About → AVAILABLE ON` links to the *other two* platforms + centralized `CHANGELOG.md`, never to itself, via `launchUrl(externalApplication)` (Web `_blank`, Desktop OS browser, Android Browser tab) — see `docs/PLATFORM_LINKS.md`
 - **Responsive, not forked** — `lib/shared/theme/tokens.dart` (`Breakpoints.phone 360/tablet 600/laptop 900/desktop 1280/wide 1920`, `Spacing`, `TypographyTokens`) + `Dt` tokens; `HomeView._isWide 800` (sidebar vs bottom nav), `Flexible` pill `14` chars, `Expanded` header — verified `360/768/1280/1920` + manual resize `400×700` → `1920` per §5.3 (no `MobileHomePage` vs `DesktopHomePage` fork)
 - **Platform differences documented** — `docs/PLATFORM_DIFFERENCES.md` (local inference cloud-only on Web/Windows until `local_plugins/llama_flutter_windows` ported), `docs/ARCHITECTURE.md`, `docs/BUILD_AND_RUN.md`, `scripts/build-all.ps1` / `.sh`
 - **Windows local inference (intentional gap §8.3):** `local_plugins` are Android FFI only → `supportsLocalInference=false` on `TargetPlatform.windows`, shows cloud banner; roadmap is `local_plugins/llama_flutter_windows` (`llama.dll`)
