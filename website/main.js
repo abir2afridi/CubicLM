@@ -76,4 +76,17 @@
 /* ── Initialize Lucide icons ── */
 if(typeof lucide!=='undefined'){lucide.createIcons();}
 
+/* ── Init SVG path animations (animate-ui style) ── */
+(function(){
+  var paths=document.querySelectorAll('svg.lucide path, svg.lucide circle, svg.lucide polyline, svg.lucide rect, svg.lucide line');
+  paths.forEach(function(p){
+    var len;
+    try{len=p.getTotalLength()}catch(e){len=0}
+    if(len>0){
+      p.style.strokeDasharray=len;
+      p.style.strokeDashoffset='0';
+    }
+  });
+})();
+
 })();

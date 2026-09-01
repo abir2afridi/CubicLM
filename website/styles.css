@@ -182,32 +182,49 @@ a{color:inherit;text-decoration:none}
   .footer-copy{text-align:left}
 }
 
-/* ── LUCIDE ANIMATED ICONS ── */
-.lucide{display:inline-block;vertical-align:middle;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+/* ── LUCIDE ICONS (animate-ui style) ── */
+svg.lucide{width:24px;height:24px;stroke-width:2;vertical-align:middle}
+svg.lucide path,
+svg.lucide circle,
+svg.lucide polyline,
+svg.lucide rect,
+svg.lucide line{transition:all .35s cubic-bezier(.16,1,.3,1)}
 
-/* Hover pulse on nav social */
-.nav-social a:hover .lucide{animation:icon-pulse .4s ease}
-@keyframes icon-pulse{0%{transform:scale(1)}50%{transform:scale(1.25)}100%{transform:scale(1)}}
+/* Nav social: draw-in on load */
+.nav-social svg.lucide path{stroke-dasharray:100;stroke-dashoffset:100;animation:draw-in .8s ease forwards}
+@keyframes draw-in{to{stroke-dashoffset:0}}
 
-/* Service arrows: rotate on hover */
-.service-arrow .lucide{transition:transform .3s cubic-bezier(.16,1,.3,1)}
-.service-item:hover .service-arrow .lucide{transform:rotate(-45deg) scale(1)}
+/* Hero scroll: bounce */
+.hero-scroll svg.lucide{animation:scroll-bounce 2s ease-in-out infinite}
+@keyframes scroll-bounce{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(8px);opacity:1}}
 
-/* Download arrows: slide right on card hover */
-.download-card:hover .download-card-arrow .lucide{transform:translateX(4px)}
+/* Service arrows: draw + rotate on hover */
+.service-arrow svg.lucide{opacity:0;transform:rotate(-45deg) scale(.5);transition:all .3s cubic-bezier(.16,1,.3,1)}
+.service-item:hover .service-arrow svg.lucide{opacity:1;transform:rotate(-45deg) scale(1)}
+.service-item:hover .service-arrow svg.lucide path{stroke-dasharray:60;stroke-dashoffset:60;animation:draw-in .4s ease .1s forwards}
 
-/* Feature card icons: subtle float */
-.feature-card:hover .feature-card-icon .lucide{animation:icon-float .6s ease}
-@keyframes icon-float{0%{transform:translateY(0)}50%{transform:translateY(-4px)}100%{transform:translateY(0)}}
+/* Download card icons: draw-in on hover */
+.download-card-icon svg.lucide{transition:transform .3s ease}
+.download-card:hover .download-card-icon svg.lucide{transform:scale(1.1)}
+.download-card-icon svg.lucide path{stroke-dasharray:120;stroke-dashoffset:0;transition:stroke-dashoffset .5s ease}
+.download-card:hover .download-card-icon svg.lucide path{animation:draw-in .5s ease}
 
-/* About card icons: spin-in on hover */
-.about-card:hover .about-card-icon .lucide{animation:icon-spin .5s ease}
-@keyframes icon-spin{0%{transform:rotate(0deg) scale(1)}50%{transform:rotate(180deg) scale(1.1)}100%{transform:rotate(360deg) scale(1)}}
+/* Download arrows: slide */
+.download-card-arrow svg.lucide{transition:transform .3s ease,opacity .3s;opacity:.4}
+.download-card:hover .download-card-arrow svg.lucide{opacity:1;transform:translateX(4px)}
 
-/* Hero scroll arrow: bounce */
-.hero-scroll .lucide{animation:icon-bounce 2s ease-in-out infinite}
-@keyframes icon-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+/* About card icons: draw-in on hover */
+.about-card-icon svg.lucide{transition:transform .35s cubic-bezier(.16,1,.3,1)}
+.about-card:hover .about-card-icon svg.lucide{transform:scale(1.1) rotate(5deg)}
+.about-card-icon svg.lucide path{stroke-dasharray:100;stroke-dashoffset:0}
+.about-card:hover .about-card-icon svg.lucide path{animation:draw-in .5s ease}
 
-/* Download card icons: scale on card hover */
-.download-card:hover .download-card-icon .lucide{animation:icon-scale .3s ease}
-@keyframes icon-scale{0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
+/* Feature card icons: morph pulse */
+.feature-card-icon svg.lucide{transition:transform .35s cubic-bezier(.16,1,.3,1)}
+.feature-card:hover .feature-card-icon svg.lucide{transform:translateY(-3px) scale(1.08)}
+.feature-card-icon svg.lucide path{stroke-dasharray:120;stroke-dashoffset:0;transition:stroke-dashoffset .4s ease}
+.feature-card:hover .feature-card-icon svg.lucide path{animation:draw-in .4s ease}
+
+/* CTA button icon */
+.cta-btn svg.lucide{margin-left:8px;transition:transform .3s}
+.cta-btn:hover svg.lucide{transform:translateX(4px)}
