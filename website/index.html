@@ -635,40 +635,71 @@
     <div class="changelog-panel">
       <div class="changelog-detail" id="changelog-v1.2.0+7">
         <h3>v1.2.0+7 <span class="changelog-date">2026-08-28</span></h3>
+        <h4>Added</h4>
         <ul>
-          <li><span class="tag added">Added</span> 15 languages (EN, BN, HI, AR, ZH, ES, FR, JA, KO, PT, DE, TR, ID, RU, UR) with instant switch.</li>
-          <li><span class="tag added">Added</span> GitHub issue forms, PR template, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, SUPPORT, auto-label workflows.</li>
-          <li><span class="tag fixed">Fixed</span> Android build stability (Gradle heap reduced to 3 GB).</li>
+          <li><strong>Multi-language support</strong> — 15 languages (EN, BN, HI, AR, ZH, ES, FR, JA, KO, PT, DE, TR, ID, RU, UR) with instant-switch Apple-style picker in App Settings. GetX translations, ~70 keys × 15 languages.</li>
+          <li><strong>GitHub community infrastructure</strong> — issue forms (15 types), PR template, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, SUPPORT, auto-label workflows, Dependabot, FUNDING.yml, 51 synced labels.</li>
+        </ul>
+        <h4>Fixed</h4>
+        <ul>
+          <li><strong>Android build stability</strong> — Gradle JVM heap reduced from 8 GB to 3 GB (<code>-Xmx3072m</code>) to prevent Kotlin daemon incremental cache OOM/corruption on 16 GB machines. Stale caches cleaned.</li>
         </ul>
       </div>
       <div class="changelog-detail" id="changelog-v1.1.0+6" style="display:none">
         <h3>v1.1.0+6 <span class="changelog-date">2026-08-28</span></h3>
+        <h4>Added</h4>
         <ul>
-          <li><span class="tag added">Added</span> Windows Desktop production build (signed .exe bundle).</li>
-          <li><span class="tag fixed">Fixed</span> Windows build issues (CMake policy, MSVC warnings, ATL headers).</li>
-          <li><span class="tag known">Known</span> Web build blocked by dart:ffi (tracked for next release).</li>
+          <li><strong>Windows Desktop (production)</strong> — Signed <code>cubiclm.exe</code> bundle (<code>41.1 MB</code> / <code>16.22 MB</code> zip) ships alongside Android APK. Same <code>lib/</code> codebase, no separate fork.</li>
+        </ul>
+        <h4>Fixed</h4>
+        <ul>
+          <li><strong>Windows build</strong> — <code>CMAKE_POLICY_VERSION_MINIMUM 3.5</code> for Firebase C++ SDK (CMake 3.5 compat removed in 4.x), <code>_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS</code> for <code>flutter_inappwebview_windows</code> / MSVC 14.51 STL1011, <code>native_assets</code> install guard (<code>if(EXISTS)</code>), and missing ATL headers (<code>Microsoft.VisualStudio.Component.VC.ATL</code>).</li>
+        </ul>
+        <h4>Known Limitations</h4>
+        <ul>
+          <li><strong>Web</strong> — <code>dart:ffi</code> (<code>sd_ffi_bindings.dart</code>) not yet web-compatible; <code>flutter build web</code> fails. Tracked for next release. Android + Windows are the supported targets for v1.1.0.</li>
         </ul>
       </div>
       <div class="changelog-detail" id="changelog-v1.0.5+5" style="display:none">
         <h3>v1.0.5+5 <span class="changelog-date">2026-08-28</span></h3>
+        <h4>Added</h4>
         <ul>
-          <li><span class="tag added">Added</span> Windows Flutter shell, shared platform links, cross-platform About.</li>
-          <li><span class="tag added">Added</span> Startup auto-load last model (optional).</li>
-          <li><span class="tag changed">Changed</span> Warm native splash (#F8F4ED), smoother splash exit, header/composer sync, download resume fixes.</li>
-          <li><span class="tag fixed">Fixed</span> Hive timeouts, chat controller box closure, inference service list, skill registry brace.</li>
+          <li><strong>Windows Desktop</strong> — Flutter Windows shell via <code>flutter create --platforms=windows</code> + <code>window_manager</code> (<code>400×700</code> min, <code>1280×800</code> default, centered, <code>CubicLM</code> title). Single codebase (<code>lib/</code>) ships to Android, Web, and Windows.</li>
+          <li><strong>Shared platform links</strong> — <code>shared/constants/platformLinks.dart</code> + <code>lib/shared/constants/platformLinks.dart</code> (re-export) with <code>REPLACE_ME_*</code> placeholders; all <code>About</code> screens import from here.</li>
+          <li><strong>Cross-platform About</strong> — per platform rules: Web links to Desktop+Android+changelog, Desktop links to Website+Android+changelog, Android links to Website+Desktop+changelog; never to itself. Shows <code>platformLabel • version</code> from <code>PlatformLinks</code> + <code>SettingsController.appVersion</code>.</li>
+          <li><strong>Startup auto-load</strong> — <code>App Settings → STARTUP → Auto-load last model</code> (<code>keyAutoLoadLastModel</code>), deferred until chat UI idle (splash gone + <code>DeviceInfo</code> ready + <code>1200ms</code>), with <code>90s</code> crash-loop guard, <code>80%</code> RAM guard, <code>90s</code> load timeout, and resident-model check.</li>
+        </ul>
+        <h4>Changed</h4>
+        <ul>
+          <li><strong>Warm native splash</strong> — <code>android/res/values/colors.xml</code> + <code>drawable*/launch_background.xml</code> now <code>#F8F4ED</code> (<code>Dt.canvas</code>) instead of white — seamless native→Flutter transition.</li>
+          <li><strong>Smooth splash exit</strong> — <code>splash_view.dart</code> <code>RepaintBoundary</code> isolation + <code>760ms</code> fade-in/out, <code>1380ms</code> dwell before <code>Get.offAllNamed(home)</code>; deferred heavy services now <code>2200ms</code> after <code>runApp()</code> (was <code>900ms</code>), never janks shimmer.</li>
+          <li><strong>Header &amp; composer sync</strong> — both <code>Obx</code> on <code>InferenceService.loadedModelName</code> / <code>LocalImageService.loadedModelName</code>; composer pill <code>Flexible</code> + <code>14</code> char truncate fixes <code>RenderFlex overflow</code> on 360dp.</li>
+          <li><strong>Download resume</strong> — <code>download_service.dart</code> stale <code>paused_downloads.json</code> cleanup via <code>isModelDownloaded</code> + <code>ModelController.refreshDownloaded()</code> fixes "completed but still shows downloading".</li>
+          <li><strong>Log copy toast</strong> — <code>log_view.dart</code> <code>Get.snackbar BOTTOM</code> → <code>AppSnackbar.showTop</code> (spring, <code>copyCheck</code>).</li>
+        </ul>
+        <h4>Fixed</h4>
+        <ul>
+          <li><code>HiveService</code> per-box <code>3s</code> timeout + <code>_MemoryBox</code> fallback (was <code>Future.wait</code> on 7 boxes, one corrupt killed all).</li>
+          <li><code>ChatController</code> → <code>HiveService</code> defensive <code>isOpen</code> + <code>on HiveError</code> (was "Box has already been closed" flood).</li>
+          <li><code>InferenceService</code> growable <code>residentTextModels</code> (was <code>FixedLengthListMixin</code> on <code>clear()</code>).</li>
+          <li><code>SkillRegistryService</code> missing <code>try</code> brace.</li>
         </ul>
       </div>
       <div class="changelog-detail" id="changelog-v1.0.4" style="display:none">
         <h3>v1.0.4 <span class="changelog-date">2026-08-21</span></h3>
+        <h4>Added</h4>
         <ul>
-          <li><span class="tag added">Added</span> Skills + MCP 4-way toggle in Explore, GitHub/URL skill import, MCP remote HTTP/SSE, notification history, web source favicon chips, ThinkingOrbs per-context picker.</li>
-          <li><span class="tag fixed">Fixed</span> Model switcher free filter, serial numbers, header row non-tappable, sticky Explore toggle.</li>
+          <li>Skills + MCP 4-way toggle in Explore, GitHub/URL skill import, MCP remote HTTP/SSE, notification history, web source favicon chips, ThinkingOrbs per-context picker.</li>
+        </ul>
+        <h4>Fixed</h4>
+        <ul>
+          <li>Model switcher free filter, serial numbers, header model row non-tappable, sticky Explore toggle.</li>
         </ul>
       </div>
       <div class="changelog-detail" id="changelog-v1.0.0" style="display:none">
         <h3>v1.0.0 <span class="changelog-date">2026-08-01</span></h3>
         <ul>
-          <li><span class="tag added">Added</span> Initial Android release — local llama.cpp/LiteRT-LM + cloud providers + OpenAI-compatible server.</li>
+          <li>Initial Android release — local llama.cpp/LiteRT-LM + cloud providers + OpenAI-compatible server.</li>
         </ul>
       </div>
     </div>
