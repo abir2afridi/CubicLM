@@ -303,16 +303,18 @@
 
   <!-- LiteRT-LM -->
   <div class="models-table-wrap">
-    <table class="models-table">
-      <thead>
-        <tr>
-          <th>Model</th>
-          <th>Size</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr class="models-table-group-label"><td colspan="3">LiteRT-LM — Google's on-device runtime</td></tr>
+    <div class="models-section">
+      <div class="models-section-header">LiteRT-LM — Google's on-device runtime</div>
+      <div class="models-section-scroll">
+        <table class="models-table">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Size</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
         <tr>
           <td class="model-name">Qwen3-0.6B <span class="model-badge badge-litert">LiteRT</span></td>
           <td class="model-size">586 MB</td>
@@ -339,7 +341,24 @@
           <td class="model-desc">Highest quality LiteRT option</td>
         </tr>
 
-        <tr class="models-table-group-label"><td colspan="3">GGUF — llama.cpp with GPU acceleration</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- GGUF -->
+    <div class="models-section">
+      <div class="models-section-header">GGUF — llama.cpp with GPU acceleration</div>
+      <div class="models-section-scroll">
+        <table class="models-table">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Size</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
         <tr>
           <td class="model-name">Kimi Moonlight 16B-A3B <span class="model-badge badge-gguf">GGUF</span></td>
           <td class="model-size">7.1 GB</td>
@@ -376,7 +395,24 @@
           <td class="model-desc">Ultra-lightweight entry model</td>
         </tr>
 
-        <tr class="models-table-group-label"><td colspan="3">Image Generation — Stable Diffusion 1.5</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Image Generation -->
+    <div class="models-section">
+      <div class="models-section-header">Image Generation — Stable Diffusion 1.5</div>
+      <div class="models-section-scroll">
+        <table class="models-table">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Size</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
         <tr>
           <td class="model-name">DreamShaper 8 LCM <span class="model-badge badge-sd">SD 1.5</span></td>
           <td class="model-size">2.0 GB</td>
@@ -402,8 +438,10 @@
           <td class="model-size">2.0 GB</td>
           <td class="model-desc">Anime / stylized</td>
         </tr>
-      </tbody>
-    </table>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </section>
 
