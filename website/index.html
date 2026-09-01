@@ -103,6 +103,63 @@ a{color:inherit;text-decoration:none}
 .about-stat-num{font-family:'Archivo Black',sans-serif;font-size:clamp(32px,5vw,48px);color:var(--orange);line-height:1}
 .about-stat-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;opacity:.5;margin-top:8px}
 
+/* ── FEATURES DETAIL ── */
+.features-detail{background:var(--black);color:var(--white);padding:100px 32px;border-top:1px solid rgba(255,255,255,.1)}
+.features-detail-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:12px}
+.features-detail-title{font-family:'Instrument Serif',serif;font-size:clamp(36px,6vw,72px);font-weight:400;letter-spacing:-.03em;line-height:1;margin-bottom:60px}
+.features-detail-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;max-width:1200px;margin:0 auto}
+.feature-card{padding:32px 28px;border:1px solid rgba(255,255,255,.1);transition:border-color .3s,background .3s,transform .3s}
+.feature-card:hover{border-color:var(--orange);background:rgba(255,255,255,.03);transform:translateY(-4px)}
+.feature-card-icon{width:48px;height:48px;border-radius:12px;background:rgba(255,77,0,.1);display:grid;place-items:center;font-size:22px;color:var(--orange);margin-bottom:20px}
+.feature-card-title{font-family:'Archivo Black',sans-serif;font-size:15px;text-transform:uppercase;letter-spacing:-.02em;margin-bottom:10px;line-height:1.2}
+.feature-card-text{font-size:13px;line-height:1.65;opacity:.55}
+.feature-card-tag{display:inline-block;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border:1px solid rgba(255,77,0,.3);border-radius:999px;color:var(--orange);margin-top:14px}
+
+/* ── MODELS ── */
+.models{background:var(--black);color:var(--white);padding:100px 32px;border-top:1px solid rgba(255,255,255,.1)}
+.models-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:12px}
+.models-title{font-family:'Instrument Serif',serif;font-size:clamp(36px,6vw,72px);font-weight:400;letter-spacing:-.03em;line-height:1;margin-bottom:60px}
+.models-tabs{display:flex;gap:12px;margin-bottom:40px;flex-wrap:wrap}
+.models-tab{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.05em;text-transform:uppercase;padding:10px 24px;border:1px solid rgba(255,255,255,.2);border-radius:999px;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;transition:all .3s}
+.models-tab.active,.models-tab:hover{background:var(--orange);border-color:var(--orange);color:var(--black)}
+.models-table-wrap{max-width:1000px;margin:0 auto;overflow-x:auto}
+.models-table{width:100%;border-collapse:collapse}
+.models-table thead{border-bottom:2px solid rgba(255,255,255,.15)}
+.models-table th{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);text-align:left;padding:12px 16px}
+.models-table td{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.06);font-size:14px;vertical-align:middle}
+.models-table tbody tr{transition:background .2s}
+.models-table tbody tr:hover{background:rgba(255,255,255,.03)}
+.models-table .model-name{font-family:'Space Mono',monospace;font-weight:700;font-size:13px;white-space:nowrap}
+.models-table .model-size{font-family:'Space Mono',monospace;font-size:12px;color:var(--orange);white-space:nowrap}
+.models-table .model-desc{opacity:.55;font-size:13px;line-height:1.5}
+.models-table .model-badge{display:inline-block;font-family:'Space Mono',monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;margin-left:8px}
+.badge-litert{background:rgba(52,211,153,.15);color:#34d399;border:1px solid rgba(52,211,153,.3)}
+.badge-gguf{background:rgba(96,165,250,.15);color:#60a5fa;border:1px solid rgba(96,165,250,.3)}
+.badge-sd{background:rgba(251,146,60,.15);color:#fb923c;border:1px solid rgba(251,146,60,.3)}
+.models-table-group-label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.35);padding:24px 16px 8px;border-bottom:1px solid rgba(255,255,255,.06)}
+
+/* ── CLOUD PROVIDERS ── */
+.cloud{background:var(--black);color:var(--white);padding:100px 32px;border-top:1px solid rgba(255,255,255,.1)}
+.cloud-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:12px}
+.cloud-title{font-family:'Instrument Serif',serif;font-size:clamp(36px,6vw,72px);font-weight:400;letter-spacing:-.03em;line-height:1;margin-bottom:20px}
+.cloud-desc{font-size:15px;line-height:1.7;opacity:.5;max-width:640px;margin-bottom:48px}
+.cloud-grid{display:flex;flex-wrap:wrap;gap:12px;max-width:1000px;margin:0 auto}
+.cloud-chip{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border:1px solid rgba(255,255,255,.12);border-radius:999px;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.02em;color:rgba(255,255,255,.75);transition:all .3s;cursor:default}
+.cloud-chip:hover{border-color:var(--orange);color:var(--white);background:rgba(255,77,0,.06)}
+.cloud-chip-dot{width:6px;height:6px;border-radius:50%;background:var(--orange);flex-shrink:0}
+.cloud-chip-free{font-size:9px;letter-spacing:.08em;text-transform:uppercase;background:rgba(52,211,153,.15);color:#34d399;padding:2px 8px;border-radius:999px;margin-left:4px}
+
+/* ── TECH STACK ── */
+.techstack{background:var(--black);color:var(--white);padding:100px 32px;border-top:1px solid rgba(255,255,255,.1)}
+.techstack-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:12px}
+.techstack-title{font-family:'Instrument Serif',serif;font-size:clamp(36px,6vw,72px);font-weight:400;letter-spacing:-.03em;line-height:1;margin-bottom:60px}
+.techstack-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;max-width:1000px;margin:0 auto}
+.techstack-card{padding:32px;border:1px solid rgba(255,255,255,.1);transition:border-color .3s,background .3s}
+.techstack-card:hover{border-color:var(--orange);background:rgba(255,255,255,.03)}
+.techstack-card-label{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--orange);margin-bottom:14px}
+.techstack-card-items{display:flex;flex-wrap:wrap;gap:8px}
+.techstack-item{font-family:'Space Mono',monospace;font-size:12px;padding:6px 14px;border:1px solid rgba(255,255,255,.12);border-radius:999px;color:rgba(255,255,255,.7);white-space:nowrap}
+
 /* ── CTA ── */
 .cta{background:var(--orange);padding:120px 32px;text-align:center}
 .cta h2{font-family:'Archivo Black',sans-serif;font-size:clamp(48px,14vw,180px);text-transform:uppercase;letter-spacing:-.04em;line-height:.85;margin-bottom:48px;color:var(--black)}
@@ -123,12 +180,22 @@ a{color:inherit;text-decoration:none}
 .footer-copy{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;color:#888;text-align:right}
 
 /* ── RESPONSIVE ── */
+@media(max-width:1024px){
+  .features-detail-grid{grid-template-columns:repeat(2,1fr)}
+  .techstack-grid{grid-template-columns:repeat(2,1fr)}
+}
 @media(max-width:768px){
   .nav-pill{display:none}
   .hero-desc{font-size:15px}
   .download-grid{grid-template-columns:1fr}
   .about-detail-grid{grid-template-columns:1fr}
   .about-stats{grid-template-columns:1fr 1fr}
+  .features-detail-grid{grid-template-columns:1fr}
+  .models-tabs{gap:8px}
+  .models-tab{padding:8px 16px;font-size:11px}
+  .cloud-grid{gap:8px}
+  .cloud-chip{padding:10px 16px;font-size:11px}
+  .techstack-grid{grid-template-columns:1fr}
   .footer-grid{grid-template-columns:1fr;gap:40px}
   .footer-copy{text-align:left}
 }
@@ -145,6 +212,10 @@ a{color:inherit;text-decoration:none}
     <a href="#services">Services</a>
     <a href="#download">Download</a>
     <a href="#about">About</a>
+    <a href="#features">Features</a>
+    <a href="#models">Models</a>
+    <a href="#providers">Providers</a>
+    <a href="#tech">Tech</a>
     <a href="https://github.com/abir2afridi/CubicLM" target="_blank">GitHub</a>
   </div>
   <div class="nav-social">
@@ -308,6 +379,254 @@ a{color:inherit;text-decoration:none}
     <div class="about-stat"><div class="about-stat-num">15</div><div class="about-stat-label">Languages</div></div>
     <div class="about-stat"><div class="about-stat-num">100%</div><div class="about-stat-label">Offline Capable</div></div>
     <div class="about-stat"><div class="about-stat-num">MIT</div><div class="about-stat-label">Open Source</div></div>
+  </div>
+</section>
+
+<!-- ════ FEATURES DETAIL ════ -->
+<section id="features" class="features-detail">
+  <div class="features-detail-label">Deep Dive</div>
+  <div class="features-detail-title">Features</div>
+  <div class="features-detail-grid">
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-cpu-line"></i></div>
+      <div class="feature-card-title">Local AI Inference</div>
+      <div class="feature-card-text">Run LLMs on-device via llama.cpp (GGUF) with GPU acceleration through Vulkan / OpenCL, or Google's LiteRT-LM runtime for .litertlm models. Streaming tokens with real-time speed display.</div>
+      <div class="feature-card-tag">GGUF + LiteRT + GPU</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-cloud-line"></i></div>
+      <div class="feature-card-title">20+ Cloud Providers</div>
+      <div class="feature-card-text">OpenRouter, OpenAI, Anthropic, Gemini, DeepSeek, Groq, Mistral, Together AI, and 12+ more. Unified plugin architecture with auto-fetched model lists and free tier tagging.</div>
+      <div class="feature-card-tag">Unified Plugin Architecture</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-palette-line"></i></div>
+      <div class="feature-card-title">Image Generation</div>
+      <div class="feature-card-text">On-device Stable Diffusion 1.5 via FFI with Vulkan acceleration. Generate images completely offline — DreamShaper, CyberRealistic, Realistic Vision, and more safetensors models.</div>
+      <div class="feature-card-tag">SD 1.5 · Vulkan · FFI</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-puzzle-line"></i></div>
+      <div class="feature-card-title">Skills</div>
+      <div class="feature-card-text">Offline prompt-injection extensions in markdown. No network, no SDK — just text appended to the system prompt. Intelligent per-prompt activation scores and selects the top 2 relevant skills.</div>
+      <div class="feature-card-tag">5 Built-in · Import · Browse</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-plug-circle-line"></i></div>
+      <div class="feature-card-title">MCP Server</div>
+      <div class="feature-card-text">Connect a single remote MCP server via Streamable HTTP / SSE. Tools are added to OpenAI-compatible cloud requests with automatic tool-call round-tripping and size-capped results.</div>
+      <div class="feature-card-tag">HTTP / SSE · Bearer Auth</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-terminal-box-line"></i></div>
+      <div class="feature-card-title">Local API Server</div>
+      <div class="feature-card-text">Expose local models as an OpenAI-compatible API on port 8080. Use your downloaded GGUF or LiteRT models from any compatible client on your network — no cloud required.</div>
+      <div class="feature-card-tag">Port 8080 · OpenAI Format</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-earth-line"></i></div>
+      <div class="feature-card-title">Web Fetch</div>
+      <div class="feature-card-text">Toggle on in chat to automatically fetch and inject web content from URLs in your message. Pages are stripped to clean text, with visible source chips (favicon + domain) shown below responses.</div>
+      <div class="feature-card-tag">3 Links · 9K Chars · 15s Timeout</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-chat-history-line"></i></div>
+      <div class="feature-card-title">Multi-Session Chat</div>
+      <div class="feature-card-text">Full chat history with Hive persistence, full-text searchable sidebar, message actions (copy, share, regenerate, branch, edit), revision history, and code blocks with syntax highlighting.</div>
+      <div class="feature-card-tag">Search · Export · Branch</div>
+    </div>
+  </div>
+</section>
+
+<!-- ════ SUPPORTED MODELS ════ -->
+<section id="models" class="models">
+  <div class="models-label">On-Device & Image Gen</div>
+  <div class="models-title">Supported Models</div>
+
+  <!-- LiteRT-LM -->
+  <div class="models-table-wrap">
+    <table class="models-table">
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Size</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="models-table-group-label"><td colspan="3">LiteRT-LM — Google's on-device runtime</td></tr>
+        <tr>
+          <td class="model-name">Qwen3-0.6B <span class="model-badge badge-litert">LiteRT</span></td>
+          <td class="model-size">586 MB</td>
+          <td class="model-desc">Smallest chat model for low-RAM phones</td>
+        </tr>
+        <tr>
+          <td class="model-name">Qwen2.5-1.5B Instruct <span class="model-badge badge-litert">LiteRT</span></td>
+          <td class="model-size">1.49 GB</td>
+          <td class="model-desc">Balanced int8 quantized chat model</td>
+        </tr>
+        <tr>
+          <td class="model-name">DeepSeek-R1-Distill-Qwen-1.5B <span class="model-badge badge-litert">LiteRT</span></td>
+          <td class="model-size">1.71 GB</td>
+          <td class="model-desc">Reasoning-focused distilled model</td>
+        </tr>
+        <tr>
+          <td class="model-name">Gemma 4 E2B Instruct <span class="model-badge badge-litert">LiteRT</span></td>
+          <td class="model-size">2.46 GB</td>
+          <td class="model-desc">Google Gemma vision + chat</td>
+        </tr>
+        <tr>
+          <td class="model-name">Gemma 4 E4B Instruct <span class="model-badge badge-litert">LiteRT</span></td>
+          <td class="model-size">3.40 GB</td>
+          <td class="model-desc">Highest quality LiteRT option</td>
+        </tr>
+
+        <tr class="models-table-group-label"><td colspan="3">GGUF — llama.cpp with GPU acceleration</td></tr>
+        <tr>
+          <td class="model-name">Kimi Moonlight 16B-A3B <span class="model-badge badge-gguf">GGUF</span></td>
+          <td class="model-size">7.1 GB</td>
+          <td class="model-desc">MoE, 3B active parameters — Q3_K_S</td>
+        </tr>
+        <tr>
+          <td class="model-name">Qwen2.5-3B Instruct <span class="model-badge badge-gguf">GGUF</span></td>
+          <td class="model-size">2.1 GB</td>
+          <td class="model-desc">Best mobile speed/quality — Q4_K_M</td>
+        </tr>
+        <tr>
+          <td class="model-name">Qwen2-VL-2B <span class="model-badge badge-gguf">GGUF</span></td>
+          <td class="model-size">1.5 GB</td>
+          <td class="model-desc">Vision-capable — Q4_K_M</td>
+        </tr>
+        <tr>
+          <td class="model-name">Phi-3.5 Mini <span class="model-badge badge-gguf">GGUF</span></td>
+          <td class="model-size">2.2 GB</td>
+          <td class="model-desc">Microsoft reasoning model — Q4_K_M</td>
+        </tr>
+        <tr>
+          <td class="model-name">Gemma 2 2B <span class="model-badge badge-gguf">GGUF</span></td>
+          <td class="model-size">1.71 GB</td>
+          <td class="model-desc">Google lightweight chat — Q4_K_M</td>
+        </tr>
+        <tr>
+          <td class="model-name">Llama-3.2-3B Uncensored <span class="model-badge badge-gguf">GGUF</span></td>
+          <td class="model-size">2.1 GB</td>
+          <td class="model-desc">Unrestricted assistant</td>
+        </tr>
+        <tr>
+          <td class="model-name">Llama-3.2-1B Instruct <span class="model-badge badge-gguf">GGUF</span></td>
+          <td class="model-size">0.8 GB</td>
+          <td class="model-desc">Ultra-lightweight entry model</td>
+        </tr>
+
+        <tr class="models-table-group-label"><td colspan="3">Image Generation — Stable Diffusion 1.5</td></tr>
+        <tr>
+          <td class="model-name">DreamShaper 8 LCM <span class="model-badge badge-sd">SD 1.5</span></td>
+          <td class="model-size">2.0 GB</td>
+          <td class="model-desc">Fast 4-step generation</td>
+        </tr>
+        <tr>
+          <td class="model-name">CyberRealistic V8 FP16 <span class="model-badge badge-sd">SD 1.5</span></td>
+          <td class="model-size">2.0 GB</td>
+          <td class="model-desc">Photorealistic, uncensored</td>
+        </tr>
+        <tr>
+          <td class="model-name">Realistic Vision V5.1 FP16 <span class="model-badge badge-sd">SD 1.5</span></td>
+          <td class="model-size">2.0 GB</td>
+          <td class="model-desc">Popular portrait/scene model</td>
+        </tr>
+        <tr>
+          <td class="model-name">AbsoluteReality 1.8.1 <span class="model-badge badge-sd">SD 1.5</span></td>
+          <td class="model-size">2.0 GB</td>
+          <td class="model-desc">General-purpose photorealistic</td>
+        </tr>
+        <tr>
+          <td class="model-name">AnyLoRA <span class="model-badge badge-sd">SD 1.5</span></td>
+          <td class="model-size">2.0 GB</td>
+          <td class="model-desc">Anime / stylized</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ════ CLOUD PROVIDERS ════ -->
+<section id="providers" class="cloud">
+  <div class="cloud-label">Multi-Provider Cloud</div>
+  <div class="cloud-title">Cloud Providers</div>
+  <div class="cloud-desc">A unified plugin architecture — each provider implements the CloudProvider interface with auto-fetched model lists, free tier tagging, and per-provider company filters.</div>
+  <div class="cloud-grid">
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>OpenRouter<span class="cloud-chip-free">Free</span></div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Hugging Face</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>xKiro<span class="cloud-chip-free">Free</span></div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>TokenRouter</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>OpenAI</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Anthropic</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Google Gemini</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>DeepSeek</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Z.AI</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Groq</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Mistral AI</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Together AI</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>xAI Grok</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Perplexity</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Cerebras</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Fireworks AI</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Cohere</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>NVIDIA NIM</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Stability AI</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Kimi</div>
+    <div class="cloud-chip"><span class="cloud-chip-dot"></span>Custom</div>
+  </div>
+</section>
+
+<!-- ════ TECH STACK ════ -->
+<section id="tech" class="techstack">
+  <div class="techstack-label">Under the Hood</div>
+  <div class="techstack-title">Tech Stack</div>
+  <div class="techstack-grid">
+    <div class="techstack-card">
+      <div class="techstack-card-label">Framework</div>
+      <div class="techstack-card-items">
+        <span class="techstack-item">Flutter 3.x</span>
+      </div>
+    </div>
+    <div class="techstack-card">
+      <div class="techstack-card-label">Languages</div>
+      <div class="techstack-card-items">
+        <span class="techstack-item">Dart</span>
+        <span class="techstack-item">Kotlin</span>
+        <span class="techstack-item">C++</span>
+      </div>
+    </div>
+    <div class="techstack-card">
+      <div class="techstack-card-label">State Management</div>
+      <div class="techstack-card-items">
+        <span class="techstack-item">GetX</span>
+      </div>
+    </div>
+    <div class="techstack-card">
+      <div class="techstack-card-label">Local Storage</div>
+      <div class="techstack-card-items">
+        <span class="techstack-item">Hive</span>
+        <span class="techstack-item">SecureStorage</span>
+      </div>
+    </div>
+    <div class="techstack-card">
+      <div class="techstack-card-label">Inference Engines</div>
+      <div class="techstack-card-items">
+        <span class="techstack-item">llama.cpp</span>
+        <span class="techstack-item">LiteRT-LM</span>
+        <span class="techstack-item">SD FFI</span>
+      </div>
+    </div>
+    <div class="techstack-card">
+      <div class="techstack-card-label">Cloud & Services</div>
+      <div class="techstack-card-items">
+        <span class="techstack-item">Firebase Core</span>
+        <span class="techstack-item">Crashlytics</span>
+        <span class="techstack-item">Messaging</span>
+      </div>
+    </div>
   </div>
 </section>
 
