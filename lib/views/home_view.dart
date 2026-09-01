@@ -32,24 +32,24 @@ class _HomeViewState extends State<HomeView> {
     });
   }
 
-  static const _tabs = [
-    _NavItem(
-        icon: LucideIcons.messageSquare,
-        activeIcon: LucideIcons.messageSquare,
-        label: 'Chat'),
-    _NavItem(
-        icon: LucideIcons.compass,
-        activeIcon: LucideIcons.compass,
-        label: 'Explore'),
-    _NavItem(
-        icon: LucideIcons.server,
-        activeIcon: LucideIcons.server,
-        label: 'Nodes'),
-    _NavItem(
-        icon: LucideIcons.settings,
-        activeIcon: LucideIcons.settings,
-        label: 'App Settings'),
-  ];
+  List<_NavItem> get _tabs => [
+        _NavItem(
+            icon: LucideIcons.messageSquare,
+            activeIcon: LucideIcons.messageSquare,
+            label: 'nav_chat'.tr),
+        _NavItem(
+            icon: LucideIcons.compass,
+            activeIcon: LucideIcons.compass,
+            label: 'nav_explore'.tr),
+        _NavItem(
+            icon: LucideIcons.server,
+            activeIcon: LucideIcons.server,
+            label: 'nav_nodes'.tr),
+        _NavItem(
+            icon: LucideIcons.settings,
+            activeIcon: LucideIcons.settings,
+            label: 'nav_settings'.tr),
+      ];
 
   bool get _isWide {
     if (kIsWeb) return true;

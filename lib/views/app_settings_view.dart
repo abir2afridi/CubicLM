@@ -37,7 +37,7 @@ class AppSettingsView extends GetView<SettingsController> {
           icon: const Icon(LucideIcons.arrowLeft),
           onPressed: () => Get.back(),
         ),
-        title: Text('App Settings',
+        title: Text('settings_title'.tr,
             style: GoogleFonts.plusJakartaSans(
                 fontWeight: FontWeight.w800,
                 fontSize: 24,
@@ -49,7 +49,7 @@ class AppSettingsView extends GetView<SettingsController> {
             padding: const EdgeInsets.symmetric(horizontal: 20),
             children: [
               const SizedBox(height: 12),
-              _sectionLabel(context, 'APPEARANCE'),
+              _sectionLabel(context, 'settings_appearance'.tr),
               _appleGroupedCard(context, isDark, children: [
                 for (final mode in [
                   ThemeMode.light,
@@ -73,54 +73,54 @@ class AppSettingsView extends GetView<SettingsController> {
               const SizedBox(height: 20),
               _buildFontSizeCard(context, isDark),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'THINKING ORBS'),
+              _sectionLabel(context, 'settings_thinking_orbs'.tr),
               _appleGroupedCard(context, isDark, children: [
                 _orbTile(context, isDark,
                     icon: LucideIcons.messageSquare,
-                    title: 'While chatting',
-                    subtitle: 'Loading animation during AI responses',
+                    title: 'orb_while_chatting'.tr,
+                    subtitle: 'orb_chat_subtitle'.tr,
                     slot: 'chat',
                     selection: controller.orbChatAnim),
                 _orbTile(context, isDark,
                     icon: LucideIcons.image,
-                    title: 'Image generation',
-                    subtitle: 'Animation while synthesizing images',
+                    title: 'orb_image_gen'.tr,
+                    subtitle: 'orb_image_subtitle'.tr,
                     slot: 'image',
                     selection: controller.orbImageAnim),
                 _orbTile(context, isDark,
                     icon: LucideIcons.brain,
-                    title: 'Analyzing',
-                    subtitle: 'Animation during thought analysis',
+                    title: 'orb_analyzing'.tr,
+                    subtitle: 'orb_analysis_subtitle'.tr,
                     slot: 'analysis',
                     selection: controller.orbAnalysisAnim,
                     showDivider: false),
               ]),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'STARTUP'),
+              _sectionLabel(context, 'settings_startup'.tr),
               _appleGroupedCard(context, isDark, children: [
                 Obx(() => _appleSwitchTile(
                       context,
                       isDark,
                       leading: const Icon(LucideIcons.rocket,
                           size: 20, color: Dt.accent),
-                      title: 'Auto-load last model',
+                      title: 'startup_auto_load'.tr,
                       subtitle: controller.autoLoadLastModel.value
-                          ? 'Opens directly with your last local model — no popup'
-                          : 'Ask every time whether to load the last model',
+                          ? 'startup_auto_load_on'.tr
+                          : 'startup_auto_load_off'.tr,
                       value: controller.autoLoadLastModel.value,
                       onChanged: (v) =>
                           controller.setAutoLoadLastModel(v),
                     )),
               ]),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'LANGUAGE'),
+              _sectionLabel(context, 'settings_language'.tr),
               _appleGroupedCard(context, isDark, children: [
                 _appleListTile(
                   context,
                   isDark,
                   leading: const Icon(LucideIcons.globe,
                       size: 20, color: Dt.accent),
-                  title: 'App Language',
+                  title: 'settings_language'.tr,
                   subtitle: '${controller.locale.value.flag}  ${controller.locale.value.nativeName}',
                   trailing: Icon(LucideIcons.chevronRight,
                       size: 18, color: Theme.of(context).hintColor),
@@ -129,7 +129,7 @@ class AppSettingsView extends GetView<SettingsController> {
                 ),
               ]),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'APP INFO'),
+              _sectionLabel(context, 'settings_app_info'.tr),
               _appleGroupedCard(context, isDark, children: [
                 Padding(
                   padding: const EdgeInsets.all(20),
@@ -203,11 +203,11 @@ class AppSettingsView extends GetView<SettingsController> {
     const max = 1.4;
 
     String scaleLabel(double v) {
-      if (v <= 0.85) return 'Compact';
-      if (v <= 0.95) return 'Default';
-      if (v <= 1.05) return 'Comfortable';
-      if (v <= 1.25) return 'Large';
-      return 'Accessible';
+      if (v <= 0.85) return 'typography_compact'.tr;
+      if (v <= 0.95) return 'typography_default'.tr;
+      if (v <= 1.05) return 'typography_comfortable'.tr;
+      if (v <= 1.25) return 'typography_large'.tr;
+      return 'typography_accessible'.tr;
     }
 
     return _appleGroupedCard(context, isDark, children: [
@@ -218,7 +218,7 @@ class AppSettingsView extends GetView<SettingsController> {
             const Icon(LucideIcons.type,
                 size: 16, color: Dt.accent),
             const SizedBox(width: 10),
-            Text('Typography Scale',
+            Text('typography_scale'.tr,
                 style: GoogleFonts.plusJakartaSans(
                     fontSize: 15, fontWeight: FontWeight.w700)),
             const Spacer(),
@@ -250,10 +250,10 @@ class AppSettingsView extends GetView<SettingsController> {
   }
 
   String _themeModeName(ThemeMode m) => m == ThemeMode.light
-      ? 'Light Day'
+      ? 'theme_light'.tr
       : m == ThemeMode.dark
-          ? 'Deep Night'
-          : 'System Sync';
+          ? 'theme_dark'.tr
+          : 'theme_system'.tr;
 
   IconData _themeModeIcon(ThemeMode m) => m == ThemeMode.light
       ? LucideIcons.sun
@@ -356,8 +356,8 @@ class AppSettingsView extends GetView<SettingsController> {
                     children: [
                       _orbOption(sheetCtx, isDark,
                           value: 'random',
-                          name: 'Random',
-                          description: 'Shuffle through every state',
+                          name: 'orb_random'.tr,
+                          description: 'orb_random_desc'.tr,
                           icon: LucideIcons.shuffle,
                           slot: slot,
                           selection: selection),
