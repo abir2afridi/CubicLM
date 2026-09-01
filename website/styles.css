@@ -59,8 +59,9 @@ a{color:inherit;text-decoration:none}
 .service-item:hover .service-arrow{opacity:1;transform:rotate(-45deg) scale(1)}
 
 /* ── DOWNLOAD ── */
-.download{background:var(--black);color:var(--white);padding:80px 32px}
-.download-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:40px}
+.download{background:var(--black);color:var(--white);padding:100px 32px;border-top:1px solid rgba(255,255,255,.1)}
+.download-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:12px}
+.download-title{font-family:'Instrument Serif',serif;font-size:clamp(36px,6vw,72px);font-weight:400;letter-spacing:-.03em;line-height:1;margin-bottom:40px}
 .download-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:1000px;margin:0 auto}
 .download-card{border:2px solid rgba(255,255,255,.15);padding:40px;display:flex;flex-direction:column;gap:16px;transition:border-color .3s,background .3s;cursor:pointer;text-decoration:none;color:var(--white)}
 .download-card:hover{border-color:var(--orange);background:rgba(255,255,255,.03)}
@@ -68,8 +69,8 @@ a{color:inherit;text-decoration:none}
 .download-card-title{font-family:'Archivo Black',sans-serif;font-size:28px;text-transform:uppercase;letter-spacing:-.04em}
 .download-card-desc{font-size:14px;line-height:1.6;opacity:.6}
 .download-card-size{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--orange);margin-top:auto}
-.download-card-arrow{font-size:24px;color:var(--white);opacity:.4;transition:opacity .3s,transform .3s}
-.download-card:hover .download-card-arrow{opacity:1;transform:translateX(4px)}
+.download-card-btn{display:inline-flex;align-items:center;gap:8px;font-family:'Archivo Black',sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:-.02em;background:var(--orange);color:var(--black);padding:12px 24px;border-radius:999px;transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s;margin-top:12px;width:fit-content}
+.download-card:hover .download-card-btn{transform:scale(1.05);box-shadow:0 8px 32px rgba(255,77,0,.25)}
 
 /* ── ABOUT / FEATURES DETAIL ── */
 .about-detail{background:var(--black);color:var(--white);padding:80px 32px;border-top:1px solid rgba(255,255,255,.1)}
