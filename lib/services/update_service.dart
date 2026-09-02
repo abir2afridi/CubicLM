@@ -1,14 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:open_file/open_file.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../shared/constants/platform_links.dart';
+import '../theme/design_tokens.dart';
 import '../utils/app_snackbar.dart';
 import 'app_log_service.dart';
 import 'hive_service.dart';
@@ -41,6 +47,18 @@ class UpdateService extends GetxService {
 
   /// Whether an update newer than the installed version is available.
   final updateAvailable = false.obs;
+
+  /// Download progress (0.0 – 1.0) while an in-app update is downloading.
+  final downloadProgress = 0.0.obs;
+
+  /// Whether an APK download is currently in progress.
+  final isDownloading = false.obs;
+
+  /// The APK download URL extracted from the latest release assets.
+  String? _apkDownloadUrl;
+
+  /// The latest release tag for display during download.
+  String _latestTag = '';
 
   Future<UpdateService> init() async {
     // Restore persisted state from Hive.
@@ -111,11 +129,14 @@ class UpdateService extends GetxService {
       if (cmp > 0) {
         lastKnownVersion.value = latest;
         updateAvailable.value = true;
+        _latestTag = rawTag;
+        _apkDownloadUrl = _extractApkUrl(release);
         await _setLastKnownVersion(latest);
         _showUpdateSnackbar(rawTag);
       } else {
         lastKnownVersion.value = latest;
         updateAvailable.value = false;
+        _apkDownloadUrl = null;
         await _setLastKnownVersion(latest);
         if (!silent) {
           AppSnackbar.showTop(
@@ -155,6 +176,135 @@ class UpdateService extends GetxService {
 
   /// Backwards-compatible alias for the spec's "manually triggers check".
   Future<void> checkForUpdatesManual() => check(force: true, silent: false);
+
+  /// Downloads the APK from GitHub releases and triggers Android install.
+  /// Shows a progress dialog during download, then opens the APK installer.
+  Future<void> downloadAndInstallAPK() async {
+    if (isDownloading.value) return;
+    final url = _apkDownloadUrl;
+    if (url == null || url.isEmpty) {
+      AppSnackbar.showTop(
+        'Download unavailable',
+        'Could not find APK download link. Please download from GitHub.',
+        icon: LucideIcons.alertTriangle,
+        type: 'general',
+        iconName: 'alert_triangle',
+        duration: const Duration(seconds: 3),
+      );
+      return;
+    }
+
+    isDownloading.value = true;
+    downloadProgress.value = 0.0;
+
+    // Show progress dialog.
+    Get.dialog(
+      Obx(() => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.download, size: 36, color: Dt.accent),
+            const SizedBox(height: 16),
+            Text(
+              'Downloading update...',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _latestTag,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: downloadProgress.value,
+                minHeight: 6,
+                backgroundColor: Colors.grey.withValues(alpha: 0.2),
+                valueColor: AlwaysStoppedAnimation(Dt.accent),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${(downloadProgress.value * 100).toInt()}%',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      )),
+      barrierDismissible: false,
+    );
+
+    try {
+      final dir = await getTemporaryDirectory();
+      final savePath = '${dir.path}/cubiclm_update.apk';
+
+      final dio = Dio();
+      await dio.download(
+        url,
+        savePath,
+        onReceiveProgress: (received, total) {
+          if (total > 0) {
+            downloadProgress.value = received / total;
+          }
+        },
+        options: Options(
+          headers: {'Accept': 'application/octet-stream'},
+          receiveTimeout: const Duration(minutes: 5),
+          sendTimeout: const Duration(seconds: 30),
+        ),
+      );
+
+      // Close progress dialog.
+      if (Get.isDialogOpen == true) Get.back();
+
+      // Trigger APK install.
+      final result = await OpenFile.open(savePath);
+      if (result.type != ResultType.done) {
+        AppSnackbar.showTop(
+          'Could not open installer',
+          result.message.isNotEmpty ? result.message : 'Please install manually.',
+          icon: LucideIcons.alertTriangle,
+          type: 'general',
+          iconName: 'alert_triangle',
+          duration: const Duration(seconds: 3),
+        );
+      }
+    } catch (e) {
+      if (Get.isDialogOpen == true) Get.back();
+      AppSnackbar.showTop(
+        'Download failed',
+        '$e',
+        icon: LucideIcons.xCircle,
+        type: 'general',
+        iconName: 'x_circle',
+        duration: const Duration(seconds: 3),
+      );
+      try {
+        if (Get.isRegistered<AppLogService>()) {
+          Get.find<AppLogService>().warning(
+            'APK download failed',
+            details: '$e',
+            category: LogCategory.system,
+          );
+        }
+      } catch (_) {}
+    } finally {
+      isDownloading.value = false;
+      downloadProgress.value = 0.0;
+    }
+  }
 
   // ── internals ──
 
@@ -222,7 +372,9 @@ class UpdateService extends GetxService {
   void _showUpdateSnackbar(String tag) {
     // tag includes leading v (e.g., v1.2.0)
     const changelogUrl = PlatformLinks.changelogUrl;
-    const downloadUrl = PlatformLinks.desktopDownloadUrl;
+
+    final bool isAndroid = Platform.isAndroid;
+    final bool canInstallInApp = isAndroid && _apkDownloadUrl != null;
 
     Future<void> openUrl(String url) async {
       try {
@@ -250,7 +402,7 @@ class UpdateService extends GetxService {
 
     AppSnackbar.showTop(
       'Update available: $tag',
-      "What's New  •  Download",
+      canInstallInApp ? "Tap Update to install in-app" : "What's New  •  Download",
       icon: LucideIcons.download,
       type: 'update_available',
       iconName: 'download',
@@ -258,16 +410,20 @@ class UpdateService extends GetxService {
       mainButton: TextButton(
         onPressed: () {
           if (Get.isSnackbarOpen) Get.closeCurrentSnackbar();
-          openUrl(downloadUrl);
+          if (canInstallInApp) {
+            downloadAndInstallAPK();
+          } else {
+            openUrl(PlatformLinks.desktopDownloadUrl);
+          }
         },
         style: TextButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           minimumSize: Size.zero,
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         ),
-        child: const Text(
-          'Download',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+        child: Text(
+          canInstallInApp ? 'Update' : 'Download',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
         ),
       ),
       onTap: () {
@@ -275,6 +431,21 @@ class UpdateService extends GetxService {
         openUrl(changelogUrl);
       },
     );
+  }
+
+  /// Extracts the APK download URL from GitHub release assets.
+  String? _extractApkUrl(Map<String, dynamic> release) {
+    try {
+      final assets = release['assets'] as List<dynamic>?;
+      if (assets == null || assets.isEmpty) return null;
+      for (final asset in assets) {
+        final name = (asset['name'] as String?) ?? '';
+        if (name.endsWith('.apk')) {
+          return asset['browser_download_url'] as String?;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// Returns >0 if [a] > [b], 0 if equal, <0 if [a] < [b].

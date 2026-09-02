@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -165,25 +167,79 @@ class AboutView extends StatelessWidget {
             const SizedBox(height: 16),
             // ── Check for updates ──
             Center(
-              child: OutlinedButton.icon(
-                icon: const Icon(LucideIcons.download, size: 16),
-                label: Text('Check for updates',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13, fontWeight: FontWeight.w700)),
-                style: OutlinedButton.styleFrom(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  side: BorderSide(color: Dt.accent.withValues(alpha: 0.25)),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () async {
-                  final svc = Get.isRegistered<UpdateService>()
-                      ? Get.find<UpdateService>()
-                      : Get.put(UpdateService());
-                  await svc.check(force: true, silent: false);
-                },
-              ),
+              child: Obx(() {
+                final svc = Get.isRegistered<UpdateService>()
+                    ? Get.find<UpdateService>()
+                    : Get.put(UpdateService());
+                final bool canInstall = !kIsWeb &&
+                    Platform.isAndroid &&
+                    svc.updateAvailable.value &&
+                    !svc.isDownloading.value;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    OutlinedButton.icon(
+                      icon: Icon(
+                        canInstall
+                            ? LucideIcons.refreshCw
+                            : LucideIcons.download,
+                        size: 16,
+                      ),
+                      label: Text(
+                        'Check for updates',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13, fontWeight: FontWeight.w700),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 10),
+                        side: BorderSide(
+                            color: Dt.accent.withValues(alpha: 0.25)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () async {
+                        final s = Get.isRegistered<UpdateService>()
+                            ? Get.find<UpdateService>()
+                            : Get.put(UpdateService());
+                        await s.check(force: true, silent: false);
+                      },
+                    ),
+                    if (canInstall) ...[
+                      const SizedBox(height: 10),
+                      ElevatedButton.icon(
+                        icon: const Icon(LucideIcons.arrowDownToLine,
+                            size: 16, color: Colors.white),
+                        label: Text(
+                          'Install v${svc.lastKnownVersion.value}',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Dt.accent,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 22, vertical: 11),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () => svc.downloadAndInstallAPK(),
+                      ),
+                    ],
+                    if (svc.isDownloading.value) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        'Downloading... ${(svc.downloadProgress.value * 100).toInt()}%',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Dt.accent),
+                      ),
+                    ],
+                  ],
+                );
+              }),
             ),
             const SizedBox(height: 28),
 

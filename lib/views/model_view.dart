@@ -1388,18 +1388,44 @@ class ModelView extends GetView<ModelController> {
                     if (!isCurrentlyDownloading && isDownloaded)
                       Padding(
                         padding: const EdgeInsets.only(left: 12, top: 4),
-                        child: IconButton(
-                          tooltip: isActive ? 'Unload model' : 'Delete model',
-                          onPressed: disableActions
-                              ? null
-                              : isActive
-                                  ? () => controller.unloadModel()
-                                  : () => _confirmDeleteModel(context, model.filename),
-                          icon: Icon(
-                            isActive ? LucideIcons.logOut : LucideIcons.trash2,
-                            size: 20,
-                            color: isActive ? AppColors.warning : AppColors.error.withValues(alpha: 0.6),
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isActive)
+                              TextButton(
+                                onPressed: disableActions ? null : () => controller.unloadModel(),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: AppColors.warning,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text('Unload'),
+                              )
+                            else
+                              FilledButton(
+                                onPressed: disableActions ? null : () => controller.loadModel(model.filename),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Dt.accent,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text('Load'),
+                              ),
+                            const SizedBox(width: 4),
+                            IconButton(
+                              tooltip: 'Delete model',
+                              onPressed: disableActions ? null : () => _confirmDeleteModel(context, model.filename),
+                              icon: Icon(
+                                LucideIcons.trash2,
+                                size: 20,
+                                color: AppColors.error.withValues(alpha: 0.6),
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            ),
+                          ],
                         ),
                       )
                     else if (!isCurrentlyDownloading && !isDownloaded)
