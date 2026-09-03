@@ -109,3 +109,17 @@
     track.appendChild(clone);
   });
 })();
+
+// FAQ accordion: one open at a time
+(function(){
+  var items = document.querySelectorAll('.faq-item');
+  items.forEach(function(it){
+    var q = it.querySelector('.faq-q');
+    if (!q) return;
+    q.addEventListener('click', function(){
+      var wasOpen = it.classList.contains('open');
+      items.forEach(function(o){ o.classList.remove('open'); });
+      if (!wasOpen) it.classList.add('open');
+    });
+  });
+})();

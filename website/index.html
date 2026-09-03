@@ -72,6 +72,7 @@
       <a href="#models">Models</a>
       <a href="#providers">Providers</a>
       <a href="#tech">Tech</a>
+      <a href="#faq">FAQ</a>
       <a href="https://github.com/abir2afridi/CubicLM" target="_blank">GitHub</a>
     </div>
   </div>
@@ -120,7 +121,7 @@
       <div class="service-tags">
         <span class="service-tag">GGUF</span>
         <span class="service-tag">LiteRT</span>
-        <span class="service-tag">18 Providers</span>
+        <span class="service-tag">21 Providers</span>
       </div>
     </div>
     <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
@@ -173,6 +174,18 @@
     </div>
     <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
   </div>
+  <div class="service-item">
+    <div class="service-idx">06</div>
+    <div class="service-content">
+      <div class="service-title">Privacy &amp; Backup</div>
+      <div class="service-tags">
+        <span class="service-tag">App Lock</span>
+        <span class="service-tag">JSON Backup</span>
+        <span class="service-tag">AES-256</span>
+      </div>
+    </div>
+    <div class="service-arrow"><i class="ri-arrow-right-up-line"></i></div>
+  </div>
 </section>
 
 <!-- ════ DOWNLOAD ════ -->
@@ -194,6 +207,10 @@
       <div class="download-card-size">APK · v1.3.0 · Android 9+ · arm64</div>
       <div class="download-card-btn"><i class="ri-download-line"></i> Download for Android</div>
     </a>
+  </div>
+  <div class="download-req">
+    <div><span>Android</span>9+ · 4 GB+ RAM recommended · free GBs for models (GGUF 0.5–8 GB each)</div>
+    <div><span>Windows</span>10+ · WebView2 · cloud models (on-device GGUF needs the Android app)</div>
   </div>
 </section>
 
@@ -293,6 +310,30 @@
       <div class="feature-card-text">Full chat history with Hive persistence, full-text searchable sidebar, message actions (copy, share, regenerate, branch, edit), revision history, and code blocks with syntax highlighting.</div>
       <div class="feature-card-tag">Search · Export · Branch</div>
     </div>
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-fingerprint-line"></i></div>
+      <div class="feature-card-title">App Lock</div>
+      <div class="feature-card-text">Biometric gate on launch and background-resume — Android biometrics or Windows Hello, with device-PIN fallback. Your conversations stay yours, even on a shared device.</div>
+      <div class="feature-card-tag">Hello · Fingerprint · PIN</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-archive-line"></i></div>
+      <div class="feature-card-title">Backup &amp; Restore</div>
+      <div class="feature-card-text">Export every conversation to a portable JSON backup and merge-restore it on any device. Pin important chats so they always float to the top of history.</div>
+      <div class="feature-card-tag">JSON · Pin · Merge</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-speak-line"></i></div>
+      <div class="feature-card-title">Read Aloud</div>
+      <div class="feature-card-text">Listen to any reply with on-device text-to-speech. Locale-matched voices across all 15 languages — tap a bubble to start, tap again to stop.</div>
+      <div class="feature-card-tag">TTS · 15 Locales</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-card-icon"><i class="ri-keyboard-line"></i></div>
+      <div class="feature-card-title">Desktop Power</div>
+      <div class="feature-card-text">Keyboard-first on desktop: Ctrl+N new chat, Ctrl+F history search, Ctrl+1–4 tabs — plus a close guard that asks before quitting a running generation or download.</div>
+      <div class="feature-card-tag">Shortcuts · Close Guard</div>
+    </div>
   </div>
 </section>
 
@@ -300,6 +341,7 @@
 <section id="models" class="models">
   <div class="models-label">On-Device & Image Gen</div>
   <div class="models-title">Supported Models</div>
+  <div class="models-note"><i class="ri-information-line"></i><span>On-device GGUF / LiteRT / SD models run on <strong>Android</strong>. On <strong>Windows</strong>, chat via 20+ cloud providers — or save models to your Downloads folder for later.</span></div>
 
   <!-- LiteRT-LM -->
   <div class="models-table-wrap">
@@ -799,6 +841,38 @@
   </div>
   <div class="changelog-more">
     <a href="https://github.com/abir2afridi/CubicLM/blob/main/CHANGELOG.md" target="_blank">Full changelog on GitHub →</a>
+  </div>
+</section>
+
+<!-- ════ FAQ ════ -->
+<section id="faq" class="faq">
+  <div class="faq-label">Questions</div>
+  <div class="faq-title">FAQ</div>
+  <div class="faq-list">
+    <div class="faq-item">
+      <button class="faq-q">Is CubicLM free?<i class="ri-add-line"></i></button>
+      <div class="faq-a">Yes — MIT open source, no accounts, no telemetry. Local models are free forever; cloud providers need your own API keys (many have free tiers, tagged <strong>Free</strong> in the app).</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">Can Windows run local GGUF models?<i class="ri-add-line"></i></button>
+      <div class="faq-a">Not yet — on-device llama.cpp / LiteRT / Stable Diffusion are Android-only. Windows gets full chat, 20+ cloud providers, backup, shortcuts and App Lock. A native Windows engine is on the roadmap.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">How much RAM and storage do I need?<i class="ri-add-line"></i></button>
+      <div class="faq-a">The app itself is ~61 MB. Models range from 0.5 GB (Qwen3-0.6B, runs on 4 GB phones) to 8 GB (7B+ quants). 6 GB+ RAM is recommended for 7B models; keep free GBs for downloads.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">Is my data private?<i class="ri-add-line"></i></button>
+      <div class="faq-a">Chats live on your device in AES-256 encrypted storage with an optional biometric lock. Cloud mode sends prompts only to the provider you explicitly chose — nothing else leaves the device.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">How do updates work?<i class="ri-add-line"></i></button>
+      <div class="faq-a">Android updates in one tap from inside the app (About → Check for updates). On Windows, download the new ZIP from this page. The website always points at the latest release.</div>
+    </div>
+    <div class="faq-item">
+      <button class="faq-q">Which languages are supported?<i class="ri-add-line"></i></button>
+      <div class="faq-a">15 — including Bangla, Hindi, Urdu, Arabic, Chinese, Spanish, French and more. Switch instantly in App Settings; voices and UI follow your choice.</div>
+    </div>
   </div>
 </section>
 

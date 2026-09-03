@@ -245,6 +245,29 @@ a{color:inherit;text-decoration:none}
 .footer-email{font-family:'Instrument Serif',serif;font-size:clamp(20px,2.5vw,32px);font-weight:400;letter-spacing:-.02em}
 .footer-copy{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;color:#888;text-align:right}
 
+/* ── Download requirements ── */
+.download-req{max-width:1000px;margin:28px auto 0;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.download-req div{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.02em;line-height:1.7;opacity:.55;border:1px solid rgba(255,255,255,.12);padding:14px 18px}
+.download-req span{display:block;color:var(--orange);text-transform:uppercase;letter-spacing:.15em;font-size:10px;margin-bottom:4px;opacity:1}
+
+/* ── Models platform note ── */
+.models-note{max-width:1200px;margin:0 auto 36px;display:flex;gap:12px;align-items:flex-start;border:1px solid rgba(255,77,0,.35);background:rgba(255,77,0,.06);padding:16px 20px;font-size:13px;line-height:1.65;opacity:.9}
+.models-note i{color:var(--orange);font-size:18px;flex-shrink:0;margin-top:2px}
+
+/* ── FAQ ── */
+.faq{background:var(--black);color:var(--white);padding:100px 32px;border-top:1px solid rgba(255,255,255,.1)}
+.faq-label{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:var(--orange);margin-bottom:12px}
+.faq-title{font-family:'Instrument Serif',serif;font-size:clamp(36px,6vw,72px);font-weight:400;letter-spacing:-.03em;line-height:1;margin-bottom:48px}
+.faq-list{max-width:900px;margin:0 auto}
+.faq-item{border-top:1px solid rgba(255,255,255,.15)}
+.faq-item:last-child{border-bottom:1px solid rgba(255,255,255,.15)}
+.faq-q{width:100%;display:flex;justify-content:space-between;align-items:center;gap:16px;background:none;border:none;color:var(--white);font-family:'Archivo Black',sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:-.01em;text-align:left;padding:22px 4px;cursor:pointer}
+.faq-q i{color:var(--orange);font-size:20px;flex-shrink:0;transition:transform .3s}
+.faq-item.open .faq-q i{transform:rotate(45deg)}
+.faq-a{display:none;font-size:13.5px;line-height:1.7;opacity:.6;padding:0 4px 24px;max-width:720px}
+.faq-item.open .faq-a{display:block}
+.faq-a strong{color:var(--white);opacity:1}
+
 /* ── RESPONSIVE ── */
 @media(max-width:1024px){
   .features-detail-grid{grid-template-columns:repeat(2,1fr)}
@@ -254,6 +277,7 @@ a{color:inherit;text-decoration:none}
   .nav-pill{display:none}
   .hero-desc{font-size:15px}
   .download-grid{grid-template-columns:1fr}
+  .download-req{grid-template-columns:1fr}
   .about-detail-grid{grid-template-columns:1fr}
   .about-stats{grid-template-columns:1fr 1fr}
   .features-detail-grid{grid-template-columns:1fr}
