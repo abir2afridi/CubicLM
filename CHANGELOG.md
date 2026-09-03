@@ -5,6 +5,36 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0+8] - 2026-09-03
+
+### Added
+- **Biometric App Lock** - `local_auth` gate (Android biometrics + Windows Hello) on launch and background-resume, with lock screen, enrollment detection, and device-PIN fallback.
+- **Chat backup & restore** - export every session/message to JSON (Android share sheet, Windows save dialog), validated merge-import, plus **session pinning** (pinned chats float to top).
+- **In-app APK update** - GitHub Releases check with download progress and one-tap install on Android; Windows links out to the desktop build.
+- **Save models to Downloads** - Model Hub can save GGUF/LiteRT files to the system Downloads folder (Android DownloadManager bridge, desktop stream-then-move with auto-rename).
+- **Desktop shortcuts & close guard** - `Ctrl+N` new chat, `Ctrl+F` history search, `Ctrl+,` settings, `Ctrl+1..4` tabs; window close confirms while generating/downloading.
+- **Read-aloud (TTS)** - per-bubble text-to-speech with App Settings toggle, locale-matched voices.
+- **Gallery history** - SD1.5 generations persist (capped at 200, oldest evicted with files).
+- **3-page onboarding** - private/cloud/model setup flow with recommended-model deep link to Explore.
+- **Full i18n** - 243 keys x 15 languages, 100% coverage with instant switch.
+- **Log viewer + notification history + web-fetch source pills** - in-app diagnostics, past notifications, URL-augmented answers with Sources chips.
+
+### Changed
+- **Streaming performance** - chat list no longer rebuilds per token (scoped `Obx` + `RepaintBoundary`), token flush `40ms` to `150ms`, `cacheWidth` thumbnails, one-time base64 decode in composer.
+- **Boot recovery** - `BootReceiver` no longer launches the UI (blocked since Android 10); resumes interrupted model downloads via the foreground service only.
+- **Windows device info** - real RAM via `device_info_plus` (was fake 4 GB mistuning context sizes); processor label.
+- **Manifest hardening** - backup rules wired (`dataExtractionRules`), predictive back, per-app language config (15 locales).
+- **Deps** - removed dead `firebase_messaging`, `speech_to_text` 7.4.0.
+
+### Fixed
+- **Backup restore always reporting invalid** - picked bytes were stringified (`"[123, ...]"`) instead of UTF-8 decoded.
+- **Windows image-attach crash** - gallery pick routes through FilePicker (no `image_picker_windows` registered); camera shows guidance instead of `MissingPluginException`.
+- **App Lock first-launch race** - gate awaits biometric detection instead of fail-opening; nothing-enrolled honesty in settings.
+- **Mic dead button** - hidden when STT unavailable, snackbar on failed start.
+- **Windows build (STT plugin)** - vendored `speech_to_text_windows` 1.0.1 under `local_plugins/` fixing upstream `pluginClass` + missing public header (fatal C1083/C3861).
+- **Stale channel name** - `com.aichat.ai_chat/model_import` renamed to `com.cubiclm.app/model_import` on all 4 ends.
+- **New chats jumping above pinned sessions** until reload.
+
 ## [1.2.0+7] - 2026-08-28
 
 ### Added

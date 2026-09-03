@@ -172,9 +172,11 @@ class ChatController extends GetxController {
           textController.text = result.recognizedWords;
           inputText.value = result.recognizedWords;
         },
-        listenFor: const Duration(seconds: 60),
-        pauseFor: const Duration(seconds: 4),
-        localeId: 'en_US',
+        listenOptions: stt.SpeechListenOptions(
+          listenFor: const Duration(seconds: 60),
+          pauseFor: const Duration(seconds: 4),
+          localeId: 'en_US',
+        ),
       );
       isListening.value = true;
     } catch (_) {
