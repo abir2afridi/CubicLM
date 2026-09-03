@@ -52,6 +52,7 @@ app.*.map.json
 *.keystore
 key.properties
 /android/key.properties
+cubiclm-release-key.jks
 
 # Firebase & API configs (safety)
 google-services.json

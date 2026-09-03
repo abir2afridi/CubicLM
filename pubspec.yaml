@@ -81,6 +81,10 @@ dev_dependencies:
 dependency_overrides:
   llama_flutter_android:
     path: local_plugins/llama_flutter_android
+  # Vendored 1.0.1 with corrected Windows pluginClass (see note in its
+  # pubspec). Upstream bug: tool emits a non-existent register symbol.
+  speech_to_text_windows:
+    path: local_plugins/speech_to_text_windows
 
 flutter:
   uses-material-design: true

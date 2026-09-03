@@ -1,0 +1,32 @@
+name: speech_to_text_windows
+description: Windows implementation of speech_to_text plugin using UWP Speech Recognition APIs
+version: 1.0.1
+homepage: https://github.com/csdcorp/speech_to_text
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.0.0"
+
+flutter:
+  plugin:
+    implements: speech_to_text
+    platforms:
+      windows:
+        # FIX (CubicLM vendored copy of 1.0.1): upstream declares
+        # pluginClass without the "Plugin" suffix, so the flutter tool
+        # emits SpeechToTextWindowsRegisterWithRegistrar — a symbol that
+        # does not exist. The native header exports
+        # SpeechToTextWindowsPluginRegisterWithRegistrar. Native code is
+        # untouched; only this registration name is corrected.
+        pluginClass: SpeechToTextWindowsPlugin
+        dartPluginClass: SpeechToTextWindows
+
+dependencies:
+  flutter:
+    sdk: flutter
+  speech_to_text_platform_interface: ^2.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
