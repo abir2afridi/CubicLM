@@ -204,7 +204,7 @@ class UpdateService extends GetxService {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.download, size: 36, color: Dt.accent),
+            const Icon(LucideIcons.download, size: 36, color: Dt.accent),
             const SizedBox(height: 16),
             Text(
               'Downloading update...',
@@ -228,7 +228,7 @@ class UpdateService extends GetxService {
                 value: downloadProgress.value,
                 minHeight: 6,
                 backgroundColor: Colors.grey.withValues(alpha: 0.2),
-                valueColor: AlwaysStoppedAnimation(Dt.accent),
+                valueColor: const AlwaysStoppedAnimation(Dt.accent),
               ),
             ),
             const SizedBox(height: 8),

@@ -1198,7 +1198,7 @@ class ModelView extends GetView<ModelController> {
           children: [
             Text(
               isToDownloadsFolder
-                  ? 'You are about to save ${model.name} to your phone\'s public Downloads folder.'
+                  ? 'You are about to save ${model.name} to ${controller.saveToDownloadsLabel}.'
                   : 'You are about to download ${model.name} for use in the app.',
               style:
                   GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w600),
@@ -1248,6 +1248,34 @@ class ModelView extends GetView<ModelController> {
                 ],
               ),
             ),
+            // ── Desktop/Web have no on-device engine: set expectations
+            // before the user downloads gigabytes they cannot load. ──
+            if (!controller.supportsLocalInference) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Dt.accent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border:
+                      Border.all(color: Dt.accent.withValues(alpha: 0.25)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(LucideIcons.cloud,
+                        color: Dt.accent, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'On-device loading needs the Android app. On this device, chat with models via Cloud mode.',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
         actions: [
@@ -1403,15 +1431,23 @@ class ModelView extends GetView<ModelController> {
                                 child: const Text('Unload'),
                               )
                             else
-                              FilledButton(
-                                onPressed: disableActions ? null : () => controller.loadModel(model.filename),
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: Dt.accent,
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              Tooltip(
+                                message: controller.supportsLocalInference
+                                    ? 'Load model'
+                                    : 'On-device models need the Android app — use Cloud mode',
+                                child: FilledButton(
+                                  onPressed: (disableActions ||
+                                          !controller.supportsLocalInference)
+                                      ? null
+                                      : () => controller.loadModel(model.filename),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: Dt.accent,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: const Text('Load'),
                                 ),
-                                child: const Text('Load'),
                               ),
                             const SizedBox(width: 4),
                             IconButton(

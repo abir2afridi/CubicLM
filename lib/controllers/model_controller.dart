@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../theme/design_tokens.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:path_provider/path_provider.dart';
 import '../utils/app_snackbar.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../services/download_service.dart';
@@ -50,6 +51,16 @@ class ModelController extends GetxController {
   void toggleSort() {
     sortSmallestFirst.value = !sortSmallestFirst.value;
   }
+
+  /// Whether the current platform can load local models into an on-device
+  /// inference engine. Desktop (Windows) and Web are Cloud-only for now —
+  /// the llama.cpp / LiteRT engines ship Android (and iOS) natives only.
+  bool get supportsLocalInference => _inference.supportsLocalInference;
+
+  /// Human-readable label for the public Downloads folder on this platform.
+  String get saveToDownloadsLabel => Platform.isAndroid
+      ? "your phone's public Downloads folder"
+      : 'your Downloads folder';
 
   static const localFilters = [
     'downloaded',
@@ -406,6 +417,14 @@ class ModelController extends GetxController {
     }
   }
 
+  /// Saves [model] to the platform's public Downloads folder.
+  ///
+  /// - Android: delegates to the native DownloadManager bridge
+  ///   (`downloadToDownloads`) so the file lands in the phone's public
+  ///   Downloads folder and keeps downloading in the background.
+  /// - Desktop (Windows/Linux/macOS): downloads with the in-app streaming
+  ///   downloader (progress surfaces in the Models tab), then moves the
+  ///   finished file into the user's Downloads folder.
   Future<void> downloadModelToDownloads(AiModel model) async {
     if (model.url.trim().isEmpty) {
       Get.snackbar('Download Unavailable', 'This model has no download URL.',
@@ -413,15 +432,15 @@ class ModelController extends GetxController {
       return;
     }
 
-    if (!Platform.isAndroid) {
-      Get.snackbar(
-        'Android Only',
-        'Use the app download button or import a local model on this platform.',
-        snackPosition: SnackPosition.BOTTOM,
-      );
+    if (Platform.isAndroid) {
+      await _downloadToDownloadsAndroid(model);
       return;
     }
 
+    await _downloadToDownloadsDesktop(model);
+  }
+
+  Future<void> _downloadToDownloadsAndroid(AiModel model) async {
     try {
       isImporting.value = true;
       importFileName.value = model.filename;
@@ -462,7 +481,116 @@ class ModelController extends GetxController {
     }
   }
 
+  /// Desktop "Save to Downloads": stream into the app models dir first
+  /// (reuses pause/resume + validation UI), then move the file out to the
+  /// user's Downloads folder so no duplicate multi-GB copy is left behind.
+  Future<void> _downloadToDownloadsDesktop(AiModel model) async {
+    try {
+      isImporting.value = true;
+      importFileName.value = model.filename;
+      importStatus.value = 'Downloading to Downloads folder...';
+      importCopiedBytes.value = 0;
+      importTotalBytes.value = 0;
+      importBytesPerSecond.value = 0;
+
+      final savedPath = await _download.downloadModel(
+        url: model.url,
+        filename: model.filename,
+      );
+      if (savedPath == 'PAUSED') {
+        importStatus.value = 'Download paused — resume it from the Models tab.';
+        Get.snackbar(
+          'Download Paused',
+          '${model.filename} will resume from the Models tab.',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+        return;
+      }
+
+      final downloadsDir = await getDownloadsDirectory();
+      if (downloadsDir == null) {
+        // Downloader already placed the file in the app models dir —
+        // keep it there as a graceful fallback.
+        await refreshDownloaded();
+        Get.snackbar(
+          'Download Complete',
+          '${model.filename} is in the app models folder (Downloads folder unavailable).',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 5),
+        );
+        return;
+      }
+
+      final targetPath =
+          await _uniquePath(downloadsDir.path, model.filename);
+      try {
+        await File(savedPath).rename(targetPath);
+      } on FileSystemException {
+        // Cross-volume move: fall back to copy + delete.
+        await File(savedPath).copy(targetPath);
+        await File(savedPath).delete();
+      }
+      await refreshDownloaded();
+      Get.snackbar(
+        'Saved to Downloads',
+        '${targetPath.split(Platform.pathSeparator).last}\n$targetPath',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 6),
+      );
+      Get.find<AppLogService>().info(
+        'Model saved to Downloads',
+        details: targetPath,
+        category: LogCategory.model,
+      );
+    } catch (e) {
+      Get.find<AppLogService>().error('Download to Downloads failed',
+          details: e, category: LogCategory.model);
+      Get.snackbar('Download Failed', '$e',
+          snackPosition: SnackPosition.BOTTOM);
+    } finally {
+      isImporting.value = false;
+      importFileName.value = '';
+      importStatus.value = '';
+      importCopiedBytes.value = 0;
+      importTotalBytes.value = 0;
+      importBytesPerSecond.value = 0;
+    }
+  }
+
+  /// Returns a non-colliding file path inside [dirPath] for [filename]
+  /// by appending " (1)", " (2)", ... when needed.
+  Future<String> _uniquePath(String dirPath, String filename) async {
+    var candidate = '$dirPath${Platform.pathSeparator}$filename';
+    if (!await File(candidate).exists()) return candidate;
+    final dot = filename.lastIndexOf('.');
+    final stem = dot > 0 ? filename.substring(0, dot) : filename;
+    final ext = dot > 0 ? filename.substring(dot) : '';
+    var i = 1;
+    while (await File(candidate).exists()) {
+      candidate =
+          '$dirPath${Platform.pathSeparator}$stem ($i)$ext';
+      i++;
+    }
+    return candidate;
+  }
+
   Future<void> cancelExternalDownload() async {
+    if (!Platform.isAndroid) {
+      // Desktop "Save to Downloads" runs through the in-app downloader.
+      final filename = importFileName.value;
+      if (filename.isNotEmpty) {
+        try {
+          await _download.cancelDownload(filename);
+        } catch (e) {
+          Get.find<AppLogService>().error('Cancel download failed',
+              details: e, category: LogCategory.model);
+        }
+      }
+      externalDownloadId.value = null;
+      isImporting.value = false;
+      importStatus.value = 'Download cancelled';
+      return;
+    }
     final id = externalDownloadId.value;
     if (id != null) {
       try {
@@ -498,6 +626,19 @@ class ModelController extends GetxController {
   }
 
   Future<void> loadModel(String filename) async {
+    // Desktop (Windows) and Web ship no on-device inference engine yet
+    // (llama.cpp / LiteRT natives are Android/iOS only). Fail fast with a
+    // clear message instead of letting the user download gigabytes first
+    // and then hitting an opaque native error.
+    if (!supportsLocalInference) {
+      Get.snackbar(
+        'Local Models Unavailable',
+        'On-device models need the Android app. On this device, use Cloud mode instead.',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 5),
+      );
+      return;
+    }
     if (_inference.isLoadingModel.value) {
       Get.snackbar('Model Loading', 'Another model is already loading.',
           snackPosition: SnackPosition.BOTTOM);
