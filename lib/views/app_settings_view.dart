@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
+import '../controllers/chat_controller.dart';
 import '../core/colors.dart';
 import '../services/tts_service.dart';
 import '../services/update_service.dart';
+import '../utils/app_snackbar.dart';
 import 'about_view.dart';
 import 'language_picker_view.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -21,6 +23,81 @@ import '../widgets/thinking_orb.dart';
 /// stays in Config.
 class AppSettingsView extends GetView<SettingsController> {
   const AppSettingsView({super.key});
+
+  // ── Backup / Restore ──
+  Future<void> _exportAllChats() async {
+    try {
+      if (!Get.isRegistered<ChatController>()) {
+        Get.put(ChatController());
+      }
+      final chat = Get.find<ChatController>();
+      final err = await chat.exportAllChats();
+      if (err == 'empty') {
+        AppSnackbar.showTop('Nothing to export',
+            'No chats found. Start a conversation first.',
+            icon: LucideIcons.info, type: 'general', logHistory: false);
+      } else if (err != null) {
+        AppSnackbar.showTop('Export failed',
+            'Something went wrong while creating the backup.',
+            icon: LucideIcons.alertTriangle,
+            type: 'error',
+            iconName: 'alert');
+      }
+    } catch (_) {
+      AppSnackbar.showTop('Export failed',
+          'Something went wrong while creating the backup.',
+          icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
+    }
+  }
+
+  Future<void> _importChats() async {
+    try {
+      if (!Get.isRegistered<ChatController>()) {
+        Get.put(ChatController());
+      }
+      final chat = Get.find<ChatController>();
+      final err = await chat.importChats();
+      switch (err) {
+        case 'cancelled':
+          return;
+        case 'invalid':
+          AppSnackbar.showTop('Invalid file',
+              'That file is not a CubicLM chat backup.',
+              icon: LucideIcons.alertTriangle,
+              type: 'error',
+              iconName: 'alert');
+          return;
+        case 'nothing':
+          AppSnackbar.showTop('Nothing new',
+              'All chats in that backup already exist here.',
+              icon: LucideIcons.info, type: 'general', logHistory: false);
+          return;
+        case 'error':
+          AppSnackbar.showTop('Import failed',
+              'Something went wrong while reading the backup.',
+              icon: LucideIcons.alertTriangle,
+              type: 'error',
+              iconName: 'alert');
+          return;
+        default:
+          if (err != null && err.startsWith('ok:')) {
+            final parts = err.split(':');
+            final sessions = parts.length > 1 ? parts[1] : '0';
+            final messages = parts.length > 2 ? parts[2] : '0';
+            AppSnackbar.showTop(
+                'Backup restored',
+                '$sessions chats and $messages messages imported.',
+                icon: LucideIcons.checkCircle2,
+                type: 'success',
+                iconName: 'check');
+          }
+      }
+    } catch (_) {
+      AppSnackbar.showTop('Import failed',
+          'Something went wrong while reading the backup.',
+          icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +217,47 @@ class AppSettingsView extends GetView<SettingsController> {
                       onChanged: (v) =>
                           controller.setAutoLoadLastModel(v),
                     )),
+              ]),
+              const SizedBox(height: 28),
+              _sectionLabel(context, 'SECURITY'),
+              _appleGroupedCard(context, isDark, children: [
+                Obx(() => _appleSwitchTile(
+                      context,
+                      isDark,
+                      leading: const Icon(LucideIcons.fingerprint,
+                          size: 20, color: Dt.accent),
+                      title: 'App Lock',
+                      subtitle: controller.biometricsAvailable.value
+                          ? (controller.appLockEnabled.value
+                              ? 'Biometrics or device PIN required to open the app'
+                              : 'Require biometrics or device PIN to open the app')
+                          : 'No biometric hardware detected on this device',
+                      value: controller.appLockEnabled.value,
+                      onChanged: (v) => controller.setAppLockEnabled(v),
+                    )),
+              ]),
+              const SizedBox(height: 28),
+              _sectionLabel(context, 'DATA'),
+              _appleGroupedCard(context, isDark, children: [
+                _appleListTile(
+                  context,
+                  isDark,
+                  leading: const Icon(LucideIcons.download,
+                      size: 20, color: Dt.accent),
+                  title: 'Export all chats',
+                  subtitle: 'Save every conversation as a JSON backup',
+                  onTap: () => _exportAllChats(),
+                ),
+                _appleListTile(
+                  context,
+                  isDark,
+                  leading: const Icon(LucideIcons.upload,
+                      size: 20, color: Dt.accent),
+                  title: 'Import chats',
+                  subtitle: 'Restore from a CubicLM backup file',
+                  showDivider: false,
+                  onTap: () => _importChats(),
+                ),
               ]),
               const SizedBox(height: 28),
               _sectionLabel(context, 'settings_language'.tr),

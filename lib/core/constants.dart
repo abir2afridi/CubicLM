@@ -104,6 +104,9 @@ class AppConstants {
   // TTS
   static const String keyReadAloud = 'read_aloud_enabled';
 
+  // App Lock (biometric gate)
+  static const String keyAppLockEnabled = 'app_lock_enabled';
+
   // Onboarding
   static const String keyOnboardingDone = 'onboarding_done_v1';
 

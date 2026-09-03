@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:uuid/uuid.dart';
 import '../controllers/settings_controller.dart';
@@ -175,7 +176,23 @@ class ChatController extends GetxController {
   void loadSessions() {
     final raw = _hive.getAllSessions();
     sessions.value = raw.map((m) => ChatSession.fromMap(m)).toList()
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      ..sort(_sessionSort);
+  }
+
+  /// Pinned sessions float to the top, then most-recently-updated first.
+  int _sessionSort(ChatSession a, ChatSession b) {
+    if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+    return b.updatedAt.compareTo(a.updatedAt);
+  }
+
+  void togglePin(String sessionId) {
+    final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
+    if (session == null) return;
+    final updated = session.copyWith(pinned: !session.pinned);
+    _hive.saveSession(updated.id, updated.toMap());
+    final idx = sessions.indexWhere((s) => s.id == updated.id);
+    if (idx >= 0) sessions[idx] = updated;
+    sessions.sort(_sessionSort);
   }
 
   void createNewChat() {
@@ -228,6 +245,142 @@ class ChatController extends GetxController {
     final idx = sessions.indexWhere((s) => s.id == updated.id);
     if (idx >= 0) sessions[idx] = updated;
   }
+
+  // ─── Backup & Restore ───────────────────────────
+
+  /// Export every session + message to a single JSON backup file and open
+  /// the system share sheet. Image blobs are stripped to keep the file
+  /// portable (image paths don't transfer between devices anyway).
+  Future<String?> exportAllChats() async {
+    try {
+      final sessionsRaw = _hive.getAllSessions();
+      final messagesRaw = _hive.getAllMessagesRaw();
+      if (sessionsRaw.isEmpty) return 'empty';
+
+      final sessionsOut = sessionsRaw.map((s) {
+        final m = Map<String, dynamic>.from(s);
+        m.remove('imageBase64');
+        return m;
+      }).map((s) => ChatSession.fromMap(s).toMap()).toList();
+
+      final messagesOut = messagesRaw.map((m) {
+        final c = Map<String, dynamic>.from(m);
+        // Strip image payloads — base64 blobs bloat the backup and file
+        // paths never transfer across devices.
+        c['imageBase64'] = null;
+        c['imagePath'] = null;
+        return c;
+      }).toList();
+
+      final payload = {
+        'app': 'CubicLM',
+        'type': 'chat_backup',
+        'version': 1,
+        'exportedAt': DateTime.now().toIso8601String(),
+        'sessions': sessionsOut,
+        'messages': messagesOut,
+      };
+
+      final dir = await getTemporaryDirectory();
+      final stamp = DateTime.now().toIso8601String().split('T').first;
+      final file = File('${dir.path}/cubiclm_chat_backup_$stamp.json');
+      await file.writeAsString(jsonEncode(payload), flush: true);
+
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/json')],
+        subject: 'CubicLM chat backup',
+      );
+      return null;
+    } catch (e) {
+      Get.find<AppLogService>().error('Backup export failed',
+          details: e, category: LogCategory.chat);
+      return 'error';
+    }
+  }
+
+  /// Import a previously exported CubicLM chat backup. Existing sessions
+  /// and messages are never overwritten — only new items are merged in.
+  /// Returns an error string, or null on success.
+  Future<String?> importChats() async {
+    try {
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        withData: true,
+      );
+      final files = picked?.files;
+      if (files == null || files.isEmpty) return 'cancelled';
+      final platformFile = files.first;
+
+      final raw = platformFile.bytes?.toString() ??
+          (platformFile.path != null
+              ? await File(platformFile.path!).readAsString()
+              : null);
+      if (raw == null || raw.isEmpty) return 'invalid';
+
+      final dynamic decoded;
+      try {
+        decoded = jsonDecode(raw);
+      } on FormatException {
+        return 'invalid';
+      }
+      if (decoded is! Map<String, dynamic> ||
+          decoded['type'] != 'chat_backup') {
+        return 'invalid';
+      }
+
+      final existingIds = sessions.map((s) => s.id).toSet();
+      var importedSessions = 0;
+      var importedMessages = 0;
+
+      final rawSessions = decoded['sessions'];
+      if (rawSessions is List) {
+        for (final item in rawSessions) {
+          if (item is! Map) continue;
+          final session = ChatSession.fromMap(Map<dynamic, dynamic>.from(item));
+          if (session.id.isEmpty || existingIds.contains(session.id)) continue;
+          await _hive.saveSession(session.id, session.toMap());
+          existingIds.add(session.id);
+          importedSessions++;
+        }
+      }
+
+      // Build the set of existing message keys to skip duplicates.
+      final existingMessageKeys = _hive
+          .getAllMessagesRaw()
+          .map((m) => _messageKey(m['chatId']?.toString() ?? '',
+              m['id']?.toString() ?? ''))
+          .toSet();
+
+      final rawMessages = decoded['messages'];
+      if (rawMessages is List) {
+        for (final item in rawMessages) {
+          if (item is! Map) continue;
+          final msg = Map<String, dynamic>.from(item);
+          final id = msg['id']?.toString() ?? '';
+          final chatId = msg['chatId']?.toString() ?? '';
+          if (id.isEmpty) continue;
+          final key = _messageKey(chatId, id);
+          if (existingMessageKeys.contains(key)) continue;
+          await _hive.saveMessage(id, msg);
+          existingMessageKeys.add(key);
+          importedMessages++;
+        }
+      }
+
+      if (importedSessions > 0) loadSessions();
+
+      if (importedSessions == 0 && importedMessages == 0) return 'nothing';
+      return 'ok:$importedSessions:$importedMessages';
+    } catch (e) {
+      Get.find<AppLogService>().error('Backup import failed',
+          details: e, category: LogCategory.chat);
+      return 'error';
+    }
+  }
+
+  String _messageKey(String chatId, String id) =>
+      chatId.isNotEmpty ? '$chatId/$id' : id;
 
   // ─── Image Handling ─────────────────────────────
 

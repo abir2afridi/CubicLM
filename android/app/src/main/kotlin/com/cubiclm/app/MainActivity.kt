@@ -12,7 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Environment
 import android.provider.OpenableColumns
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -21,7 +21,7 @@ import kotlin.system.exitProcess
 import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONObject
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private val importChannelName = "com.aichat.ai_chat/model_import"
     private val importRequestCode = 4207
     private val mainHandler = Handler(Looper.getMainLooper())

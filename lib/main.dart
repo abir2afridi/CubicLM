@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'controllers/settings_controller.dart';
@@ -538,9 +539,150 @@ class CubicLMApp extends StatelessWidget {
           data: MediaQuery.of(ctx).copyWith(
             textScaler: TextScaler.linear(scale),
           ),
-          child: child!,
+          child: LockGate(child: child!),
         ),
       );
     });
+  }
+}
+
+/// ── App Lock gate ────────────────────────────────────────────────────
+/// When App Lock is enabled, covers the whole app with an unlock screen
+/// on launch and every time the app returns from the background.
+class LockGate extends StatefulWidget {
+  final Widget child;
+  const LockGate({super.key, required this.child});
+
+  @override
+  State<LockGate> createState() => _LockGateState();
+}
+
+class _LockGateState extends State<LockGate> with WidgetsBindingObserver {
+  bool _authAttempted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAuth());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  SettingsController? _settings() {
+    try {
+      if (Get.isRegistered<SettingsController>()) {
+        return Get.find<SettingsController>();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  void _maybeAuth() {
+    if (_authAttempted) return;
+    final settings = _settings();
+    if (settings == null) return;
+    if (settings.appLockEnabled.value && settings.isLocked.value) {
+      _authAttempted = true;
+      _authenticate(settings);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final settings = _settings();
+    if (settings == null) return;
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      if (settings.appLockEnabled.value) settings.isLocked.value = true;
+    } else if (state == AppLifecycleState.resumed &&
+        settings.isLocked.value) {
+      _authenticate(settings);
+    }
+  }
+
+  Future<void> _authenticate(SettingsController settings) async {
+    final ok = await settings.authenticate();
+    if (!mounted) return;
+    if (ok) settings.isLocked.value = false;
+    // On failure the lock screen stays up with a manual retry button.
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = _settings();
+    if (settings == null) return widget.child;
+    return Obx(() {
+      final locked =
+          settings.appLockEnabled.value && settings.isLocked.value;
+      if (!locked) return widget.child;
+      return _LockScreen(onUnlock: () => _authenticate(settings));
+    });
+  }
+}
+
+class _LockScreen extends StatelessWidget {
+  final VoidCallback onUnlock;
+  const _LockScreen({required this.onUnlock});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: isDark ? const Color(0xFF0D0D0F) : const Color(0xFFF8F4ED),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF4D00).withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.lock_rounded,
+                  size: 40, color: Color(0xFFFF4D00)),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'CubicLM is locked',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : const Color(0xFF1C1C1E),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Authenticate to continue',
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 28),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFFF4D00),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+              ),
+              onPressed: onUnlock,
+              icon: const Icon(Icons.fingerprint_rounded, size: 22),
+              label: Text(
+                'Unlock',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

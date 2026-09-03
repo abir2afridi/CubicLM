@@ -4,6 +4,7 @@ class ChatSession {
   final DateTime createdAt;
   final DateTime updatedAt;
   final String? lastMessage;
+  final bool pinned;
 
   ChatSession({
     required this.id,
@@ -11,6 +12,7 @@ class ChatSession {
     DateTime? createdAt,
     DateTime? updatedAt,
     this.lastMessage,
+    this.pinned = false,
   })  : title = title ?? 'New Chat',
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -21,6 +23,7 @@ class ChatSession {
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
         'lastMessage': lastMessage,
+        'pinned': pinned,
       };
 
   factory ChatSession.fromMap(Map<dynamic, dynamic> map) => ChatSession(
@@ -29,12 +32,14 @@ class ChatSession {
         createdAt: DateTime.tryParse(map['createdAt'] ?? '') ?? DateTime.now(),
         updatedAt: DateTime.tryParse(map['updatedAt'] ?? '') ?? DateTime.now(),
         lastMessage: map['lastMessage'],
+        pinned: map['pinned'] == true,
       );
 
   ChatSession copyWith({
     String? title,
     DateTime? updatedAt,
     String? lastMessage,
+    bool? pinned,
   }) =>
       ChatSession(
         id: id,
@@ -42,5 +47,6 @@ class ChatSession {
         createdAt: createdAt,
         updatedAt: updatedAt ?? DateTime.now(),
         lastMessage: lastMessage ?? this.lastMessage,
+        pinned: pinned ?? this.pinned,
       );
 }

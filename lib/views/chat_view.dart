@@ -402,6 +402,25 @@ class ChatView extends GetView<ChatController> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 20),
             ),
             ListTile(
+              leading: Icon(
+                Icons.push_pin_outlined,
+                size: 22,
+                color: session.pinned
+                    ? AppColors.primary
+                    : (isDark ? AppColors.textPrimary : Dt.textPrimary),
+              ),
+              title: Text(
+                  session.pinned ? 'Unpin chat' : 'Pin to top',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(context);
+                controller.togglePin(session.id);
+              },
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            ),
+            ListTile(
               leading: Icon(Icons.delete_outline_rounded,
                   size: 22,
                   color: isDark ? AppColors.textPrimary : Dt.textPrimary),
@@ -1965,11 +1984,15 @@ class ChatView extends GetView<ChatController> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  active
-                      ? Icons.chat_bubble_rounded
-                      : Icons.chat_bubble_outline_rounded,
+                  s.pinned
+                      ? Icons.push_pin_rounded
+                      : (active
+                          ? Icons.chat_bubble_rounded
+                          : Icons.chat_bubble_outline_rounded),
                   size: 16,
-                  color: active ? AppColors.primary : AppColors.textMuted,
+                  color: s.pinned
+                      ? AppColors.primary
+                      : (active ? AppColors.primary : AppColors.textMuted),
                 ),
               ),
               const SizedBox(width: 12),
@@ -2003,9 +2026,25 @@ class ChatView extends GetView<ChatController> {
                 tooltip: 'More',
                 onSelected: (v) {
                   if (v == 'export') _exportSession(context, s);
+                  if (v == 'pin') controller.togglePin(s.id);
                   if (v == 'delete') controller.deleteChat(s.id);
                 },
                 itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'pin',
+                    child: Row(children: [
+                      Icon(
+                        s.pinned
+                            ? Icons.push_pin_outlined
+                            : Icons.push_pin_rounded,
+                        size: 16,
+                        color: s.pinned ? AppColors.primary : null,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(s.pinned ? 'Unpin' : 'Pin to top',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                    ]),
+                  ),
                   PopupMenuItem(
                     value: 'export',
                     child: Row(children: [

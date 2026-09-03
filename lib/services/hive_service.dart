@@ -419,6 +419,21 @@ class HiveService extends GetxService {
     }
   }
 
+  /// All messages across every chat (for backup/export).
+  List<Map<dynamic, dynamic>> getAllMessagesRaw() {
+    try {
+      if (!_isBoxUsable(_messagesBox)) return [];
+      return _messagesBox.values
+          .whereType<Map>()
+          .map((v) => Map<dynamic, dynamic>.from(v))
+          .toList();
+    } on HiveError {
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   Future<void> saveMessage(String id, Map<String, dynamic> data) async {
     try {
       if (!_isBoxUsable(_messagesBox)) return;

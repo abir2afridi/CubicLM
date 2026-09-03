@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:local_auth/local_auth.dart' as la;
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import '../core/constants.dart';
@@ -135,6 +137,13 @@ class SettingsController extends GetxController {
 
   // TTS — read aloud assistant messages.
   final readAloudEnabled = true.obs;
+
+  // App Lock — require device biometrics/PIN to open the app.
+  final appLockEnabled = false.obs;
+  final biometricsAvailable = false.obs;
+
+  /// True while the app is locked and waiting for authentication.
+  final isLocked = false.obs;
 
   // Persistent text controllers for settings fields
   final openaiKeyController = TextEditingController();
@@ -410,6 +419,15 @@ class SettingsController extends GetxController {
             AppConstants.keyReadAloud,
             defaultValue: true) ??
         true;
+    appLockEnabled.value = _hive.getSetting<bool>(
+            AppConstants.keyAppLockEnabled,
+            defaultValue: false) ??
+        false;
+    _detectBiometrics();
+    if (appLockEnabled.value && !kIsWeb) {
+      // Start locked so the gate shows before any chat content renders.
+      isLocked.value = true;
+    }
 
     // Sync controllers with loaded values
     openaiKeyController.text = openaiKey.value;
@@ -1428,6 +1446,58 @@ class SettingsController extends GetxController {
   Future<void> setReadAloudEnabled(bool enabled) async {
     readAloudEnabled.value = enabled;
     await _hive.setSetting(AppConstants.keyReadAloud, enabled);
+  }
+
+  // ─── App Lock (biometric gate) ──────────────────
+
+  final _localAuth = la.LocalAuthentication();
+
+  Future<void> _detectBiometrics() async {
+    if (kIsWeb) {
+      biometricsAvailable.value = false;
+      return;
+    }
+    try {
+      final canCheck = await _localAuth.canCheckBiometrics;
+      final supported = await _localAuth.isDeviceSupported();
+      biometricsAvailable.value = canCheck || supported;
+    } catch (_) {
+      biometricsAvailable.value = false;
+    }
+  }
+
+  Future<void> setAppLockEnabled(bool enabled) async {
+    if (enabled) {
+      // Require a successful authentication before arming the lock so the
+      // user can't lock themselves out on a device without enrolled biometrics.
+      final ok = await authenticate(
+          reason: 'Confirm your identity to enable App Lock');
+      if (!ok) {
+        appLockEnabled.value = false;
+        await _hive.setSetting(AppConstants.keyAppLockEnabled, false);
+        return;
+      }
+    }
+    appLockEnabled.value = enabled;
+    await _hive.setSetting(AppConstants.keyAppLockEnabled, enabled);
+    if (!enabled) isLocked.value = false;
+  }
+
+  /// Runs the platform biometric/PIN prompt. Fails open (returns true) when
+  /// no biometric hardware is available so the app never becomes unusable.
+  Future<bool> authenticate({String reason = 'Unlock CubicLM'}) async {
+    if (kIsWeb || !biometricsAvailable.value) return true;
+    try {
+      return await _localAuth.authenticate(
+        localizedReason: reason,
+        options: const la.AuthenticationOptions(
+          biometricOnly: false,
+          stickyAuth: true,
+        ),
+      );
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
