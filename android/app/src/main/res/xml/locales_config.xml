@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Per-app language (Android 13+ system settings). Mirrors the 15 in-app
+     locales in lib/core/languages.dart — in-app GetX switching stays primary. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="bn" />
+    <locale android:name="hi" />
+    <locale android:name="ar" />
+    <locale android:name="zh" />
+    <locale android:name="es" />
+    <locale android:name="fr" />
+    <locale android:name="ja" />
+    <locale android:name="ko" />
+    <locale android:name="pt" />
+    <locale android:name="de" />
+    <locale android:name="tr" />
+    <locale android:name="id" />
+    <locale android:name="ru" />
+    <locale android:name="ur" />
+</locale-config>

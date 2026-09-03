@@ -41,6 +41,7 @@ class ChatView extends GetView<ChatController> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      key: controller.chatScaffoldKey,
       backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       drawer: _buildSidebar(context, isDark),
       appBar: _appBar(context, isDark),
@@ -53,8 +54,11 @@ class ChatView extends GetView<ChatController> {
                 controller.messages.isEmpty) {
               return _emptyState(context, isDark);
             }
+            // NOTE: this observer deliberately does NOT read
+            // streamingResponse — token flushes rebuild only the stream
+            // bubble's own Obx below, not the whole list + every
+            // MarkdownBody (was: full rebuild at ~25fps while streaming).
             final streaming = controller.isStreaming.value;
-            final text = controller.streamingResponse.value;
             final n = controller.messages.length;
             return Stack(
               children: [
@@ -75,7 +79,10 @@ class ChatView extends GetView<ChatController> {
                     itemCount: n + (streaming ? 1 : 0),
                     itemBuilder: (_, i) {
                       if (i == n && streaming) {
-                        return _streamBubble(context, text, isDark);
+                        // Own observer: per-token rebuilds stay inside the
+                        // streaming bubble instead of the whole list.
+                        return Obx(() => _streamBubble(context,
+                            controller.streamingResponse.value, isDark));
                       }
                       final msg = controller.messages[i];
                       // Date header: show when first message or different day than previous
@@ -108,12 +115,14 @@ class ChatView extends GetView<ChatController> {
                             : null,
                       );
                       if (dateHeader != null) {
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [dateHeader, bubble],
+                        return RepaintBoundary(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [dateHeader, bubble],
+                          ),
                         );
                       }
-                      return bubble;
+                      return RepaintBoundary(child: bubble);
                     },
                   ),
                 ),
@@ -1528,12 +1537,18 @@ class ChatView extends GetView<ChatController> {
                                 controller.inputText.value.isNotEmpty ||
                                     controller.selectedFileName.value != null ||
                                     controller.selectedImagePath.value != null;
+                            // Hide the mic when speech recognition is
+                            // unavailable (e.g. permission denied, or a
+                            // platform without an STT engine) instead of
+                            // showing a dead button.
+                            final micAvailable =
+                                controller.sttAvailable.value;
 
                             return Row(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                if (!loading && !hasContent)
+                                if (!loading && !hasContent && micAvailable)
                                   AppCircleButton(
                                     icon: LucideIcons.mic,
                                     tooltip: 'Voice input',
@@ -1541,7 +1556,7 @@ class ChatView extends GetView<ChatController> {
                                         listening ? AppColors.error : null,
                                     onTap: controller.toggleListening,
                                   ),
-                                if (!loading && !hasContent)
+                                if (!loading && !hasContent && micAvailable)
                                   const SizedBox(width: 8),
                                 AppCtaButton(
                                   icon: loading
@@ -1751,6 +1766,7 @@ class ChatView extends GetView<ChatController> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: TextField(
             controller: _searchController,
+            focusNode: controller.historySearchFocus,
             onChanged: (v) {
               final trimmed = v.trim().toLowerCase();
               setState(() => _sidebarQuery.value = trimmed);

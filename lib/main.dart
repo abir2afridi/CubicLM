@@ -10,6 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'controllers/settings_controller.dart';
+import 'controllers/chat_controller.dart';
 import 'controllers/cloud_model_controller.dart';
 import 'controllers/server_controller.dart';
 import 'controllers/model_controller.dart';
@@ -56,6 +57,9 @@ void main() {
           await windowManager.show();
           await windowManager.focus();
         });
+        // Intercept close so generation/downloads aren't killed silently —
+        // LockGate.onWindowClose confirms when busy, destroys otherwise.
+        await windowManager.setPreventClose(true);
       } catch (_) {
         // window_manager is Windows-only; ignore on other platforms.
       }
@@ -557,20 +561,81 @@ class LockGate extends StatefulWidget {
   State<LockGate> createState() => _LockGateState();
 }
 
-class _LockGateState extends State<LockGate> with WidgetsBindingObserver {
+class _LockGateState extends State<LockGate>
+    with WidgetsBindingObserver, WindowListener {
   bool _authAttempted = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Desktop has no mobile lifecycle — window blur (Alt-Tab/minimize)
+    // must arm the lock too. Android never touches window_manager.
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      windowManager.addListener(this);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAuth());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.windows) {
+      windowManager.removeListener(this);
+    }
     super.dispose();
+  }
+
+  /// window_manager: losing focus counts as "background" on desktop.
+  @override
+  void onWindowBlur() {
+    final settings = _settings();
+    if (settings == null) return;
+    if (settings.appLockEnabled.value) settings.isLocked.value = true;
+  }
+
+  /// window_manager: close is intercepted (setPreventClose at startup).
+  /// Destroy immediately when idle; confirm when a reply is generating
+  /// or models are downloading so work isn't killed silently.
+  @override
+  void onWindowClose() async {
+    var busyReason = '';
+    try {
+      if (Get.isRegistered<ChatController>()) {
+        final chat = Get.find<ChatController>();
+        if (chat.isLoading.value || chat.isStreaming.value) {
+          busyReason = 'A reply is still generating.';
+        }
+      }
+      if (busyReason.isEmpty && Get.isRegistered<ModelController>()) {
+        if (Get.find<ModelController>().activeDownloads.isNotEmpty) {
+          busyReason = 'Model downloads are still in progress.';
+        }
+      }
+    } catch (_) {}
+    if (busyReason.isEmpty) {
+      await windowManager.destroy();
+      return;
+    }
+    final quit = await Get.dialog<bool>(
+      AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Quit CubicLM?'),
+        content: Text('$busyReason Quitting now will stop it.'),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Get.back(result: true),
+            child: const Text('Quit anyway'),
+          ),
+        ],
+      ),
+    );
+    if (quit == true) await windowManager.destroy();
   }
 
   SettingsController? _settings() {
@@ -582,12 +647,16 @@ class _LockGateState extends State<LockGate> with WidgetsBindingObserver {
     return null;
   }
 
-  void _maybeAuth() {
+  void _maybeAuth() async {
     if (_authAttempted) return;
     final settings = _settings();
     if (settings == null) return;
     if (settings.appLockEnabled.value && settings.isLocked.value) {
       _authAttempted = true;
+      // Wait for biometric detection: authenticating before it completes
+      // fail-opens the lock on first launch (race).
+      await settings.biometricsReady;
+      if (!mounted) return;
       _authenticate(settings);
     }
   }

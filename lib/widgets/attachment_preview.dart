@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-class AttachmentPreview extends StatelessWidget {
+/// File-chip shown above the composer. Stateful so the base64 thumbnail is
+/// decoded ONCE per attachment — not on every keystroke rebuild of the
+/// composer bar.
+class AttachmentPreview extends StatefulWidget {
   final String fileName;
   final String? fileType;
   final int? fileSize;
@@ -25,15 +29,52 @@ class AttachmentPreview extends StatelessWidget {
   });
 
   @override
+  State<AttachmentPreview> createState() => _AttachmentPreviewState();
+}
+
+class _AttachmentPreviewState extends State<AttachmentPreview> {
+  Uint8List? _decodedBytes;
+  String? _decodedFor;
+
+  @override
+  void initState() {
+    super.initState();
+    _decodeIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(covariant AttachmentPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageBase64 != widget.imageBase64) _decodeIfNeeded();
+  }
+
+  void _decodeIfNeeded() {
+    final b64 = widget.imageBase64;
+    if (b64 == null || b64.isEmpty) {
+      _decodedBytes = null;
+      _decodedFor = b64;
+      return;
+    }
+    if (_decodedFor == b64 && _decodedBytes != null) return;
+    try {
+      _decodedBytes = base64Decode(b64);
+    } catch (_) {
+      _decodedBytes = null;
+    }
+    _decodedFor = b64;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final type = fileType ?? _typeFromName(fileName);
+    final type = widget.fileType ?? _typeFromName(widget.fileName);
     final color = _colorForType(type, isDark);
     final label = _labelForType(type);
 
     return Container(
-      constraints: compact ? const BoxConstraints(maxWidth: 260) : null,
-      padding: EdgeInsets.all(compact ? 8 : 12),
+      constraints:
+          widget.compact ? const BoxConstraints(maxWidth: 260) : null,
+      padding: EdgeInsets.all(widget.compact ? 8 : 12),
       decoration: BoxDecoration(
         color: isDark
             ? Colors.white.withValues(alpha: 0.06)
@@ -41,7 +82,8 @@ class AttachmentPreview extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
-        mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
+        mainAxisSize:
+            widget.compact ? MainAxisSize.min : MainAxisSize.max,
         children: [
           // Leading icon/thumbnail
           _leading(context, type, color, isDark),
@@ -53,19 +95,19 @@ class AttachmentPreview extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  fileName,
+                  widget.fileName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
-                    fontSize: compact ? 13 : 14,
+                    fontSize: widget.compact ? 13 : 14,
                     color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  fileSize != null && fileSize! > 0
-                      ? '$label · ${formatFileSize(fileSize!)}'
+                  widget.fileSize != null && widget.fileSize! > 0
+                      ? '$label · ${formatFileSize(widget.fileSize!)}'
                       : label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -78,10 +120,10 @@ class AttachmentPreview extends StatelessWidget {
               ],
             ),
           ),
-          if (onRemove != null) ...[
+          if (widget.onRemove != null) ...[
             const SizedBox(width: 6),
             GestureDetector(
-              onTap: onRemove,
+              onTap: widget.onRemove,
               child: Container(
                 width: 28,
                 height: 28,
@@ -109,8 +151,8 @@ class AttachmentPreview extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        width: compact ? 36 : 42,
-        height: compact ? 36 : 42,
+        width: widget.compact ? 36 : 42,
+        height: widget.compact ? 36 : 42,
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(10),
@@ -119,26 +161,32 @@ class AttachmentPreview extends StatelessWidget {
             Icon(
               _iconForType(type),
               color: color,
-              size: compact ? 18 : 20,
+              size: widget.compact ? 18 : 20,
             ),
       ),
     );
   }
 
   Widget? _imageThumbnail() {
-    if ((fileType ?? _typeFromName(fileName)) != 'image') return null;
-    if (imageBase64 != null && imageBase64!.isNotEmpty) {
+    if ((widget.fileType ?? _typeFromName(widget.fileName)) != 'image') {
+      return null;
+    }
+    // Memoized bytes (decoded once per attachment in _decodeIfNeeded).
+    final decoded = _decodedBytes;
+    if (decoded != null && decoded.isNotEmpty) {
       return Image.memory(
-        base64Decode(imageBase64!),
+        decoded,
         fit: BoxFit.cover,
+        cacheWidth: 256,
         gaplessPlayback: true,
         errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
       );
     }
-    if (imagePath != null && imagePath!.isNotEmpty) {
+    if (widget.imagePath != null && widget.imagePath!.isNotEmpty) {
       return Image.file(
-        File(imagePath!),
+        File(widget.imagePath!),
         fit: BoxFit.cover,
+        cacheWidth: 256,
         gaplessPlayback: true,
         errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
       );

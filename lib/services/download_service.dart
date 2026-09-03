@@ -139,7 +139,7 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
       reconcileActiveDownloads();
 
       // Permanent channel progress listener
-      const MethodChannel('com.aichat.ai_chat/model_import')
+      const MethodChannel('com.cubiclm.app/model_import')
           .setMethodCallHandler((call) async {
         if (call.method == 'importProgress') {
           final data = Map<String, dynamic>.from(call.arguments as Map);

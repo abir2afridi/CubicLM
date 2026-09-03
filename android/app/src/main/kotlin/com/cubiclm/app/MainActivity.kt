@@ -22,7 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
 import org.json.JSONObject
 
 class MainActivity : FlutterFragmentActivity() {
-    private val importChannelName = "com.aichat.ai_chat/model_import"
+    private val importChannelName = "com.cubiclm.app/model_import"
     private val importRequestCode = 4207
     private val mainHandler = Handler(Looper.getMainLooper())
 

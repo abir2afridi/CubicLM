@@ -117,6 +117,9 @@ class _ChatBubbleState extends State<ChatBubble> {
                                   width: double.infinity,
                                   height: 220,
                                   fit: BoxFit.cover,
+                                  // Thumbnail only — decode at ~640px instead
+                                  // of full resolution (viewer gets full bytes).
+                                  cacheWidth: 640,
                                   gaplessPlayback: true,
                                   errorBuilder: (_, __, ___) => Container(
                                     height: 100,

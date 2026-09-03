@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 
 final Dio _dio = Dio();
 final Map<String, CancelToken> _cancelTokens = {};
-const _channel = MethodChannel('com.aichat.ai_chat/model_import');
+const _channel = MethodChannel('com.cubiclm.app/model_import');
 
 Future<String> getModelsDir() async {
   final dir = await getApplicationDocumentsDirectory();

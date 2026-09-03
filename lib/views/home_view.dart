@@ -1,6 +1,8 @@
 import 'dart:ui';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -85,7 +87,7 @@ class _HomeViewState extends State<HomeView> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       body: Obx(() {
         final content = IndexedStack(
@@ -112,7 +114,52 @@ class _HomeViewState extends State<HomeView> {
       bottomNavigationBar:
           _isWide ? null : Obx(() => _buildBottomNav(context, isDark)),
     );
+    // Desktop keyboard shortcuts: Ctrl+N new chat, Ctrl+F history search,
+    // Ctrl+, settings, Ctrl+1..4 switch tabs. Invisible, zero visual risk.
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux ||
+            defaultTargetPlatform == TargetPlatform.macOS)) {
+      return CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+              _shortcutNewChat,
+          const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+              _shortcutHistorySearch,
+          const SingleActivator(LogicalKeyboardKey.comma, control: true):
+              _shortcutSettings,
+          const SingleActivator(LogicalKeyboardKey.digit1, control: true):
+              _shortcutTab0,
+          const SingleActivator(LogicalKeyboardKey.digit2, control: true):
+              _shortcutTab1,
+          const SingleActivator(LogicalKeyboardKey.digit3, control: true):
+              _shortcutTab2,
+          const SingleActivator(LogicalKeyboardKey.digit4, control: true):
+              _shortcutTab3,
+        },
+        child: scaffold,
+      );
+    }
+    return scaffold;
   }
+
+  void _shortcutNewChat() {
+    try {
+      Get.find<ChatController>().createNewChat();
+    } catch (_) {}
+  }
+
+  void _shortcutHistorySearch() {
+    try {
+      Get.find<ChatController>().openHistorySearch();
+    } catch (_) {}
+  }
+
+  void _shortcutSettings() => controller.changeTab(3);
+  void _shortcutTab0() => controller.changeTab(0);
+  void _shortcutTab1() => controller.changeTab(1);
+  void _shortcutTab2() => controller.changeTab(2);
+  void _shortcutTab3() => controller.changeTab(3);
 
   Widget _buildBottomNav(BuildContext context, bool isDark) {
     return Container(

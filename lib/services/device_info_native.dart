@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:llama_flutter_android/llama_flutter_android.dart';
 
 /// Detected SoC family.
@@ -216,6 +217,21 @@ Future<Map<String, dynamic>> getDeviceInfo() async {
       totalRam = 16.0;
       availableRam = 8.0;
       socFamily = SocFamily.apple;
+    } else if (Platform.isWindows) {
+      // Real RAM via device_info_plus (Credential-Locker-grade plugin,
+      // already a dependency). Before this, Windows fell through to the
+      // 4 GB / 2 GB fiction above and mistuned context/maxTokens.
+      try {
+        final win = await DeviceInfoPlugin().windowsInfo;
+        final memMb = win.systemMemoryInMegabytes;
+        if (memMb > 0) {
+          totalRam = memMb / 1024;
+          // The plugin exposes no free-RAM counter — assume half usable.
+          availableRam = totalRam / 2;
+        }
+        processor = 'Windows PC · ${win.numberOfCores} cores';
+        hardware = 'x86_64';
+      } catch (_) {}
     }
   } catch (e) {
     print('[DeviceInfo] Failed to read device info: $e');

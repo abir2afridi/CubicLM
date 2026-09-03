@@ -142,6 +142,18 @@ class SettingsController extends GetxController {
   final appLockEnabled = false.obs;
   final biometricsAvailable = false.obs;
 
+  /// True when at least one biometric (or device credential usable by
+  /// local_auth) is enrolled. Lets the UI tell "no hardware" apart from
+  /// "hardware present, nothing enrolled" (e.g. Windows Hello supported
+  /// but never set up — authenticating then would just fail).
+  final hasEnrolledBiometrics = false.obs;
+
+  /// Completes once [_detectBiometrics] has run. The lock gate awaits this
+  /// before its first auth decision — otherwise a slow first detection
+  /// fail-opens the lock on launch (race).
+  final Completer<void> _biometricsDetected = Completer<void>();
+  Future<void> get biometricsReady => _biometricsDetected.future;
+
   /// True while the app is locked and waiting for authentication.
   final isLocked = false.obs;
 
@@ -1455,14 +1467,27 @@ class SettingsController extends GetxController {
   Future<void> _detectBiometrics() async {
     if (kIsWeb) {
       biometricsAvailable.value = false;
+      hasEnrolledBiometrics.value = false;
+      if (!_biometricsDetected.isCompleted) _biometricsDetected.complete();
       return;
     }
     try {
       final canCheck = await _localAuth.canCheckBiometrics;
       final supported = await _localAuth.isDeviceSupported();
       biometricsAvailable.value = canCheck || supported;
+      // Enrollment matters: isDeviceSupported() is true on Windows as soon
+      // as the OS supports Hello — even with zero methods enrolled.
+      try {
+        hasEnrolledBiometrics.value =
+            (await _localAuth.getAvailableBiometrics()).isNotEmpty;
+      } catch (_) {
+        hasEnrolledBiometrics.value = false;
+      }
     } catch (_) {
       biometricsAvailable.value = false;
+      hasEnrolledBiometrics.value = false;
+    } finally {
+      if (!_biometricsDetected.isCompleted) _biometricsDetected.complete();
     }
   }
 

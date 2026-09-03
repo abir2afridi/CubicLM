@@ -98,6 +98,25 @@ class ChatController extends GetxController {
   final scrollController = ScrollController();
   final composerFocusNode = FocusNode();
   final composerKeyboardFocusNode = FocusNode();
+
+  /// Chat history drawer scaffold + its search field. Bound by ChatView;
+  /// lets desktop shortcuts (Ctrl+F) open the drawer and focus search
+  /// without a BuildContext.
+  final chatScaffoldKey = GlobalKey<ScaffoldState>();
+  final historySearchFocus = FocusNode();
+
+  /// Desktop shortcut (Ctrl+F): open the history drawer and focus its
+  /// search field so the user can immediately type.
+  void openHistorySearch() {
+    try {
+      chatScaffoldKey.currentState?.openDrawer();
+    } catch (_) {}
+    Future.delayed(const Duration(milliseconds: 350), () {
+      try {
+        historySearchFocus.requestFocus();
+      } catch (_) {}
+    });
+  }
   Timer? _scrollTimer;
   bool _followStreaming = true;
   bool _scrollListenerAttached = false;
@@ -141,7 +160,12 @@ class ChatController extends GetxController {
         } catch (_) {
           sttAvailable.value = false;
         }
-        if (!sttAvailable.value) return;
+        if (!sttAvailable.value) {
+          Get.snackbar('Voice Input Unavailable',
+              'Speech recognition is not available on this device.',
+              snackPosition: SnackPosition.BOTTOM);
+          return;
+        }
       }
       await _speech.listen(
         onResult: (result) {
@@ -167,6 +191,7 @@ class ChatController extends GetxController {
     textController.dispose();
     composerFocusNode.dispose();
     composerKeyboardFocusNode.dispose();
+    historySearchFocus.dispose();
     scrollController.dispose();
     super.onClose();
   }
@@ -199,7 +224,10 @@ class ChatController extends GetxController {
     final id = _uuid.v4();
     final session = ChatSession(id: id, title: 'New Chat');
     _hive.saveSession(id, session.toMap());
-    sessions.insert(0, session);
+    // Sort (don't blind-insert at 0) so a new unpinned chat never jumps
+    // above pinned sessions until the next reload.
+    sessions.add(session);
+    sessions.sort(_sessionSort);
     openChat(id);
   }
 
@@ -251,6 +279,9 @@ class ChatController extends GetxController {
   /// Export every session + message to a single JSON backup file and open
   /// the system share sheet. Image blobs are stripped to keep the file
   /// portable (image paths don't transfer between devices anyway).
+  ///
+  /// Desktop has no share sheet — a native save dialog is shown instead so
+  /// the user picks the destination file directly.
   Future<String?> exportAllChats() async {
     try {
       final sessionsRaw = _hive.getAllSessions();
@@ -280,16 +311,52 @@ class ChatController extends GetxController {
         'sessions': sessionsOut,
         'messages': messagesOut,
       };
+      final jsonStr = jsonEncode(payload);
+
+      if (!kIsWeb &&
+          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+        return await _exportChatsDesktop(jsonStr);
+      }
 
       final dir = await getTemporaryDirectory();
       final stamp = DateTime.now().toIso8601String().split('T').first;
       final file = File('${dir.path}/cubiclm_chat_backup_$stamp.json');
-      await file.writeAsString(jsonEncode(payload), flush: true);
+      await file.writeAsString(jsonStr, flush: true);
 
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'application/json')],
         subject: 'CubicLM chat backup',
       );
+      return null;
+    } catch (e) {
+      Get.find<AppLogService>().error('Backup export failed',
+          details: e, category: LogCategory.chat);
+      return 'error';
+    }
+  }
+
+  /// Desktop export: native save dialog writes the JSON directly to the
+  /// path the user picks. Returns null on success, 'cancelled' when the
+  /// user dismisses the dialog, 'error' on failure.
+  Future<String?> _exportChatsDesktop(String jsonStr) async {
+    try {
+      final stamp = DateTime.now().toIso8601String().split('T').first;
+      final outPath = await FilePicker.saveFile(
+        dialogTitle: 'Save CubicLM chat backup',
+        fileName: 'cubiclm_chat_backup_$stamp.json',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        bytes: Uint8List.fromList(utf8.encode(jsonStr)),
+      );
+      if (outPath == null) return 'cancelled';
+      Get.snackbar(
+        'Backup saved',
+        outPath,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 6),
+      );
+      Get.find<AppLogService>().info('Chat backup exported',
+          details: outPath, category: LogCategory.chat);
       return null;
     } catch (e) {
       Get.find<AppLogService>().error('Backup export failed',
@@ -312,10 +379,20 @@ class ChatController extends GetxController {
       if (files == null || files.isEmpty) return 'cancelled';
       final platformFile = files.first;
 
-      final raw = platformFile.bytes?.toString() ??
-          (platformFile.path != null
-              ? await File(platformFile.path!).readAsString()
-              : null);
+      // NOTE: Uint8List.toString() yields "[123, 34, ...]" — never the file
+      // content. Decode picked bytes as UTF-8 explicitly, else a valid
+      // backup picked with withData:true always fails as 'invalid'.
+      String? raw;
+      if (platformFile.bytes != null && platformFile.bytes!.isNotEmpty) {
+        try {
+          raw = utf8.decode(platformFile.bytes!);
+        } on FormatException {
+          raw = null;
+        }
+      }
+      raw ??= platformFile.path != null
+          ? await File(platformFile.path!).readAsString()
+          : null;
       if (raw == null || raw.isEmpty) return 'invalid';
 
       final dynamic decoded;
@@ -385,42 +462,96 @@ class ChatController extends GetxController {
   // ─── Image Handling ─────────────────────────────
 
   Future<void> pickImage() async {
-    final picker = ImagePicker();
-    final file = await picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: _visionImageMaxSide.toDouble(),
-      maxHeight: _visionImageMaxSide.toDouble(),
-      imageQuality: _visionImageJpegQuality,
-    );
-    if (file != null) {
-      selectedImagePath.value = file.path;
-      selectedImageBase64.value = null;
-      selectedFileName.value = file.name;
-      selectedFilePath.value = file.path;
-      selectedFileType.value = 'image';
-      selectedFileSize.value = await file.length();
-      selectedFileContent.value = null;
-      _checkVisionSupport();
+    try {
+      // image_picker ships no Windows/Linux/macOS implementation — a bare
+      // call throws MissingPluginException and crashes the attach flow.
+      // Route desktop gallery-picks through FilePicker instead.
+      if (!kIsWeb &&
+          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+        await _pickImageDesktop();
+        return;
+      }
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: _visionImageMaxSide.toDouble(),
+        maxHeight: _visionImageMaxSide.toDouble(),
+        imageQuality: _visionImageJpegQuality,
+      );
+      if (file != null) {
+        selectedImagePath.value = file.path;
+        selectedImageBase64.value = null;
+        selectedFileName.value = file.name;
+        selectedFilePath.value = file.path;
+        selectedFileType.value = 'image';
+        selectedFileSize.value = await file.length();
+        selectedFileContent.value = null;
+        _checkVisionSupport();
+      }
+    } catch (e) {
+      Get.find<AppLogService>().error('Image pick failed',
+          details: e, category: LogCategory.chat);
+      Get.snackbar('Image Pick Failed',
+          'Could not pick an image on this device.',
+          snackPosition: SnackPosition.BOTTOM);
     }
   }
 
-  Future<void> takePhoto() async {
-    final picker = ImagePicker();
-    final file = await picker.pickImage(
-      source: ImageSource.camera,
-      maxWidth: _visionImageMaxSide.toDouble(),
-      maxHeight: _visionImageMaxSide.toDouble(),
-      imageQuality: _visionImageJpegQuality,
+  /// Desktop gallery-pick via the native file dialog. Resize/compress still
+  /// happens later in the shared send path (_resizeVisionImageBytes).
+  Future<void> _pickImageDesktop() async {
+    final picked = await FilePicker.pickFiles(
+      type: FileType.image,
+      withData: false,
     );
-    if (file != null) {
-      selectedImagePath.value = file.path;
-      selectedImageBase64.value = null;
-      selectedFileName.value = file.name;
-      selectedFilePath.value = file.path;
-      selectedFileType.value = 'image';
-      selectedFileSize.value = await file.length();
-      selectedFileContent.value = null;
-      _checkVisionSupport();
+    final files = picked?.files;
+    if (files == null || files.isEmpty) return;
+    final path = files.first.path;
+    if (path == null || path.isEmpty) return;
+    final file = File(path);
+    if (!await file.exists()) return;
+    selectedImagePath.value = path;
+    selectedImageBase64.value = null;
+    selectedFileName.value = path.split(Platform.pathSeparator).last;
+    selectedFilePath.value = path;
+    selectedFileType.value = 'image';
+    selectedFileSize.value = await file.length();
+    selectedFileContent.value = null;
+    _checkVisionSupport();
+  }
+
+  Future<void> takePhoto() async {
+    // No camera capture on desktop — fail with guidance, not a plugin crash.
+    if (!kIsWeb &&
+        (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      Get.snackbar('Camera Unavailable',
+          'Photo capture needs the Android app — pick an image instead.',
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: _visionImageMaxSide.toDouble(),
+        maxHeight: _visionImageMaxSide.toDouble(),
+        imageQuality: _visionImageJpegQuality,
+      );
+      if (file != null) {
+        selectedImagePath.value = file.path;
+        selectedImageBase64.value = null;
+        selectedFileName.value = file.name;
+        selectedFilePath.value = file.path;
+        selectedFileType.value = 'image';
+        selectedFileSize.value = await file.length();
+        selectedFileContent.value = null;
+        _checkVisionSupport();
+      }
+    } catch (e) {
+      Get.find<AppLogService>().error('Photo capture failed',
+          details: e, category: LogCategory.chat);
+      Get.snackbar('Camera Failed', 'Could not capture a photo.',
+          snackPosition: SnackPosition.BOTTOM);
     }
   }
 
@@ -790,7 +921,9 @@ class ChatController extends GetxController {
 
       void bufferToken(String t) {
         tokenBuf.write(t);
-        tokenFlushTimer ??= Timer(const Duration(milliseconds: 40), () {
+        // Coalesce to ~7fps: 40ms flushed every token batch and rebuilt the
+        // entire list per flush. 150ms is visually identical for readers.
+        tokenFlushTimer ??= Timer(const Duration(milliseconds: 150), () {
           flushTokens();
           tokenFlushTimer = null;
         });

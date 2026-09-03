@@ -36,6 +36,9 @@ class AppSettingsView extends GetView<SettingsController> {
         AppSnackbar.showTop('Nothing to export',
             'No chats found. Start a conversation first.',
             icon: LucideIcons.info, type: 'general', logHistory: false);
+      } else if (err == 'cancelled') {
+        // User dismissed the desktop save dialog — stay silent.
+        return;
       } else if (err != null) {
         AppSnackbar.showTop('Export failed',
             'Something went wrong while creating the backup.',
@@ -227,11 +230,13 @@ class AppSettingsView extends GetView<SettingsController> {
                       leading: const Icon(LucideIcons.fingerprint,
                           size: 20, color: Dt.accent),
                       title: 'App Lock',
-                      subtitle: controller.biometricsAvailable.value
-                          ? (controller.appLockEnabled.value
-                              ? 'Biometrics or device PIN required to open the app'
-                              : 'Require biometrics or device PIN to open the app')
-                          : 'No biometric hardware detected on this device',
+                      subtitle: !controller.biometricsAvailable.value
+                          ? 'No biometric hardware detected on this device'
+                          : !controller.hasEnrolledBiometrics.value
+                              ? 'Nothing enrolled — device PIN will be used'
+                              : (controller.appLockEnabled.value
+                                  ? 'Biometrics or device PIN required to open the app'
+                                  : 'Require biometrics or device PIN to open the app'),
                       value: controller.appLockEnabled.value,
                       onChanged: (v) => controller.setAppLockEnabled(v),
                     )),

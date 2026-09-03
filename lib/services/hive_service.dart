@@ -130,6 +130,10 @@ class _MemoryBox implements Box<dynamic> {
 }
 
 class HiveService extends GetxService {
+  /// Gallery keeps at most this many generations — older rows (and their
+  /// PNG files) are evicted on save. Prevents unbounded Hive + disk growth.
+  static const int maxImageHistory = 200;
+
   late Box _sessionsBox;
   late Box _messagesBox;
   late Box _tasksBox;
@@ -627,6 +631,22 @@ class HiveService extends GetxService {
     try {
       if (!_isBoxUsable(_imageHistoryBox)) return;
       await _imageHistoryBox.put(id, data);
+      // Cap growth: evict oldest beyond 200 (files deleted with rows).
+      if (_imageHistoryBox.length > maxImageHistory) {
+        final stamps = <String, int>{};
+        for (final k in _imageHistoryBox.keys) {
+          final v = _imageHistoryBox.get(k);
+          if (v is Map) {
+            stamps[k.toString()] =
+                (v['timestampMs'] as num?)?.toInt() ?? 0;
+          }
+        }
+        final oldest = stamps.entries.toList()
+          ..sort((a, b) => a.value.compareTo(b.value));
+        for (var i = 0; i < oldest.length - maxImageHistory; i++) {
+          await deleteImageHistory(oldest[i].key);
+        }
+      }
     } on HiveError {
       // gallery write failures are non-fatal
     } catch (_) {}

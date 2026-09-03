@@ -339,6 +339,8 @@ class _GalleryTile extends StatelessWidget {
                     Image.file(
                       file,
                       fit: BoxFit.cover,
+                      // Grid tile only — viewer opens the full file.
+                      cacheWidth: 512,
                       errorBuilder: (_, __, ___) => _broken(context),
                       gaplessPlayback: true,
                     )
