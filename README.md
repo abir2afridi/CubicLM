@@ -71,6 +71,14 @@ The chat page can fetch live web content on its own — no external services or 
 - Up to 3 links per message, ~9K characters per page, 15s timeout per fetch
 - **Visible sources** — every successful fetch is shown below the assistant’s answer as tappable chips with **favicon** (Google S2) + domain + page title; failed fetches are not shown but logged. No more “is web search working?” — you see exactly which sites were used, like ChatGPT/Claude, and can tap to open them. Great for “summarize this article”, “what changed on this docs page”, or grounding answers in real data
 
+### 🧠 Chat Context Memory (follow-ups don't get lost)
+
+- **History from storage, not the UI window** — every send rebuilds context from Hive (last 40 turns, chronological); the visible list is paged and never truncates what the model sees
+- **Token-budget trim** — local: history capped at ~60% of Context Size (~4 chars/token); cloud: 48k-char budget. Oversized single turns (e.g. a full HTML file) are **middle-truncated** (head + tail kept, `…middle trimmed…` marker) instead of dropped, and the current + previous turn are **always kept** — so "make this better" still resolves to the code above it
+- **UI fallback** — if storage ever returns empty while the chat shows turns, the visible list is used (with a warning in System Logs) instead of sending zero context silently
+- **Proof in logs** — every send writes `Chat context: N turns, ~M tokens (user…user[, trimmed K])` to System Logs (Chat category): roles + sizes only, never content
+- **Tip for code follow-ups** — long code answers eat context fast: use a 3B+ model (or a strong cloud model) and raise **Nodes › Config → Context Size** if the device allows; small 0.6B–1B models may still ask "which game?" on their own
+
 ### ☁️ Cloud AI Providers
 
 - **OpenRouter** (multi-provider gateway — hundreds of models, free tier)
@@ -184,6 +192,7 @@ Opened from the chat header — mirrors the Explore page's layout:
 - **Log persistence** — logs survive app restarts (saved to JSON, max 500 entries)
 - **Export** — copies full diagnostic report (health summary + all logs) to clipboard (top toast)
 - **Crash pattern details** — occurrence count, last-seen timestamp, and fix suggestion for each detected issue
+- **Chat context proof** — every chat send logs `Chat context: N turns, ~M tokens…` (Chat category) so a "model forgot" report is instantly diagnosable
 
 ## 🤖 Supported Models
 
@@ -254,7 +263,7 @@ lib/
 │   ├── notification_entry.dart  # Model-switch history entry (title/message/type/timestamp/read)
 │   └── skill_model.dart         # Skill (name/description/content/enabled/isBuiltIn/source)
 ├── controllers/
-│   ├── chat_controller.dart     # Chat logic, streaming, per-prompt skill/web-source tracking (webSources + usedSkills persisted)
+│   ├── chat_controller.dart     # Chat logic, streaming, per-prompt skill/web-source tracking (webSources + usedSkills persisted), storage-built history with token-budget trim + UI fallback
 │   ├── cloud_model_controller.dart  # Cloud model selection
 │   ├── home_controller.dart     # Tab navigation, model resume (520ms delay, async file check, 90s crash guard, 80% RAM guard, chat-idle defer)
 │   ├── model_controller.dart    # Model download/import management
