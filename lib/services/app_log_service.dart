@@ -20,7 +20,15 @@ enum LogCategory {
 }
 
 class AppLogEntry {
+  /// First occurrence time (kept as `timestamp` for compatibility).
   final DateTime timestamp;
+
+  /// Last occurrence time (== timestamp until the first repeat).
+  DateTime lastAt;
+
+  /// How many identical occurrences collapsed into this row.
+  int count;
+
   final String level;
   final String message;
   final String? details;
@@ -32,33 +40,79 @@ class AppLogEntry {
     this.details,
     this.category = LogCategory.system,
     DateTime? timestamp,
-  }) : timestamp = timestamp ?? DateTime.now();
+    DateTime? lastAt,
+    this.count = 1,
+  })  : timestamp = timestamp ?? DateTime.now(),
+        lastAt = lastAt ?? timestamp ?? DateTime.now();
 
   bool get isImportant => level == 'ERROR' || level == 'WARNING';
 
+  /// Exact-match key parts are compared field-wise (never concatenated)
+  /// so multi-KB stack traces don't allocate on every log call.
+  bool sameAs(String level, String message, String? details,
+      LogCategory category) {
+    if (this.level != level ||
+        this.category != category ||
+        this.message != message) {
+      return false;
+    }
+    final a = this.details, b = details;
+    if (a == null || a.isEmpty) return b == null || b.isEmpty;
+    if (b == null || b.isEmpty) return false;
+    if (a.length != b.length) return false;
+    return a == b;
+  }
+
   Map<String, dynamic> toJson() => {
         't': timestamp.toIso8601String(),
+        'last': lastAt.toIso8601String(),
+        'n': count,
         'l': level,
         'm': message,
         'd': details,
         'c': category.name,
       };
 
-  factory AppLogEntry.fromJson(Map<String, dynamic> j) => AppLogEntry(
-        timestamp: DateTime.parse(j['t']),
-        level: j['l'],
-        message: j['m'],
-        details: j['d'],
-        category: LogCategory.values.firstWhere(
-          (e) => e.name == j['c'],
-          orElse: () => LogCategory.system,
-        ),
-      );
+  factory AppLogEntry.fromJson(Map<String, dynamic> j) {
+    final first = DateTime.parse(j['t']);
+    return AppLogEntry(
+      timestamp: first,
+      lastAt: j['last'] != null ? DateTime.tryParse(j['last']) ?? first : first,
+      count: (j['n'] as num?)?.toInt() ?? 1,
+      level: j['l'],
+      message: j['m'],
+      details: j['d'],
+      category: LogCategory.values.firstWhere(
+        (e) => e.name == j['c'],
+        orElse: () => LogCategory.system,
+      ),
+    );
+  }
 
   String format() {
     final buffer = StringBuffer()
       ..write('[${timestamp.toIso8601String()}] ')
       ..write('$level [${category.label}]: $message');
+    if (details != null && details!.trim().isNotEmpty) {
+      buffer.write('\n$details');
+    }
+    return buffer.toString();
+  }
+
+  /// Export rendering: one full body no matter how many repeats, with a
+  /// `×N · first … · last …` header so pastes stay compact and readable.
+  String formatForExport() {
+    final buffer = StringBuffer()
+      ..write('[${timestamp.toIso8601String()}] ')
+      ..write('$level [${category.label}]');
+    if (count > 1) {
+      buffer
+        ..write(' (×$count')
+        ..write(', first ${timestamp.toIso8601String()}')
+        ..write(', last ${lastAt.toIso8601String()}')
+        ..write(')');
+    }
+    buffer.write(': $message');
     if (details != null && details!.trim().isNotEmpty) {
       buffer.write('\n$details');
     }
@@ -222,11 +276,19 @@ class AppLogService extends GetxService {
   }
 
   void _add(String level, String message, Object? details, LogCategory? cat) {
+    final category = cat ?? LogCategory.system;
+    final detailsStr = details?.toString();
+
+    // Collapse exact repeats into one row (count + last-seen bump) instead
+    // of appending N identical multi-KB bodies. Any single-symbol change
+    // is a different key and stays its own row.
+    if (_bumpDuplicate(level, message, detailsStr, category)) return;
+
     final entry = AppLogEntry(
       level: level,
       message: message,
-      details: details?.toString(),
-      category: cat ?? LogCategory.system,
+      details: detailsStr,
+      category: category,
     );
     _pendingEntries.insert(0, entry);
 
@@ -254,6 +316,39 @@ class AppLogService extends GetxService {
         extra: {'app_log_level': level, 'category': (cat ?? LogCategory.system).name},
       );
     }
+  }
+
+  /// Returns true when an identical row already exists (pending or shown)
+  /// and was bumped instead. The match is exact: any single-symbol change
+  /// in message/details (or level/category) is a different row.
+  bool _bumpDuplicate(String level, String message, String? detailsStr,
+      LogCategory category) {
+    final now = DateTime.now();
+    for (final e in _pendingEntries) {
+      if (e.sameAs(level, message, detailsStr, category)) {
+        e.count++;
+        e.lastAt = now;
+        return true;
+      }
+    }
+    var moved = false;
+    for (var i = 0; i < entries.length; i++) {
+      final e = entries[i];
+      if (e.sameAs(level, message, detailsStr, category)) {
+        e.count++;
+        e.lastAt = now;
+        if (i > 0) {
+          // Re-surface recurrences at the top without duplicating rows.
+          entries.removeAt(i);
+          entries.insert(0, e);
+        } else {
+          entries.refresh();
+        }
+        moved = true;
+        break;
+      }
+    }
+    return moved;
   }
 
   // --- Search & Filter ---
@@ -284,14 +379,24 @@ class AppLogService extends GetxService {
 
   // --- Health Diagnostics ---
 
-  int get errorCount => entries.where((e) => e.level == 'ERROR').length;
-  int get warningCount => entries.where((e) => e.level == 'WARNING').length;
+  /// Total occurrences (repeats counted), not just unique rows.
+  int get errorCount =>
+      entries.where((e) => e.level == 'ERROR').fold(0, (s, e) => s + e.count);
+  int get warningCount => entries
+      .where((e) => e.level == 'WARNING')
+      .fold(0, (s, e) => s + e.count);
+
+  /// Unique error rows (after dedup).
+  int get uniqueErrorCount =>
+      entries.where((e) => e.level == 'ERROR').length;
 
   DateTime? get lastError {
-    try {
-      return entries.firstWhere((e) => e.level == 'ERROR').timestamp;
-    } catch (_) {}
-    return null;
+    DateTime? latest;
+    for (final e in entries) {
+      if (e.level != 'ERROR') continue;
+      if (latest == null || e.lastAt.isAfter(latest)) latest = e.lastAt;
+    }
+    return latest;
   }
 
   List<CrashPattern> get detectedPatterns {
@@ -299,8 +404,12 @@ class AppLogService extends GetxService {
     for (final pattern in crashPatterns) {
       final matches = entries.where((e) => pattern.matcher(e)).toList();
       if (matches.isNotEmpty) {
-        pattern.occurrences = matches.length;
-        pattern.lastSeen = matches.first.timestamp;
+        pattern.occurrences = matches.fold(0, (s, e) => s + e.count);
+        DateTime? last;
+        for (final m in matches) {
+          if (last == null || m.lastAt.isAfter(last)) last = m.lastAt;
+        }
+        pattern.lastSeen = last ?? matches.first.timestamp;
         detected.add(pattern);
       }
     }
@@ -321,8 +430,11 @@ class AppLogService extends GetxService {
     final patterns = detectedPatterns;
     final buf = StringBuffer();
     buf.writeln('=== CubicLM System Health ===');
-    buf.writeln('Total logs: ${entries.length}');
+    buf.writeln('Total rows: ${entries.length}');
     buf.writeln('Errors: $errorCount  |  Warnings: $warningCount');
+    if (uniqueErrorCount != errorCount) {
+      buf.writeln('(unique error rows: $uniqueErrorCount)');
+    }
     if (lastError != null) {
       buf.writeln('Last error: ${_fmtTime(lastError!)}');
     }
@@ -382,9 +494,9 @@ class AppLogService extends GetxService {
     final buf = StringBuffer();
     buf.writeln(healthSummary);
     buf.writeln('');
-    buf.writeln('=== Full Log ===');
+    buf.writeln('=== Full Log (${entries.length} rows) ===');
     for (final e in entries) {
-      buf.writeln(e.format());
+      buf.writeln(e.formatForExport());
       buf.writeln('');
     }
     return buf.toString();
@@ -392,7 +504,20 @@ class AppLogService extends GetxService {
 
   String get shareText {
     final selected = importantEntries.isEmpty ? entries : importantEntries;
-    return selected.map((entry) => entry.format()).join('\n\n');
+    return selected.map((entry) => entry.formatForExport()).join('\n\n');
+  }
+
+  /// Suggested filename for the .txt export (app version + timestamp).
+  String exportFileName(String appVersion) {
+    final stamp = DateTime.now()
+        .toIso8601String()
+        .split('.')
+        .first
+        .replaceAll(':', '-');
+    final ver = appVersion.trim().isEmpty
+        ? 'unknown'
+        : appVersion.trim().replaceAll(RegExp(r'[^\w.\-]+'), '_');
+    return 'cubiclm_logs_${ver}_$stamp.txt';
   }
 
   void clear() {

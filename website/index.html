@@ -193,18 +193,18 @@
   <div class="download-label">Download CubicLM</div>
   <div class="download-title">Download CubicLM</div>
   <div class="download-grid">
-    <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.3.0/cubiclm-v1.3.0-windows-x64.zip" download class="download-card">
+    <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.4.0/cubiclm-v1.4.0-windows-x64.zip" download class="download-card">
       <div class="download-card-icon"><img src="https://img.icons8.com/?size=96&id=gXoJoyTtYXFg&format=png" alt="Windows" width="40" height="40" style="object-fit:contain;border-radius:4px"></div>
       <div class="download-card-title">Windows</div>
       <div class="download-card-desc">Full desktop app: chat, 20+ cloud providers, backup & restore, App Lock, and Model Hub with keyboard shortcuts.</div>
-      <div class="download-card-size">ZIP · v1.3.0 · Windows 10+ · 16 MB</div>
+      <div class="download-card-size">ZIP · v1.4.0 · Windows 10+ · 16 MB</div>
       <div class="download-card-btn"><i class="ri-download-line"></i> Download for Windows</div>
     </a>
-    <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.3.0/cubiclm-v1.3.0-arm64-v8a.apk" download class="download-card">
+    <a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.4.0/cubiclm-v1.4.0-arm64-v8a.apk" download class="download-card">
       <div class="download-card-icon"><img src="https://img.icons8.com/?size=96&id=P2AnGyiJxMpp&format=png" alt="Android" width="40" height="40" style="object-fit:contain;border-radius:4px"></div>
       <div class="download-card-title">Android</div>
       <div class="download-card-desc">On-device inference with LiteRT-LM and llama.cpp. Run GGUF models directly on your phone — no cloud needed.</div>
-      <div class="download-card-size">APK · v1.3.0 · Android 9+ · arm64</div>
+      <div class="download-card-size">APK · v1.4.0 · Android 9+ · arm64</div>
       <div class="download-card-btn"><i class="ri-download-line"></i> Download for Android</div>
     </a>
   </div>
@@ -739,7 +739,8 @@
   <div class="changelog-title">Changelog</div>
   <div class="changelog-box">
     <div class="changelog-tabs" id="changelog-tabs">
-      <button class="changelog-tab active" data-version="v1.3.0+8">v1.3.0+8 <span class="tab-date">2026-09-03</span></button>
+      <button class="changelog-tab active" data-version="v1.4.0+9">v1.4.0+9 <span class="tab-date">2026-09-04</span></button>
+      <button class="changelog-tab" data-version="v1.3.0+8">v1.3.0+8 <span class="tab-date">2026-09-03</span></button>
       <button class="changelog-tab" data-version="v1.2.0+7">v1.2.0+7 <span class="tab-date">2026-08-28</span></button>
       <button class="changelog-tab" data-version="v1.1.0+6">v1.1.0+6 <span class="tab-date">2026-08-28</span></button>
       <button class="changelog-tab" data-version="v1.0.5+5">v1.0.5+5 <span class="tab-date">2026-08-28</span></button>
@@ -747,7 +748,31 @@
       <button class="changelog-tab" data-version="v1.0.0">v1.0.0 <span class="tab-date">2026-08-01</span></button>
     </div>
     <div class="changelog-panel">
-      <div class="changelog-detail" id="changelog-v1.3.0+8">
+      <div class="changelog-detail" id="changelog-v1.4.0+9">
+        <h3>v1.4.0+9 <span class="changelog-date">2026-09-04</span></h3>
+        <h4>Added</h4>
+        <ul>
+          <li><strong>Find in chat</strong> — in-conversation search with match counter, prev/next jump, and deep search across older pages.</li>
+          <li><strong>Per-chat persona &amp; archiving</strong> — extra instructions per conversation; hide chats with a show/hide toggle.</li>
+          <li><strong>Encrypted backups</strong> — optional AES-256-CBC passphrase encryption plus optional image inclusion.</li>
+          <li><strong>Multi-MCP servers</strong> — several servers at once, per-server tokens, merged tools, collision-safe routing.</li>
+          <li><strong>Image controls</strong> — negative prompt, guidance (CFG) slider, fixed/random seed.</li>
+          <li><strong>Hands-free voice mode</strong> — listen → auto-send → speak reply → listen loop.</li>
+          <li><strong>Tasks export ADB scripts</strong> — planner output as runnable <code>.sh</code> via share sheet.</li>
+          <li><strong>OTA model catalog</strong> — new models without app releases; <strong>powerful system logs</strong> with dedup + <code>.txt</code> export.</li>
+        </ul>
+        <h4>Changed</h4>
+        <ul>
+          <li><strong>Updater picks the right APK</strong> — ABI-matched split + install-permission gate; <strong>server secure by default</strong>.</li>
+          <li><strong>Streaming performance</strong> — memoized markdown, chat pagination, search on isolate, heavy CPU on workers.</li>
+          <li><strong>Deps</strong> — dead <code>flutter_inappwebview</code> removed, STT 7.4, Windows STT plugin fix.</li>
+        </ul>
+        <h4>Fixed</h4>
+        <ul>
+          <li>Mic silent fail, STT locale, backup restore, lock race, Windows image-attach crash, pin sort, stale channel name.</li>
+        </ul>
+      </div>
+      <div class="changelog-detail" id="changelog-v1.3.0+8" style="display:none">
         <h3>v1.3.0+8 <span class="changelog-date">2026-09-03</span></h3>
         <h4>Added</h4>
         <ul>

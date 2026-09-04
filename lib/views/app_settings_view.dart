@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../controllers/chat_controller.dart';
+import '../core/routes.dart';
 import '../core/colors.dart';
 import '../services/tts_service.dart';
 import '../services/update_service.dart';
@@ -26,12 +27,17 @@ class AppSettingsView extends GetView<SettingsController> {
 
   // ── Backup / Restore ──
   Future<void> _exportAllChats() async {
+    final opts = await _showBackupOptionsDialog();
+    if (opts == null) return; // cancelled
     try {
       if (!Get.isRegistered<ChatController>()) {
         Get.put(ChatController());
       }
       final chat = Get.find<ChatController>();
-      final err = await chat.exportAllChats();
+      final err = await chat.exportAllChats(
+        includeImages: opts.includeImages,
+        passphrase: opts.passphrase.isEmpty ? null : opts.passphrase,
+      );
       if (err == 'empty') {
         AppSnackbar.showTop('Nothing to export',
             'No chats found. Start a conversation first.',
@@ -45,11 +51,75 @@ class AppSettingsView extends GetView<SettingsController> {
             icon: LucideIcons.alertTriangle,
             type: 'error',
             iconName: 'alert');
+      } else if (opts.passphrase.isNotEmpty) {
+        AppSnackbar.showTop('Encrypted backup saved',
+            'Keep your passphrase safe — it cannot be recovered.',
+            icon: LucideIcons.lock, type: 'success', iconName: 'lock');
       }
     } catch (_) {
       AppSnackbar.showTop('Export failed',
           'Something went wrong while creating the backup.',
           icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
+    }
+  }
+
+  /// Export options: include images + optional passphrase encryption.
+  Future<_BackupOptions?> _showBackupOptionsDialog() async {
+    var includeImages = false;
+    final passCtrl = TextEditingController();
+    try {
+      return await Get.dialog<_BackupOptions>(
+        AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Export backup'),
+          content: StatefulBuilder(
+            builder: (ctx, setState) => Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CheckboxListTile(
+                  value: includeImages,
+                  onChanged: (v) =>
+                      setState(() => includeImages = v ?? false),
+                  title: const Text('Include images'),
+                  subtitle: const Text(
+                      'Much larger file. Needed to restore pictures.'),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: passCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Passphrase (optional)',
+                    hintText: 'Encrypts the backup (AES-256)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(result: null),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Get.back(
+                result: _BackupOptions(
+                  includeImages: includeImages,
+                  passphrase: passCtrl.text,
+                ),
+              ),
+              child: const Text('Export'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      passCtrl.dispose();
     }
   }
 
@@ -63,9 +133,20 @@ class AppSettingsView extends GetView<SettingsController> {
       switch (err) {
         case 'cancelled':
           return;
+        case 'locked':
+          // Encrypted backup — ask passphrase and retry once.
+          final pass = await _showPassphraseDialog();
+          if (pass == null || pass.isEmpty) return;
+          final retry = await chat.importChats(passphrase: pass);
+          if (retry == null || retry.startsWith('ok:')) {
+            _showRestoreDone(retry);
+          } else {
+            _showImportError(retry);
+          }
+          return;
         case 'invalid':
           AppSnackbar.showTop('Invalid file',
-              'That file is not a CubicLM chat backup.',
+              'Not a CubicLM backup — or the passphrase is wrong.',
               icon: LucideIcons.alertTriangle,
               type: 'error',
               iconName: 'alert');
@@ -84,21 +165,76 @@ class AppSettingsView extends GetView<SettingsController> {
           return;
         default:
           if (err != null && err.startsWith('ok:')) {
-            final parts = err.split(':');
-            final sessions = parts.length > 1 ? parts[1] : '0';
-            final messages = parts.length > 2 ? parts[2] : '0';
-            AppSnackbar.showTop(
-                'Backup restored',
-                '$sessions chats and $messages messages imported.',
-                icon: LucideIcons.checkCircle2,
-                type: 'success',
-                iconName: 'check');
+            _showRestoreDone(err);
           }
       }
     } catch (_) {
       AppSnackbar.showTop('Import failed',
           'Something went wrong while reading the backup.',
           icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
+    }
+  }
+
+  void _showRestoreDone(String? err) {
+    final parts = (err ?? '').split(':');
+    final sessions = parts.length > 1 ? parts[1] : '0';
+    final messages = parts.length > 2 ? parts[2] : '0';
+    AppSnackbar.showTop(
+        'Backup restored',
+        '$sessions chats and $messages messages imported.',
+        icon: LucideIcons.checkCircle2,
+        type: 'success',
+        iconName: 'check');
+  }
+
+  void _showImportError(String err) {
+    if (err == 'invalid') {
+      AppSnackbar.showTop('Invalid file',
+          'Not a CubicLM backup — or the passphrase is wrong.',
+          icon: LucideIcons.alertTriangle,
+          type: 'error',
+          iconName: 'alert');
+    } else {
+      AppSnackbar.showTop('Import failed',
+          'Something went wrong while reading the backup.',
+          icon: LucideIcons.alertTriangle,
+          type: 'error',
+          iconName: 'alert');
+    }
+  }
+
+  Future<String?> _showPassphraseDialog() async {
+    final c = TextEditingController();
+    try {
+      return await Get.dialog<String>(
+        AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Encrypted backup'),
+          content: TextField(
+            controller: c,
+            autofocus: true,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Passphrase',
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (_) => Get.back(result: c.text),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Get.back(result: null),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Get.back(result: c.text),
+              child: const Text('Unlock'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      c.dispose();
     }
   }
 
@@ -260,8 +396,20 @@ class AppSettingsView extends GetView<SettingsController> {
                       size: 20, color: Dt.accent),
                   title: 'Import chats',
                   subtitle: 'Restore from a CubicLM backup file',
-                  showDivider: false,
                   onTap: () => _importChats(),
+                ),
+                _appleListTile(
+                  context,
+                  isDark,
+                  leading: const Icon(LucideIcons.graduationCap,
+                      size: 20, color: Dt.accent),
+                  title: 'Replay onboarding',
+                  subtitle: 'Walk through setup again',
+                  showDivider: false,
+                  onTap: () async {
+                    await controller.resetOnboarding();
+                    Get.offAllNamed(AppRoutes.onboarding);
+                  },
                 ),
               ]),
               const SizedBox(height: 28),
@@ -810,4 +958,11 @@ class AppSettingsView extends GetView<SettingsController> {
               color: Theme.of(context).hintColor)),
     );
   }
+}
+
+/// Backup export choices from the export-options dialog.
+class _BackupOptions {
+  final bool includeImages;
+  final String passphrase;
+  const _BackupOptions({required this.includeImages, required this.passphrase});
 }

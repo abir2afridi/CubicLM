@@ -47,6 +47,27 @@ class ChatBubble extends StatefulWidget {
 class _ChatBubbleState extends State<ChatBubble> {
   bool _copied = false;
 
+  // Memoized per state instance: stylesheet + code builders are rebuilt
+  // only when inherited deps change (theme/brightness), not on every
+  // build — previously paid fromTheme + GoogleFonts + 2 allocs per bubble
+  // per frame while streaming.
+  MarkdownStyleSheet? _mdSheet;
+  MarkdownStyleSheet? _thoughtSheet;
+  CodeBlockBuilder? _codeBuilder;
+  Brightness? _sheetBrightness;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final brightness = Theme.of(context).brightness;
+    if (_mdSheet == null || _sheetBrightness != brightness) {
+      _sheetBrightness = brightness;
+      _mdSheet = _markdownStyle(context);
+      _thoughtSheet = _thoughtMarkdownStyle(context);
+      _codeBuilder = CodeBlockBuilder(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isUser = widget.message.role == 'user';
@@ -141,7 +162,8 @@ class _ChatBubbleState extends State<ChatBubble> {
                           ThoughtDisclosure(
                             thought: thoughtParts.thought,
                             durationSeconds: widget.message.thoughtDurationSeconds,
-                            styleSheet: _thoughtMarkdownStyle(context),
+                            styleSheet: _thoughtSheet ??
+                                _thoughtMarkdownStyle(context),
                           ),
 
                         // Message content
@@ -159,10 +181,13 @@ class _ChatBubbleState extends State<ChatBubble> {
                           MarkdownBody(
                             data: answerContent,
                             selectable: true,
-                            styleSheet: _markdownStyle(context),
+                            styleSheet:
+                                _mdSheet ?? _markdownStyle(context),
                             builders: {
-                              'code': CodeBlockBuilder(context),
-                              'pre': CodeBlockBuilder(context),
+                              'code': _codeBuilder ??
+                                  CodeBlockBuilder(context),
+                              'pre': _codeBuilder ??
+                                  CodeBlockBuilder(context),
                             },
                           ),
 

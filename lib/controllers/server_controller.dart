@@ -64,6 +64,22 @@ class ServerController extends GetxController {
       return;
     }
 
+    // Secure by default: the server binds LAN (anyIPv4), so the first start
+    // auto-generates an API key and enforces it. Users can still toggle
+    // auth off afterwards — that choice persists.
+    final configured =
+        _hive.getSetting<bool>(AppConstants.keyServerAuthConfigured) ?? false;
+    if (!configured) {
+      await generateApiKey();
+      await _hive.setSetting(AppConstants.keyServerAuthConfigured, true);
+      Get.snackbar(
+        'API key auto-enabled',
+        'The local server is reachable on your network — copy the key from the Server tab.',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 5),
+      );
+    }
+
     isStarting.value = true;
     serverStatus.value = 'Starting server...';
     await saveSettings();

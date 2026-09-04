@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -56,13 +57,39 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
         final decoded = jsonDecode(await f.readAsString());
         if (decoded is Map) {
           decoded.forEach((k, v) {
-            if (v is Map) _pausedRecords[k.toString()] = Map<String, dynamic>.from(v);
+            if (v is Map) {
+              _pausedRecords[k.toString()] =
+                  Map<String, dynamic>.from(v);
+            }
           });
         }
+      }
+      // Hygiene: cap entries + drop stale ones (older than 30d or no URL).
+      if (_pausedRecords.length > _maxPausedRecords ||
+          _pausedRecords.values.any(_isStalePausedRecord)) {
+        _pausedRecords.removeWhere(
+            (k, v) => _isStalePausedRecord(v));
+        while (_pausedRecords.length > _maxPausedRecords) {
+          _pausedRecords.remove(_pausedRecords.keys.first);
+        }
+        await _savePausedRecords();
       }
     } catch (e) {
       print('[DownloadService] Failed to load paused downloads: $e');
     }
+  }
+
+  /// Max persisted paused-download records + their TTL.
+  static const int _maxPausedRecords = 20;
+  static const Duration _pausedRecordTtl = Duration(days: 30);
+
+  bool _isStalePausedRecord(Map<String, dynamic> record) {
+    final url = (record['url'] ?? '').toString();
+    if (url.isEmpty) return true;
+    final savedAt = (record['savedAtMs'] as num?)?.toInt() ?? 0;
+    if (savedAt <= 0) return false; // legacy record without stamp: keep
+    return DateTime.now().millisecondsSinceEpoch - savedAt >
+        _pausedRecordTtl.inMilliseconds;
   }
 
   Future<void> _savePausedRecords() async {
@@ -95,6 +122,32 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
     if (total > 0) {
       dp.progress.value = (received / total).clamp(0.0, 1.0);
     }
+  }
+
+  /// Deletes `.part` resume files older than 7 days that have no paused
+  /// record and no active download (crash leftovers). Younger orphans are
+  /// kept — the user may still resume them.
+  Future<void> _sweepStalePartFiles() async {
+    if (kIsWeb) return;
+    try {
+      await _loadPausedRecords();
+      final dir = Directory(await modelsDir);
+      if (!await dir.exists()) return;
+      final cutoff = DateTime.now().subtract(const Duration(days: 7));
+      await for (final e in dir.list()) {
+        if (e is! File || !e.path.endsWith('.part')) continue;
+        final name =
+            e.path.split(Platform.pathSeparator).last;
+        final base =
+            name.substring(0, name.length - '.part'.length);
+        if (activeDownloads.containsKey(base)) continue;
+        if (_pausedRecords.containsKey(base)) continue;
+        try {
+          final stat = await e.stat();
+          if (stat.modified.isBefore(cutoff)) await e.delete();
+        } catch (_) {}
+      }
+    } catch (_) {}
   }
 
   bool get isDownloadingAny => activeDownloads.isNotEmpty;
@@ -131,6 +184,9 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
   @override
   void onInit() {
     super.onInit();
+
+    // Sweep crash-orphaned .part files (all platforms, fire-and-forget).
+    unawaited(_sweepStalePartFiles());
 
     if (!kIsWeb && Platform.isAndroid) {
       WidgetsBinding.instance.addObserver(this);
@@ -326,6 +382,7 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
               'authToken': dp.authToken,
               'downloaded': downloaded,
               'total': total,
+              'savedAtMs': DateTime.now().millisecondsSinceEpoch,
             };
           }
           await _savePausedRecords();
@@ -515,6 +572,7 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
       'authToken': dp.authToken,
       'downloaded': dp.downloadedBytes.value,
       'total': dp.totalBytes.value,
+      'savedAtMs': DateTime.now().millisecondsSinceEpoch,
     };
     await _savePausedRecords();
   }
@@ -588,6 +646,7 @@ class DownloadService extends GetxService with WidgetsBindingObserver {
         'authToken': dp.authToken,
         'downloaded': dp.downloadedBytes.value,
         'total': dp.totalBytes.value,
+        'savedAtMs': DateTime.now().millisecondsSinceEpoch,
       };
       await _savePausedRecords();
       Get.snackbar('Resume failed', '$e',

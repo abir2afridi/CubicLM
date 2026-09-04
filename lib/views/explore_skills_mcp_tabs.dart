@@ -794,62 +794,52 @@ class ExploreMcpTab extends StatefulWidget {
 }
 
 class _ExploreMcpTabState extends State<ExploreMcpTab> {
-  final _nameCtrl = TextEditingController();
-  final _urlCtrl = TextEditingController();
-  final _tokenCtrl = TextEditingController();
-  bool _obscure = true;
-  bool _saving = false;
-  bool _inited = false;
-
   McpRegistryService get _reg => Get.find<McpRegistryService>();
 
-  @override
-  void initState() {
-    super.initState();
-    _reg.getToken().then((v) {
-      if (mounted && v != null) _tokenCtrl.text = v;
-    });
+  Future<void> _openSheet({McpConfig? existing}) async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => McpServerSheet(existing: existing),
+    );
   }
 
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _urlCtrl.dispose();
-    _tokenCtrl.dispose();
-    super.dispose();
+  Future<void> _confirmDelete(
+      BuildContext context, bool isDark, McpConfig cfg) async {
+    final ok = await Get.dialog<bool>(AlertDialog(
+      backgroundColor: isDark ? Dt.cardDark : Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text('Remove server?',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+      content: Text('This deletes "${cfg.name}" and its token.',
+          style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+      actions: [
+        TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel')),
+        FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Get.back(result: true),
+            child: const Text('Remove')),
+      ],
+    ));
+    if (ok == true) await _reg.removeConfig(cfg.id);
   }
 
-  Future<void> _save({bool enable = false}) async {
-    final name = _nameCtrl.text.trim().isEmpty ? 'Custom MCP' : _nameCtrl.text.trim();
-    final url = _urlCtrl.text.trim();
-    if (url.isEmpty) {
-      Get.snackbar('URL required', 'Please enter your MCP server URL', snackPosition: SnackPosition.BOTTOM);
+  Future<void> _toggleEnable(
+      BuildContext context, bool isDark, McpConfig cfg, bool v) async {
+    if (!v) {
+      await _reg.setEnabled(cfg.id, false);
       return;
     }
-    final uri = Uri.tryParse(url);
-    if (uri == null || !uri.hasScheme || !(uri.scheme == 'http' || uri.scheme == 'https')) {
-      Get.snackbar('Invalid URL', 'Must be http(s)://…', snackPosition: SnackPosition.BOTTOM);
-      return;
-    }
-    setState(() => _saving = true);
-    try {
-      await _reg.setToken(_tokenCtrl.text.trim());
-      final cfg = _reg.config.value;
-      final wasEnabled = cfg?.enabled ?? false;
-      final shouldEnable = enable ? true : wasEnabled;
-      final newCfg = McpConfig(
-          name: name,
-          url: url,
-          transport: McpConfig.inferTransport(url),
-          authType: _tokenCtrl.text.trim().isEmpty ? McpAuthType.none : McpAuthType.bearer,
-          enabled: shouldEnable);
-      await _reg.saveConfig(newCfg);
-      Get.snackbar('Saved', 'MCP server ${shouldEnable ? 'enabled' : 'saved'}',
-          snackPosition: SnackPosition.BOTTOM, backgroundColor: AppColors.success, colorText: Colors.white);
-    } catch (e) {
-      Get.snackbar('Save failed', '$e', snackPosition: SnackPosition.BOTTOM);
-    } finally {
-      if (mounted) setState(() => _saving = false);
+    // Enable first (connects), then confirm with the real tool list —
+    // matches the old single-server flow.
+    await _reg.setEnabled(cfg.id, true);
+    final mine = _reg.toolsFor(cfg.id);
+    if (mine.isNotEmpty && context.mounted) {
+      final ok = await _confirmEnable(context, isDark, mine);
+      if (ok != true) await _reg.setEnabled(cfg.id, false);
     }
   }
 
@@ -857,15 +847,10 @@ class _ExploreMcpTabState extends State<ExploreMcpTab> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Obx(() {
-      final cfg = _reg.config.value;
+      final servers = _reg.configs.toList();
       final status = _reg.status.value;
       final tools = _reg.tools.toList();
       final err = _reg.lastError.value;
-      if (!_inited && cfg != null) {
-        _inited = true;
-        _nameCtrl.text = cfg.name;
-        _urlCtrl.text = cfg.url;
-      }
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           padding: const EdgeInsets.all(16),
@@ -884,9 +869,12 @@ class _ExploreMcpTabState extends State<ExploreMcpTab> {
               const SizedBox(width: 12),
               Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Custom MCP Server',
+                Text('MCP Servers',
                     style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w800)),
-                Text('One remote HTTP/SSE server — no marketplace',
+                Text(
+                    servers.isEmpty
+                        ? 'Connect remote HTTP/SSE servers — no marketplace'
+                        : '${servers.length} server${servers.length == 1 ? '' : 's'} · ${tools.length} tools',
                     style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Theme.of(context).hintColor)),
               ])),
               _statusDot(status),
@@ -896,216 +884,144 @@ class _ExploreMcpTabState extends State<ExploreMcpTab> {
           ]),
         ),
         const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-              color: isDark ? AppColors.surface : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.06) : Dt.hairline)),
-          child: Column(children: [
-            TextField(
-                controller: _nameCtrl,
-                decoration: InputDecoration(
-                    labelText: 'Server name',
-                    hintText: 'My MCP Server',
-                    prefixIcon: const Icon(LucideIcons.tag, size: 18),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    isDense: true)),
-            const SizedBox(height: 12),
-            TextField(
-                controller: _urlCtrl,
-                keyboardType: TextInputType.url,
-                decoration: InputDecoration(
-                    labelText: 'Server URL (http/s)',
-                    hintText: 'https://mcp.example.com/mcp',
-                    prefixIcon: const Icon(LucideIcons.link2, size: 18),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    isDense: true)),
-            const SizedBox(height: 12),
-            TextField(
-                controller: _tokenCtrl,
-                obscureText: _obscure,
-                decoration: InputDecoration(
-                    labelText: 'Bearer token (optional)',
-                    hintText: 'Paste API key / token',
-                    prefixIcon: const Icon(LucideIcons.keyRound, size: 18),
-                    suffixIcon: IconButton(
-                        icon: Icon(_obscure ? LucideIcons.eyeOff : LucideIcons.eye, size: 18),
-                        onPressed: () => setState(() => _obscure = !_obscure)),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    isDense: true)),
-            const SizedBox(height: 4),
-            Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Token stored in secure storage, never in Hive.',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 11, color: Theme.of(context).hintColor))),
-            const SizedBox(height: 14),
-            Row(children: [
-              Expanded(
-                  child: FilledButton.icon(
-                      onPressed: _saving ? null : () => _save(),
-                      icon: _saving
-                          ? const SizedBox(
-                              width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(LucideIcons.save, size: 16),
-                      label: Text(_saving ? 'Saving…' : 'Save',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700)),
-                      style: FilledButton.styleFrom(
-                          backgroundColor: Dt.accent,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 10)))),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                  onPressed: () async {
-                    await _save();
-                    try {
-                      await _reg.testConnection();
-                      Get.snackbar('Connected', 'Server responded',
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.success,
-                          colorText: Colors.white);
-                    } catch (e) {
-                      Get.snackbar('Connection failed', '$e',
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.error,
-                          colorText: Colors.white,
-                          duration: const Duration(seconds: 4));
-                    }
-                  },
-                  icon: const Icon(LucideIcons.activity, size: 16),
-                  label: Text('Test', style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700)),
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: Dt.accent,
-                      side: BorderSide(color: Dt.accent.withValues(alpha: 0.3)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10))),
-            ]),
-          ]),
+        for (final cfg in servers) _serverTile(context, isDark, cfg),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () => _openSheet(),
+            icon: const Icon(LucideIcons.plus, size: 16),
+            label: Text('Add server',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13, fontWeight: FontWeight.w700)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Dt.accent,
+              side: BorderSide(color: Dt.accent.withValues(alpha: 0.3)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
         ),
-        if (cfg != null) ...[
+        if (tools.isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: isDark ? AppColors.surface : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.06) : Dt.hairline)),
-            child: Row(children: [
-              Expanded(
-                  child: Row(children: [
-                Text('Enabled', style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700)),
-                const SizedBox(width: 8),
-                if (tools.isNotEmpty && cfg.enabled && status == McpStatus.connected)
-                  Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
-                      child: Text('${tools.length} tools',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.success))),
-              ])),
-              Switch(
-                  value: cfg.enabled,
-                  activeThumbColor: Dt.accent,
-                  onChanged: (v) async {
-                    if (v && tools.isNotEmpty) {
-                      final ok = await _confirmEnable(context, isDark, tools);
-                      if (ok != true) return;
-                    } else if (v) {
-                      try {
-                        final fetched = await _reg.connect();
-                        if (context.mounted && fetched.isNotEmpty) {
-                          final ok = await _confirmEnable(context, isDark, fetched);
-                          if (ok != true) {
-                            await _reg.disconnect();
-                            return;
-                          }
-                        }
-                      } catch (_) {}
-                    }
-                    final updated = cfg.copyWith(enabled: v);
-                    await _reg.saveConfig(updated);
-                    if (!v) await _reg.disconnect();
-                  }),
+                color: isDark ? Colors.white.withValues(alpha: 0.04) : Dt.pillMuted.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(12)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Exposed tools — model will see these',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12, fontWeight: FontWeight.w700, color: Theme.of(context).hintColor)),
+              const SizedBox(height: 8),
+              for (final t in tools)
+                Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Container(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                              color: Dt.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+                          child: const Icon(LucideIcons.wrench, size: 14, color: Dt.accent)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(t.name,
+                            style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700)),
+                        if (t.description.isNotEmpty)
+                          Text(t.description,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style:
+                                  GoogleFonts.plusJakartaSans(fontSize: 11, color: Theme.of(context).hintColor)),
+                      ])),
+                    ])),
             ]),
           ),
-          if (cfg.enabled && status == McpStatus.connected && tools.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.only(top: 10),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withValues(alpha: 0.04) : Dt.pillMuted.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(12)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Exposed tools — model will see these',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12, fontWeight: FontWeight.w700, color: Theme.of(context).hintColor)),
-                const SizedBox(height: 8),
-                for (final t in tools)
-                  Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                                color: Dt.accent.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-                            child: const Icon(LucideIcons.wrench, size: 14, color: Dt.accent)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(t.name,
-                              style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w700)),
-                          if (t.description.isNotEmpty)
-                            Text(t.description,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style:
-                                    GoogleFonts.plusJakartaSans(fontSize: 11, color: Theme.of(context).hintColor)),
-                        ])),
-                      ])),
-              ]),
-            ),
-          const SizedBox(height: 10),
-          SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                  onPressed: () async {
-                    final ok = await Get.dialog<bool>(AlertDialog(
-                      backgroundColor: isDark ? Dt.cardDark : Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      title: Text('Remove server?', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-                      content: Text('This will delete the URL and token.', style: GoogleFonts.plusJakartaSans(fontSize: 13)),
-                      actions: [
-                        TextButton(onPressed: () => Get.back(result: false), child: const Text('Cancel')),
-                        FilledButton(
-                            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-                            onPressed: () => Get.back(result: true),
-                            child: const Text('Remove')),
-                      ],
-                    ));
-                    if (ok == true) {
-                      await _reg.removeConfig();
-                      _nameCtrl.clear();
-                      _urlCtrl.clear();
-                      _tokenCtrl.clear();
-                    }
-                  },
-                  icon: const Icon(LucideIcons.trash2, size: 16),
-                  label: Text('Remove server',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600)),
-                  style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: BorderSide(color: AppColors.error.withValues(alpha: 0.3)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
         ],
       ]);
     });
   }
 
-  Widget _statusDot(McpStatus s) {
-    final color = switch (s) {
+  Widget _serverTile(BuildContext context, bool isDark, McpConfig cfg) {
+    final st = _reg.statusOf(cfg.id);
+    final err = _reg.errors[cfg.id] ?? '';
+    final toolCount = _reg.toolsFor(cfg.id).length;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+          color: isDark ? AppColors.surface : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Dt.hairline)),
+      child: Row(children: [
+        _statusDot(st),
+        const SizedBox(width: 12),
+        Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              Row(children: [
+                Flexible(
+                  child: Text(cfg.name.isEmpty ? 'MCP Server' : cfg.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14, fontWeight: FontWeight.w800)),
+                ),
+                if (toolCount > 0) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6)),
+                      child: Text('$toolCount tools',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.success))),
+                ],
+              ]),
+              const SizedBox(height: 2),
+              Text(cfg.url,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11, color: Theme.of(context).hintColor)),
+              if (st == McpStatus.error && err.isNotEmpty)
+                Text(err,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11, color: AppColors.error)),
+            ])),
+        Switch(
+          value: cfg.enabled,
+          activeThumbColor: Dt.accent,
+          onChanged: (v) => _toggleEnable(context, isDark, cfg, v),
+        ),
+        IconButton(
+          tooltip: 'Edit server',
+          icon: const Icon(LucideIcons.pencil, size: 18),
+          onPressed: () => _openSheet(existing: cfg),
+        ),
+        IconButton(
+          tooltip: 'Remove server',
+          icon: const Icon(LucideIcons.trash2,
+              size: 18, color: AppColors.error),
+          onPressed: () => _confirmDelete(context, isDark, cfg),
+        ),
+      ]),
+    );
+  }
+  Widget _statusDot(McpStatus s) {    final color = switch (s) {
       McpStatus.connected => AppColors.success,
       McpStatus.connecting => AppColors.warning,
       McpStatus.error => AppColors.error,
@@ -1190,4 +1106,255 @@ class _ExploreMcpTabState extends State<ExploreMcpTab> {
       ],
     ));
   }
+}
+
+/// Add/edit bottom sheet for one MCP server. Shared entry point for
+/// server management (Explore list; Settings links here).
+class McpServerSheet extends StatefulWidget {
+  final McpConfig? existing;
+  const McpServerSheet({super.key, this.existing});
+
+  @override
+  State<McpServerSheet> createState() => _McpServerSheetState();
+}
+
+class _McpServerSheetState extends State<McpServerSheet> {
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _urlCtrl;
+  late final TextEditingController _tokenCtrl;
+  bool _obscure = true;
+  bool _saving = false;
+  bool _testing = false;
+
+  McpRegistryService get _reg => Get.find<McpRegistryService>();
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _nameCtrl = TextEditingController(text: e?.name ?? '');
+    _urlCtrl = TextEditingController(text: e?.url ?? '');
+    _tokenCtrl = TextEditingController();
+    if (e != null) {
+      _reg.getToken(e.id).then((v) {
+        if (mounted && v != null) _tokenCtrl.text = v;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _urlCtrl.dispose();
+    _tokenCtrl.dispose();
+    super.dispose();
+  }
+
+  String? _validateUrl(String url) {
+    if (url.isEmpty) return 'Please enter your MCP server URL';
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        !uri.hasScheme ||
+        !(uri.scheme == 'http' || uri.scheme == 'https')) {
+      return 'Must be http(s)://…';
+    }
+    return null;
+  }
+
+  Future<void> _save({bool andTest = false}) async {
+    final name = _nameCtrl.text.trim().isEmpty
+        ? 'Custom MCP'
+        : _nameCtrl.text.trim();
+    final url = _urlCtrl.text.trim();
+    final bad = _validateUrl(url);
+    if (bad != null) {
+      Get.snackbar('Invalid URL', bad, snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+    if (andTest) {
+      setState(() => _testing = true);
+    } else {
+      setState(() => _saving = true);
+    }
+    try {
+      final existing = widget.existing;
+      final token = _tokenCtrl.text.trim();
+      final cfg = McpConfig(
+        id: existing?.id ?? '',
+        name: name,
+        url: url,
+        transport: McpConfig.inferTransport(url),
+        authType:
+            token.isEmpty ? McpAuthType.none : McpAuthType.bearer,
+        enabled: existing?.enabled ?? false,
+      );
+      await _reg.saveConfig(cfg).then((savedId) async {
+        await _reg.setToken(savedId, token);
+        if (andTest) {
+          try {
+            await _reg.testConnection(savedId);
+            Get.snackbar('Connected', 'Server responded',
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: AppColors.success,
+                colorText: Colors.white);
+          } catch (e) {
+            Get.snackbar('Connection failed', '$e',
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: AppColors.error,
+                colorText: Colors.white,
+                duration: const Duration(seconds: 4));
+          }
+        } else {
+          Get.snackbar('Saved', 'MCP server saved',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: AppColors.success,
+              colorText: Colors.white);
+          if (mounted) Navigator.pop(context);
+        }
+      });
+    } catch (e) {
+      Get.snackbar('Save failed', '$e',
+          snackPosition: SnackPosition.BOTTOM);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+          _testing = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final editing = widget.existing != null;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 12,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.surfaceLight : Dt.hairline,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(editing ? 'Edit MCP server' : 'Add MCP server',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 17, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 16),
+              TextField(
+                  controller: _nameCtrl,
+                  decoration: InputDecoration(
+                      labelText: 'Server name',
+                      hintText: 'My MCP Server',
+                      prefixIcon:
+                          const Icon(LucideIcons.tag, size: 18),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      isDense: true)),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: _urlCtrl,
+                  keyboardType: TextInputType.url,
+                  decoration: InputDecoration(
+                      labelText: 'Server URL (http/s)',
+                      hintText: 'https://mcp.example.com/mcp',
+                      prefixIcon:
+                          const Icon(LucideIcons.link2, size: 18),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      isDense: true)),
+              const SizedBox(height: 12),
+              TextField(
+                  controller: _tokenCtrl,
+                  obscureText: _obscure,
+                  decoration: InputDecoration(
+                      labelText: 'Bearer token (optional)',
+                      hintText: 'Paste API key / token',
+                      prefixIcon:
+                          const Icon(LucideIcons.keyRound, size: 18),
+                      suffixIcon: IconButton(
+                          icon: Icon(
+                              _obscure
+                                  ? LucideIcons.eyeOff
+                                  : LucideIcons.eye,
+                              size: 18),
+                          onPressed: () =>
+                              setState(() => _obscure = !_obscure)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      isDense: true)),
+              const SizedBox(height: 4),
+              Text('Token stored in secure storage, never in Hive.',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: Theme.of(context).hintColor)),
+              const SizedBox(height: 14),
+              Row(children: [
+                Expanded(
+                    child: FilledButton.icon(
+                        onPressed:
+                            _saving ? null : () => _save(),
+                        icon: _saving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white))
+                            : const Icon(LucideIcons.save, size: 16),
+                        label: Text(_saving ? 'Saving…' : 'Save',
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700)),
+                        style: FilledButton.styleFrom(
+                            backgroundColor: Dt.accent,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 10)))),
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                    onPressed: _testing
+                        ? null
+                        : () => _save(andTest: true),
+                    icon: const Icon(LucideIcons.activity, size: 16),
+                    label: Text(_testing ? 'Testing…' : 'Test',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700)),
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: Dt.accent,
+                        side: BorderSide(
+                            color:
+                                Dt.accent.withValues(alpha: 0.3)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10))),
+              ]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 }

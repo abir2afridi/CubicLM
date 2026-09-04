@@ -57,6 +57,26 @@ class ChatMessage {
     return null;
   }
 
+  /// Async twin of [decodedImageBytes] for preloading: `readAsBytes()`
+  /// dispatches to the IO thread pool instead of blocking the UI thread
+  /// like the sync getter. Safe to fire-and-forget from `openChat`.
+  Future<Uint8List?> preloadImageBytes() async {
+    if (_decodedImageBytes != null) return _decodedImageBytes;
+    if (imageBase64 != null) {
+      try {
+        _decodedImageBytes = base64Decode(imageBase64!);
+      } catch (_) {}
+      return _decodedImageBytes;
+    }
+    if (imagePath != null && !kIsWeb) {
+      try {
+        final f = File(imagePath!);
+        if (await f.exists()) _decodedImageBytes = await f.readAsBytes();
+      } catch (_) {}
+    }
+    return _decodedImageBytes;
+  }
+
   /// Raw bytes for viewer/share — prefers base64, falls back to file.
   Uint8List? get imageBytesForViewer {
     if (decodedImageBytes != null) return decodedImageBytes;

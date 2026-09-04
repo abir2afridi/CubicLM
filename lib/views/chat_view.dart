@@ -49,6 +49,9 @@ class ChatView extends GetView<ChatController> {
         children: [
           _modelLoadingBar(context, isDark),
           _contextBar(context, isDark),
+          Obx(() => controller.findActive.value
+              ? _findBar(context, isDark)
+              : const SizedBox.shrink()),
           Expanded(child: Obx(() {
             if (controller.currentSessionId.value.isEmpty ||
                 controller.messages.isEmpty) {
@@ -116,13 +119,15 @@ class ChatView extends GetView<ChatController> {
                       );
                       if (dateHeader != null) {
                         return RepaintBoundary(
+                          key: controller.findKeyFor(msg.id),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [dateHeader, bubble],
                           ),
                         );
                       }
-                      return RepaintBoundary(child: bubble);
+                      return RepaintBoundary(
+                          key: controller.findKeyFor(msg.id), child: bubble);
                     },
                   ),
                 ),
@@ -324,7 +329,8 @@ class ChatView extends GetView<ChatController> {
     return buf.toString();
   }
 
-  Future<void> _exportSession(BuildContext context, ChatSession session) async {
+  Future<void> _exportSession(BuildContext context, ChatSession session,
+      {bool asTxt = false}) async {
     try {
       final hive = Get.find<HiveService>();
       final raw = hive.getMessagesForChat(session.id);
@@ -335,35 +341,61 @@ class ChatView extends GetView<ChatController> {
             snackPosition: SnackPosition.BOTTOM);
         return;
       }
-      final markdown = _buildMarkdownForSession(session, msgs);
       final safeTitle = session.title
           .replaceAll(RegExp(r'[^\w\s-]'), '')
           .replaceAll(RegExp(r'\s+'), '_');
       final truncated = (safeTitle.isEmpty ? 'chat' : safeTitle)
           .substring(0, safeTitle.length > 40 ? 40 : safeTitle.length);
       final baseName = '${truncated}_${DateTime.now().millisecondsSinceEpoch}';
-      final fileName = '$baseName.md';
+      final String body;
+      final String fileName;
+      final String mimeType;
+      if (asTxt) {
+        body = _buildPlainTextForSession(session, msgs);
+        fileName = '$baseName.txt';
+        mimeType = 'text/plain';
+      } else {
+        body = _buildMarkdownForSession(session, msgs);
+        fileName = '$baseName.md';
+        mimeType = 'text/markdown';
+      }
 
       if (kIsWeb) {
-        await Share.share(markdown, subject: session.title);
+        await Share.share(body, subject: session.title);
         return;
       }
       try {
         final dir = await getTemporaryDirectory();
         final file = File('${dir.path}/$fileName');
-        await file.writeAsString(markdown);
+        await file.writeAsString(body);
         await Share.shareXFiles(
-          [XFile(file.path, mimeType: 'text/markdown')],
+          [XFile(file.path, mimeType: mimeType)],
           text: session.title,
           subject: session.title,
         );
       } catch (_) {
-        await Share.share(markdown, subject: session.title);
+        await Share.share(body, subject: session.title);
       }
     } catch (e) {
       Get.snackbar('Export failed', '$e',
           snackPosition: SnackPosition.BOTTOM);
     }
+  }
+
+  /// Plain-text twin of [_buildMarkdownForSession] (no markup).
+  String _buildPlainTextForSession(
+      ChatSession session, List<ChatMessage> msgs) {
+    final buf = StringBuffer();
+    buf.writeln(session.title);
+    buf.writeln('=' * session.title.length);
+    buf.writeln();
+    for (final m in msgs) {
+      final role = m.role == 'user' ? 'User' : 'Assistant';
+      buf.writeln('$role:');
+      buf.writeln(m.content);
+      buf.writeln();
+    }
+    return buf.toString();
   }
 
   Future<void> _exportCurrentSession(BuildContext context) async {
@@ -411,6 +443,20 @@ class ChatView extends GetView<ChatController> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 20),
             ),
             ListTile(
+              leading: Icon(LucideIcons.fileText,
+                  size: 22,
+                  color: isDark ? AppColors.textPrimary : Dt.textPrimary),
+              title: Text('Export as Text (.txt)',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(context);
+                _exportSession(context, session, asTxt: true);
+              },
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            ),
+            ListTile(
               leading: Icon(
                 Icons.push_pin_outlined,
                 size: 22,
@@ -425,6 +471,51 @@ class ChatView extends GetView<ChatController> {
               onTap: () {
                 Navigator.pop(context);
                 controller.togglePin(session.id);
+              },
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            ),
+            ListTile(
+              leading: Icon(LucideIcons.userCog,
+                  size: 22,
+                  color: session.persona.isNotEmpty
+                      ? AppColors.primary
+                      : (isDark ? AppColors.textPrimary : Dt.textPrimary)),
+              title: Text(
+                  session.persona.isNotEmpty
+                      ? 'Edit persona'
+                      : 'Set persona…',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15, fontWeight: FontWeight.w600)),
+              subtitle: session.persona.isNotEmpty
+                  ? Text(session.persona,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12, color: AppColors.textMuted))
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                _showPersonaDialog(context, session, isDark);
+              },
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            ),
+            ListTile(
+              leading: Icon(
+                session.archived
+                    ? Icons.unarchive_outlined
+                    : Icons.archive_outlined,
+                size: 22,
+                color: isDark ? AppColors.textPrimary : Dt.textPrimary,
+              ),
+              title: Text(
+                  session.archived ? 'Unarchive chat' : 'Archive chat',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(context);
+                controller.toggleArchive(session.id);
               },
               dense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 20),
@@ -448,6 +539,67 @@ class ChatView extends GetView<ChatController> {
         ),
       ),
     );
+  }
+
+  // ── Per-chat persona ──
+  void _showPersonaDialog(
+      BuildContext context, ChatSession session, bool isDark) {
+    final c = TextEditingController(text: session.persona);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? AppColors.surface : Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Chat persona',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Extra instructions for this chat only. Empty = global prompt.',
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13, color: AppColors.textMuted),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: c,
+              autofocus: true,
+              maxLines: 4,
+              minLines: 2,
+              style: GoogleFonts.plusJakartaSans(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'e.g. Reply like a strict Bengali teacher…',
+                hintStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 13, color: AppColors.textMuted),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              controller.setPersona(session.id, '');
+              Navigator.pop(ctx);
+            },
+            child: Text('Clear',
+                style: GoogleFonts.plusJakartaSans(
+                    color: AppColors.textMuted)),
+          ),
+          FilledButton(
+            onPressed: () {
+              controller.setPersona(session.id, c.text);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ).then((_) => c.dispose());
   }
 
   // ── AppBar ──
@@ -559,6 +711,17 @@ class ChatView extends GetView<ChatController> {
           final hasSession = controller.currentSessionId.value.isNotEmpty;
           if (!hasSession) return const SizedBox.shrink();
           return IconButton(
+            tooltip: 'Find in chat',
+            icon: Icon(LucideIcons.search,
+                size: Dt.iconSize - 2,
+                color: isDark ? AppColors.textPrimary : Dt.iconDefault),
+            onPressed: () => controller.toggleFind(true),
+          );
+        }),
+        Obx(() {
+          final hasSession = controller.currentSessionId.value.isNotEmpty;
+          if (!hasSession) return const SizedBox.shrink();
+          return IconButton(
             tooltip: 'Export chat',
             icon: Icon(LucideIcons.share2,
                 size: Dt.iconSize - 2,
@@ -576,6 +739,83 @@ class ChatView extends GetView<ChatController> {
               onPressed: () => controller.createNewChat()),
         ),
       ],
+    );
+  }
+
+  // ── Find in open chat ──
+  Widget _findBar(BuildContext context, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: isDark ? Dt.cardDark : Dt.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.06),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.search,
+              size: 18,
+              color: isDark ? AppColors.textPrimary : Dt.iconDefault),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: controller.findController,
+              autofocus: true,
+              onChanged: controller.updateFind,
+              onSubmitted: (_) => controller.stepFind(1),
+              style: GoogleFonts.plusJakartaSans(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Find in this chat…',
+                hintStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 14, color: Theme.of(context).hintColor),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+          Obx(() {
+            final n = controller.findMatches.length;
+            final q = controller.findQuery.value;
+            final label = q.isEmpty
+                ? ''
+                : n == 0
+                    ? '0'
+                    : '${controller.findIndex.value + 1}/$n';
+            return Text(label,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).hintColor));
+          }),
+          IconButton(
+            tooltip: 'Previous',
+            icon: const Icon(LucideIcons.chevronUp, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            onPressed: () => controller.stepFind(-1),
+          ),
+          IconButton(
+            tooltip: 'Next',
+            icon: const Icon(LucideIcons.chevronDown, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            onPressed: () => controller.stepFind(1),
+          ),
+          IconButton(
+            tooltip: 'Close find',
+            icon: const Icon(LucideIcons.x, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            onPressed: () => controller.toggleFind(false),
+          ),
+        ],
+      ),
     );
   }
 
@@ -996,14 +1236,14 @@ class ChatView extends GetView<ChatController> {
                 ThoughtDisclosure(
                     thought: parts.thought,
                     isThinking: parts.isThinking,
-                    styleSheet: _thoughtMd(context, isDark)),
+                    styleSheet: _thoughtMdCached(context, isDark)),
               if (_hasPrintable(answer))
                 Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Expanded(
                       child: MarkdownBody(
                           data: answer,
                           selectable: true,
-                          styleSheet: _streamMd(context, isDark))),
+                          styleSheet: _streamMdCached(context, isDark))),
                   const _BlinkingCursor(color: Dt.accent),
                 ]),
             ],
@@ -1543,11 +1783,24 @@ class ChatView extends GetView<ChatController> {
                             // showing a dead button.
                             final micAvailable =
                                 controller.sttAvailable.value;
+                            final voiceMode = controller.voiceMode.value;
 
                             return Row(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
+                                if (!loading && !hasContent && micAvailable)
+                                  AppCircleButton(
+                                    icon: LucideIcons.headphones,
+                                    tooltip: voiceMode
+                                        ? 'Hands-free ON — tap to stop'
+                                        : 'Hands-free voice chat',
+                                    iconColor: voiceMode
+                                        ? Dt.accent
+                                        : null,
+                                    onTap: () => controller.setVoiceMode(
+                                        !controller.voiceMode.value),
+                                  ),
                                 if (!loading && !hasContent && micAvailable)
                                   AppCircleButton(
                                     icon: LucideIcons.mic,
@@ -1775,11 +2028,18 @@ class ChatView extends GetView<ChatController> {
                 _searchHits.clear();
                 return;
               }
-              _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+              _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+                // Guard against stale flights: only apply hits for the
+                // query that is still current when the isolate returns.
+                final snapshot = trimmed;
                 try {
-                  _searchHits.assignAll(Get.find<HiveService>().searchMessages(trimmed));
+                  final hits = await Get.find<HiveService>()
+                      .searchMessages(snapshot);
+                  if (snapshot == _sidebarQuery.value) {
+                    _searchHits.assignAll(hits);
+                  }
                 } catch (_) {
-                  _searchHits.clear();
+                  if (snapshot == _sidebarQuery.value) _searchHits.clear();
                 }
               });
             },
@@ -1837,9 +2097,49 @@ class ChatView extends GetView<ChatController> {
                   letterSpacing: 0.3)),
         ),
         const SizedBox(height: 8),
+        // Archived toggle — only takes space when archives exist.
+        // NOTE: read the Rx flag FIRST so this Obx always tracks an
+        // observable even when the early return below is taken.
+        Obx(() {
+          final showing = controller.showArchived.value;
+          final n = controller.archivedCount;
+          if (n == 0 && !showing) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () =>
+                    controller.showArchived.value = !showing,
+                icon: Icon(
+                  showing
+                      ? Icons.visibility_off_outlined
+                      : Icons.archive_outlined,
+                  size: 16,
+                  color: AppColors.textMuted,
+                ),
+                label: Text(
+                  showing ? 'Hide archived' : 'Show archived ($n)',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textMuted),
+                ),
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
+          );
+        }),
         Expanded(
           child: Obx(() {
-            final all = controller.sessions;
+            final all = controller.showArchived.value
+                ? controller.sessions
+                : controller.sessions.where((s) => !s.archived).toList();
             final q = _sidebarQuery.value;
             final messageHits = _searchHits.toSet();
             final filtered = q.isEmpty
@@ -2043,6 +2343,8 @@ class ChatView extends GetView<ChatController> {
                 onSelected: (v) {
                   if (v == 'export') _exportSession(context, s);
                   if (v == 'pin') controller.togglePin(s.id);
+                  if (v == 'persona') _showPersonaDialog(context, s, isDark);
+                  if (v == 'archive') controller.toggleArchive(s.id);
                   if (v == 'delete') controller.deleteChat(s.id);
                 },
                 itemBuilder: (_) => [
@@ -2072,6 +2374,33 @@ class ChatView extends GetView<ChatController> {
                     ]),
                   ),
                   PopupMenuItem(
+                    value: 'persona',
+                    child: Row(children: [
+                      Icon(LucideIcons.userCog,
+                          size: 16,
+                          color: s.persona.isNotEmpty
+                              ? AppColors.primary
+                              : null),
+                      const SizedBox(width: 10),
+                      Text(
+                          s.persona.isNotEmpty ? 'Edit persona' : 'Set persona…',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                    ]),
+                  ),
+                  PopupMenuItem(
+                    value: 'archive',
+                    child: Row(children: [
+                      Icon(
+                          s.archived
+                              ? Icons.unarchive_outlined
+                              : Icons.archive_outlined,
+                          size: 16),
+                      const SizedBox(width: 10),
+                      Text(s.archived ? 'Unarchive' : 'Archive',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                    ]),
+                  ),
+                  PopupMenuItem(
                     value: 'delete',
                     child: Row(children: [
                       const Icon(Icons.delete_outline_rounded,
@@ -2093,8 +2422,23 @@ class ChatView extends GetView<ChatController> {
     );
   }
 
-  MarkdownStyleSheet _streamMd(BuildContext c, bool isDark) {
-    final clr = isDark ? AppColors.textPrimary : Dt.textPrimary;
+  // Stream-bubble stylesheets, memoized per (brightness, theme): the
+  // stream Obx rebuilds ~7x/sec and must not pay fromTheme + GoogleFonts
+  // per tick. Theme hash in the key self-invalidates on theme switch.
+  static final Map<int, MarkdownStyleSheet> _streamMdCache = {};
+  static final Map<int, MarkdownStyleSheet> _thoughtMdCache = {};
+
+  MarkdownStyleSheet _streamMdCached(BuildContext c, bool isDark) {
+    final key = Object.hash(isDark, Theme.of(c).hashCode);
+    return _streamMdCache.putIfAbsent(key, () => _streamMd(c, isDark));
+  }
+
+  MarkdownStyleSheet _thoughtMdCached(BuildContext c, bool isDark) {
+    final key = Object.hash(isDark, Theme.of(c).hashCode);
+    return _thoughtMdCache.putIfAbsent(key, () => _thoughtMd(c, isDark));
+  }
+
+  MarkdownStyleSheet _streamMd(BuildContext c, bool isDark) {    final clr = isDark ? AppColors.textPrimary : Dt.textPrimary;
     final muted = isDark ? AppColors.textSecondary : Dt.textSecondary;
     // Same serif voice as the finished message — no font swap on completion.
     final base =

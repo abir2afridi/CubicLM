@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import '../theme/design_tokens.dart';
@@ -27,6 +30,15 @@ class ModelController extends GetxController {
   final SettingsController _settings = Get.find<SettingsController>();
 
   static const _customModelsKey = 'custom_url_models';
+  static const _catalogCacheKey = 'model_catalog_cache_json';
+  static const _catalogFetchMsKey = 'model_catalog_last_fetch_ms';
+
+  /// Over-the-air model catalog. Served from the repo so new GGUF/LiteRT
+  /// drops don't need an app release. Regenerate with
+  /// `dart run tool/gen_catalog.dart` after editing AppConstants.
+  static const _catalogUrl =
+      'https://raw.githubusercontent.com/abir2afridi/CubicLM/main/assets/catalog/models.json';
+  static const _catalogCooldown = Duration(hours: 24);
   static const _androidImportChannel =
       MethodChannel('com.cubiclm.app/model_import');
 
@@ -129,11 +141,123 @@ class ModelController extends GetxController {
   void onInit() {
     super.onInit();
     _loadCustomModels();
-    availableModels.value = AppConstants.availableModels
-        .map((m) => AiModel.fromMap(m))
-        .toList()
-      ..addAll(customModels);
+    _applyCatalog(_bundledCatalog());
     refreshDownloaded();
+    // OTA catalog refresh (fire-and-forget, throttled, cached).
+    unawaited(_refreshCatalog());
+  }
+
+  /// Bundled fallback: the Dart const list (always available offline).
+  List<AiModel> _bundledCatalog() =>
+      AppConstants.availableModels.map((m) => AiModel.fromMap(m)).toList();
+
+  void _applyCatalog(List<AiModel> catalog) {
+    availableModels.value = catalog..addAll(customModels);
+  }
+
+  /// Fetches the OTA catalog, validates entries, and merges (remote wins
+  /// by filename). Falls back to the cached JSON, then the bundled const.
+  Future<void> _refreshCatalog() async {
+    try {
+      final lastFetch =
+          _hive.getSetting<int>(_catalogFetchMsKey, defaultValue: 0) ?? 0;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final fresh =
+          now - lastFetch < _catalogCooldown.inMilliseconds && lastFetch > 0;
+      if (!fresh) {
+        final remote = await _fetchCatalog();
+        if (remote != null) {
+          await _hive.setSetting(
+              _catalogCacheKey, jsonEncode(remote.map((m) => m.toMap()).toList()));
+          await _hive.setSetting(_catalogFetchMsKey, now);
+          _applyCatalog(_mergeCatalog(_bundledCatalog(), remote));
+          await refreshDownloaded();
+          return;
+        }
+        await _hive.setSetting(_catalogFetchMsKey, now);
+      }
+      // Offline / fetch failed: last-good cache, else keep bundled.
+      final cached = _hive.getSetting<String>(_catalogCacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        final parsed = _parseCatalog(cached);
+        if (parsed.isNotEmpty) {
+          _applyCatalog(_mergeCatalog(_bundledCatalog(), parsed));
+          await refreshDownloaded();
+        }
+      }
+    } catch (_) {
+      // Catalog is best-effort — bundled list always works.
+    }
+  }
+
+  /// Downloads + validates the remote catalog. Returns null on any failure.
+  Future<List<AiModel>?> _fetchCatalog() async {
+    try {
+      final res = await Dio()
+          .get<String>(
+            _catalogUrl,
+            options: Options(
+              responseType: ResponseType.plain,
+              headers: {'Accept': 'application/json'},
+            ),
+          )
+          .timeout(const Duration(seconds: 10));
+      final body = res.data;
+      if (res.statusCode != 200 || body == null || body.isEmpty) {
+        return null;
+      }
+      return _parseCatalog(body);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Parses + validates catalog JSON. Only https URLs with known model
+  /// extensions are accepted (max 500 entries).
+  List<AiModel> _parseCatalog(String raw) {
+    final out = <AiModel>[];
+    try {
+      final decoded = jsonDecode(raw);
+      final list = decoded is Map ? decoded['models'] : decoded;
+      if (list is! List) return out;
+      for (final item in list.take(500)) {
+        if (item is! Map) continue;
+        final map = <String, String>{};
+        for (final e in item.entries) {
+          map[e.key.toString()] = e.value?.toString() ?? '';
+        }
+        final filename = (map['filename'] ?? '').trim();
+        final url = (map['url'] ?? '').trim();
+        if (filename.isEmpty || url.isEmpty) continue;
+        final lower = url.toLowerCase();
+        if (!lower.startsWith('https://')) continue;
+        final flow = filename.toLowerCase();
+        if (!flow.endsWith('.gguf') &&
+            !flow.endsWith('.litertlm') &&
+            !flow.endsWith('.safetensors')) {
+          continue;
+        }
+        if ((map['name'] ?? '').trim().isEmpty) {
+          map['name'] = filename;
+        }
+        out.add(AiModel.fromMap(map));
+      }
+    } catch (_) {}
+    return out;
+  }
+
+  /// Merges remote entries over bundled ones by filename.
+  List<AiModel> _mergeCatalog(List<AiModel> base, List<AiModel> remote) {
+    final merged = <AiModel>[...base];
+    for (final r in remote) {
+      final idx = merged.indexWhere((m) => m.filename == r.filename);
+      if (idx >= 0) {
+        merged[idx] = r;
+      } else {
+        merged.add(r);
+      }
+    }
+    return merged;
   }
 
   void _loadCustomModels() {

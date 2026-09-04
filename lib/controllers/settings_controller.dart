@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -123,6 +125,9 @@ class SettingsController extends GetxController {
   final imageGpuVendor = 'detecting'.obs;
   final imageGenGpuGuardMb = AppConstants.defaultImageGenGpuGuardMb.obs;
   final imageGenSize = AppConstants.defaultImageGenSize.obs;
+  final imageGenNegative = AppConstants.defaultImageGenNegative.obs;
+  final imageGenSeed = AppConstants.defaultImageGenSeed.obs;
+  final imageGenCfg = AppConstants.defaultImageGenCfg.obs;
   final fontScale = AppConstants.defaultFontScale.obs;
   final locale = AppLanguage.fromCode('en').obs;
   final appVersion = ''.obs;
@@ -182,6 +187,7 @@ class SettingsController extends GetxController {
   final customCloudBaseUrlController = TextEditingController();
   final customCloudKeyController = TextEditingController();
   final globalSystemPromptController = TextEditingController();
+  final imageGenNegativeController = TextEditingController();
 
   final openaiModelController = TextEditingController();
   final anthropicModelController = TextEditingController();
@@ -239,6 +245,7 @@ class SettingsController extends GetxController {
     customCloudBaseUrlController.dispose();
     customCloudKeyController.dispose();
     globalSystemPromptController.dispose();
+    imageGenNegativeController.dispose();
     openaiModelController.dispose();
     anthropicModelController.dispose();
     googleModelController.dispose();
@@ -395,6 +402,16 @@ class SettingsController extends GetxController {
     imageGenSize.value = _hive.getSetting(AppConstants.keyImageGenSize,
             defaultValue: AppConstants.defaultImageGenSize) ??
         AppConstants.defaultImageGenSize;
+    imageGenNegative.value = _hive.getSetting(
+            AppConstants.keyImageGenNegative,
+            defaultValue: AppConstants.defaultImageGenNegative) ??
+        AppConstants.defaultImageGenNegative;
+    imageGenSeed.value = _hive.getSetting(AppConstants.keyImageGenSeed,
+            defaultValue: AppConstants.defaultImageGenSeed) ??
+        AppConstants.defaultImageGenSeed;
+    imageGenCfg.value = _hive.getSetting(AppConstants.keyImageGenCfg,
+            defaultValue: AppConstants.defaultImageGenCfg) ??
+        AppConstants.defaultImageGenCfg;
     final savedImageBackend = _hive.getSetting<int>(
         AppConstants.keyImageGenBackend,
         defaultValue: Backend.cpu.index);
@@ -439,6 +456,8 @@ class SettingsController extends GetxController {
     if (appLockEnabled.value && !kIsWeb) {
       // Start locked so the gate shows before any chat content renders.
       isLocked.value = true;
+      // Re-arm screenshot blackout (flag doesn't survive process death).
+      unawaited(_setSecureFlag(true));
     }
 
     // Sync controllers with loaded values
@@ -466,6 +485,7 @@ class SettingsController extends GetxController {
     customCloudBaseUrlController.text = customCloudBaseUrl.value;
     customCloudKeyController.text = customCloudKey.value;
     globalSystemPromptController.text = globalSystemPrompt.value;
+    imageGenNegativeController.text = imageGenNegative.value;
 
     openaiModelController.text = openaiModel.value;
     anthropicModelController.text = anthropicModel.value;
@@ -1323,6 +1343,29 @@ class SettingsController extends GetxController {
     await _hive.setSetting(AppConstants.keyImageGenSize, normalized);
   }
 
+  Future<void> setImageGenNegative(String value) async {
+    imageGenNegative.value = value.trim();
+    imageGenNegativeController.text = imageGenNegative.value;
+    await _hive.setSetting(
+        AppConstants.keyImageGenNegative, imageGenNegative.value);
+  }
+
+  Future<void> setImageGenSeed(int value) async {
+    imageGenSeed.value = value;
+    await _hive.setSetting(AppConstants.keyImageGenSeed, value);
+  }
+
+  /// Fixes a random seed (reproducible generations).
+  Future<void> randomizeImageSeed() async {
+    await setImageGenSeed(Random().nextInt(1 << 31));
+  }
+
+  Future<void> setImageGenCfg(double value) async {
+    final normalized = value.clamp(1.0, 15.0);
+    imageGenCfg.value = normalized;
+    await _hive.setSetting(AppConstants.keyImageGenCfg, normalized);
+  }
+
   Future<void> _detectImageGpu() async {
     try {
       imageGpuVendor.value = await SdFlutterAndroid.detectGpuVendor();
@@ -1455,6 +1498,12 @@ class SettingsController extends GetxController {
     await _hive.setSetting(AppConstants.keyAutoLoadLastModel, enabled);
   }
 
+  /// Clears the onboarding-done flag so the setup flow can be replayed
+  /// from App Settings (navigated by the caller).
+  Future<void> resetOnboarding() async {
+    await _hive.setSetting(AppConstants.keyOnboardingDone, false);
+  }
+
   Future<void> setReadAloudEnabled(bool enabled) async {
     readAloudEnabled.value = enabled;
     await _hive.setSetting(AppConstants.keyReadAloud, enabled);
@@ -1506,6 +1555,18 @@ class SettingsController extends GetxController {
     appLockEnabled.value = enabled;
     await _hive.setSetting(AppConstants.keyAppLockEnabled, enabled);
     if (!enabled) isLocked.value = false;
+    // Recents/screenshot blackout follows the lock (Android only).
+    await _setSecureFlag(enabled);
+  }
+
+  /// Toggles FLAG_SECURE so locked content never appears in the task
+  /// switcher or screenshots. No-op off Android; never throws.
+  Future<void> _setSecureFlag(bool enabled) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+    try {
+      await const MethodChannel('com.cubiclm.app/model_import')
+          .invokeMethod('setSecureFlag', {'enabled': enabled});
+    } catch (_) {}
   }
 
   /// Runs the platform biometric/PIN prompt. Fails open (returns true) when

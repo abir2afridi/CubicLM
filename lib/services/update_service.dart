@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +12,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:open_file/open_file.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../shared/constants/platform_links.dart';
@@ -56,6 +58,9 @@ class UpdateService extends GetxService {
 
   /// The APK download URL extracted from the latest release assets.
   String? _apkDownloadUrl;
+
+  /// The chosen APK filename (ABI-matched) for display during download.
+  String _apkFileName = '';
 
   /// The latest release tag for display during download.
   String _latestTag = '';
@@ -130,7 +135,7 @@ class UpdateService extends GetxService {
         lastKnownVersion.value = latest;
         updateAvailable.value = true;
         _latestTag = rawTag;
-        _apkDownloadUrl = _extractApkUrl(release);
+        _apkDownloadUrl = await _extractApkUrl(release);
         await _setLastKnownVersion(latest);
         _showUpdateSnackbar(rawTag);
       } else {
@@ -215,7 +220,7 @@ class UpdateService extends GetxService {
             ),
             const SizedBox(height: 4),
             Text(
-              _latestTag,
+              _apkFileName.isNotEmpty ? _apkFileName : _latestTag,
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 13,
                 color: Colors.grey,
@@ -268,6 +273,13 @@ class UpdateService extends GetxService {
 
       // Close progress dialog.
       if (Get.isDialogOpen == true) Get.back();
+
+      // Android 8+ needs the install-packages grant or the installer
+      // silently refuses. Ask first, deep-link to settings on denial.
+      if (Platform.isAndroid &&
+          !await _ensureInstallPermission(savePath)) {
+        return;
+      }
 
       // Trigger APK install.
       final result = await OpenFile.open(savePath);
@@ -433,19 +445,96 @@ class UpdateService extends GetxService {
     );
   }
 
-  /// Extracts the APK download URL from GitHub release assets.
-  String? _extractApkUrl(Map<String, dynamic> release) {
+  /// Ensures Android allows installs from this app (API 26+). Returns true
+  /// when the installer can proceed. On denial, opens system settings and
+  /// tells the user where to re-run the update from.
+  Future<bool> _ensureInstallPermission(String savePath) async {
+    try {
+      var status = await Permission.requestInstallPackages.status;
+      if (!status.isGranted) {
+        status = await Permission.requestInstallPackages.request();
+      }
+      if (status.isGranted) return true;
+      AppSnackbar.showTop(
+        'Allow app installs',
+        'Enable "Install unknown apps" for CubicLM, then tap Update again.',
+        icon: LucideIcons.settings,
+        type: 'general',
+        iconName: 'settings',
+        duration: const Duration(seconds: 5),
+        mainButton: TextButton(
+          onPressed: () {
+            if (Get.isSnackbarOpen) Get.closeCurrentSnackbar();
+            openAppSettings();
+          },
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Text('Open settings',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+        ),
+      );
+      return false;
+    } catch (_) {
+      // Permission plugin unavailable — let the installer try anyway.
+      return true;
+    }
+  }
+
+  /// Extracts the APK download URL from GitHub release assets, matching
+  /// this device's ABI. Asset names look like
+  /// `cubiclm-v1.3.0-arm64-v8a.apk`. The old first-`.apk`-wins logic would
+  /// install an incompatible split (e.g. x86_64 on an arm64 phone).
+  Future<String?> _extractApkUrl(Map<String, dynamic> release) async {
     try {
       final assets = release['assets'] as List<dynamic>?;
       if (assets == null || assets.isEmpty) return null;
+      final apks = <String, String>{}; // filename -> download url
       for (final asset in assets) {
         final name = (asset['name'] as String?) ?? '';
-        if (name.endsWith('.apk')) {
-          return asset['browser_download_url'] as String?;
+        final url = asset['browser_download_url'] as String?;
+        if (name.endsWith('.apk') && url != null && url.isNotEmpty) {
+          apks[name] = url;
         }
       }
+      if (apks.isEmpty) return null;
+      if (apks.length == 1) {
+        _apkFileName = apks.keys.first;
+        return apks.values.first;
+      }
+
+      for (final abi in await _deviceAbis()) {
+        for (final entry in apks.entries) {
+          if (entry.key.contains(abi)) {
+            _apkFileName = entry.key;
+            return entry.value;
+          }
+        }
+      }
+      // Fallback: arm64 covers ~95% of devices, else first asset.
+      for (final entry in apks.entries) {
+        if (entry.key.contains('arm64-v8a')) {
+          _apkFileName = entry.key;
+          return entry.value;
+        }
+      }
+      _apkFileName = apks.keys.first;
+      return apks.values.first;
     } catch (_) {}
     return null;
+  }
+
+  /// Ordered device ABIs, most-preferred first.
+  Future<List<String>> _deviceAbis() async {
+    try {
+      if (Platform.isAndroid) {
+        final abis = (await DeviceInfoPlugin().androidInfo).supportedAbis;
+        if (abis.isNotEmpty) return abis;
+      }
+    } catch (_) {}
+    return const ['arm64-v8a', 'armeabi-v7a', 'x86_64'];
   }
 
   /// Returns >0 if [a] > [b], 0 if equal, <0 if [a] < [b].

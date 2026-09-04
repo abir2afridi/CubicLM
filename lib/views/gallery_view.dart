@@ -15,6 +15,10 @@ class GalleryController extends GetxController {
   final HiveService _hive = Get.find<HiveService>();
   final items = <Map<dynamic, dynamic>>[].obs;
 
+  /// Paths known to exist — computed once per refresh, not per tile build
+  /// (a stat() per build × N tiles × rebuilds was pure UI-thread waste).
+  final existingPaths = <String>{}.obs;
+
   @override
   void onInit() {
     super.onInit();
@@ -23,6 +27,15 @@ class GalleryController extends GetxController {
 
   void refreshGallery() {
     items.value = _hive.getAllImageHistory();
+    final seen = <String>{};
+    for (final e in items) {
+      final p = e['path']?.toString() ?? '';
+      if (p.isEmpty) continue;
+      try {
+        if (File(p).existsSync()) seen.add(p);
+      } catch (_) {}
+    }
+    existingPaths.assignAll(seen);
   }
 
   Future<void> deleteItem(String id) async {
@@ -82,9 +95,12 @@ class _GalleryViewState extends State<GalleryView> {
             itemCount: items.length,
             itemBuilder: (context, index) {
               final e = items[index];
+              final path = e['path']?.toString() ?? '';
               return _GalleryTile(
                 entry: e,
                 isDark: isDark,
+                exists: path.isNotEmpty &&
+                    _ctrl.existingPaths.contains(path),
                 onRefresh: _ctrl.refreshGallery,
                 onDelete: () => _ctrl.deleteItem(e['id'].toString()),
               );
@@ -283,12 +299,14 @@ class _GalleryViewState extends State<GalleryView> {
 class _GalleryTile extends StatelessWidget {
   final Map<dynamic, dynamic> entry;
   final bool isDark;
+  final bool exists;
   final VoidCallback onRefresh;
   final VoidCallback onDelete;
 
   const _GalleryTile({
     required this.entry,
     required this.isDark,
+    required this.exists,
     required this.onRefresh,
     required this.onDelete,
   });
@@ -303,8 +321,8 @@ class _GalleryTile extends StatelessWidget {
         ? DateTime.fromMillisecondsSinceEpoch(tsMs)
         : DateTime.tryParse(entry['timestamp']?.toString() ?? '');
 
-    final file = path.isNotEmpty ? File(path) : null;
-    final exists = file != null && file.existsSync();
+    // Existence comes from the controller (computed once per refresh).
+    final file = (path.isNotEmpty && exists) ? File(path) : null;
 
     return InkWell(
       borderRadius: BorderRadius.circular(16),
@@ -335,7 +353,7 @@ class _GalleryTile extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  if (exists)
+                  if (file != null)
                     Image.file(
                       file,
                       fit: BoxFit.cover,

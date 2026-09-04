@@ -1,11 +1,54 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../core/constants.dart';
 import 'secure_key_store.dart';
 
+/// Worker for [HiveService.searchMessages] — must stay top-level for
+/// `compute()`. Args: {'rows': List<List<String>> [content, chatId], 'q'}.
+Set<String> _searchRows(Map<String, dynamic> args) {
+  final q = args['q'] as String;
+  final ids = <String>{};
+  for (final row in args['rows'] as List) {
+    final r = (row as List).map((e) => e.toString()).toList();
+    if (r.length < 2 || r[1].isEmpty) continue;
+    if (r[0].toLowerCase().contains(q)) ids.add(r[1]);
+  }
+  return ids;
+}
+
+/// Timestamp-tagged message row for paged chat queries.
+class _TsRow {
+  final int ms;
+  final Map<dynamic, dynamic> map;
+  _TsRow(this.ms, this.map);
+}
+
+/// Worker for [HiveService.encryptBackupBytes] — AES over megabytes must
+/// not run on the UI thread (export would look hung).
+Uint8List _encryptBackupWorker(Map<String, dynamic> args) {
+  final plain = args['plain'] as Uint8List;
+  final key = args['key'] as Uint8List;
+  final cipher = HiveAesCipher(key);
+  final out = Uint8List(cipher.maxEncryptedSize(plain));
+  final n = cipher.encrypt(plain, 0, plain.length, out, 0);
+  return Uint8List.sublistView(out, 0, n);
+}
+
+/// Worker for [HiveService.decryptBackupBytes].
+Uint8List _decryptBackupWorker(Map<String, dynamic> args) {
+  final packed = args['packed'] as Uint8List;
+  final key = args['key'] as Uint8List;
+  final cipher = HiveAesCipher(key);
+  final out = Uint8List(packed.length);
+  final n = cipher.decrypt(packed, 0, packed.length, out, 0);
+  return Uint8List.sublistView(out, 0, n);
+}
 /// In-memory fallback that implements Hive [Box] without disk I/O.
 /// Used when Hive is corrupted / storage slow — app stays usable with
 /// defaults, data just won't persist until next clean launch.
@@ -353,12 +396,47 @@ class HiveService extends GetxService {
     }
   }
 
+  /// Max chat sessions kept. Oldest unpinned sessions are evicted with
+  /// their messages on save (pinned + recent survive).
+  static const int maxSessions = 500;
+
   Future<void> saveSession(String id, Map<String, dynamic> data) async {
     try {
       if (!_isBoxUsable(_sessionsBox)) return;
       await _sessionsBox.put(id, data);
+      if (_sessionsBox.length > maxSessions) {
+        await _evictOldSessions();
+      }
     } on HiveError {
-      // Box closed — data will persist on next launch.
+      // Box closed - data will persist on next launch.
+    } catch (_) {}
+  }
+
+  Future<void> _evictOldSessions() async {
+    try {
+      final rows = <Map<String, dynamic>>[];
+      for (final k in _sessionsBox.keys) {
+        final v = _sessionsBox.get(k);
+        if (v is Map) {
+          rows.add({
+            'id': k.toString(),
+            'pinned': v['pinned'] == true,
+            'updatedAt': DateTime.tryParse(v['updatedAt']?.toString() ?? '')
+                    ?.millisecondsSinceEpoch ??
+                0,
+          });
+        }
+      }
+      rows.sort((a, b) => (a['updatedAt'] as int)
+          .compareTo(b['updatedAt'] as int));
+      var excess = rows.length - maxSessions;
+      for (final r in rows) {
+        if (excess <= 0) break;
+        if (r['pinned'] as bool) continue;
+        // deleteSession removes the session row + all its messages/files.
+        await deleteSession(r['id'] as String);
+        excess--;
+      }
     } catch (_) {}
   }
 
@@ -421,6 +499,30 @@ class HiveService extends GetxService {
     } catch (_) {
       return [];
     }
+  }
+
+  /// Paged variant: newest-first window of [limit] messages older than
+  /// [beforeTimestampMs] (exclusive, null = latest). Returns ASC-sorted
+  /// like the unpaged version so callers sort identically.
+  List<Map<dynamic, dynamic>> getMessagesForChatPaged(
+    String chatId, {
+    int? limit,
+    int? beforeTimestampMs,
+  }) {
+    final all = getMessagesForChat(chatId);
+    if (limit == null && beforeTimestampMs == null) return all;
+    final rows = <_TsRow>[];
+    for (final m in all) {
+      final ts = DateTime.tryParse(m['timestamp']?.toString() ?? '');
+      final ms = ts?.millisecondsSinceEpoch ?? 0;
+      if (beforeTimestampMs != null && ms >= beforeTimestampMs) continue;
+      rows.add(_TsRow(ms, m));
+    }
+    rows.sort((a, b) => b.ms.compareTo(a.ms));
+    final taken =
+        limit == null ? rows : rows.take(limit).toList(growable: false);
+    taken.sort((a, b) => a.ms.compareTo(b.ms));
+    return taken.map((r) => r.map).toList(growable: false);
   }
 
   /// All messages across every chat (for backup/export).
@@ -558,51 +660,26 @@ class HiveService extends GetxService {
 
   /// Case-insensitive full-text search across all stored messages.
   /// Returns the set of session IDs that have at least one message whose
-  /// `content` contains [query] (case-insensitive).
-  Set<String> searchMessages(String query) {
+  /// `content` contains [query] (case-insensitive). The scan runs on a
+  /// worker isolate — a full-box lowercase pass per keystroke would jank
+  /// the UI thread on large histories.
+  Future<Set<String>> searchMessages(String query) async {
     final q = query.toLowerCase().trim();
     if (q.isEmpty) return <String>{};
-    final ids = <String>{};
     try {
-      if (!_isBoxUsable(_messagesBox)) return ids;
+      if (!_isBoxUsable(_messagesBox)) return <String>{};
+      final rows = <List<String>>[];
       for (final v in _messagesBox.values) {
         if (v is Map) {
-          final content = (v['content'] ?? '').toString().toLowerCase();
-          if (content.contains(q)) {
-            final chatId = v['chatId']?.toString();
-            if (chatId != null && chatId.isNotEmpty) ids.add(chatId);
-          }
+          rows.add([
+            (v['content'] ?? '').toString(),
+            (v['chatId'] ?? '').toString(),
+          ]);
         }
       }
-    } catch (_) {}
-    return ids;
-  }
-
-  /// Returns true if [sessionId] has any message whose content contains
-  /// [queryLower] (already lower-cased).
-  bool sessionHasMessageMatching(String sessionId, String queryLower) {
-    if (queryLower.isEmpty) return false;
-    try {
-      if (!_isBoxUsable(_messagesBox)) return false;
-      final prefix = '$sessionId/';
-      for (final k
-          in _messagesBox.keys.where((k) => k.toString().startsWith(prefix))) {
-        final v = _messagesBox.get(k);
-        if (v is Map) {
-          final content = (v['content'] ?? '').toString().toLowerCase();
-          if (content.contains(queryLower)) return true;
-        }
-      }
-      // Fallback for pre-migration keys without prefix.
-      for (final v in _messagesBox.values) {
-        if (v is Map && v['chatId'] == sessionId) {
-          final content = (v['content'] ?? '').toString().toLowerCase();
-          if (content.contains(queryLower)) return true;
-        }
-      }
-      return false;
+      return await compute(_searchRows, {'rows': rows, 'q': q});
     } catch (_) {
-      return false;
+      return <String>{};
     }
   }
 
@@ -681,5 +758,29 @@ class HiveService extends GetxService {
       final f = File(path);
       if (f.existsSync()) f.deleteSync();
     } catch (_) {}
+  }
+
+  // ─── Backup crypto (AES-256-CBC, same primitive as boxes) ───
+
+  /// Magic prefix to distinguish wrong-passphrase garbage from valid JSON.
+  static const String backupMagic = 'CLM1:';
+
+  /// Encrypts [plain] with `SHA-256(passphrase)` key. Returns
+  /// `IV[16] + ciphertext` bytes (IV is prepended by HiveAesCipher).
+  /// Runs on a worker isolate (may be megabytes with images included).
+  Future<Uint8List> encryptBackupBytes(
+      Uint8List plain, String passphrase) async {
+    final key =
+        Uint8List.fromList(sha256.convert(utf8.encode(passphrase)).bytes);
+    return compute(_encryptBackupWorker, {'plain': plain, 'key': key});
+  }
+
+  /// Decrypts bytes from [encryptBackupBytes]. Throws on wrong passphrase
+  /// (bad padding) or corrupt data — callers map to 'invalid'.
+  Future<Uint8List> decryptBackupBytes(
+      Uint8List packed, String passphrase) async {
+    final key =
+        Uint8List.fromList(sha256.convert(utf8.encode(passphrase)).bytes);
+    return compute(_decryptBackupWorker, {'packed': packed, 'key': key});
   }
 }

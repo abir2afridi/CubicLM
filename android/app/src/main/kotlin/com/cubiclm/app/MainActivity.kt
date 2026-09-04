@@ -188,10 +188,29 @@ class MainActivity : FlutterFragmentActivity() {
                     restartApp()
                     result.success(null)
                 }
+                "setSecureFlag" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    setSecureFlag(enabled)
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
 
+    }
+
+    /// Hides app content from Recents screenshots / screen capture while
+    /// App Lock is armed. Called from Dart via setSecureFlag.
+    private fun setSecureFlag(enabled: Boolean) {
+        try {
+            if (enabled) {
+                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            } else {
+                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            }
+        } catch (e: Exception) {
+            Log.w("CubicLM", "setSecureFlag failed: ${e.message}")
+        }
     }
 
     private fun restartApp() {

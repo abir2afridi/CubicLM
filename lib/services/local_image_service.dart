@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Directory, File, Platform;
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:get/get.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
@@ -11,6 +11,17 @@ import '../ffi/sd_ffi_bindings.dart';
 import 'app_log_service.dart';
 import 'hive_service.dart';
 import 'sd_isolate_processor.dart';
+
+/// Top-level for `compute()` — PNG-encode raw RGB off the UI thread.
+Uint8List _encodePng(Map<String, dynamic> args) {
+  final image = img.Image.fromBytes(
+    width: args['w'] as int,
+    height: args['h'] as int,
+    bytes: (args['rgb'] as Uint8List).buffer,
+    numChannels: 3,
+  );
+  return Uint8List.fromList(img.encodePng(image));
+}
 
 class LocalImageService extends GetxService {
   final HiveService _hive = Get.find<HiveService>();
@@ -312,6 +323,17 @@ class LocalImageService extends GetxService {
       final requestedSteps = _hive.getSetting<int>(AppConstants.keyImageSteps,
               defaultValue: AppConstants.defaultImageSteps) ??
           AppConstants.defaultImageSteps;
+      // Formerly hard-coded at the call site — now user settings.
+      final negativePrompt = _hive.getSetting<String>(
+              AppConstants.keyImageGenNegative,
+              defaultValue: AppConstants.defaultImageGenNegative) ??
+          AppConstants.defaultImageGenNegative;
+      final seed = _hive.getSetting<int>(AppConstants.keyImageGenSeed,
+              defaultValue: AppConstants.defaultImageGenSeed) ??
+          AppConstants.defaultImageGenSeed;
+      final cfgScale = _hive.getSetting<double>(AppConstants.keyImageGenCfg,
+              defaultValue: AppConstants.defaultImageGenCfg) ??
+          AppConstants.defaultImageGenCfg;
       final effectiveSteps = currentBackend.value == Backend.cpu
           ? requestedSteps.clamp(1, 20).toInt()
           : requestedSteps.clamp(1, 8).toInt();
@@ -352,10 +374,13 @@ class LocalImageService extends GetxService {
 
       final result = await _processor!.generate(
         prompt: prompt,
+        negativePrompt: negativePrompt,
         width: imageSize,
         height: imageSize,
         steps: effectiveSteps,
-        // Future: expose width, height, seed, cfg, negativePrompt, sampleMethod from settings
+        seed: seed,
+        cfgScale: cfgScale,
+        // Future: expose sampleMethod/schedule/vaeTiling from settings
       );
 
       await progressSub.cancel();
@@ -376,17 +401,15 @@ class LocalImageService extends GetxService {
         return null;
       }
 
-      // Convert raw RGB to PNG (future optimization: ui.decodeImageFromPixels
-      // for GPU-accelerated decode)
+      // Convert raw RGB to PNG on a worker — a 1024² encode stalls the
+      // UI thread for hundreds of milliseconds otherwise.
       print(
           '[LocalImageService] Encoding ${result.width}x${result.height} RGB to PNG...');
-      final image = img.Image.fromBytes(
-        width: result.width,
-        height: result.height,
-        bytes: result.rgbBytes!.buffer,
-        numChannels: 3,
-      );
-      final pngBytes = Uint8List.fromList(img.encodePng(image));
+      final pngBytes = await compute(_encodePng, {
+        'w': result.width,
+        'h': result.height,
+        'rgb': result.rgbBytes!,
+      });
       print('[LocalImageService] PNG encoded: ${pngBytes.length} bytes');
 
       // Persist to gallery history (Hive box 'image_history')

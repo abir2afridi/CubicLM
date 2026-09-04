@@ -53,7 +53,7 @@ class TaskView extends GetView<TaskController> {
         const SizedBox(height: 24),
         Text('Agent Idle', style: GoogleFonts.plusJakartaSans(fontSize: 22, fontWeight: FontWeight.w800, color: isDark ? Colors.white : Colors.black)),
         const SizedBox(height: 10),
-        Text('Instruct the AI to plan and execute\ncomplex multi-step operations.', textAlign: TextAlign.center,
+        Text('Instruct the AI to plan complex multi-step operations, then export them as an ADB script to run from your PC.', textAlign: TextAlign.center,
           style: GoogleFonts.plusJakartaSans(fontSize: 15, color: Theme.of(context).hintColor, fontWeight: FontWeight.w500)),
       ]));
     }
@@ -142,15 +142,30 @@ class TaskView extends GetView<TaskController> {
               Text('Objective Reached', style: GoogleFonts.plusJakartaSans(color: AppColors.success, fontWeight: FontWeight.w800)),
             ]));
         }
+        if (current.status == 'exported') {
+          return Container(
+            margin: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(16)),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              const Icon(Icons.terminal_rounded, color: AppColors.primary, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text('Script exported — run it from a PC with adb shell',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(color: AppColors.primary, fontWeight: FontWeight.w800)),
+              ),
+            ]));
+        }
         if (current.status == 'planning') return const SizedBox.shrink();
 
         return SafeArea(top: false, child: Padding(padding: const EdgeInsets.all(20), child: SizedBox(width: double.infinity, height: 56,
           child: ElevatedButton.icon(
-            onPressed: controller.isExecuting.value ? null : () => controller.executeTask(current),
+            onPressed: controller.isExecuting.value ? null : () => controller.exportPlan(current),
             icon: controller.isExecuting.value
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
-                : const Icon(Icons.rocket_launch_rounded),
-            label: Text(controller.isExecuting.value ? 'In Progress' : 'Execute Operation', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+                : const Icon(Icons.terminal_rounded),
+            label: Text(controller.isExecuting.value ? 'Exporting…' : 'Export ADB Script', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
           ),
         )));
       }),

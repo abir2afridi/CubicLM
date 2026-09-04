@@ -1,8 +1,15 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
 import '../theme/design_tokens.dart';
 import '../services/app_log_service.dart';
@@ -78,18 +85,7 @@ class LogView extends StatelessWidget {
             tooltip: 'Export Logs',
             icon: const Icon(Icons.ios_share_rounded,
                 size: 20, color: AppColors.primary),
-            onPressed: () async {
-              final text = await logs.exportFullLogs();
-              await Clipboard.setData(ClipboardData(text: text));
-              AppSnackbar.showTop(
-                'Logs Copied',
-                'Full diagnostic report copied to clipboard.',
-                icon: LucideIcons.copyCheck,
-                iconName: 'copyCheck',
-                duration: const Duration(seconds: 2),
-                logHistory: false,
-              );
-            },
+            onPressed: () => _showExportSheet(context, logs, isDark),
           ),
           IconButton(
             tooltip: 'Clear',
@@ -436,6 +432,25 @@ class LogView extends StatelessWidget {
                                         color: color)),
                               ]),
                             ),
+                            // Repeat badge — identical errors collapse
+                            // into one row (see AppLogService dedup).
+                            if (entry.count > 1) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 7, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                                child: Text('×${entry.count}',
+                                    style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.primary)),
+                              ),
+                            ],
                             const SizedBox(width: 6),
                             Flexible(
                               child: Container(
@@ -473,6 +488,18 @@ class LogView extends StatelessWidget {
                                       ? Colors.white
                                       : Colors.black,
                                   height: 1.4)),
+                          // First/last occurrence for collapsed repeats.
+                          if (entry.count > 1)
+                            Padding(
+                              padding:
+                                  const EdgeInsets.only(top: 6),
+                              child: Text(
+                                  '×${entry.count} · first ${_formatDateTime(entry.timestamp)} · last ${_formatDateTime(entry.lastAt)}',
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.primary)),
+                            ),
                           if (entry.details != null &&
                               entry.details!.isNotEmpty) ...[
                             const SizedBox(height: 10),
@@ -509,6 +536,121 @@ class LogView extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  /// Export chooser: clipboard copy and/or .txt file (share sheet on
+  /// Android, save dialog on desktop). File content is deduplicated —
+  /// repeats collapse to one `×N · first … · last …` block.
+  Future<void> _showExportSheet(
+      BuildContext context, AppLogService logs, bool isDark) async {
+    final action = await Get.dialog<String>(
+      AlertDialog(
+        backgroundColor: isDark ? AppColors.surface : Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Export logs',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(LucideIcons.copy, size: 20),
+              title: Text('Copy to clipboard',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+              contentPadding: EdgeInsets.zero,
+              onTap: () => Get.back(result: 'copy'),
+            ),
+            ListTile(
+              leading: const Icon(LucideIcons.fileText, size: 20),
+              title: Text('Save as .txt file',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+              contentPadding: EdgeInsets.zero,
+              onTap: () => Get.back(result: 'file'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: null),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+    if (action == null) return;
+    try {
+      final text = await logs.exportFullLogs();
+      if (!context.mounted) return;
+      if (action == 'copy') {
+        await Clipboard.setData(ClipboardData(text: text));
+        AppSnackbar.showTop(
+          'Logs Copied',
+          'Deduplicated diagnostic report copied to clipboard.',
+          icon: LucideIcons.copyCheck,
+          iconName: 'copyCheck',
+          duration: const Duration(seconds: 2),
+          logHistory: false,
+        );
+        return;
+      }
+      await _saveLogsFile(context, logs, text);
+    } catch (e) {
+      AppSnackbar.showTop('Export failed', '$e',
+          icon: LucideIcons.alertTriangle,
+          type: 'error',
+          iconName: 'alert');
+    }
+  }
+
+  Future<void> _saveLogsFile(
+      BuildContext context, AppLogService logs, String text) async {
+    var version = '';
+    try {
+      if (Get.isRegistered<SettingsController>()) {
+        version = Get.find<SettingsController>().appVersion.value;
+      }
+    } catch (_) {}
+    final fileName = logs.exportFileName(version);
+    if (kIsWeb) {
+      await Clipboard.setData(ClipboardData(text: text));
+      AppSnackbar.showTop(
+        'Logs Copied',
+        'File save is not available on web — copied instead.',
+        icon: LucideIcons.copyCheck,
+        iconName: 'copyCheck',
+        duration: const Duration(seconds: 3),
+        logHistory: false,
+      );
+      return;
+    }
+    if (Platform.isWindows ||
+        Platform.isLinux ||
+        Platform.isMacOS) {
+      final outPath = await FilePicker.saveFile(
+        dialogTitle: 'Save CubicLM logs',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: ['txt'],
+        bytes: Uint8List.fromList(utf8.encode(text)),
+      );
+      if (outPath == null) return; // dismissed
+      AppSnackbar.showTop('Logs saved', outPath,
+          icon: LucideIcons.checkCircle2,
+          type: 'success',
+          iconName: 'check',
+          duration: const Duration(seconds: 5),
+          logHistory: false);
+      return;
+    }
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/$fileName');
+    await file.writeAsString(text, flush: true);
+    await Share.shareXFiles(
+      [XFile(file.path, mimeType: 'text/plain')],
+      subject: 'CubicLM logs',
     );
   }
 
@@ -564,4 +706,7 @@ class LogView extends StatelessWidget {
     final s = time.second.toString().padLeft(2, '0');
     return '$h:$m:$s';
   }
+
+  String _formatDateTime(DateTime time) =>
+      '${time.month.toString().padLeft(2, '0')}-${time.day.toString().padLeft(2, '0')} ${_formatTime(time)}';
 }

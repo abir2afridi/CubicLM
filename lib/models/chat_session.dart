@@ -6,6 +6,14 @@ class ChatSession {
   final String? lastMessage;
   final bool pinned;
 
+  /// Per-chat persona (system-prompt addition). Empty = use global only.
+  /// Old rows without the key default to '' (safe migration).
+  final String persona;
+
+  /// Archived chats hide from the drawer (toggle to reveal). Survives
+  /// backup/restore and never auto-deletes.
+  final bool archived;
+
   ChatSession({
     required this.id,
     String? title,
@@ -13,6 +21,8 @@ class ChatSession {
     DateTime? updatedAt,
     this.lastMessage,
     this.pinned = false,
+    this.persona = '',
+    this.archived = false,
   })  : title = title ?? 'New Chat',
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -24,6 +34,8 @@ class ChatSession {
         'updatedAt': updatedAt.toIso8601String(),
         'lastMessage': lastMessage,
         'pinned': pinned,
+        'persona': persona,
+        'archived': archived,
       };
 
   factory ChatSession.fromMap(Map<dynamic, dynamic> map) => ChatSession(
@@ -33,6 +45,8 @@ class ChatSession {
         updatedAt: DateTime.tryParse(map['updatedAt'] ?? '') ?? DateTime.now(),
         lastMessage: map['lastMessage'],
         pinned: map['pinned'] == true,
+        persona: map['persona']?.toString() ?? '',
+        archived: map['archived'] == true,
       );
 
   ChatSession copyWith({
@@ -40,6 +54,8 @@ class ChatSession {
     DateTime? updatedAt,
     String? lastMessage,
     bool? pinned,
+    String? persona,
+    bool? archived,
   }) =>
       ChatSession(
         id: id,
@@ -48,5 +64,7 @@ class ChatSession {
         updatedAt: updatedAt ?? DateTime.now(),
         lastMessage: lastMessage ?? this.lastMessage,
         pinned: pinned ?? this.pinned,
+        persona: persona ?? this.persona,
+        archived: archived ?? this.archived,
       );
 }

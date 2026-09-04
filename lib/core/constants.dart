@@ -82,11 +82,15 @@ class AppConstants {
   static const String keyContextSize = 'context_size';
   static const String keyServerApiKey = 'server_api_key';
   static const String keyServerUseApiKey = 'server_use_api_key';
+  static const String keyServerAuthConfigured = 'server_auth_configured';
   static const String keyImageSteps = 'image_steps';
   static const String keyImageGenForceCpu = 'image_gen_force_cpu';
   static const String keyImageGenBackend = 'image_gen_backend';
   static const String keyImageGenGpuGuardMb = 'image_gen_gpu_guard_mb';
   static const String keyImageGenSize = 'image_gen_size';
+  static const String keyImageGenNegative = 'image_gen_negative';
+  static const String keyImageGenSeed = 'image_gen_seed';
+  static const String keyImageGenCfg = 'image_gen_cfg';
   static const String keyImageGenQuantization = 'image_gen_quantization';
   static const String keyFontScale = 'font_scale';
 
@@ -119,6 +123,9 @@ class AppConstants {
   static const bool defaultImageGenForceCpu = true;
   static const int defaultImageGenGpuGuardMb = 1843; // 1.8 GB
   static const int defaultImageGenSize = 0; // 0 = Auto recommended
+  static const String defaultImageGenNegative = '';
+  static const int defaultImageGenSeed = -1; // -1 = random per generation
+  static const double defaultImageGenCfg = 7.0;
   static const double defaultFontScale =
       0.95; // 4th slider stop, "Small" default
 

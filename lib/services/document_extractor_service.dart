@@ -2,11 +2,15 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:archive/archive.dart';
+import 'package:flutter/foundation.dart';
 import 'package:xml/xml.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 /// Extracts plain text from document files (PDF, DOCX) so they can be
 /// fed into local or cloud LLMs as context.
+///
+/// CPU-heavy parsing runs on a worker isolate — a 50-page PDF would
+/// otherwise freeze the UI for hundreds of milliseconds.
 class DocumentExtractorService {
   /// Extract text from a file based on its extension.
   static Future<String> extractText(String path, String extension) async {
@@ -41,37 +45,46 @@ class DocumentExtractorService {
   /// Extract text from a PDF file using Syncfusion PDF.
   static Future<String> _extractPdf(String path) async {
     final bytes = await File(path).readAsBytes();
-    final document = PdfDocument(inputBytes: bytes);
-    try {
-      final extractor = PdfTextExtractor(document);
-      return extractor.extractText();
-    } finally {
-      document.dispose();
-    }
+    return compute(_extractPdfBytes, bytes);
   }
 
   /// Extract text from a DOCX file using pure Dart (archive + xml).
   static Future<String> _extractDocx(String path) async {
     final bytes = await File(path).readAsBytes();
-    final archive = ZipDecoder().decodeBytes(bytes);
-
-    final documentFile = archive.files.firstWhere(
-      (f) => f.name == 'word/document.xml',
-      orElse: () => throw Exception('Invalid DOCX: word/document.xml not found'),
-    );
-
-    final xmlString = utf8.decode(documentFile.content as List<int>);
-    final document = XmlDocument.parse(xmlString);
-
-    // Preserve paragraph breaks: <w:p> elements separate paragraphs.
-    final paragraphs = <String>[];
-    for (final p in document.findAllElements('w:p')) {
-      final pTexts = p.findAllElements('w:t').map((e) => e.value).join();
-      if (pTexts.isNotEmpty) paragraphs.add(pTexts);
-    }
-
-    return paragraphs.isNotEmpty
-        ? paragraphs.join('\n\n')
-        : document.findAllElements('w:t').map((e) => e.value).join();
+    return compute(_extractDocxBytes, bytes);
   }
+}
+
+/// Top-level for `compute()` — pure CPU over bytes, no I/O.
+String _extractPdfBytes(Uint8List bytes) {
+  final document = PdfDocument(inputBytes: bytes);
+  try {
+    return PdfTextExtractor(document).extractText();
+  } finally {
+    document.dispose();
+  }
+}
+
+/// Top-level for `compute()` — pure CPU over bytes, no I/O.
+String _extractDocxBytes(Uint8List bytes) {
+  final archive = ZipDecoder().decodeBytes(bytes);
+
+  final documentFile = archive.files.firstWhere(
+    (f) => f.name == 'word/document.xml',
+    orElse: () => throw Exception('Invalid DOCX: word/document.xml not found'),
+  );
+
+  final xmlString = utf8.decode(documentFile.content as List<int>);
+  final document = XmlDocument.parse(xmlString);
+
+  // Preserve paragraph breaks: <w:p> elements separate paragraphs.
+  final paragraphs = <String>[];
+  for (final p in document.findAllElements('w:p')) {
+    final pTexts = p.findAllElements('w:t').map((e) => e.value).join();
+    if (pTexts.isNotEmpty) paragraphs.add(pTexts);
+  }
+
+  return paragraphs.isNotEmpty
+      ? paragraphs.join('\n\n')
+      : document.findAllElements('w:t').map((e) => e.value).join();
 }

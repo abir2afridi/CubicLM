@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
+import '../controllers/home_controller.dart';
 import '../core/colors.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/design_tokens.dart';
@@ -828,6 +829,109 @@ class SettingsView extends GetView<SettingsController> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
             ],
+          ),
+        ]),
+      ),
+      _parameterDivider(isDark),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(LucideIcons.ban, size: 16, color: Dt.accent),
+            const SizedBox(width: 10),
+            Text('Negative prompt',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15, fontWeight: FontWeight.w700)),
+          ]),
+          const SizedBox(height: 12),
+          Obx(() => TextField(
+                controller: controller.imageGenNegativeController,
+                onSubmitted: (v) => controller.setImageGenNegative(v),
+                onEditingComplete: () => controller.setImageGenNegative(
+                    controller.imageGenNegativeController.text),
+                style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: 'blurry, watermark, extra fingers… (empty = none)',
+                  hintStyle: GoogleFonts.plusJakartaSans(
+                      fontSize: 13, color: Theme.of(context).hintColor),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                  contentPadding: const EdgeInsets.all(12),
+                ),
+              )),
+        ]),
+      ),
+      _parameterDivider(isDark),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(LucideIcons.gauge, size: 16, color: Dt.accent),
+            const SizedBox(width: 10),
+            Text('Guidance (CFG)',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                  color: Dt.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8)),
+              child: Obx(() => Text(
+                  controller.imageGenCfg.value.toStringAsFixed(1),
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: Dt.accent,
+                      fontWeight: FontWeight.w800))),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Obx(() => Slider(
+              value: controller.imageGenCfg.value.clamp(1.0, 15.0),
+              min: 1,
+              max: 15,
+              divisions: 28,
+              activeColor: Dt.accent,
+              onChanged: (v) => controller.setImageGenCfg(
+                  (v * 2).roundToDouble() / 2))),
+        ]),
+      ),
+      _parameterDivider(isDark),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(LucideIcons.dices, size: 16, color: Dt.accent),
+            const SizedBox(width: 10),
+            Text('Seed',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15, fontWeight: FontWeight.w700)),
+            const Spacer(),
+            Obx(() => Text(
+                controller.imageGenSeed.value < 0
+                    ? 'Random'
+                    : controller.imageGenSeed.value.toString(),
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: Dt.accent,
+                    fontWeight: FontWeight.w800))),
+            IconButton(
+              tooltip: 'Randomize seed',
+              icon: const Icon(LucideIcons.dices, size: 20),
+              onPressed: () => controller.randomizeImageSeed(),
+            ),
+            TextButton(
+              onPressed: () => controller.setImageGenSeed(-1),
+              child: const Text('Auto'),
+            ),
+          ]),
+          Text(
+            'Fixed seed reproduces a generation. Auto picks a fresh one each time.',
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 12,
+                color: Theme.of(context).hintColor,
+                fontWeight: FontWeight.w600),
           ),
         ]),
       ),
@@ -2083,83 +2187,29 @@ class _McpSection extends StatefulWidget {
 }
 
 class _McpSectionState extends State<_McpSection> {
-  final _nameCtrl = TextEditingController();
-  final _urlCtrl = TextEditingController();
-  final _tokenCtrl = TextEditingController();
-  bool _initialized = false;
-  bool _obscureToken = true;
-  bool _saving = false;
-
   McpRegistryService get _registry => Get.find<McpRegistryService>();
 
-  @override
-  void initState() {
-    super.initState();
-    _loadFromConfig();
-    _registry.getToken().then((v) {
-      if (mounted && v != null) _tokenCtrl.text = v;
-    });
-  }
-
-  void _loadFromConfig() {
-    final c = _registry.config.value;
-    if (c != null) {
-      _nameCtrl.text = c.name;
-      _urlCtrl.text = c.url;
-    }
-  }
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _urlCtrl.dispose();
-    _tokenCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save({bool enableIfValid = false}) async {
-    final name = _nameCtrl.text.trim().isEmpty
-        ? 'Custom MCP'
-        : _nameCtrl.text.trim();
-    final url = _urlCtrl.text.trim();
-    if (url.isEmpty) {
-      Get.snackbar('URL required', 'Please enter your MCP server URL',
-          snackPosition: SnackPosition.BOTTOM);
-      return;
-    }
-    final uri = Uri.tryParse(url);
-    if (uri == null || !uri.hasScheme || !(uri.scheme == 'http' || uri.scheme == 'https')) {
-      Get.snackbar('Invalid URL', 'Must be http(s)://…',
-          snackPosition: SnackPosition.BOTTOM);
-      return;
-    }
-    setState(() => _saving = true);
+  /// Jump to Explore → MCP tab for full add/edit management.
+  void _openManager() {
     try {
-      final token = _tokenCtrl.text.trim();
-      await _registry.setToken(token);
-      final transport = McpConfig.inferTransport(url);
-      final authType =
-          token.isEmpty ? McpAuthType.none : McpAuthType.bearer;
-      // Preserve enabled flag unless we are explicitly enabling.
-      final wasEnabled = _registry.config.value?.enabled ?? false;
-      final enabled = enableIfValid ? true : wasEnabled;
-      final cfg = McpConfig(
-        name: name,
-        url: url,
-        transport: transport,
-        authType: authType,
-        enabled: enabled,
-      );
-      await _registry.saveConfig(cfg);
-      Get.snackbar('Saved', 'MCP server ${enabled ? 'enabled' : 'saved'}',
+      Get.find<HomeController>().changeTab(1);
+      Get.snackbar('MCP Servers', 'Open the MCP tab to add or edit servers.',
           snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: AppColors.success,
-          colorText: Colors.white);
-    } catch (e) {
-      Get.snackbar('Save failed', '$e',
-          snackPosition: SnackPosition.BOTTOM);
-    } finally {
-      if (mounted) setState(() => _saving = false);
+          duration: const Duration(seconds: 3));
+    } catch (_) {}
+  }
+
+  Future<void> _toggleEnable(
+      BuildContext context, bool isDark, McpConfig cfg, bool v) async {
+    if (!v) {
+      await _registry.setEnabled(cfg.id, false);
+      return;
+    }
+    await _registry.setEnabled(cfg.id, true);
+    final mine = _registry.toolsFor(cfg.id);
+    if (mine.isNotEmpty && context.mounted) {
+      final ok = await _confirmEnableWithTools(context, isDark, mine);
+      if (ok != true) await _registry.setEnabled(cfg.id, false);
     }
   }
 
@@ -2167,17 +2217,10 @@ class _McpSectionState extends State<_McpSection> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Obx(() {
-      final cfg = _registry.config.value;
+      final servers = _registry.configs.toList();
       final status = _registry.status.value;
       final tools = _registry.tools.toList();
       final error = _registry.lastError.value;
-
-      // One-time sync controllers when config loads after init.
-      if (!_initialized && cfg != null) {
-        _initialized = true;
-        _nameCtrl.text = cfg.name;
-        _urlCtrl.text = cfg.url;
-      }
 
       return Container(
         clipBehavior: Clip.antiAlias,
@@ -2212,13 +2255,15 @@ class _McpSectionState extends State<_McpSection> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Custom MCP Server',
+                          Text('MCP Servers',
                               style: GoogleFonts.plusJakartaSans(
                                   fontSize: 15,
                                   fontWeight: FontWeight.w700)),
                           const SizedBox(height: 2),
                           Text(
-                            'One remote HTTP/SSE server — no marketplace',
+                            servers.isEmpty
+                                ? 'Connect remote HTTP/SSE servers'
+                                : '${servers.length} server${servers.length == 1 ? '' : 's'} · ${tools.length} tools',
                             style: GoogleFonts.plusJakartaSans(
                                 fontSize: 12,
                                 color: Theme.of(context).hintColor),
@@ -2240,317 +2285,139 @@ class _McpSectionState extends State<_McpSection> {
                 color: isDark
                     ? Colors.white.withValues(alpha: 0.06)
                     : Colors.black.withValues(alpha: 0.06)),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextField(
-                    controller: _nameCtrl,
-                    decoration: InputDecoration(
-                      labelText: 'Server name',
-                      hintText: 'My MCP Server',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      isDense: true,
-                      prefixIcon: const Icon(LucideIcons.tag, size: 18),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _urlCtrl,
-                    keyboardType: TextInputType.url,
-                    decoration: InputDecoration(
-                      labelText: 'Server URL (http/s)',
-                      hintText: 'https://mcp.example.com/mcp',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      isDense: true,
-                      prefixIcon: const Icon(LucideIcons.link2, size: 18),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _tokenCtrl,
-                    obscureText: _obscureToken,
-                    decoration: InputDecoration(
-                      labelText: 'Bearer token (optional)',
-                      hintText: 'Paste API key / token',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      isDense: true,
-                      prefixIcon: const Icon(LucideIcons.keyRound, size: 18),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                            _obscureToken
-                                ? LucideIcons.eyeOff
-                                : LucideIcons.eye,
-                            size: 18),
-                        onPressed: () =>
-                            setState(() => _obscureToken = !_obscureToken),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Token is stored in secure storage (Keystore/Keychain), never in Hive.',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11, color: Theme.of(context).hintColor),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              child: Row(children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _saving ? null : () => _save(),
-                    icon: _saving
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child:
-                                CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(LucideIcons.save, size: 16),
-                    label: Text(_saving ? 'Saving…' : 'Save',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13, fontWeight: FontWeight.w700)),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Dt.accent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                OutlinedButton.icon(
-                  onPressed: () async {
-                    await _save();
-                    try {
-                      await _registry.testConnection();
-                      Get.snackbar('Connected', 'Server responded',
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.success,
-                          colorText: Colors.white);
-                    } catch (e) {
-                      Get.snackbar('Connection failed', '$e',
-                          snackPosition: SnackPosition.BOTTOM,
-                          backgroundColor: AppColors.error,
-                          colorText: Colors.white,
-                          duration: const Duration(seconds: 4));
-                    }
-                  },
-                  icon: const Icon(LucideIcons.activity, size: 16),
-                  label: Text('Test',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13, fontWeight: FontWeight.w700)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Dt.accent,
-                    side: BorderSide(color: Dt.accent.withValues(alpha: 0.3)),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                  ),
-                ),
-              ]),
-            ),
-            if (cfg != null) ...[
-              Divider(
-                  height: 1,
-                  indent: 20,
-                  endIndent: 20,
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.black.withValues(alpha: 0.06)),
+            if (servers.isEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                child: Row(children: [
-                  Expanded(
-                    child: Row(children: [
-                      Text('Enabled',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14, fontWeight: FontWeight.w700)),
-                      const SizedBox(width: 8),
-                      if (tools.isNotEmpty && cfg.enabled && status == McpStatus.connected)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.success.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text('${tools.length} tools',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: AppColors.success)),
-                        ),
-                    ]),
-                  ),
-                  Switch(
-                    value: cfg.enabled,
-                    activeThumbColor: Dt.accent,
-                    onChanged: (v) async {
-                      // Before enabling, show tools preview if we have them.
-                      if (v && tools.isNotEmpty) {
-                        final ok = await _confirmEnableWithTools(
-                            context, isDark, tools);
-                        if (!context.mounted) return;
-                        if (ok != true) return;
-                      } else if (v) {
-                        // Try to connect to fetch tools for preview.
-                        try {
-                          final fetched = await _registry.connect();
-                          if (!context.mounted) return;
-                          if (fetched.isNotEmpty) {
-                            final ok = await _confirmEnableWithTools(
-                                context, isDark, fetched);
-                            if (!context.mounted) return;
-                            if (ok != true) {
-                              await _registry.disconnect();
-                              return;
-                            }
-                          }
-                        } catch (_) {
-                          // Still allow enabling; tools will be fetched on next send.
-                        }
-                      }
-                      final updated = cfg.copyWith(enabled: v);
-                      await _registry.saveConfig(updated);
-                      if (!v) await _registry.disconnect();
-                    },
-                  ),
-                ]),
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+                child: Text(
+                  'No servers yet. Add one to give the model tools.',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      color: Theme.of(context).hintColor),
+                ),
               ),
-              if (cfg.enabled &&
-                  status == McpStatus.connected &&
-                  tools.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.04)
-                          : Dt.pillMuted.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+            for (final s in servers)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 12, 0),
+                child: Row(children: [
+                  _statusDot(_registry.statusOf(s.id)),
+                  const SizedBox(width: 12),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Exposed tools — model will see these',
-                            style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Theme.of(context).hintColor)),
-                        const SizedBox(height: 8),
-                        for (final t in tools)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 28,
-                                  height: 28,
-                                  decoration: BoxDecoration(
-                                    color:
-                                        Dt.accent.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(LucideIcons.wrench,
-                                      size: 14, color: Dt.accent),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(t.name,
-                                          style:
-                                              GoogleFonts.plusJakartaSans(
-                                                  fontSize: 13,
-                                                  fontWeight:
-                                                      FontWeight.w700)),
-                                      if (t.description.isNotEmpty)
-                                        Text(t.description,
-                                            maxLines: 2,
-                                            overflow:
-                                                TextOverflow.ellipsis,
-                                            style:
-                                                GoogleFonts.plusJakartaSans(
-                                                    fontSize: 11,
-                                                    color: Theme.of(context)
-                                                        .hintColor)),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        Text(
+                          s.name.isEmpty ? 'MCP Server' : s.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700),
+                        ),
+                        Text(
+                          s.url,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              color:
+                                  Theme.of(context).hintColor),
+                        ),
                       ],
                     ),
                   ),
-                ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      final ok = await Get.dialog<bool>(
-                        AlertDialog(
-                          backgroundColor:
-                              isDark ? Dt.cardDark : Colors.white,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16)),
-                          title: Text('Remove server?',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontWeight: FontWeight.w700)),
-                          content: Text(
-                              'This will delete the URL and token. You can add it again later.',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13)),
-                          actions: [
-                            TextButton(
-                                onPressed: () => Get.back(result: false),
-                                child: Text('common_cancel'.tr)),
-                            FilledButton(
-                              style: FilledButton.styleFrom(
-                                  backgroundColor: AppColors.error),
-                              onPressed: () => Get.back(result: true),
-                              child: const Text('Remove'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (ok == true) {
-                        await _registry.removeConfig();
-                        _nameCtrl.clear();
-                        _urlCtrl.clear();
-                        _tokenCtrl.clear();
-                      }
-                    },
-                    icon: const Icon(LucideIcons.trash2, size: 16),
-                    label: Text('Remove server',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13, fontWeight: FontWeight.w600)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: BorderSide(
-                          color: AppColors.error.withValues(alpha: 0.3)),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
+                  Switch(
+                    value: s.enabled,
+                    activeThumbColor: Dt.accent,
+                    onChanged: (v) =>
+                        _toggleEnable(context, isDark, s, v),
+                  ),
+                ]),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _openManager,
+                  icon: const Icon(LucideIcons.settings2, size: 16),
+                  label: Text(
+                      servers.isEmpty
+                          ? 'Add MCP server'
+                          : 'Manage servers',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Dt.accent,
+                    side: BorderSide(
+                        color: Dt.accent.withValues(alpha: 0.3)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                   ),
                 ),
               ),
-            ],
+            ),
+            if (tools.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.04)
+                        : Dt.pillMuted.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Exposed tools — model will see these',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Theme.of(context).hintColor)),
+                      const SizedBox(height: 8),
+                      for (final t in tools.take(12))
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color:
+                                      Dt.accent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(LucideIcons.wrench,
+                                    size: 14, color: Dt.accent),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(t.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style:
+                                        GoogleFonts.plusJakartaSans(
+                                            fontSize: 13,
+                                            fontWeight:
+                                                FontWeight.w700)),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (tools.length > 12)
+                        Text('+${tools.length - 12} more',
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                color: Theme.of(context).hintColor)),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       );

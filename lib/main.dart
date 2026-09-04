@@ -668,6 +668,13 @@ class _LockGateState extends State<LockGate>
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       if (settings.appLockEnabled.value) settings.isLocked.value = true;
+      // Hands-free must not keep listening in the background.
+      try {
+        if (Get.isRegistered<ChatController>()) {
+          final chat = Get.find<ChatController>();
+          if (chat.voiceMode.value) chat.setVoiceMode(false);
+        }
+      } catch (_) {}
     } else if (state == AppLifecycleState.resumed &&
         settings.isLocked.value) {
       _authenticate(settings);

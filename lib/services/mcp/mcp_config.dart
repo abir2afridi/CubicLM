@@ -3,6 +3,9 @@ enum McpTransport { http, sse }
 enum McpAuthType { none, bearer }
 
 class McpConfig {
+  /// Stable id (uuid). Legacy single-server rows default to '' and are
+  /// assigned one on migration.
+  final String id;
   final String name;
   final String url;
   final McpTransport transport;
@@ -10,14 +13,18 @@ class McpConfig {
   final bool enabled;
 
   McpConfig({
+    String? id,
     required this.name,
     required this.url,
     this.transport = McpTransport.http,
     this.authType = McpAuthType.none,
     this.enabled = false,
-  });
+  }) : id = (id == null || id.isEmpty)
+            ? DateTime.now().microsecondsSinceEpoch.toString()
+            : id;
 
   McpConfig copyWith({
+    String? id,
     String? name,
     String? url,
     McpTransport? transport,
@@ -25,6 +32,7 @@ class McpConfig {
     bool? enabled,
   }) =>
       McpConfig(
+        id: id ?? this.id,
         name: name ?? this.name,
         url: url ?? this.url,
         transport: transport ?? this.transport,
@@ -33,6 +41,7 @@ class McpConfig {
       );
 
   Map<String, dynamic> toMap() => {
+        'id': id,
         'name': name,
         'url': url,
         'transport': transport.name,
@@ -41,6 +50,7 @@ class McpConfig {
       };
 
   factory McpConfig.fromMap(Map<dynamic, dynamic> m) => McpConfig(
+        id: m['id']?.toString() ?? '',
         name: m['name'] ?? '',
         url: m['url'] ?? '',
         transport: McpTransport.values.firstWhere(

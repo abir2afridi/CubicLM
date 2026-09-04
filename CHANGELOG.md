@@ -5,6 +5,34 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0+9] - 2026-09-04
+
+### Added
+- **Find in chat** - in-conversation search with match counter, prev/next jump, and deep search across older pages.
+- **Per-chat persona** - extra instructions per conversation (empty = global prompt), editable from the chat menu.
+- **Archive chats** - hide from history with a show/hide toggle; survives backup/restore.
+- **Encrypted backups** - optional AES-256-CBC passphrase encryption plus optional image inclusion (was plaintext, imageless).
+- **Multi-MCP servers** - connect several servers at once with per-server tokens, merged tools, and collision-safe routing.
+- **Image controls** - negative prompt, guidance (CFG) slider, and fixed/random seed in Settings.
+- **Hands-free voice mode** - listen → auto-send → speak reply → listen loop with headset toggle.
+- **Tasks export ADB scripts** - planner output becomes a runnable `.sh` via share sheet (on-device shell exec is impossible for stock apps).
+- **OTA model catalog** - `assets/catalog/models.json` fetched with validation, cache, and bundled fallback (`dart run tool/gen_catalog.dart` to regenerate).
+
+### Changed
+- **Updater picks the right APK** - ABI-matched split asset instead of first `.apk`; install-permission gate with settings deep-link.
+- **Local server secure by default** - auto-generated API key enforced on first start (LAN bind kept).
+- **Mic + STT** - runtime microphone permission flow; recognition follows the app language (was hardcoded `en_US`).
+- **Streaming performance** - memoized markdown stylesheets/builders, chat pagination (100/page with load-more), sidebar search on isolate, image preload, PDF/DOCX/PNG/base64 on workers.
+- **History hygiene** - 500-session cap (unpinned eviction), paused-download TTL, crash-orphan `.part` sweep, gallery existence cache.
+- **MCP settings** - card is now a multi-server summary linking to Explore manager.
+- **Deps** - removed dead `flutter_inappwebview` (+ orphan WebGPU asset), `speech_to_text` 7.4 migration.
+- **Windows build** - vendored `speech_to_text_windows` fix (upstream registration bug).
+- **Desktop parity** - App Lock screenshot blackout (`FLAG_SECURE`), real Windows RAM detection, close guard, shortcuts, save dialogs.
+
+### Fixed
+- **Backup restore always invalid** (bytes stringified), **pin-sort jump**, **Windows image-attach crash**, **lock race/enrollment**, **mic dead button**.
+- **New-chat/revision/branch/export flows** made pagination-safe (context from storage, full-history branch, window-edge guards).
+
 ## [1.3.0+8] - 2026-09-03
 
 ### Added

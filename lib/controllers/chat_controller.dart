@@ -9,6 +9,7 @@ import 'package:get/get.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:uuid/uuid.dart';
@@ -22,6 +23,7 @@ import '../services/web_fetch_service.dart';
 import '../services/inference_service.dart';
 import '../services/cloud_service.dart';
 import '../services/local_image_service.dart';
+import '../services/tts_service.dart';
 import '../services/app_log_service.dart';
 import '../services/image_generation_notification_service.dart';
 import '../services/document_extractor_service.dart';
@@ -94,10 +96,197 @@ class ChatController extends GetxController {
   final sttAvailable = false.obs;
   final _speech = stt.SpeechToText();
 
+  // ─── Hands-free voice mode ───
+  // Loop: listen → (final result) auto-send → reply → speak → listen.
+  // Built from existing pieces (toggleListening/sendMessage/TtsService).
+  final voiceMode = false.obs;
+  bool _voiceSpeaking = false;
+  bool _voiceSendArmed = true;
+  bool _wasLoading = false;
+  bool _voiceStopQuiet = false;
+  final _voiceWorkers = <Worker>[];
+
+  TtsService? _tts() {
+    try {
+      return Get.isRegistered<TtsService>() ? Get.find<TtsService>() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void setVoiceMode(bool on) {
+    voiceMode.value = on;
+    if (on) {
+      _voiceStopQuiet = false;
+      _voiceSpeaking = false;
+      _voiceSendArmed = true;
+      _attachVoiceWorkers();
+      Get.snackbar(
+        'Hands-free on',
+        'Speak, and CubicLM replies aloud. Tap the headset icon to stop.',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 4),
+      );
+      unawaited(toggleListening());
+    } else {
+      _detachVoiceWorkers();
+      _voiceSpeaking = false;
+      try {
+        _speech.stop();
+      } catch (_) {}
+      try {
+        _tts()?.stop();
+      } catch (_) {}
+      isListening.value = false;
+    }
+  }
+
+  void _attachVoiceWorkers() {
+    _detachVoiceWorkers();
+    final tts = _tts();
+    if (tts != null) {
+      _voiceWorkers.add(ever<bool>(tts.isSpeaking, (speaking) {
+        if (!voiceMode.value) return;
+        if (_voiceSpeaking && !speaking) {
+          _voiceSpeaking = false;
+          _voiceSendArmed = true;
+          unawaited(toggleListening());
+        }
+      }));
+    }
+    _voiceWorkers.add(ever<bool>(isLoading, (loading) {
+      if (_wasLoading && !loading) unawaited(_onVoiceReplyReady());
+      _wasLoading = loading;
+    }));
+  }
+
+  void _detachVoiceWorkers() {
+    for (final w in _voiceWorkers) {
+      try {
+        w.dispose();
+      } catch (_) {}
+    }
+    _voiceWorkers.clear();
+  }
+
+  /// Speaks the latest assistant reply when a hands-free turn settles,
+  /// then the TTS watcher re-arms listening.
+  Future<void> _onVoiceReplyReady() async {
+    if (!voiceMode.value) return;
+    if (_voiceStopQuiet) {
+      _voiceStopQuiet = false;
+      return;
+    }
+    if (currentSessionId.value.isEmpty) return;
+    ChatMessage? last;
+    for (var i = messages.length - 1; i >= 0; i--) {
+      final m = messages[i];
+      if (m.chatId == currentSessionId.value &&
+          m.role == 'assistant' &&
+          m.content.trim().isNotEmpty) {
+        last = m;
+        break;
+      }
+    }
+    if (last == null) return;
+    final tts = _tts();
+    if (tts == null) {
+      _voiceSendArmed = true;
+      unawaited(toggleListening());
+      return;
+    }
+    _voiceSpeaking = true;
+    _voiceSendArmed = true;
+    await tts.speak(last.content);
+  }
+
   final textController = TextEditingController();
   final scrollController = ScrollController();
   final composerFocusNode = FocusNode();
   final composerKeyboardFocusNode = FocusNode();
+
+  // ─── Find in open chat ───
+  final findActive = false.obs;
+  final findQuery = ''.obs;
+  final findMatches = <String>[].obs; // message ids, chronological
+  final findIndex = 0.obs;
+  final findController = TextEditingController();
+  final _findKeys = <String, GlobalKey>{};
+
+  /// Stable per-message key: doubles as the list identity key (state by
+  /// id, not position) and the find-jump anchor for ensureVisible.
+  GlobalKey findKeyFor(String id) =>
+      _findKeys.putIfAbsent(id, GlobalKey.new);
+
+  void toggleFind(bool open) {
+    findActive.value = open;
+    if (!open) {
+      findQuery.value = '';
+      findMatches.clear();
+      findIndex.value = 0;
+      findController.clear();
+    }
+  }
+
+  void updateFind(String q) {
+    unawaited(_updateFindAsync(q));
+  }
+
+  int _findGen = 0;
+
+  /// Searches the loaded window, then pulls older pages (max 5) until a
+  /// hit or exhaustion — so find works beyond the newest 100 without
+  /// dumping the whole history into memory. Superseded flights abort.
+  Future<void> _updateFindAsync(String q) async {
+    final gen = ++_findGen;
+    final needle = q.trim().toLowerCase();
+    findQuery.value = needle;
+    if (needle.isEmpty) {
+      findMatches.clear();
+      findIndex.value = 0;
+      return;
+    }
+    List<String> scan() => messages
+        .where((m) =>
+            '${m.content} ${m.fileName ?? ''}'.toLowerCase().contains(needle))
+        .map((m) => m.id)
+        .toList();
+    findMatches.value = scan();
+    var pages = 0;
+    while (findMatches.isEmpty &&
+        hasOlderMessages.value &&
+        pages < 5 &&
+        gen == _findGen) {
+      pages++;
+      await loadOlderMessages();
+      if (gen != _findGen) return;
+      findMatches.value = scan();
+    }
+    if (gen != _findGen) return;
+    findIndex.value = 0;
+    if (findMatches.isNotEmpty) jumpToFindMatch(0);
+  }
+
+  void stepFind(int dir) {
+    if (findMatches.isEmpty) return;
+    findIndex.value =
+        (findIndex.value + dir + findMatches.length) % findMatches.length;
+    jumpToFindMatch(findIndex.value);
+  }
+
+  void jumpToFindMatch(int i) {
+    if (i < 0 || i >= findMatches.length) return;
+    final ctx = _findKeys[findMatches[i]]?.currentContext;
+    if (ctx == null) return;
+    try {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        alignment: 0.3,
+      );
+    } catch (_) {}
+  }
 
   /// Chat history drawer scaffold + its search field. Bound by ChatView;
   /// lets desktop shortcuts (Ctrl+F) open the drawer and focus search
@@ -153,6 +342,27 @@ class ChatController extends GetxController {
         isListening.value = false;
         return;
       }
+      // Runtime mic permission first — without it initialize() fails
+      // silently and the user never sees a system dialog.
+      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+        var mic = await Permission.microphone.status;
+        if (!mic.isGranted) {
+          mic = await Permission.microphone.request();
+        }
+        if (mic.isPermanentlyDenied) {
+          Get.snackbar(
+            'Microphone blocked',
+            'Allow microphone access in system settings to use voice input.',
+            snackPosition: SnackPosition.BOTTOM,
+            duration: const Duration(seconds: 5),
+            mainButton: const TextButton(
+              onPressed: openAppSettings,
+              child: Text('Open settings'),
+            ),          );
+          return;
+        }
+        if (!mic.isGranted) return; // denied (not permanent) — stay silent
+      }
       if (!sttAvailable.value) {
         try {
           final ok = await _speech.initialize();
@@ -171,26 +381,85 @@ class ChatController extends GetxController {
         onResult: (result) {
           textController.text = result.recognizedWords;
           inputText.value = result.recognizedWords;
+          // Hands-free: final transcript auto-sends (once per utterance).
+          if (voiceMode.value && result.finalResult) {
+            final said = result.recognizedWords.trim();
+            if (said.isNotEmpty &&
+                _voiceSendArmed &&
+                !isLoading.value) {
+              _voiceSendArmed = false;
+              sendMessage();
+            }
+          }
         },
         listenOptions: stt.SpeechListenOptions(
           listenFor: const Duration(seconds: 60),
           pauseFor: const Duration(seconds: 4),
-          localeId: 'en_US',
+          localeId: _sttLocaleId(),
         ),
       );
       isListening.value = true;
+      _voiceSendArmed = true;
     } catch (_) {
       isListening.value = false;
     }
   }
 
+  /// Speech locale following the app language (mirrors TTS mapping).
+  /// Falls back to en-US when unknown or unset.
+  String _sttLocaleId() {
+    var code = 'en';
+    try {
+      if (Get.isRegistered<SettingsController>()) {
+        code = Get.find<SettingsController>().locale.value.code;
+      } else if (Get.locale != null) {
+        code = Get.locale!.languageCode;
+      }
+    } catch (_) {}
+    switch (code) {
+      case 'bn':
+        return 'bn-BD';
+      case 'hi':
+        return 'hi-IN';
+      case 'ar':
+        return 'ar-SA';
+      case 'zh':
+        return 'zh-CN';
+      case 'es':
+        return 'es-ES';
+      case 'fr':
+        return 'fr-FR';
+      case 'ja':
+        return 'ja-JP';
+      case 'ko':
+        return 'ko-KR';
+      case 'pt':
+        return 'pt-BR';
+      case 'de':
+        return 'de-DE';
+      case 'tr':
+        return 'tr-TR';
+      case 'id':
+        return 'id-ID';
+      case 'ru':
+        return 'ru-RU';
+      case 'ur':
+        return 'ur-PK';
+      case 'en':
+      default:
+        return 'en-US';
+    }
+  }
+
   @override
   void onClose() {
+    _detachVoiceWorkers();
     _scrollTimer?.cancel();
     if (_scrollListenerAttached) {
       scrollController.removeListener(_handleUserScroll);
     }
     textController.dispose();
+    findController.dispose();
     composerFocusNode.dispose();
     composerKeyboardFocusNode.dispose();
     historySearchFocus.dispose();
@@ -222,6 +491,50 @@ class ChatController extends GetxController {
     sessions.sort(_sessionSort);
   }
 
+  /// Archived chats hide from the drawer (unless revealed). The open chat
+  /// stays open when archived — only the list filters it out.
+  void toggleArchive(String sessionId) {
+    final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
+    if (session == null) return;
+    final updated = session.copyWith(archived: !session.archived);
+    _hive.saveSession(updated.id, updated.toMap());
+    final idx = sessions.indexWhere((s) => s.id == updated.id);
+    if (idx >= 0) sessions[idx] = updated;
+    sessions.sort(_sessionSort);
+    Get.snackbar(
+      updated.archived ? 'Chat archived' : 'Chat unarchived',
+      updated.archived
+          ? 'Hidden from history. Use "Show archived" to reveal.'
+          : 'Back in your history.',
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 3),
+    );
+  }
+
+  /// Show/hide archived chats in the drawer list.
+  final showArchived = false.obs;
+
+  int get archivedCount => sessions.where((s) => s.archived).length;
+
+  /// Per-chat persona (system-prompt addition). Empty clears to global.
+  void setPersona(String sessionId, String persona) {
+    final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
+    if (session == null) return;
+    final updated = session.copyWith(persona: persona.trim());
+    _hive.saveSession(updated.id, updated.toMap());
+    final idx = sessions.indexWhere((s) => s.id == updated.id);
+    if (idx >= 0) sessions[idx] = updated;
+  }
+
+  /// Persona of the currently open chat ('' when none).
+  String get currentPersona {
+    if (currentSessionId.value.isEmpty) return '';
+    return sessions
+            .firstWhereOrNull((s) => s.id == currentSessionId.value)
+            ?.persona ??
+        '';
+  }
+
   void createNewChat() {
     final id = _uuid.v4();
     final session = ChatSession(id: id, title: 'New Chat');
@@ -243,15 +556,106 @@ class ChatController extends GetxController {
   void openChat(String sessionId) {
     stopGenerating();
     currentSessionId.value = sessionId;
-    final raw = _hive.getMessagesForChat(sessionId);
+    hasOlderMessages.value = false;
+    isLoadingOlder.value = false;
+    toggleFind(false);
+    _findKeys.clear();
+    // Windowed load: newest N messages only. Huge histories no longer
+    // parse + inflate all at once; older pages load on scroll-to-top.
+    final raw = _hive.getMessagesForChatPaged(
+      sessionId,
+      limit: _chatPageSize,
+    );
     messages.value = raw.map((m) => ChatMessage.fromMap(m)).toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    hasOlderMessages.value = raw.length >= _chatPageSize;
+    // Warm image bytes off the critical path: async file reads (thread
+    // pool) so first scroll over an image doesn't stall on sync I/O in
+    // build. Fire-and-forget; bubbles render text immediately.
+    unawaited(_preloadChatImages(sessionId, messages.toList()));
     final inference = Get.find<InferenceService>();
     if (inference.isModelLoaded.value) {
       inference.refreshContextInfo();
     }
     _resetInferenceContext();
     _scrollToBottom(force: true);
+  }
+
+  /// Number of messages loaded per chat window page.
+  static const int _chatPageSize = 100;
+
+  /// True when older messages may exist beyond the loaded window.
+  final hasOlderMessages = false.obs;
+
+  /// True while a load-older page is in flight (re-entrancy guard).
+  final isLoadingOlder = false.obs;
+
+  /// Prepends the next older page, preserving the visual scroll position.
+  /// No-op when everything is loaded or a load is already running.
+  Future<void> loadOlderMessages() async {
+    if (isLoadingOlder.value || !hasOlderMessages.value) return;
+    if (currentSessionId.value.isEmpty) return;
+    if (!scrollController.hasClients) return;
+    isLoadingOlder.value = true;
+    try {
+      final sessionId = currentSessionId.value;
+      if (messages.isEmpty) {
+        hasOlderMessages.value = false;
+        return;
+      }
+      final oldestMs =
+          messages.first.timestamp.millisecondsSinceEpoch;
+      final raw = _hive.getMessagesForChatPaged(
+        sessionId,
+        limit: _chatPageSize,
+        beforeTimestampMs: oldestMs,
+      );
+      if (currentSessionId.value != sessionId) return; // switched mid-flight
+      if (raw.isEmpty) {
+        hasOlderMessages.value = false;
+        return;
+      }
+      final older = raw.map((m) => ChatMessage.fromMap(m)).toList()
+        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      // De-dupe against the window edge (equal timestamps possible).
+      final knownIds = messages.map((m) => m.id).toSet();
+      older.removeWhere((m) => knownIds.contains(m.id));
+      if (older.isEmpty) {
+        hasOlderMessages.value = false;
+        return;
+      }
+      final pos = scrollController.position;
+      final oldMax = pos.maxScrollExtent;
+      final oldPixels = pos.pixels;
+      messages.insertAll(0, older);
+      unawaited(_preloadChatImages(sessionId, older));
+      hasOlderMessages.value = raw.length >= _chatPageSize;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!scrollController.hasClients) return;
+        try {
+          final newMax = scrollController.position.maxScrollExtent;
+          scrollController.jumpTo(
+            (oldPixels + (newMax - oldMax))
+                .clamp(0.0, newMax.toDouble()),
+          );
+        } catch (_) {}
+      });
+    } finally {
+      isLoadingOlder.value = false;
+    }
+  }
+
+  /// Preloads image payloads for [msgs] without blocking. Skips anything
+  /// already cached and stops early if the user switched chats mid-flight.
+  Future<void> _preloadChatImages(
+      String sessionId, List<ChatMessage> msgs) async {
+    for (final m in msgs) {
+      if (currentSessionId.value != sessionId) return;
+      if (m.imageBase64 == null && m.imagePath == null) continue;
+      try {
+        await m.preloadImageBytes();
+      } catch (_) {}
+    }
   }
 
   void deleteChat(String sessionId) {
@@ -263,6 +667,7 @@ class ChatController extends GetxController {
     if (currentSessionId.value == sessionId) {
       currentSessionId.value = '';
       messages.clear();
+      hasOlderMessages.value = false;
     }
   }
 
@@ -279,12 +684,19 @@ class ChatController extends GetxController {
   // ─── Backup & Restore ───────────────────────────
 
   /// Export every session + message to a single JSON backup file and open
-  /// the system share sheet. Image blobs are stripped to keep the file
-  /// portable (image paths don't transfer between devices anyway).
+  /// the system share sheet.
+  ///
+  /// - [includeImages]: keep base64 image payloads (much larger file).
+  ///   Default strips them (paths never transfer across devices anyway).
+  /// - [passphrase]: non-empty encrypts the payload (AES-256-CBC,
+  ///   SHA-256 key). Import then requires the same passphrase.
   ///
   /// Desktop has no share sheet — a native save dialog is shown instead so
   /// the user picks the destination file directly.
-  Future<String?> exportAllChats() async {
+  Future<String?> exportAllChats({
+    bool includeImages = false,
+    String? passphrase,
+  }) async {
     try {
       final sessionsRaw = _hive.getAllSessions();
       final messagesRaw = _hive.getAllMessagesRaw();
@@ -292,27 +704,47 @@ class ChatController extends GetxController {
 
       final sessionsOut = sessionsRaw.map((s) {
         final m = Map<String, dynamic>.from(s);
-        m.remove('imageBase64');
+        if (!includeImages) m.remove('imageBase64');
         return m;
       }).map((s) => ChatSession.fromMap(s).toMap()).toList();
 
       final messagesOut = messagesRaw.map((m) {
         final c = Map<String, dynamic>.from(m);
-        // Strip image payloads — base64 blobs bloat the backup and file
-        // paths never transfer across devices.
-        c['imageBase64'] = null;
+        // File paths never transfer across devices.
         c['imagePath'] = null;
+        if (!includeImages) c['imageBase64'] = null;
         return c;
       }).toList();
 
-      final payload = {
-        'app': 'CubicLM',
-        'type': 'chat_backup',
-        'version': 1,
-        'exportedAt': DateTime.now().toIso8601String(),
+      final inner = {
         'sessions': sessionsOut,
         'messages': messagesOut,
       };
+      final Map<String, dynamic> payload;
+      final pass = (passphrase ?? '').trim();
+      if (pass.isNotEmpty) {
+        final plain = Uint8List.fromList(utf8.encode(
+          '${HiveService.backupMagic}${jsonEncode(inner)}',
+        ));
+        final packed =
+            await _hive.encryptBackupBytes(plain, pass);
+        payload = {
+          'app': 'CubicLM',
+          'type': 'chat_backup_encrypted',
+          'version': 1,
+          'algo': 'aes256cbc-sha256',
+          'exportedAt': DateTime.now().toIso8601String(),
+          'data': base64Encode(packed),
+        };
+      } else {
+        payload = {
+          'app': 'CubicLM',
+          'type': 'chat_backup',
+          'version': 1,
+          'exportedAt': DateTime.now().toIso8601String(),
+          ...inner,
+        };
+      }
       final jsonStr = jsonEncode(payload);
 
       if (!kIsWeb &&
@@ -369,8 +801,9 @@ class ChatController extends GetxController {
 
   /// Import a previously exported CubicLM chat backup. Existing sessions
   /// and messages are never overwritten — only new items are merged in.
-  /// Returns an error string, or null on success.
-  Future<String?> importChats() async {
+  /// Encrypted backups require [passphrase]: 'locked' when missing,
+  /// 'invalid' when wrong. Returns an error string, or null on success.
+  Future<String?> importChats({String? passphrase}) async {
     try {
       final picked = await FilePicker.pickFiles(
         type: FileType.custom,
@@ -403,16 +836,36 @@ class ChatController extends GetxController {
       } on FormatException {
         return 'invalid';
       }
-      if (decoded is! Map<String, dynamic> ||
-          decoded['type'] != 'chat_backup') {
-        return 'invalid';
+      var body = decoded;
+      if (decoded is Map<String, dynamic> &&
+          decoded['type'] == 'chat_backup_encrypted') {
+        final algo = decoded['algo']?.toString() ?? 'aes256cbc-sha256';
+        if (algo != 'aes256cbc-sha256') return 'invalid';
+        final pass = (passphrase ?? '').trim();
+        if (pass.isEmpty) return 'locked';
+        try {
+          final packed = base64Decode(decoded['data']?.toString() ?? '');
+          final plain = await _hive.decryptBackupBytes(packed, pass);
+          final text = utf8.decode(plain);
+          if (!text.startsWith(HiveService.backupMagic)) return 'invalid';
+          body = jsonDecode(text.substring(HiveService.backupMagic.length));
+        } catch (_) {
+          return 'invalid';
+        }
       }
+      if (body is! Map<String, dynamic>) return 'invalid';
+      final t = body['type'];
+      final hasData =
+          body['sessions'] is List || body['messages'] is List;
+      // Plain backups carry type 'chat_backup'; decrypted payloads and
+      // legacy files may omit it but must carry data.
+      if (t != 'chat_backup' && !(t == null && hasData)) return 'invalid';
 
       final existingIds = sessions.map((s) => s.id).toSet();
       var importedSessions = 0;
       var importedMessages = 0;
 
-      final rawSessions = decoded['sessions'];
+      final rawSessions = body['sessions'];
       if (rawSessions is List) {
         for (final item in rawSessions) {
           if (item is! Map) continue;
@@ -431,7 +884,7 @@ class ChatController extends GetxController {
               m['id']?.toString() ?? ''))
           .toSet();
 
-      final rawMessages = decoded['messages'];
+      final rawMessages = body['messages'];
       if (rawMessages is List) {
         for (final item in rawMessages) {
           if (item is! Map) continue;
@@ -574,8 +1027,11 @@ class ChatController extends GetxController {
 
   void _checkVisionSupport() {
     final s = Get.find<SettingsController>();
-    if (s.inferenceMode.value != 'cloud') return;
-    
+    if (s.inferenceMode.value != 'cloud') {
+      _checkLocalVisionSupport();
+      return;
+    }
+
     final provider = s.cloudProvider.value;
     String modelName = '';
     switch (provider) {
@@ -613,6 +1069,33 @@ class ChatController extends GetxController {
         margin: const EdgeInsets.all(12),
       );
     }
+  }
+
+  /// Local mode: only LiteRT vision sessions accept images on-device
+  /// today — GGUF has no mmproj loader, so attaching a picture to a GGUF
+  /// chat fails at generate time. Warn at attach time instead, while the
+  /// user can still switch to Cloud or load a vision .litertlm.
+  void _checkLocalVisionSupport() {
+    var ok = false;
+    try {
+      final inference = Get.find<InferenceService>();
+      final runtime = inference.loadedModelRuntime.value.toLowerCase();
+      ok = inference.isModelLoaded.value &&
+          runtime.contains('litert') &&
+          inference.isVisionLoaded.value;
+    } catch (_) {
+      ok = false;
+    }
+    if (ok) return;
+    Get.snackbar(
+      'Warning: Text-Only Engine',
+      'On-device vision needs a LiteRT vision model — GGUF models are text-only here. Switch to Cloud for vision.',
+      snackPosition: SnackPosition.TOP,
+      duration: const Duration(seconds: 6),
+      backgroundColor: const Color(0xFFFF9500).withValues(alpha: 0.95),
+      colorText: Colors.white,
+      margin: const EdgeInsets.all(12),
+    );
   }
 
   Future<void> pickFile() async {
@@ -805,11 +1288,13 @@ class ChatController extends GetxController {
       createNewChat();
     }
 
-    // Encode image to base64 for cloud API (transient, not persisted)
+    // Encode image to base64 for cloud API (transient, not persisted).
+    // base64 over MBs of pixels runs on a worker, not the UI thread.
     String? imgBase64 = imageBase64;
     if (imgBase64 == null && imagePath != null && !kIsWeb) {
       try {
-        imgBase64 = base64Encode(await File(imagePath).readAsBytes());
+        imgBase64 =
+            await compute(base64Encode, await File(imagePath).readAsBytes());
       } catch (_) {}
     }
 
@@ -939,16 +1424,23 @@ class ChatController extends GetxController {
 
       String rawResponse;
 
-      // Build conversation history
-      final history = messages
-          .where((m) => m.role == 'user' || m.role == 'assistant')
-          .map((m) => {
-                'role': m.role,
-                'content': m.role == 'assistant'
-                    ? splitThoughtTags(m.content).answer
-                    : m.content,
-              })
-          .toList();
+      // Build conversation history from storage, not the UI window: the
+      // visible list is paged (newest 100) and must not truncate model
+      // context. Cap at recent turns — engines slice to ≤16 anyway.
+      // Maps built straight from raw rows (same strings fromMap would
+      // parse — no round-trip needed for role/content).
+      final storedForHistory = _hive.getMessagesForChatPaged(
+        currentSessionId.value,
+        limit: 40,
+      );
+      final history = storedForHistory.map((m) {
+        final role = m['role']?.toString() ?? '';
+        var content = m['content']?.toString() ?? '';
+        if (role == 'assistant') {
+          content = splitThoughtTags(content).answer;
+        }
+        return {'role': role, 'content': content};
+      }).where((e) => e['role'] == 'user' || e['role'] == 'assistant').toList();
 
       // Skill relevance — only inject skills relevant to this prompt.
       final settingsForPrompt = Get.find<SettingsController>();
@@ -958,8 +1450,13 @@ class ChatController extends GetxController {
       final relevantSkills = SkillInjector.selectRelevantSkills(prompt);
       final List<String> usedSkillNames =
           relevantSkills.map((s) => s.name).toList();
-      final basePrompt =
+      var basePrompt =
           settingsForPrompt.baseSystemPromptForModel(modelNameForPrompt);
+      // Per-chat persona overrides tone per conversation (empty = global).
+      final persona = currentPersona;
+      if (persona.isNotEmpty) {
+        basePrompt = '$basePrompt\n\n[Chat persona]\n$persona';
+      }
       final String systemPromptForThisTurn = relevantSkills.isEmpty
           ? basePrompt
           : '$basePrompt${SkillInjector.buildForSkills(relevantSkills)}';
@@ -1065,7 +1562,8 @@ class ChatController extends GetxController {
 
           if (pngBytes != null) {
             await imageNotifications.complete(durationMs: genDurationMs ?? 0);
-            rawResponse = '[IMAGE_BASE64]${base64Encode(pngBytes)}';
+            rawResponse =
+                '[IMAGE_BASE64]${await compute(base64Encode, pngBytes)}';
           } else {
             await imageNotifications.failed();
             rawResponse = '❌ Local image generation failed.';
@@ -1228,6 +1726,12 @@ class ChatController extends GetxController {
 
   void stopGenerating() {
     if (!isLoading.value && !isStreaming.value) return;
+    // Hands-free: user-stopped turns stay quiet (no auto-speak/listen).
+    _voiceStopQuiet = true;
+    _voiceSpeaking = false;
+    try {
+      if (Get.isRegistered<TtsService>()) Get.find<TtsService>().stop();
+    } catch (_) {}
     final partialResponse = streamingResponse.value.trim();
     
     final genDurationMs = generationStartTime.value != null
@@ -1345,12 +1849,21 @@ class ChatController extends GetxController {
   void navigateRevision(ChatMessage msg, int direction) {
     final revisions = msg.revisions;
     if (revisions == null || revisions.isEmpty) return;
-    
+
     final targetIdx = msg.revisionIndex + direction;
     if (targetIdx < 0 || targetIdx >= revisions.length) return;
 
-    final msgIdx = messages.indexWhere((m) => m.id == msg.id);
+    var msgIdx = messages.indexWhere((m) => m.id == msg.id);
     if (msgIdx < 0) return;
+    // Window edge: the true adjacent reply may sit in an unloaded page.
+    // Pull older history first so messages[msgIdx + 1] is really the reply.
+    if (msgIdx == 0 && hasOlderMessages.value) {
+      // Best-effort sync load (cheap: one page from Hive).
+      unawaited(loadOlderMessages().then((_) {
+        navigateRevision(msg, direction);
+      }));
+      return;
+    }
 
     // Current assistant response (if any) should be saved back to the current revision
     String? currentResponse;
@@ -1428,8 +1941,16 @@ class ChatController extends GetxController {
 
   void regenerateFromMessage(ChatMessage msg) {
     if (isLoading.value || isStreaming.value) return;
-    final idx = messages.indexWhere((m) => m.id == msg.id);
+    var idx = messages.indexWhere((m) => m.id == msg.id);
     if (idx < 0) return;
+    // Window edge: the preceding user message may sit in an unloaded
+    // page — load it first instead of regenerating against nothing.
+    if (idx == 0 && hasOlderMessages.value) {
+      unawaited(loadOlderMessages().then((_) {
+        regenerateFromMessage(msg);
+      }));
+      return;
+    }
 
     final userMsg = idx > 0 ? messages[idx - 1] : null;
     if (userMsg == null || userMsg.role != 'user') return;
@@ -1460,10 +1981,19 @@ class ChatController extends GetxController {
     final idx = messages.indexWhere((m) => m.id == msg.id);
     if (idx < 0) return;
 
-    // Capture history BEFORE creating new chat and clearing 'messages'
-    final historyToCopy = messages.sublist(0, idx).where(
-      (m) => m.role == 'user' || m.role == 'assistant',
-    ).toList();
+    // Capture history from storage, not the UI window: the visible list
+    // is paged and a windowed sublist would silently drop older context
+    // from the branch.
+    final stored = _hive.getMessagesForChat(msg.chatId);
+    final cutoff = msg.timestamp;
+    final historyToCopy = stored
+        .map((m) => ChatMessage.fromMap(m))
+        .toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    historyToCopy.retainWhere((m) =>
+        m.id != msg.id &&
+        !m.timestamp.isAfter(cutoff) &&
+        (m.role == 'user' || m.role == 'assistant'));
 
     createNewChat();
     
@@ -1495,6 +2025,10 @@ class ChatController extends GetxController {
     if (idx < 0) return;
     _hive.deleteMessage(msg.id);
     messages.removeAt(idx);
+    // Don't strand the user on an empty window while older pages exist.
+    if (messages.isEmpty && hasOlderMessages.value) {
+      unawaited(loadOlderMessages());
+    }
   }
 
   void _saveAssistantMessage({
@@ -1534,6 +2068,14 @@ class ChatController extends GetxController {
     
     // Show button if we are more than 200px away from bottom
     showScrollToBottom.value = distanceFromBottom > 200;
+
+    // Paged history: near the top edge, pull the next older page.
+    if (position.pixels <= 240 &&
+        hasOlderMessages.value &&
+        !isLoadingOlder.value &&
+        !isLoading.value) {
+      unawaited(loadOlderMessages());
+    }
 
     if (!isStreaming.value) {
       _followStreaming = distanceFromBottom <= 180;

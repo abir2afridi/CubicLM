@@ -1,4 +1,8 @@
+import 'dart:io';
+
 import 'package:get/get.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 import '../core/constants.dart';
 import '../models/task_model.dart';
@@ -105,28 +109,59 @@ Steps:''';
     isPlanning.value = false;
   }
 
-  /// Execute all pending steps in sequence.
-  Future<void> executeTask(TaskModel task) async {
+  /// Exports the plan as a runnable ADB shell script via the share sheet.
+  ///
+  /// On-device shell execution is impossible for stock apps (no shell
+  /// privileges — `settings put global` etc. need signature-level rights),
+  /// so the previous "Execute" button always failed. The honest flow is:
+  /// plan here, run from a PC with `adb shell`.
+  Future<void> exportPlan(TaskModel task) async {
+    if (isExecuting.value) return;
     isExecuting.value = true;
-    currentTask.value = task;
-
-    var updatedTask = task.copyWith(status: 'running');
-    _updateTask(updatedTask);
-
-    final steps = List<TaskStep>.from(updatedTask.steps);
-
-    for (int i = 0; i < steps.length; i++) {
-      final step = steps[i];
-      steps[i] = step.copyWith(
-        status: 'failed',
-        output: 'Command execution is not available.',
+    // Short file-safe id (uuids are 36 chars; custom ids may be shorter).
+    final taskIdShort =
+        task.id.length >= 8 ? task.id.substring(0, 8) : task.id;
+    try {
+      final buf = StringBuffer()
+        ..writeln('#!/system/bin/sh')
+        ..writeln('# CubicLM plan: ${task.goal}')
+        ..writeln('# Run from a PC connected over ADB:')
+        ..writeln('#   adb shell < $taskIdShort.sh')
+        ..writeln('set -e');
+      var count = 0;
+      for (final step in task.steps) {
+        final cmd = (step.command ?? '').trim();
+        if (cmd.isEmpty) continue;
+        count++;
+        buf.writeln();
+        buf.writeln('# Step $count: ${step.description}');
+        buf.writeln(cmd);
+      }
+      if (count == 0) {
+        Get.snackbar('Nothing to export', 'This plan has no commands.',
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/cubiclm_task_$taskIdShort.sh');
+      await file.writeAsString(buf.toString(), flush: true);
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/x-sh')],
+        text: 'CubicLM ADB plan ($count steps): ${task.goal}',
+        subject: 'CubicLM ADB plan',
       );
+      final updatedTask = task.copyWith(status: 'exported');
+      _updateTask(updatedTask);
+    } catch (e) {
+      Get.snackbar('Export failed', '$e',
+          snackPosition: SnackPosition.BOTTOM);
+    } finally {
+      isExecuting.value = false;
     }
-
-    updatedTask = updatedTask.copyWith(steps: steps, status: 'failed');
-    _updateTask(updatedTask);
-    isExecuting.value = false;
   }
+
+  /// Backwards-compatible alias (old UI called executeTask).
+  Future<void> executeTask(TaskModel task) => exportPlan(task);
 
   void deleteTask(String id) {
     _hive.deleteTask(id);
