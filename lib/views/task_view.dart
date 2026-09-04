@@ -245,6 +245,10 @@ class TaskView extends GetView<TaskController> {
 
   void _showCreateDialog(BuildContext context, bool isDark) {
     final textCtrl = TextEditingController();
+    // Dispose AFTER the route is fully gone: disposing before pop leaves
+    // the focused TextField mounted through the pop transition, and the
+    // keyboard-dismiss rebuild then touches a dead controller
+    // ("TextEditingController was used after being disposed").
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Text('Initialize Objective', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
       content: TextField(
@@ -256,13 +260,16 @@ class TaskView extends GetView<TaskController> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () { textCtrl.dispose(); Navigator.pop(ctx); }, child: Text('Discard', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: Theme.of(ctx).hintColor))),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Discard', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, color: Theme.of(ctx).hintColor))),
         ElevatedButton(onPressed: () {
           if (textCtrl.text.trim().isNotEmpty) { controller.createTask(textCtrl.text.trim()); }
-          textCtrl.dispose();
           Navigator.pop(ctx);
         }, child: Text('Initialize', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800))),
       ],
-    ));
+    )).then((_) {
+      try {
+        textCtrl.dispose();
+      } catch (_) {}
+    });
   }
 }

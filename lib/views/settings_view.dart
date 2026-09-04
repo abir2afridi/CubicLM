@@ -844,7 +844,7 @@ class SettingsView extends GetView<SettingsController> {
                     fontSize: 15, fontWeight: FontWeight.w700)),
           ]),
           const SizedBox(height: 12),
-          Obx(() => TextField(
+          TextField(
                 controller: controller.imageGenNegativeController,
                 onSubmitted: (v) => controller.setImageGenNegative(v),
                 onEditingComplete: () => controller.setImageGenNegative(
@@ -858,7 +858,7 @@ class SettingsView extends GetView<SettingsController> {
                       borderRadius: BorderRadius.circular(12)),
                   contentPadding: const EdgeInsets.all(12),
                 ),
-              )),
+              ),
         ]),
       ),
       _parameterDivider(isDark),

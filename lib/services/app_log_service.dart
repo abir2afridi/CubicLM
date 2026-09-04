@@ -252,6 +252,17 @@ class AppLogService extends GetxService {
           e.message.contains('Firebase') && e.message.contains('failed'),
     ),
     CrashPattern(
+      id: 'service_init',
+      title: 'Deferred service failed to start',
+      description:
+          'A background service did not initialize in time or threw.',
+      fix:
+          'Usually transient — restart the app. If a service keeps failing, report it with the log row.',
+      matcher: (e) =>
+          e.message.contains('failed to init') ||
+          e.message.contains('timed out / failed'),
+    ),
+    CrashPattern(
       id: 'flutter_framework',
       title: 'Flutter framework assertion',
       description:

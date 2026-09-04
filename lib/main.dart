@@ -319,13 +319,10 @@ Future<void> _initDeferredServices(
     AppLogService appLog, ImageGenerationNotificationService imageNotifications) async {
   Future<T> withTimeout<T>(Future<T> f, String name,
       {Duration timeout = const Duration(seconds: 4)}) async {
-    try {
-      return await f.timeout(timeout);
-    } catch (e, s) {
-      appLog.error('Deferred init $name timed out / failed',
-          details: '$e\n$s', category: LogCategory.system);
-      rethrow;
-    }
+    // No logging here: callers log once with their own context (safePut
+    // logs service failures; specific blocks log specifics). Logging here
+    // too produced duplicate rows for every timeout.
+    return f.timeout(timeout);
   }
 
   Future<void> safePut<T extends GetxService>(
@@ -347,8 +344,9 @@ Future<void> _initDeferredServices(
       timeout: const Duration(seconds: 4));
   await safePut(() => McpRegistryService().init(), 'McpRegistryService',
       timeout: const Duration(seconds: 4));
+  // DeviceInfo probes hardware (getprop/Vulkan) — slow devices need room.
   await safePut(() => DeviceInfoService().init(), 'DeviceInfoService',
-      timeout: const Duration(seconds: 4));
+      timeout: const Duration(seconds: 10));
   await safePut(() => UpdateService().init(), 'UpdateService',
       timeout: const Duration(seconds: 4));
   // Kick off auto-check (3s delay + 24h throttle inside the service).
@@ -363,7 +361,10 @@ Future<void> _initDeferredServices(
     final cr = Get.find<CrashReportingService>();
     await withTimeout(cr.init(), 'CrashReportingService',
         timeout: const Duration(seconds: 4));
-  } catch (_) {}
+  } catch (e) {
+    appLog.error('Service CrashReportingService failed to init',
+        details: e.toString(), category: LogCategory.system);
+  }
 
   try {
     await withTimeout(imageNotifications.init(), 'ImageNotifications.init',

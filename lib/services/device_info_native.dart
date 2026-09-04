@@ -166,7 +166,9 @@ Future<Map<String, dynamic>> getDeviceInfo() async {
       } catch (_) {}
 
       // Modern Android hides the cpuinfo "Hardware" line — read system
-      // properties instead (Android 12+ exposes ro.soc.*).
+      // properties instead (Android 12+ exposes ro.soc.*). Parallel:
+      // each getprop spawns a process (~200-500ms); sequential was 1-3s
+      // and tripped the deferred-init timeout on slow devices.
       if (Platform.isAndroid) {
         Future<String> getProp(String name) async {
           try {
@@ -177,12 +179,20 @@ Future<Map<String, dynamic>> getDeviceInfo() async {
           }
         }
 
-        final socManufacturer = await getProp('ro.soc.manufacturer');
-        final socModel = await getProp('ro.soc.model');
-        final boardPlatform = await getProp('ro.board.platform');
-        final roHardware = await getProp('ro.hardware');
-        final brand = await getProp('ro.product.brand');
-        final model = await getProp('ro.product.model');
+        final props = await Future.wait([
+          getProp('ro.soc.manufacturer'),
+          getProp('ro.soc.model'),
+          getProp('ro.board.platform'),
+          getProp('ro.hardware'),
+          getProp('ro.product.brand'),
+          getProp('ro.product.model'),
+        ]);
+        final socManufacturer = props[0];
+        final socModel = props[1];
+        final boardPlatform = props[2];
+        final roHardware = props[3];
+        final brand = props[4];
+        final model = props[5];
 
         // Improve family detection using the properties we now have.
         final combined =

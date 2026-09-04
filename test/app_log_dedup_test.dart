@@ -136,4 +136,16 @@ void main() {
     expect(logs.untrackedErrors.first.message,
         'Negative prompt rejected by engine v9');
   });
+
+  testWidgets('service init failures match the service_init pattern',
+      (tester) async {
+    final logs = await settledLogs(tester);
+    logs.error('Service DeviceInfoService failed to init',
+        details: 'TimeoutException after 0:00:04');
+    await flushLogs(tester);
+
+    final ids = logs.detectedPatterns.map((p) => p.id).toSet();
+    expect(ids.contains('service_init'), isTrue);
+    expect(logs.untrackedErrors, isEmpty);
+  });
 }

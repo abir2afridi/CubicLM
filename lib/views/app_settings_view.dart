@@ -408,7 +408,12 @@ class AppSettingsView extends GetView<SettingsController> {
                   showDivider: false,
                   onTap: () async {
                     await controller.resetOnboarding();
-                    Get.offAllNamed(AppRoutes.onboarding);
+                    // Push (don't offAllNamed): keeps the home stack and its
+                    // controllers alive underneath. offAllNamed from here
+                    // would dispose lazy controllers (Chat/Home/Model) and
+                    // break the return trip. Onboarding finishes with its
+                    // own offAllNamed(home), which rebuilds cleanly.
+                    Get.toNamed(AppRoutes.onboarding);
                   },
                 ),
               ]),

@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -15,7 +15,7 @@ import '../services/skills/skill_registry_service.dart';
 import '../services/skills/url_skill_source.dart';
 import '../theme/design_tokens.dart';
 
-// ── Explore Skills Tab ──
+// â”€â”€ Explore Skills Tab â”€â”€
 
 class ExploreSkillsTab extends StatelessWidget {
   const ExploreSkillsTab({super.key});
@@ -58,7 +58,7 @@ class ExploreSkillsTab extends StatelessWidget {
                             fontSize: 15, fontWeight: FontWeight.w800)),
                     Text(
                       all.isEmpty
-                          ? 'No skills yet — import one'
+                          ? 'No skills yet â€” import one'
                           : '$enabledCount of ${all.length} enabled',
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
@@ -87,7 +87,7 @@ class ExploreSkillsTab extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Skills are offline instruction blocks appended to the system prompt. Enable any combination — they work for local and cloud models.',
+            'Skills are offline instruction blocks appended to the system prompt. Enable any combination â€” they work for local and cloud models.',
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 12, height: 1.4, color: Theme.of(context).hintColor),
           ),
@@ -107,7 +107,7 @@ class ExploreSkillsTab extends StatelessWidget {
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 14, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),
-                Text('Tap Import → From file / Browse GitHub / From URL',
+                Text('Tap Import â†’ From file / Browse GitHub / From URL',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 12, color: Theme.of(context).hintColor)),
@@ -196,7 +196,7 @@ class ExploreSkillsTab extends StatelessWidget {
                         color: Theme.of(context).hintColor,
                         height: 1.3)),
                 const SizedBox(height: 2),
-                Text('${skill.author} · v${skill.version}',
+                Text('${skill.author} Â· v${skill.version}',
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 11,
                         color: Theme.of(context).hintColor.withValues(alpha: 0.8))),
@@ -236,7 +236,7 @@ class ExploreSkillsTab extends StatelessWidget {
       title: Text(skill.name, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
       content: SingleChildScrollView(
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Text('${skill.author} · v${skill.version} · ${skill.source}',
+          Text('${skill.author} Â· v${skill.version} Â· ${skill.source}',
               style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Theme.of(context).hintColor)),
           const SizedBox(height: 4),
           Text(skill.description,
@@ -407,38 +407,12 @@ class ExploreSkillsTab extends StatelessWidget {
 
   Future<void> _importFromUrl(BuildContext context) async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final urlCtrl = TextEditingController();
-    final urlOk = await Get.dialog<bool>(
-      AlertDialog(
-        backgroundColor: isDark ? Dt.cardDark : Dt.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Import from URL', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Paste a direct link to a raw markdown file.',
-              style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Theme.of(context).hintColor)),
-          const SizedBox(height: 12),
-          TextField(
-              controller: urlCtrl,
-              autofocus: true,
-              keyboardType: TextInputType.url,
-              decoration: InputDecoration(
-                  hintText: 'https://raw.githubusercontent.com/.../SKILL.md',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14))),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Get.back(result: false), child: const Text('Cancel')),
-          FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Dt.accent),
-              onPressed: () => Get.back(result: true),
-              child: const Text('Fetch')),
-        ],
-      ),
+    final entered = await Get.dialog<String?>(
+      _UrlImportDialog(isDark: isDark),
+      barrierDismissible: true,
     );
-    final url = urlCtrl.text.trim();
-    urlCtrl.dispose();
-    if (urlOk != true || url.isEmpty) return;
+    final url = entered?.trim() ?? '';
+    if (url.isEmpty) return;
     if (!context.mounted) return;
     Get.dialog(
       Center(
@@ -449,7 +423,7 @@ class ExploreSkillsTab extends StatelessWidget {
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 const CircularProgressIndicator(color: Dt.accent),
                 const SizedBox(height: 12),
-                Text('Fetching…', style: GoogleFonts.plusJakartaSans(fontSize: 12)),
+                Text('Fetchingâ€¦', style: GoogleFonts.plusJakartaSans(fontSize: 12)),
               ]))),
       barrierDismissible: false,
     );
@@ -482,81 +456,24 @@ class ExploreSkillsTab extends StatelessWidget {
       String initialAuthor = 'User',
       String source = 'file'}) async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final nameCtrl = TextEditingController(text: initialName);
-    final descCtrl = TextEditingController(text: initialDesc);
-    final authorCtrl = TextEditingController(text: initialAuthor);
-    final ok = await Get.dialog<bool>(
-      AlertDialog(
-        backgroundColor: isDark ? Dt.cardDark : Dt.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Import Skill', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
-        content: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(
-                    labelText: 'Name',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    isDense: true)),
-            const SizedBox(height: 10),
-            TextField(
-                controller: descCtrl,
-                decoration: InputDecoration(
-                    labelText: 'Description (optional)',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    isDense: true)),
-            const SizedBox(height: 10),
-            TextField(
-                controller: authorCtrl,
-                decoration: InputDecoration(
-                    labelText: 'Author',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    isDense: true)),
-            const SizedBox(height: 14),
-            Text('Preview — ${content.length} chars',
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12, fontWeight: FontWeight.w700, color: Theme.of(context).hintColor)),
-            const SizedBox(height: 6),
-            Container(
-              constraints: const BoxConstraints(maxHeight: 220),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withValues(alpha: 0.04) : Dt.pillMuted.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.06) : Dt.hairline)),
-              child: SingleChildScrollView(
-                  child: Text(
-                      content.length > 4000 ? '${content.substring(0, 4000)}\n…(truncated)' : content,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12, height: 1.4))),
-            ),
-          ]),
-        ),
-        actions: [
-          TextButton(onPressed: () => Get.back(result: false), child: const Text('Cancel')),
-          FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Dt.accent),
-              onPressed: () => Get.back(result: true),
-              child: const Text('Import')),
-        ],
+    final result = await Get.dialog<_ImportPreviewResult?>(
+      _ImportPreviewDialog(
+        isDark: isDark,
+        content: content,
+        initialName: initialName,
+        initialDesc: initialDesc,
+        initialAuthor: initialAuthor,
       ),
+      barrierDismissible: true,
     );
-    if (ok != true) {
-      nameCtrl.dispose();
-      descCtrl.dispose();
-      authorCtrl.dispose();
-      return;
-    }
+    if (result == null) return;
     try {
       await Get.find<SkillRegistryService>().importFromMarkdown(content,
-          name: nameCtrl.text, description: descCtrl.text, author: authorCtrl.text, source: source, enabled: true);
-      Get.snackbar('Skill imported', nameCtrl.text.trim(),
+          name: result.name, description: result.desc, author: result.author, source: source, enabled: true);
+      Get.snackbar('Skill imported', result.name.trim(),
           snackPosition: SnackPosition.BOTTOM, backgroundColor: AppColors.success, colorText: Colors.white);
     } catch (e) {
       Get.snackbar('Import failed', '$e', snackPosition: SnackPosition.BOTTOM);
-    } finally {
-      nameCtrl.dispose();
-      descCtrl.dispose();
-      authorCtrl.dispose();
     }
   }
 }
@@ -601,7 +518,7 @@ class _GithubBrowseSheetForExploreState extends State<_GithubBrowseSheetForExplo
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const CircularProgressIndicator(color: Dt.accent),
                   const SizedBox(height: 12),
-                  Text('Fetching ${entry.path}…', style: GoogleFonts.plusJakartaSans(fontSize: 12)),
+                  Text('Fetching ${entry.path}â€¦', style: GoogleFonts.plusJakartaSans(fontSize: 12)),
                 ]))),
         barrierDismissible: false);
     try {
@@ -635,7 +552,7 @@ class _GithubBrowseSheetForExploreState extends State<_GithubBrowseSheetForExplo
                   color: widget.isDark ? Colors.white.withValues(alpha: 0.04) : Dt.pillMuted.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(12)),
               child: SingleChildScrollView(
-                  child: Text(content.length > 4000 ? '${content.substring(0, 4000)}\n…(truncated)' : content,
+                  child: Text(content.length > 4000 ? '${content.substring(0, 4000)}\nâ€¦(truncated)' : content,
                       style: GoogleFonts.plusJakartaSans(fontSize: 12, height: 1.4)))),
         ])),
         actions: [
@@ -679,7 +596,7 @@ class _GithubBrowseSheetForExploreState extends State<_GithubBrowseSheetForExplo
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Browse Anthropic skills',
                   style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w800)),
-              Text('anthropics/skills — flat list, no search',
+              Text('anthropics/skills â€” flat list, no search',
                   style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Theme.of(context).hintColor)),
             ])),
             IconButton(
@@ -785,7 +702,7 @@ class _GithubBrowseSheetForExploreState extends State<_GithubBrowseSheetForExplo
   }
 }
 
-// ── Explore MCP Tab ──
+// â”€â”€ Explore MCP Tab â”€â”€
 
 class ExploreMcpTab extends StatefulWidget {
   const ExploreMcpTab({super.key});
@@ -833,7 +750,7 @@ class _ExploreMcpTabState extends State<ExploreMcpTab> {
       await _reg.setEnabled(cfg.id, false);
       return;
     }
-    // Enable first (connects), then confirm with the real tool list —
+    // Enable first (connects), then confirm with the real tool list â€”
     // matches the old single-server flow.
     await _reg.setEnabled(cfg.id, true);
     final mine = _reg.toolsFor(cfg.id);
@@ -873,8 +790,8 @@ class _ExploreMcpTabState extends State<ExploreMcpTab> {
                     style: GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w800)),
                 Text(
                     servers.isEmpty
-                        ? 'Connect remote HTTP/SSE servers — no marketplace'
-                        : '${servers.length} server${servers.length == 1 ? '' : 's'} · ${tools.length} tools',
+                        ? 'Connect remote HTTP/SSE servers â€” no marketplace'
+                        : '${servers.length} server${servers.length == 1 ? '' : 's'} Â· ${tools.length} tools',
                     style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Theme.of(context).hintColor)),
               ])),
               _statusDot(status),
@@ -911,7 +828,7 @@ class _ExploreMcpTabState extends State<ExploreMcpTab> {
                 color: isDark ? Colors.white.withValues(alpha: 0.04) : Dt.pillMuted.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(12)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Exposed tools — model will see these',
+              Text('Exposed tools â€” model will see these',
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 12, fontWeight: FontWeight.w700, color: Theme.of(context).hintColor)),
               const SizedBox(height: 8),
@@ -1040,10 +957,10 @@ class _ExploreMcpTabState extends State<ExploreMcpTab> {
 
   Widget _statusBanner(McpStatus status, String err, List<McpTool> tools, bool isDark) {
     final text = switch (status) {
-      McpStatus.connected => tools.isEmpty ? 'Connected — no tools exposed' : 'Connected — ${tools.length} tool(s) ready',
-      McpStatus.connecting => 'Connecting…',
+      McpStatus.connected => tools.isEmpty ? 'Connected â€” no tools exposed' : 'Connected â€” ${tools.length} tool(s) ready',
+      McpStatus.connecting => 'Connectingâ€¦',
       McpStatus.error => err.isNotEmpty ? err : 'Connection error',
-      McpStatus.disconnected => 'Not connected — save and test your server',
+      McpStatus.disconnected => 'Not connected â€” save and test your server',
     };
     final color = switch (status) {
       McpStatus.connected => AppColors.success,
@@ -1156,7 +1073,7 @@ class _McpServerSheetState extends State<McpServerSheet> {
     if (uri == null ||
         !uri.hasScheme ||
         !(uri.scheme == 'http' || uri.scheme == 'https')) {
-      return 'Must be http(s)://…';
+      return 'Must be http(s)://â€¦';
     }
     return null;
   }
@@ -1318,7 +1235,7 @@ class _McpServerSheetState extends State<McpServerSheet> {
                                     strokeWidth: 2,
                                     color: Colors.white))
                             : const Icon(LucideIcons.save, size: 16),
-                        label: Text(_saving ? 'Saving…' : 'Save',
+                        label: Text(_saving ? 'Savingâ€¦' : 'Save',
                             style: GoogleFonts.plusJakartaSans(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700)),
@@ -1336,7 +1253,7 @@ class _McpServerSheetState extends State<McpServerSheet> {
                         ? null
                         : () => _save(andTest: true),
                     icon: const Icon(LucideIcons.activity, size: 16),
-                    label: Text(_testing ? 'Testing…' : 'Test',
+                    label: Text(_testing ? 'Testingâ€¦' : 'Test',
                         style: GoogleFonts.plusJakartaSans(
                             fontSize: 13,
                             fontWeight: FontWeight.w700)),
@@ -1357,4 +1274,186 @@ class _McpServerSheetState extends State<McpServerSheet> {
     );
   }
 
+}
+/// Result payload for the URL-import dialog (avoids poking a disposed
+/// TextEditingController â€” the controller lives inside the dialog State).
+class _ImportPreviewResult {
+  final String name;
+  final String desc;
+  final String author;
+  const _ImportPreviewResult(this.name, this.desc, this.author);
+}
+
+/// Prompts for a raw skill URL. Pops with the trimmed URL string, or null if
+/// cancelled. Owns its TextEditingController so it's disposed only after the
+/// dialog's exit animation finishes (State.dispose).
+class _UrlImportDialog extends StatefulWidget {
+  final bool isDark;
+  const _UrlImportDialog({required this.isDark});
+
+  @override
+  State<_UrlImportDialog> createState() => _UrlImportDialogState();
+}
+
+class _UrlImportDialogState extends State<_UrlImportDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    return AlertDialog(
+      backgroundColor: isDark ? Dt.cardDark : Dt.card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text('Import from URL',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+      content: Column(mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Paste a direct link to a raw markdown file.',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12, color: Theme.of(context).hintColor)),
+            const SizedBox(height: 12),
+            TextField(
+                controller: _controller,
+                autofocus: true,
+                keyboardType: TextInputType.url,
+                decoration: InputDecoration(
+                    hintText: 'https://raw.githubusercontent.com/.../SKILL.md',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 14))),
+          ]),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+        FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Dt.accent),
+            onPressed: () => Navigator.pop(context, _controller.text.trim()),
+            child: const Text('Fetch')),
+      ],
+    );
+  }
+}
+/// Skill import preview (name / description / author + content preview).
+/// Owns its controllers so dispose timing is always safe.
+class _ImportPreviewDialog extends StatefulWidget {
+  final bool isDark;
+  final String content;
+  final String initialName;
+  final String initialDesc;
+  final String initialAuthor;
+  const _ImportPreviewDialog({
+    required this.isDark,
+    required this.content,
+    required this.initialName,
+    required this.initialDesc,
+    required this.initialAuthor,
+  });
+
+  @override
+  State<_ImportPreviewDialog> createState() => _ImportPreviewDialogState();
+}
+
+class _ImportPreviewDialogState extends State<_ImportPreviewDialog> {
+  late final _nameCtrl = TextEditingController(text: widget.initialName);
+  late final _descCtrl = TextEditingController(text: widget.initialDesc);
+  late final _authorCtrl = TextEditingController(text: widget.initialAuthor);
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _descCtrl.dispose();
+    _authorCtrl.dispose();
+    super.dispose();
+  }
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
+    final content = widget.content;
+    return AlertDialog(
+      backgroundColor: isDark ? Dt.cardDark : Dt.card,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Text('Import Skill',
+          style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+      content: SingleChildScrollView(
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                  controller: _nameCtrl,
+                  decoration: InputDecoration(
+                      labelText: 'Name',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      isDense: true)),
+              const SizedBox(height: 10),
+              TextField(
+                  controller: _descCtrl,
+                  decoration: InputDecoration(
+                      labelText: 'Description (optional)',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      isDense: true)),
+              const SizedBox(height: 10),
+              TextField(
+                  controller: _authorCtrl,
+                  decoration: InputDecoration(
+                      labelText: 'Author',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      isDense: true)),              const SizedBox(height: 14),
+              Text('Preview — ${content.length} chars',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).hintColor)),
+              const SizedBox(height: 6),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 220),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.04)
+                        : Dt.pillMuted.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Dt.hairline)),
+                child: SingleChildScrollView(
+                    child: Text(
+                        content.length > 4000
+                            ? '${content.substring(0, 4000)}\n…(truncated)'
+                            : content,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12, height: 1.4))),
+              ),
+            ]),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel')),
+        FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Dt.accent),
+            onPressed: () => Navigator.pop(
+                context,
+                _ImportPreviewResult(
+                    _nameCtrl.text.trim(),
+                    _descCtrl.text.trim(),
+                    _authorCtrl.text.trim())),
+            child: const Text('Import')),
+      ],
+    );
+  }
 }
