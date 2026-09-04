@@ -73,8 +73,7 @@ void main() {
     expect('stack'.allMatches(text).length, 1);
   });
 
-  test('legacy persisted rows load with count 1', () {
-    final e = AppLogEntry.fromJson({
+  test('legacy persisted rows load with count 1', () {    final e = AppLogEntry.fromJson({
       't': DateTime.now().toIso8601String(),
       'l': 'ERROR',
       'm': 'old',
@@ -95,5 +94,20 @@ void main() {
     final back = AppLogEntry.fromJson(e.toJson());
     expect(back.count, 7);
     expect(back.lastAt, e.lastAt);
+  });
+
+  testWidgets('GetX empty-scope hint demotes to DEBUG, never errors',
+      (tester) async {
+    final logs = await settledLogs(tester);
+    logs.error(
+        '[Get] the improper use of a GetX has been detected. foo');
+    logs.warning(
+        '[Get] the improper use of a GetX has been detected. bar');
+    await flushLogs(tester);
+
+    expect(logs.entries.length, 2);
+    expect(logs.entries.every((e) => e.level == 'DEBUG'), isTrue);
+    expect(logs.errorCount, 0);
+    expect(logs.warningCount, 0);
   });
 }

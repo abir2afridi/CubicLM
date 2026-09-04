@@ -232,8 +232,20 @@ void main() {
           message.write('\n$line');
         }
       }
+      final text = message.toString();
+      if (text.contains('improper use of a GetX')) {
+        // Harmless GetX empty-scope hint, not an app failure: keep it
+        // searchable in logs but out of errors, diagnostics and crash
+        // reports (it used to file a Crashlytics FATAL per occurrence).
+        appLog.debug(
+          text,
+          details: details.stack?.toString() ?? 'No stack',
+          category: LogCategory.system,
+        );
+        return;
+      }
       appLog.error(
-        message.toString(),
+        text,
         details: details.stack?.toString() ?? 'No stack',
         category: LogCategory.system,
       );

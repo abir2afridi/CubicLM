@@ -276,6 +276,13 @@ class AppLogService extends GetxService {
   }
 
   void _add(String level, String message, Object? details, LogCategory? cat) {
+    // Demote GetX's empty-scope hint at every entry path (zone/platform
+    // handlers bypass main's FlutterError filter). Same rationale: lint,
+    // not failure — searchable, never an error/crash report.
+    if ((level == 'ERROR' || level == 'WARNING') &&
+        message.contains('improper use of a GetX')) {
+      level = 'DEBUG';
+    }
     final category = cat ?? LogCategory.system;
     final detailsStr = details?.toString();
 
