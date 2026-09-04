@@ -1351,6 +1351,73 @@ class ChatController extends GetxController {
     );
   }
 
+  /// History char budget ≈ 60% of the context window at ~4 chars/token,
+  /// leaving room for the system prompt, current turn and the response.
+  int _historyCharBudget() {
+    var ctx = AppConstants.defaultContextSize;
+    try {
+      if (Get.isRegistered<SettingsController>()) {
+        ctx = Get.find<SettingsController>().contextSize.value;
+      }
+    } catch (_) {}
+    if (ctx <= 0) ctx = AppConstants.defaultContextSize;
+    return (ctx * 0.6 * 4).toInt();
+  }
+
+  /// Keeps the newest message (current turn) plus as many older turns as
+  /// fit [maxChars]. Oversized single turns are middle-truncated (head +
+  /// tail kept) instead of dropped, so a long code answer never wipes
+  /// context entirely. Always keeps the current + previous turn.
+  static const _kTrimMarker = '\n…(middle trimmed for context)…\n';
+
+  int _historyChars(List<Map<String, String>> msgs, [int start = 0]) {
+    var total = 0;
+    for (var i = start; i < msgs.length; i++) {
+      total += (msgs[i]['content'] ?? '').length;
+    }
+    return total;
+  }
+
+  Map<String, String> _capMiddle(Map<String, String> m, int cap) {
+    final c = m['content'] ?? '';
+    if (c.length <= cap) return m;
+    if (cap <= _kTrimMarker.length + 100) {
+      return {'role': m['role'] ?? '', 'content': c.substring(0, cap)};
+    }
+    final keep = cap - _kTrimMarker.length;
+    final head = (keep * 0.6).floor();
+    return {
+      'role': m['role'] ?? '',
+      'content': c.substring(0, head) +
+          _kTrimMarker +
+          c.substring(c.length - (keep - head)),
+    };
+  }
+
+  List<Map<String, String>> _fitHistoryToBudget(
+      List<Map<String, String>> history, int maxChars) {
+    if (history.length <= 1) return history;
+    // No single turn may eat more than half the budget.
+    final perMsg = (maxChars / 2).ceil();
+    final capped = history.map((m) => _capMiddle(m, perMsg)).toList();
+    // Drop oldest first, but always keep current + previous turn.
+    var start = 0;
+    while (start < capped.length - 2 &&
+        _historyChars(capped, start) > maxChars) {
+      start++;
+    }
+    var out = capped.sublist(start);
+    // Still over with just two turns: squeeze the older one further.
+    if (out.length == 2 && _historyChars(out) > maxChars) {
+      final newestLen = (out[1]['content'] ?? '').length;
+      final allowOlder = maxChars - newestLen - _kTrimMarker.length;
+      if (allowOlder > 200) {
+        out = [_capMiddle(out[0], allowOlder), out[1]];
+      }
+    }
+    return out;
+  }
+
   Future<void> _generateAIResponse({
     required String prompt,
     String? imagePath,
@@ -1433,7 +1500,7 @@ class ChatController extends GetxController {
         currentSessionId.value,
         limit: 40,
       );
-      final history = storedForHistory.map((m) {
+      var history = storedForHistory.map((m) {
         final role = m['role']?.toString() ?? '';
         var content = m['content']?.toString() ?? '';
         if (role == 'assistant') {
@@ -1441,6 +1508,56 @@ class ChatController extends GetxController {
         }
         return {'role': role, 'content': content};
       }).where((e) => e['role'] == 'user' || e['role'] == 'assistant').toList();
+
+      // Fallback: if storage came back empty but the UI holds turns
+      // (write/query race or store hiccup), build from the visible list
+      // so the model never loses context silently.
+      final uiTurns = messages
+          .where((m) => m.role == 'user' || m.role == 'assistant')
+          .length;
+      if (history.isEmpty && uiTurns > 0) {
+        Get.find<AppLogService>().warning(
+          'History empty despite $uiTurns UI turns — using visible list',
+          category: LogCategory.chat,
+        );
+        history = messages
+            .where((m) => m.role == 'user' || m.role == 'assistant')
+            .map((m) {
+          var content = m.content;
+          if (m.role == 'assistant') {
+            content = splitThoughtTags(content).answer;
+          }
+          return {'role': m.role, 'content': content};
+        }).toList();
+      }
+
+      // Token-budget trim: local models run on a small context window
+      // (≈4 chars/token, 60% reserved for history) so a long code answer
+      // must not overflow it and wipe context. Cloud models get a large
+      // budget (their windows are 32k+). Oversized turns are
+      // middle-truncated, never fully dropped.
+      final preTrimTurns = history.length;
+      final historyBudget = inferenceMode == 'local'
+          ? _historyCharBudget()
+          : 48000;
+      history = _fitHistoryToBudget(history, historyBudget);
+
+      // Observability: what context the model actually receives (roles +
+      // sizes only, never content).
+      try {
+        final chars = history.fold<int>(
+            0, (s, m) => s + (m['content'] ?? '').length);
+        final roles = history.isEmpty
+            ? 'none'
+            : '${history.first['role']}…${history.last['role']}';
+        final trimmed = preTrimTurns > history.length
+            ? ', trimmed ${preTrimTurns - history.length}'
+            : '';
+        Get.find<AppLogService>().info(
+          'Chat context: ${history.length} turns, ~${chars ~/ 4} tokens ($roles$trimmed)',
+          category: LogCategory.chat,
+        );
+      } catch (_) {}
 
       // Skill relevance — only inject skills relevant to this prompt.
       final settingsForPrompt = Get.find<SettingsController>();
