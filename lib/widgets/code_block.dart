@@ -1,5 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/services.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:get/get.dart';
+import 'package:open_file/open_file.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
@@ -38,6 +46,26 @@ class _CodeBlock extends StatefulWidget {
 class _CodeBlockState extends State<_CodeBlock> {
   bool _copied = false;
 
+  /// True when this code block is a complete, self-contained HTML document
+  /// (a "build a game in a single HTML file" style response) that can be
+  /// rendered in the live preview. The language tag is optional: an
+  /// untagged block starting with a doctype also qualifies.
+  bool get _isHtmlDocument {
+    final lang = (widget.language ?? '').toLowerCase();
+    final code = widget.code.toLowerCase();
+    final looksLikeDoc =
+        code.contains('<!doctype html') || code.contains('<html');
+    if (!looksLikeDoc) return false;
+    return lang.isEmpty || lang == 'html' || lang == 'htm';
+  }
+
+  /// Live preview is available on platforms with an InAppWebView
+  /// implementation (Android + Windows).
+  bool get _previewSupported =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.windows);
+
   Future<void> _copyCode() async {
     await Clipboard.setData(ClipboardData(text: widget.code));
     if (!mounted) return;
@@ -49,6 +77,19 @@ class _CodeBlockState extends State<_CodeBlock> {
 
   void _shareCode() {
     Share.share(widget.code);
+  }
+
+  void _openLivePreview() {
+    try {
+      Navigator.of(context, rootNavigator: true).push(
+        MaterialPageRoute<void>(
+          builder: (_) => _HtmlPreviewPage(code: widget.code),
+        ),
+      );
+    } catch (e) {
+      Get.snackbar('Preview unavailable', '$e',
+          snackPosition: SnackPosition.BOTTOM);
+    }
   }
 
   @override
@@ -119,9 +160,19 @@ class _CodeBlockState extends State<_CodeBlock> {
                               : Dt.textMuted,
                       )),
                 const Spacer(),
+                if (_isHtmlDocument && _previewSupported)
+                  _actionButton(
+                    icon: Icons.play_circle_outline_rounded,
+                    label: 'code_preview'.tr,
+                    color: AppColors.primary,
+                    onTap: _openLivePreview,
+                    isDark: isDark,
+                  ),
+                if (_isHtmlDocument && _previewSupported)
+                  const SizedBox(width: 4),
                 _actionButton(
                   icon: _copied ? Icons.check_rounded : Icons.copy_rounded,
-                  label: _copied ? 'Copied' : 'Copy',
+                  label: _copied ? 'code_copied'.tr : 'code_copy'.tr,
                   color: _copied ? AppColors.success : null,
                   onTap: _copyCode,
                   isDark: isDark,
@@ -129,7 +180,7 @@ class _CodeBlockState extends State<_CodeBlock> {
                 const SizedBox(width: 4),
                 _actionButton(
                   icon: Icons.ios_share_rounded,
-                  label: 'Export',
+                  label: 'code_export'.tr,
                   onTap: _shareCode,
                   isDark: isDark,
                 ),
@@ -308,5 +359,255 @@ class _CodeBlockState extends State<_CodeBlock> {
     }
 
     return spans;
+  }
+}
+
+/// Full-screen live preview for self-contained HTML documents ("build a
+/// game in a single HTML file"). Renders the code in an InAppWebView with
+/// JavaScript enabled, plus reload / open-externally / share actions.
+class _HtmlPreviewPage extends StatefulWidget {
+  final String code;
+  const _HtmlPreviewPage({required this.code});
+
+  @override
+  State<_HtmlPreviewPage> createState() => _HtmlPreviewPageState();
+}
+
+class _HtmlPreviewPageState extends State<_HtmlPreviewPage> {
+  InAppWebViewController? _webController;
+  bool _loading = true;
+  bool _showCode = false;
+  bool _copiedCode = false;
+  String? _loadError;
+
+  Future<void> _reload() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    await _webController?.reload();
+  }
+
+  Future<File> _writeTempHtml() async {
+    final dir = await getTemporaryDirectory();
+    final stamp = DateTime.now().millisecondsSinceEpoch;
+    final file = File('${dir.path}/cubiclm_preview_$stamp.html');
+    await file.writeAsString(widget.code, flush: true);
+    return file;
+  }
+
+  Future<void> _openExternally() async {
+    try {
+      final file = await _writeTempHtml();
+      final result = await OpenFile.open(file.path);
+      if (result.type != ResultType.done && mounted) {
+        Get.snackbar('Cannot open', result.message,
+            snackPosition: SnackPosition.BOTTOM);
+      }
+    } catch (e) {
+      if (mounted) {
+        Get.snackbar('Cannot open', '$e',
+            snackPosition: SnackPosition.BOTTOM);
+      }
+    }
+  }
+
+  Future<void> _copyCode() async {
+    await Clipboard.setData(ClipboardData(text: widget.code));
+    if (!mounted) return;
+    setState(() => _copiedCode = true);
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _copiedCode = false);
+    });
+  }
+
+  Future<void> _shareHtml() async {
+    try {
+      final file = await _writeTempHtml();
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'text/html')],
+        subject: 'HTML preview',
+      );
+    } catch (e) {
+      if (mounted) {
+        Get.snackbar('prompt_export_failed'.tr, '$e',
+            snackPosition: SnackPosition.BOTTOM);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF101014) : Colors.white;
+    return Scaffold(
+      backgroundColor: bg,
+      appBar: AppBar(
+        backgroundColor: bg,
+        title: Text('preview_title'.tr,
+            style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800, fontSize: 18)),
+        actions: [
+          if (_showCode)
+            IconButton(
+              tooltip: 'preview_copy_code'.tr,
+              icon: Icon(
+                _copiedCode ? Icons.check_rounded : Icons.copy_rounded,
+                size: 22,
+                color: _copiedCode ? AppColors.success : null,
+              ),
+              onPressed: _copyCode,
+            )
+          else ...[
+            IconButton(
+              tooltip: 'preview_reload'.tr,
+              icon: const Icon(Icons.refresh_rounded, size: 22),
+              onPressed: _reload,
+            ),
+            IconButton(
+              tooltip: 'preview_open_external'.tr,
+              icon: const Icon(Icons.open_in_new_rounded, size: 20),
+              onPressed: _openExternally,
+            ),
+            IconButton(
+              tooltip: 'preview_share'.tr,
+              icon: const Icon(Icons.ios_share_rounded, size: 20),
+              onPressed: _shareHtml,
+            ),
+          ],
+          const SizedBox(width: 4),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+            child: SegmentedButton<bool>(
+              segments: [
+                ButtonSegment(
+                  value: false,
+                  icon: const Icon(Icons.visibility_outlined, size: 16),
+                  label: Text('preview_tab_preview'.tr),
+                ),
+                ButtonSegment(
+                  value: true,
+                  icon: const Icon(Icons.code_rounded, size: 16),
+                  label: Text('preview_tab_code'.tr),
+                ),
+              ],
+              selected: {_showCode},
+              onSelectionChanged: (s) =>
+                  setState(() => _showCode = s.first),
+              showSelectedIcon: false,
+              style: SegmentedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
+          if (_loadError != null && !_showCode)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                _loadError!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12, color: AppColors.error),
+              ),
+            ),
+          Expanded(
+            child: _showCode ? _buildCodeTab(isDark) : _buildPreviewTab(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewTab() {
+    return Stack(
+      children: [
+        InAppWebView(
+          initialData: InAppWebViewInitialData(
+            data: widget.code,
+            mimeType: 'text/html',
+            encoding: 'utf-8',
+          ),
+          initialSettings: InAppWebViewSettings(
+            javaScriptEnabled: true,
+            supportZoom: true,
+            transparentBackground: false,
+          ),
+          onWebViewCreated: (controller) => _webController = controller,
+          onLoadStop: (_, __) {
+            if (mounted) {
+              setState(() {
+                _loading = false;
+                _loadError = null;
+              });
+            }
+          },
+          onReceivedError: (controller, request, error) {
+            if (mounted) {
+              setState(() {
+                _loading = false;
+                _loadError =
+                    '${'preview_load_failed'.tr}: ${error.description}';
+              });
+            }
+          },
+          onConsoleMessage: (_, consoleMessage) {
+            // Surface JS errors without spamming: keep the latest one.
+            final msg = consoleMessage.message;
+            if (consoleMessage.messageLevel ==
+                    ConsoleMessageLevel.ERROR &&
+                msg.isNotEmpty &&
+                mounted) {
+              setState(() => _loadError = msg);
+            }
+          },
+        ),
+        if (_loading)
+          const Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildCodeTab(bool isDark) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E2E) : const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.08),
+          width: 0.5,
+        ),
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(14),
+        child: SelectableText(
+          widget.code,
+          style: GoogleFonts.firaCode(
+            fontSize: 12,
+            height: 1.6,
+            color: isDark ? const Color(0xFFCDD6F4) : Dt.textPrimary,
+          ),
+        ),
+      ),
+    );
   }
 }

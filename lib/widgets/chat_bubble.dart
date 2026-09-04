@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/chat_message.dart';
 import '../models/web_source.dart';
+import '../utils/prompt_export.dart';
 import '../utils/thought_parser.dart';
 import '../core/colors.dart';
 import '../theme/design_tokens.dart';
@@ -47,6 +48,10 @@ class ChatBubble extends StatefulWidget {
 class _ChatBubbleState extends State<ChatBubble> {
   bool _copied = false;
 
+  /// Claude-style prompt view toggle: rendered markdown (default) ↔ exact
+  /// raw text (code format). Per-bubble state, not persisted.
+  bool _rawMode = false;
+
   // Memoized per state instance: stylesheet + code builders are rebuilt
   // only when inherited deps change (theme/brightness), not on every
   // build — previously paid fromTheme + GoogleFonts + 2 allocs per bubble
@@ -82,6 +87,12 @@ class _ChatBubbleState extends State<ChatBubble> {
         : splitThoughtTags(_cleanAssistantText(visibleContent));
         
     final answerContent = isUser ? visibleContent : thoughtParts.answer.trim();
+
+    // Raw/code view shows exactly what "Copy exact text" copies: the
+    // prompt without the attachment metadata footer.
+    final rawContent = widget.message.fileName == null
+        ? widget.message.content
+        : widget.message.content.split('\n\nAttached file:').first;
 
     return TweenAnimationBuilder<double>(
       duration: const Duration(milliseconds: 300),
@@ -168,15 +179,47 @@ class _ChatBubbleState extends State<ChatBubble> {
 
                         // Message content
                         if (isUser)
-                          SelectableText(
-                            visibleContent,
-                            style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15,
-                              color: isDark ? Colors.white : Dt.textPrimary,
-                              height: 1.5,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          )
+                          _rawMode
+                              ? Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? const Color(0xFF1E1E2E)
+                                        : const Color(0xFFF8F9FA),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: isDark
+                                          ? Colors.white
+                                              .withValues(alpha: 0.08)
+                                          : Colors.black
+                                              .withValues(alpha: 0.08),
+                                      width: 0.5,
+                                    ),
+                                  ),
+                                  child: SelectableText(
+                                    rawContent,
+                                    style: GoogleFonts.firaCode(
+                                      fontSize: 12.5,
+                                      height: 1.6,
+                                      color: isDark
+                                          ? const Color(0xFFCDD6F4)
+                                          : Dt.textPrimary,
+                                    ),
+                                  ),
+                                )
+                              : MarkdownBody(
+                                  data: visibleContent,
+                                  selectable: true,
+                                  styleSheet:
+                                      _mdSheet ?? _markdownStyle(context),
+                                  builders: {
+                                    'code': _codeBuilder ??
+                                        CodeBlockBuilder(context),
+                                    'pre': _codeBuilder ??
+                                        CodeBlockBuilder(context),
+                                  },
+                                )
                         else if (answerContent.isNotEmpty)
                           MarkdownBody(
                             data: answerContent,
@@ -333,7 +376,18 @@ class _ChatBubbleState extends State<ChatBubble> {
           ],
 
           if (isUser) ...[
-            // User: Edit + Copy + Share
+            // User: View toggle + Edit + Copy + Share (+ .md / PDF in raw mode)
+            _actionButton(
+              icon: _rawMode
+                  ? Icons.visibility_outlined
+                  : Icons.code_rounded,
+              tooltip: _rawMode
+                  ? 'prompt_view_rendered'.tr
+                  : 'prompt_view_raw'.tr,
+              onTap: () => setState(() => _rawMode = !_rawMode),
+              color: _rawMode ? AppColors.primary : iconColor,
+              size: iconSize,
+            ),
             if (widget.onEdit != null)
               _actionButton(
                 icon: Icons.edit_outlined,
@@ -344,9 +398,14 @@ class _ChatBubbleState extends State<ChatBubble> {
               ),
             _actionButton(
               icon: _copied ? Icons.check_rounded : Icons.copy_rounded,
-              tooltip: _copied ? 'Copied!' : 'Copy',
+              tooltip: _copied ? 'prompt_copied'.tr : 'prompt_copy_exact'.tr,
               onTap: () {
-                Clipboard.setData(ClipboardData(text: widget.message.content));
+                final visible = widget.message.fileName == null
+                    ? widget.message.content
+                    : widget.message.content
+                        .split('\n\nAttached file:')
+                        .first;
+                Clipboard.setData(ClipboardData(text: visible));
                 HapticFeedback.selectionClick();
                 setState(() => _copied = true);
                 Future.delayed(const Duration(seconds: 2), () {
@@ -366,6 +425,28 @@ class _ChatBubbleState extends State<ChatBubble> {
               color: iconColor,
               size: iconSize,
             ),
+            if (_rawMode) ...[
+              _actionButton(
+                icon: Icons.download_rounded,
+                tooltip: 'prompt_download_md'.tr,
+                onTap: () => PromptExport.shareAsMarkdown(
+                  widget.message.content,
+                  baseName: 'prompt',
+                ),
+                color: iconColor,
+                size: iconSize,
+              ),
+              _actionButton(
+                icon: Icons.picture_as_pdf_rounded,
+                tooltip: 'prompt_download_pdf'.tr,
+                onTap: () => PromptExport.shareAsPdf(
+                  widget.message.content,
+                  baseName: 'prompt',
+                ),
+                color: iconColor,
+                size: iconSize,
+              ),
+            ],
           ] else ...[
             // Assistant: Copy + Read aloud + Share + Regenerate + Branch
             _actionButton(

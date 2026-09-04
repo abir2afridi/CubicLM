@@ -76,6 +76,31 @@ class AppTranslations extends Translations {
     'app_engineering': 'Engineering Build',
     'app_version': 'Version @version',
 
+    // Prompt view & export (Claude-style raw/code view + downloads)
+    'prompt_view_raw': 'View raw text (code)',
+    'prompt_view_rendered': 'View rendered prompt',
+    'prompt_copy_exact': 'Copy exact text',
+    'prompt_copied': 'Copied!',
+    'prompt_download_md': 'Download as .md',
+    'prompt_download_pdf': 'Download as PDF',
+    'prompt_export_failed': 'Export failed',
+
+    // Live HTML preview (artifact-style Preview/Code tabs)
+    'preview_title': 'Live Preview',
+    'preview_tab_preview': 'Preview',
+    'preview_tab_code': 'Code',
+    'preview_copy_code': 'Copy code',
+    'preview_reload': 'Reload',
+    'preview_open_external': 'Open externally',
+    'preview_share': 'Share HTML file',
+    'preview_load_failed': 'Preview failed to load',
+
+    // Code blocks
+    'code_preview': 'Preview',
+    'code_copy': 'Copy',
+    'code_copied': 'Copied',
+    'code_export': 'Export',
+
     // Chat
     'chat_input_hint': 'Type a message...',
     'chat_send': 'Send',
