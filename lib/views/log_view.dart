@@ -219,6 +219,68 @@ class LogView extends StatelessWidget {
             ),
           ),
 
+          // Unresolved (unfixed) error banner — persisted across sessions and
+          // app kills. Stays until the user marks it as fixed.
+          Obx(() {
+            final un = logs.unresolvedError.value;
+            if (un == null) return const SizedBox.shrink();
+            final color =
+                un.level == 'ERROR' ? AppColors.error : AppColors.warning;
+            final head = un.message.split('\n').first.trim();
+            return Container(
+              margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+              padding: const EdgeInsets.fromLTRB(12, 12, 6, 12),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: color.withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    un.level == 'ERROR'
+                        ? Icons.error_rounded
+                        : Icons.warning_rounded,
+                    size: 22,
+                    color: color,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Unresolved ${un.level.toLowerCase()} · ${logs.crashHistory.length} in history',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: color),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '${head.length > 110 ? '${head.substring(0, 110)}…' : head}'
+                          ' · ${logs.unresolvedErrorMeta}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              color: Theme.of(context).hintColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Mark as fixed & clear',
+                    icon: const Icon(Icons.check_circle_outline_rounded,
+                        size: 20),
+                    color: color,
+                    onPressed: () => logs.resolveCrashState(),
+                  ),
+                ],
+              ),
+            );
+          }),
+
           // Health diagnostics panel
           Obx(() {
             if (!showHealth.value) return const SizedBox.shrink();

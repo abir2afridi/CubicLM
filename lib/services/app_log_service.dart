@@ -1,9 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'crash_reporting_service.dart';
 
@@ -138,7 +143,7 @@ class CrashPattern {
   });
 }
 
-class AppLogService extends GetxService {
+class AppLogService extends GetxService with WidgetsBindingObserver {
   final entries = <AppLogEntry>[].obs;
   final searchQuery = ''.obs;
   final selectedCategory = Rxn<LogCategory>();
@@ -148,6 +153,25 @@ class AppLogService extends GetxService {
   static const int _persistBatch = 25;
   final List<AppLogEntry> _pendingEntries = [];
   bool _flushScheduled = false;
+
+  // ── Crash-survivable diagnostics ──────────────────────────────
+  /// Latest ERROR/WARNING that hasn't been cleared by the user ("unfixed").
+  /// Persisted to its own file so it survives both process kills and the
+  /// rolling [entries] buffer — it stays until [resolveCrashState] is called.
+  final unresolvedError = Rxn<AppLogEntry>();
+
+  /// Recent error/warning rows kept permanently (bounded) so even after the
+  /// in-memory buffer is trimmed or the app was killed, we know what happened.
+  final crashHistory = <AppLogEntry>[].obs;
+
+  String _appVersion = 'unknown';
+  String _deviceSummary = '';
+
+  /// Human-readable context for the current unresolved error (version/device).
+  String unresolvedErrorMeta = '';
+  File? _cachedLastErrorFile;
+  File? _cachedCrashHistoryFile;
+  static const int _maxCrashHistory = 100;
 
   final crashPatterns = <CrashPattern>[
     CrashPattern(
@@ -321,7 +345,185 @@ class AppLogService extends GetxService {
   @override
   void onInit() {
     super.onInit();
-    _loadPersistedLogs();
+    _captureDeviceContext();
+    unawaited(_restorePersistedState());
+    if (!kIsWeb) {
+      try {
+        WidgetsBinding.instance.addObserver(this);
+      } catch (_) {}
+    }
+  }
+
+  @override
+  void onClose() {
+    if (!kIsWeb) {
+      try {
+        WidgetsBinding.instance.removeObserver(this);
+      } catch (_) {}
+    }
+    super.onClose();
+  }
+
+  /// Save everything the moment the app goes to the background so an OS kill
+  /// while suspended can never lose the most recent diagnostics.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      unawaited(flush());
+    }
+  }
+
+  // ── Crash-survivable persistence ─────────────────────────────
+
+  Future<void> _captureDeviceContext() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      _appVersion = '${info.version}+${info.buildNumber}';
+    } catch (_) {}
+    try {
+      if (Platform.isAndroid) {
+        final info = await DeviceInfoPlugin().androidInfo;
+        _deviceSummary =
+            '${info.manufacturer} ${info.model} • Android ${info.version.release}';
+      }
+    } catch (_) {}
+  }
+
+  Future<File> get _lastErrorFile async {
+    final cached = _cachedLastErrorFile;
+    if (cached != null) return cached;
+    final dir = await getApplicationDocumentsDirectory();
+    final f = File('${dir.path}/cubiclm_lasterror.json');
+    _cachedLastErrorFile = f;
+    return f;
+  }
+
+  Future<File> get _crashHistoryFile async {
+    final cached = _cachedCrashHistoryFile;
+    if (cached != null) return cached;
+    final dir = await getApplicationDocumentsDirectory();
+    final f = File('${dir.path}/cubiclm_crash_history.json');
+    _cachedCrashHistoryFile = f;
+    return f;
+  }
+
+  /// Persists the "unfixed" error immediately with a *synchronous* write so
+  /// even an instant process kill (OOM, force-stop, low-battery death) right
+  /// after the error cannot lose it. Errors are rare, so this is cheap.
+  Future<void> _persistUnresolved(AppLogEntry entry) async {
+    try {
+      final f = await _lastErrorFile;
+      final payload = jsonEncode({
+        ...entry.toJson(),
+        'appVersion': _appVersion,
+        'device': _deviceSummary,
+      });
+      unresolvedErrorMeta = '$_appVersion • $_deviceSummary';
+      // ignore: avoid_slow_async_io
+      f.writeAsStringSync(payload, flush: true);
+    } catch (_) {}
+  }
+
+  Future<void> _appendCrashHistory(AppLogEntry entry) async {
+    crashHistory.insert(0, entry);
+    if (crashHistory.length > _maxCrashHistory) {
+      crashHistory.removeRange(_maxCrashHistory, crashHistory.length);
+    }
+    try {
+      final f = await _crashHistoryFile;
+      final list = crashHistory
+          .map((e) => {
+                ...e.toJson(),
+                'appVersion': _appVersion,
+                'device': _deviceSummary,
+              })
+          .toList();
+      await f.writeAsString(jsonEncode(list), flush: true);
+    } catch (_) {}
+  }
+
+  Future<void> _loadPersistedUnresolved() async {
+    try {
+      final f = await _lastErrorFile;
+      if (!await f.exists()) return;
+      final decoded = jsonDecode(await f.readAsString());
+      if (decoded is! Map<String, dynamic>) return;
+      final entry = AppLogEntry.fromJson(decoded);
+      if (entry.level != 'ERROR' && entry.level != 'WARNING') return;
+
+      unresolvedError.value = entry;
+      unresolvedErrorMeta = [
+        if (decoded['appVersion'] is String)
+          decoded['appVersion'] as String,
+        if (decoded['device'] is String) decoded['device'] as String,
+      ].join(' • ');
+      // Surface the previous session's unfixed issue at the very top of the
+      // live list so it is visible immediately on the next launch.
+      entries.insertAll(0, [
+        AppLogEntry(
+          level: entry.level,
+          message: '[Previous session] ${entry.message}',
+          details: entry.details,
+          category: entry.category,
+          timestamp: entry.timestamp,
+          lastAt: entry.lastAt,
+          count: entry.count,
+        ),
+      ]);
+    } catch (_) {}
+  }
+
+  Future<void> _loadPersistedCrashHistory() async {
+    try {
+      final f = await _crashHistoryFile;
+      if (!await f.exists()) return;
+      final decoded = jsonDecode(await f.readAsString());
+      if (decoded is! List) return;
+      crashHistory.assignAll(decoded
+          .map((j) => AppLogEntry.fromJson(Map<String, dynamic>.from(j))));
+    } catch (_) {}
+  }
+
+  Future<void> _restorePersistedState() async {
+    await _loadPersistedLogs();
+    await _loadPersistedUnresolved();
+    await _loadPersistedCrashHistory();
+  }
+
+  /// Force-write everything (main log + unresolved record) to disk.
+  Future<void> flush() async {
+    await _persistLogs();
+    final un = unresolvedError.value;
+    if (un != null) await _persistUnresolved(un);
+  }
+
+  /// Marks the stored crash state as fixed: clears the unfixed error banner,
+  /// the previous-session marker row and the crash history, plus their files.
+  Future<void> resolveCrashState() async {
+    unresolvedError.value = null;
+    entries.removeWhere((e) => e.message.startsWith('[Previous session]'));
+    crashHistory.clear();
+    try {
+      final le = await _lastErrorFile;
+      if (await le.exists()) await le.delete();
+    } catch (_) {}
+    try {
+      final ch = await _crashHistoryFile;
+      if (await ch.exists()) await ch.delete();
+    } catch (_) {}
+  }
+
+  Future<void> _clearPersistentCrashState() async {
+    try {
+      final le = await _lastErrorFile;
+      if (await le.exists()) await le.delete();
+    } catch (_) {}
+    try {
+      final ch = await _crashHistoryFile;
+      if (await ch.exists()) await ch.delete();
+    } catch (_) {}
   }
 
   void warning(String message, {Object? details, LogCategory? category}) {
@@ -363,6 +565,15 @@ class AppLogService extends GetxService {
       category: category,
     );
     _pendingEntries.insert(0, entry);
+
+    // Write-through crash survival: every new ERROR/WARNING is persisted to
+    // its own file immediately (synchronously for the unresolved record) so
+    // a hard process kill right after the failure can't erase it.
+    if (level == 'ERROR' || level == 'WARNING') {
+      unresolvedError.value = entry;
+      unawaited(_persistUnresolved(entry));
+      unawaited(_appendCrashHistory(entry));
+    }
 
     if (!_flushScheduled) {
       _flushScheduled = true;
@@ -527,6 +738,11 @@ class AppLogService extends GetxService {
     if (lastError != null) {
       buf.writeln('Last error: ${_fmtTime(lastError!)}');
     }
+    final un = unresolvedError.value;
+    if (un != null) {
+      buf.writeln('Unresolved (unfixed) ${un.level}: ${un.message.split('\n').first}');
+      buf.writeln('  persisted: ${_fmtTime(un.lastAt)}, app $_appVersion, $_deviceSummary');
+    }
     buf.writeln('');
     if (patterns.isEmpty) {
       buf.writeln('✓ No crash patterns detected.');
@@ -572,8 +788,14 @@ class AppLogService extends GetxService {
   Future<void> _persistLogs() async {
     try {
       final f = await _file;
-      final json = entries.take(200).map((e) => e.toJson()).toList();
-      await f.writeAsString(jsonEncode(json));
+      // Include still-pending (not yet frame-flushed) rows so even a kill in
+      // the same frame as the error keeps that row on disk.
+      final combined = <AppLogEntry>[
+        ..._pendingEntries,
+        ...entries,
+      ];
+      final toSave = combined.take(200).map((e) => e.toJson()).toList();
+      await f.writeAsString(jsonEncode(toSave), flush: true);
     } catch (_) {}
   }
 
@@ -626,7 +848,10 @@ class AppLogService extends GetxService {
 
   void clear() {
     entries.clear();
+    crashHistory.clear();
+    unresolvedError.value = null;
     _persistLogs();
+    unawaited(_clearPersistentCrashState());
   }
 
   String _fmtTime(DateTime t) =>

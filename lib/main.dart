@@ -297,6 +297,8 @@ void main() {
         details: stack.toString(),
         category: LogCategory.system,
       );
+      // Persist now — the app may be about to be killed.
+      unawaited(Get.find<AppLogService>().flush());
     }
     if (Get.isRegistered<CrashReportingService>()) {
       await Get.find<CrashReportingService>()
