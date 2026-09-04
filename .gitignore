@@ -7,6 +7,7 @@
 .atom/
 .build/
 .buildlog/
+.gradle/
 .history
 .mvn/
 .svn/
