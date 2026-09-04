@@ -251,7 +251,61 @@ class AppLogService extends GetxService {
       matcher: (e) =>
           e.message.contains('Firebase') && e.message.contains('failed'),
     ),
+    CrashPattern(
+      id: 'flutter_framework',
+      title: 'Flutter framework assertion',
+      description:
+          'A framework invariant failed (layout, render object, focus or lifecycle).',
+      fix:
+          'Copy the row from System Logs and report it — the debugCreator chain pinpoints the widget.',
+      matcher: (e) => _containsAny(e, const [
+        'Failed assertion',
+        '_dependents.isEmpty',
+        'debugCreator',
+        'RenderFlex overflowed',
+        'was used after being disposed',
+        '!_skipMarkNeedsLayout',
+        'child.owner == owner',
+        'RenderObject',
+      ]),
+    ),
+    CrashPattern(
+      id: 'getx_scope',
+      title: 'GetX empty reactive scope',
+      description:
+          'A widget rebuilt without reading any observable (framework usage hint).',
+      fix:
+          'Usually benign. If part of the UI looks stale, report the screen and action.',
+      matcher: (e) => _containsAny(e, const [
+        'improper use of a GetX',
+      ]),
+    ),
+    CrashPattern(
+      id: 'overlay_issue',
+      title: 'Overlay corruption',
+      description:
+          'Duplicate overlay keys or deferred layout children around routes, menus or text selection.',
+      fix:
+          'Note what was open (dialog, sheet, text selection) and report it.',
+      matcher: (e) => _containsAny(e, const [
+        'Duplicate GlobalKeys',
+        '_OverlayEntryWidgetState',
+        '_RenderTheater',
+        '_Theater',
+        'OverlayPortal',
+      ]),
+    ),
   ];
+
+  /// True when [e]'s message or details contain any of [needles].
+  static bool _containsAny(AppLogEntry e, List<String> needles) {
+    final details = e.details;
+    for (final n in needles) {
+      if (e.message.contains(n)) return true;
+      if (details != null && details.contains(n)) return true;
+    }
+    return false;
+  }
 
   @override
   void onInit() {
@@ -433,6 +487,23 @@ class AppLogService extends GetxService {
     return map;
   }
 
+  /// ERROR/WARNING rows no pattern claims — so no red row ever goes
+  /// untracked again. Sorted newest-first (entries order).
+  List<AppLogEntry> get untrackedErrors {
+    final out = <AppLogEntry>[];
+    outer:
+    for (final e in entries) {
+      if (e.level != 'ERROR' && e.level != 'WARNING') continue;
+      for (final p in crashPatterns) {
+        try {
+          if (p.matcher(e)) continue outer;
+        } catch (_) {}
+      }
+      out.add(e);
+    }
+    return out;
+  }
+
   String get healthSummary {
     final patterns = detectedPatterns;
     final buf = StringBuffer();
@@ -453,6 +524,21 @@ class AppLogService extends GetxService {
       for (final p in patterns) {
         buf.writeln('  • ${p.title} (${p.occurrences}x)');
         buf.writeln('    Fix: ${p.fix}');
+      }
+    }
+    final untracked = untrackedErrors;
+    if (untracked.isNotEmpty) {
+      buf.writeln('');
+      buf.writeln('Untracked errors/warnings (${untracked.length} rows):');
+      for (final e in untracked.take(5)) {
+        final firstLine = e.message.split('\n').first.trim();
+        final short = firstLine.length > 120
+            ? '${firstLine.substring(0, 120)}…'
+            : firstLine;
+        buf.writeln('  • [${e.level}] $short${e.count > 1 ? ' (×${e.count})' : ''}');
+      }
+      if (untracked.length > 5) {
+        buf.writeln('  …and ${untracked.length - 5} more');
       }
     }
     buf.writeln('');

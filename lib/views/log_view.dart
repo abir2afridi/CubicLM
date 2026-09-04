@@ -347,6 +347,87 @@ class LogView extends StatelessWidget {
                               fontSize: 10,
                               color: Theme.of(context).hintColor)),
                   ],
+                  // Untracked red rows — nothing escapes diagnostics.
+                  Builder(builder: (_) {
+                    final untracked = logs.untrackedErrors;
+                    if (untracked.isEmpty) return const SizedBox.shrink();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 10),
+                        Text(
+                            'Untracked (${untracked.length}) — tap to inspect',
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.warning)),
+                        const SizedBox(height: 6),
+                        for (final u in untracked.take(3))
+                          Padding(
+                            padding:
+                                const EdgeInsets.only(bottom: 6),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () {
+                                // Filter the list to this row's text.
+                                final first = u.message
+                                    .split('\n')
+                                    .first
+                                    .trim();
+                                logs.searchQuery.value = first.length > 60
+                                    ? first.substring(0, 60)
+                                    : first;
+                              },
+                              child: Row(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding:
+                                        const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.warning
+                                          .withValues(alpha: 0.1),
+                                      borderRadius:
+                                          BorderRadius.circular(6),
+                                    ),
+                                    child: const Icon(
+                                        Icons.help_outline_rounded,
+                                        size: 12,
+                                        color: AppColors.warning),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                            u.message
+                                                    .split('\n')
+                                                    .first
+                                                    .trim() +
+                                                (u.count > 1
+                                                    ? ' (×${u.count})'
+                                                    : ''),
+                                            maxLines: 2,
+                                            overflow:
+                                                TextOverflow.ellipsis,
+                                            style: GoogleFonts
+                                                .plusJakartaSans(
+                                                    fontSize: 12,
+                                                    fontWeight:
+                                                        FontWeight.w600)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  }),
                 ],
               ),
             );

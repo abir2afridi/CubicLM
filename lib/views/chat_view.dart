@@ -1789,25 +1789,31 @@ class ChatView extends GetView<ChatController> {
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                if (!loading && !hasContent && micAvailable)
-                                  AppCircleButton(
-                                    icon: LucideIcons.headphones,
-                                    tooltip: voiceMode
-                                        ? 'Hands-free ON — tap to stop'
-                                        : 'Hands-free voice chat',
-                                    iconColor: voiceMode
-                                        ? Dt.accent
-                                        : null,
-                                    onTap: () => controller.setVoiceMode(
-                                        !controller.voiceMode.value),
-                                  ),
+                                // Single voice button (like ChatGPT/Gemini):
+                                // tap = push-to-talk, hold = hands-free mode.
                                 if (!loading && !hasContent && micAvailable)
                                   AppCircleButton(
                                     icon: LucideIcons.mic,
-                                    tooltip: 'Voice input',
-                                    iconColor:
-                                        listening ? AppColors.error : null,
-                                    onTap: controller.toggleListening,
+                                    tooltip: voiceMode
+                                        ? 'Hands-free ON — tap to stop'
+                                        : 'Voice input (hold for hands-free)',
+                                    iconColor: voiceMode
+                                        ? Dt.accent
+                                        : (listening
+                                            ? AppColors.error
+                                            : null),
+                                    onTap: () {
+                                      if (controller.voiceMode.value) {
+                                        controller.setVoiceMode(false);
+                                      } else {
+                                        controller.toggleListening();
+                                      }
+                                    },
+                                    onLongPress: () {
+                                      if (!controller.voiceMode.value) {
+                                        controller.setVoiceMode(true);
+                                      }
+                                    },
                                   ),
                                 if (!loading && !hasContent && micAvailable)
                                   const SizedBox(width: 8),

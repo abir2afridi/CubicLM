@@ -110,4 +110,30 @@ void main() {
     expect(logs.errorCount, 0);
     expect(logs.warningCount, 0);
   });
+
+  testWidgets('framework assertion + overlay errors match patterns',
+      (tester) async {
+    final logs = await settledLogs(tester);
+    logs.error(
+        "'package:flutter/src/widgets/framework.dart': Failed assertion: line 6271 pos 12: '_dependents.isEmpty': is not true.");
+    logs.error('Duplicate GlobalKeys detected in widget tree.',
+        details: '_OverlayEntryWidgetState _RenderTheater');
+    await flushLogs(tester);
+
+    final titles =
+        logs.detectedPatterns.map((p) => p.id).toSet();
+    expect(titles.contains('flutter_framework'), isTrue);
+    expect(titles.contains('overlay_issue'), isTrue);
+    expect(logs.untrackedErrors, isEmpty);
+  });
+
+  testWidgets('unmatched red rows surface as untracked', (tester) async {
+    final logs = await settledLogs(tester);
+    logs.error('Negative prompt rejected by engine v9');
+    await flushLogs(tester);
+
+    expect(logs.untrackedErrors.length, 1);
+    expect(logs.untrackedErrors.first.message,
+        'Negative prompt rejected by engine v9');
+  });
 }

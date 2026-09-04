@@ -112,6 +112,7 @@ class AppSheetHeader extends StatelessWidget {
 class AppCircleButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final Color? iconColor;
   final double diameter;
   final String? tooltip;
@@ -120,6 +121,7 @@ class AppCircleButton extends StatelessWidget {
     super.key,
     required this.icon,
     this.onTap,
+    this.onLongPress,
     this.iconColor,
     this.diameter = Dt.circleBtnDiameter,
     this.tooltip,
@@ -138,7 +140,11 @@ class AppCircleButton extends StatelessWidget {
     );
     return Tooltip(
       message: tooltip ?? '',
-      child: InkWell(onTap: onTap, customBorder: const CircleBorder(), child: btn),
+      child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          customBorder: const CircleBorder(),
+          child: btn),
     );
   }
 }
