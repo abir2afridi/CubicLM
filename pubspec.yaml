@@ -46,7 +46,7 @@ dependencies:
 
   # Utils
   uuid: ^4.5.0
-  intl: ^0.19.0
+  intl: ^0.20.3
   crypto: ^3.0.0
 
   # Background / Boot Persistence
