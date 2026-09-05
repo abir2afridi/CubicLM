@@ -123,6 +123,9 @@ class AppConstants {
   static const String keyAutoBackupDays = 'auto_backup_days';
   static const String keyLastAutoBackup = 'last_auto_backup_ms';
 
+  // Offline outbox (queued prompts, FIFO, cap 20)
+  static const String keyChatOutbox = 'chat_outbox';
+
   // Onboarding
   static const String keyOnboardingDone = 'onboarding_done_v1';
 

@@ -5,9 +5,12 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.6.0+11] - 2026-09-05
 
 ### Added
+- **Offline outbox** - network failures queue text/file prompts (FIFO, cap 20, per-chat); auto-send on next send/open with 2-min backoff.
+- **Pause-draft kill recovery** - backgrounding mid-answer snapshots the partial reply; superseded drafts are dropped on completion/stop.
+- **Launcher shortcut** - long-press app icon → New chat (Android static shortcut).
 - **Undo delete chat** - 5s UNDO snackbar restores session + messages.
 - **Whole-chat PDF export** - chat menu → Export as PDF (same Bangla-safe raster builder).
 - **Local sampling controls** - Top-P / Top-K / repeat-penalty sliders (Nodes → Config); plumbed through GGUF + LiteRT (cloud keeps provider defaults).

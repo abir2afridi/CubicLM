@@ -717,10 +717,12 @@ class _LockGateState extends State<LockGate>
         settings.isLocked.value = true;
       }
       // Hands-free must not keep listening in the background.
+      // Streaming answers snapshot a pause-draft (kill recovery).
       try {
         if (Get.isRegistered<ChatController>()) {
           final chat = Get.find<ChatController>();
           if (chat.voiceMode.value) chat.setVoiceMode(false);
+          chat.saveStreamingDraft();
         }
       } catch (_) {}
     } else if (state == AppLifecycleState.resumed) {

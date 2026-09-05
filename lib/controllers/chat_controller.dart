@@ -697,6 +697,8 @@ class ChatController extends GetxController {
     _resetInferenceContext();
     final opened = sessions.firstWhereOrNull((s) => s.id == sessionId);
     if (opened != null) unawaited(_applySessionModel(opened));
+    // Best-effort: send anything queued while offline for this chat.
+    unawaited(_flushOutbox());
     _scrollToBottom(force: true);
   }
 
@@ -1727,6 +1729,9 @@ class ChatController extends GetxController {
       if (idx >= 0) sessions[idx] = updated;
     }
 
+    // Flush any prompts queued while offline (FIFO, this chat first).
+    await _flushOutbox();
+
     // Generate AI Response
     await _generateAIResponse(
       prompt: effectiveText,
@@ -1757,7 +1762,7 @@ class ChatController extends GetxController {
           List<Map<String, String>> history, int maxChars) =>
       fitHistoryToBudget(history, maxChars);
 
-  Future<void> _generateAIResponse({
+  Future<bool> _generateAIResponse({
     required String prompt,
     String? imagePath,
     String? imgBase64,
@@ -2073,7 +2078,7 @@ class ChatController extends GetxController {
       if (generationId != _generationSerial) {
         tokenFlushTimer?.cancel();
         tokenBuf.clear();
-        return;
+        return true; // superseded by a newer generation — not a failure
       }
 
       final tps = inferenceMode == 'local'
@@ -2149,6 +2154,9 @@ class ChatController extends GetxController {
         if (idx >= 0) sessions[idx] = updated;
       }
       unawaited(HapticFeedback.mediumImpact());
+      // A pause-draft is superseded by the full answer — drop it so the
+      // chat doesn't show both the partial and the complete message.
+      _dropStreamingDraft();
       // Background ping: the answer finished while the app is
       // backgrounded — notify so the user knows to come back.
       try {
@@ -2177,7 +2185,7 @@ class ChatController extends GetxController {
       if (generationId != _generationSerial) {
         tokenFlushTimer?.cancel();
         tokenBuf.clear();
-        return;
+        return true; // stopped by the user — not a failure
       }
       tokenFlushTimer?.cancel();
       tokenBuf.clear();
@@ -2201,11 +2209,106 @@ class ChatController extends GetxController {
       messages.add(errorMsg);
       _hive.saveMessage(errorMsg.id, errorMsg.toMap());
       unawaited(HapticFeedback.heavyImpact());
+      // Offline outbox: network failures queue for auto-send later
+      // (text/file prompts only — image bytes are transient).
+      final queued = _isNetworkError(e) &&
+          await _enqueueOutbox(
+            prompt: prompt,
+            imagePath: null,
+            fileType: fileType,
+            filePath: filePath,
+          );
+      if (queued) {
+        Get.snackbar('Queued — offline',
+            'Will auto-send when you are back online.',
+            snackPosition: SnackPosition.BOTTOM,
+            duration: const Duration(seconds: 3));
+      }
+      return false;
     }
 
     if (generationId == _generationSerial) {
       isLoading.value = false;
       _scrollToBottom();
+    }
+    return true;
+  }
+
+  // ─── Offline outbox (FIFO, cap 20, per-chat) ────
+
+  bool _flushingOutbox = false;
+  DateTime? _outboxBackoffUntil;
+
+  Future<bool> _enqueueOutbox({
+    required String prompt,
+    String? imagePath,
+    String? fileType,
+    String? filePath,
+  }) async {
+    try {
+      if (imagePath != null && imagePath.isNotEmpty) return false;
+      final raw = _hive.getSetting<List>(AppConstants.keyChatOutbox,
+              defaultValue: []) ??
+          [];
+      final list = raw
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+      list.add({
+        'chatId': currentSessionId.value,
+        'prompt': prompt,
+        'fileType': fileType,
+        'filePath': filePath,
+        'ts': DateTime.now().millisecondsSinceEpoch,
+      });
+      while (list.length > 20) {
+        list.removeAt(0);
+      }
+      await _hive.setSetting(AppConstants.keyChatOutbox, list);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Send queued prompts for the open chat, oldest first. Stops (with a
+  /// 2-minute backoff) on the first network failure so reopening chats
+  /// while offline doesn't spam error bubbles.
+  Future<void> _flushOutbox() async {
+    if (_flushingOutbox) return;
+    final backoff = _outboxBackoffUntil;
+    if (backoff != null && DateTime.now().isBefore(backoff)) return;
+    _flushingOutbox = true;
+    try {
+      final raw = _hive.getSetting<List>(AppConstants.keyChatOutbox,
+              defaultValue: []) ??
+          [];
+      var list = raw
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+      final mine = list
+          .where((e) => e['chatId'] == currentSessionId.value)
+          .toList();
+      for (final e in mine) {
+        list.remove(e);
+        await _hive.setSetting(AppConstants.keyChatOutbox, list);
+        final ok = await _generateAIResponse(
+          prompt: (e['prompt'] ?? '').toString(),
+          fileType: e['fileType']?.toString(),
+          filePath: e['filePath']?.toString(),
+        );
+        if (!ok) {
+          // Failed (and re-queued by the catch path if network) — back
+          // off instead of hammering every open/send while offline.
+          _outboxBackoffUntil =
+              DateTime.now().add(const Duration(minutes: 2));
+          return;
+        }
+      }
+    } catch (_) {
+    } finally {
+      _flushingOutbox = false;
     }
   }
 
@@ -2225,6 +2328,8 @@ class ChatController extends GetxController {
 
     if (partialResponse.isNotEmpty) {
       final tps = Get.find<InferenceService>().tokensPerSecond.value;
+      // A pause-draft (background save) is superseded by this stop-save.
+      _dropStreamingDraft();
       _saveAssistantMessage(
         content: partialResponse,
         tokensPerSec: tps > 0 ? tps : null,
@@ -2641,6 +2746,16 @@ class ChatController extends GetxController {
   /// (OpenRouter 429 walls, HTML error pages) are unreadable in-chat —
   /// the bubble gets the short version with a remedy, while the full
   /// details stay in System Logs → Chat (logged by the caller).
+  bool _isNetworkError(Object e) {
+    final lower = e.toString().toLowerCase();
+    return lower.contains('socketexception') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('connection refused') ||
+        lower.contains('network is unreachable') ||
+        lower.contains('timed out') ||
+        lower.contains('timeoutexception');
+  }
+
   String _friendlyGenerationError(Object e) {
     final s = e.toString();
     final lower = s.toLowerCase();
@@ -2657,12 +2772,7 @@ class ChatController extends GetxController {
           '(free shared pool).\n\n• Wait a bit and retry\n'
           '• Or add your own API key: Explore → provider card → Add API Key';
     }
-    if (lower.contains('socketexception') ||
-        lower.contains('failed host lookup') ||
-        lower.contains('connection refused') ||
-        lower.contains('network is unreachable') ||
-        lower.contains('timed out') ||
-        lower.contains('timeoutexception')) {
+    if (_isNetworkError(e)) {
       return '🌐 Network error — check your connection and retry.';
     }
     if (s.length > 300) {
@@ -2936,6 +3046,49 @@ class ChatController extends GetxController {
     if (messages.isEmpty && hasOlderMessages.value) {
       unawaited(loadOlderMessages());
     }
+  }
+
+  /// Persist the in-flight streaming text (e.g. OS kills the app or the
+  /// user backgrounds mid-answer). The id is tracked so the completion
+  /// path can drop the superseded draft instead of duplicating it.
+  String? _draftMsgId;
+
+  void saveStreamingDraft() {
+    if (!isStreaming.value) return;
+    final text = streamingResponse.value.trim();
+    if (text.isEmpty || currentSessionId.value.isEmpty) return;
+    // One draft max — replace the older (shorter) snapshot.
+    _dropStreamingDraft();
+    try {
+      final aiMsg = ChatMessage(
+        id: _uuid.v4(),
+        chatId: currentSessionId.value,
+        role: 'assistant',
+        content: text,
+      );
+      messages.add(aiMsg);
+      _hive.saveMessage(aiMsg.id, aiMsg.toMap());
+      _draftMsgId = aiMsg.id;
+      final session =
+          sessions.firstWhereOrNull((s) => s.id == currentSessionId.value);
+      if (session != null) {
+        final updated = session.copyWith(lastMessage: text);
+        _hive.saveSession(updated.id, updated.toMap());
+        final idx = sessions.indexWhere((s) => s.id == updated.id);
+        if (idx >= 0) sessions[idx] = updated;
+      }
+    } catch (_) {}
+  }
+
+  /// Drop a previously saved pause-draft (superseded by full/partial save).
+  void _dropStreamingDraft() {
+    final id = _draftMsgId;
+    _draftMsgId = null;
+    if (id == null || id.isEmpty) return;
+    try {
+      messages.removeWhere((m) => m.id == id);
+      _hive.deleteMessage(id);
+    } catch (_) {}
   }
 
   void _saveAssistantMessage({
