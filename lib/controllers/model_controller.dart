@@ -14,6 +14,7 @@ import '../services/download_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../services/hive_service.dart';
+import '../services/stats_service.dart';
 import '../services/app_log_service.dart';
 import '../services/device_info_service.dart';
 import '../models/ai_model.dart';
@@ -929,6 +930,7 @@ class ModelController extends GetxController {
         );
       } else {
         AppSnackbar.modelSwitched(filename);
+        StatsService.tap(StatsService.eventModelLoaded);
       }
     } else {
       final result = await _inference.loadModel(
@@ -943,6 +945,7 @@ class ModelController extends GetxController {
             fallbackToText ? false : (model == null ? false : isVisionModel(model));
         await _settings.setInferenceMode('local');
         AppSnackbar.modelSwitched(filename);
+        StatsService.tap(StatsService.eventModelLoaded);
       } else {
         bool showDetails = false;
         Get.dialog(

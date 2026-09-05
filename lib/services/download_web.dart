@@ -37,6 +37,15 @@ void cancelNativeStream(String filename) {}
 
 Future<List<Map<String, dynamic>>> getNativeStreamDownloads() async => [];
 
+/// Web parity for download_service reconcilers (always empty / no-op).
+Future<List<Map<String, dynamic>>> getActiveNativeDownloads() async => [];
+
+Future<bool> cancelNativeDownload({
+  required int downloadId,
+  required String filename,
+}) async =>
+    false;
+
 Future<String> streamDownload({
   required String url,
   required String savePath,

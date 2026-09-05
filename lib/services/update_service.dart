@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
+import 'package:uuid/uuid.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -66,6 +67,11 @@ class UpdateService extends GetxService {
 
   /// Whether an APK download is currently in progress.
   final isDownloading = false.obs;
+
+  /// True when a newer release exists but this install's rollout bucket
+  /// hasn't unlocked yet (Update page shows "rolling out" instead).
+  final stagedBlocked = false.obs;
+  final stagedPercent = 100.obs;
 
   // ── Update-center preferences ──
   final autoCheck = true.obs;
@@ -307,6 +313,15 @@ class UpdateService extends GetxService {
       final latest = rawTag.startsWith('v') ? rawTag.substring(1) : rawTag;
       final cmp = _compareVersions(latest, current);
       if (cmp > 0) {
+        // Staged rollout first: buckets unlock 10% → 25% → 50% → 100%
+        // over the week after publish (no backend needed — see below).
+        // Explicit manual checks bypass the gate.
+        final staged =
+            (force && !silent) ? true : await _stagedUnlock(release);
+        if (!staged) {
+          updateAvailable.value = false;
+          return;
+        }
         lastKnownVersion.value = latest;
         updateAvailable.value = true;
         _latestTag = rawTag;
@@ -359,6 +374,60 @@ class UpdateService extends GetxService {
 
   /// Backwards-compatible alias for the spec's "manually triggers check".
   Future<void> checkForUpdatesManual() => check(force: true, silent: false);
+
+  static const String _kInstallBucket = 'update_install_bucket';
+
+  /// Staged rollout without a backend. Each install draws one stable
+  /// random bucket (0–99, persisted). The open percent grows with release
+  /// age: <1d → 10%, <3d → 25%, <7d → 50%, else 100%. Manual "Check for
+  /// updates" bypasses the gate (explicit user intent).
+  /// Returns true when this install may see the update now.
+  Future<bool> _stagedUnlock(Map<String, dynamic> release) async {
+    try {
+      stagedBlocked.value = false;
+      stagedPercent.value = 100;
+      final publishedRaw = release['published_at']?.toString() ?? '';
+      final published = DateTime.tryParse(publishedRaw);
+      if (published == null) return true; // unknown age → fully open
+      final age = DateTime.now().difference(published);
+      final percent = age.inDays < 1
+          ? 10
+          : age.inDays < 3
+              ? 25
+              : age.inDays < 7
+                  ? 50
+                  : 100;
+      stagedPercent.value = percent;
+      if (percent >= 100) return true;
+      final bucket = await _installBucket();
+      if (bucket < percent) return true;
+      stagedBlocked.value = true;
+      // Manual checks still surface it (user explicitly asked).
+      // Silent auto path stays quiet until the bucket unlocks.
+      return false;
+    } catch (_) {
+      return true; // fail-open: never hide updates on bookkeeping errors
+    }
+  }
+
+  /// Stable per-install bucket persisted in Hive (privacy-safe random id).
+  Future<int> _installBucket() async {
+    try {
+      final hive = Get.find<HiveService>();
+      final existing = hive.getSetting<int>(_kInstallBucket);
+      if (existing != null) return existing % 100;
+      final id = const Uuid().v4();
+      var hash = 0;
+      for (final unit in id.codeUnits) {
+        hash = ((hash * 31) + unit) & 0x7fffffff;
+      }
+      final bucket = hash % 100;
+      await hive.setSetting(_kInstallBucket, bucket);
+      return bucket;
+    } catch (_) {
+      return 0;
+    }
+  }
 
   /// Auto-download gate: Android + master switch + time window + network
   /// type. Returns true when the auto path took over (caller skips the

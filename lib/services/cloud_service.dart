@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../core/constants.dart';
 import 'hive_service.dart';
 import 'secure_key_store.dart';
+import 'stats_service.dart';
 import 'usage_tracker_service.dart';
 import 'cloud/cloud_provider.dart';
 import 'cloud/cloud_provider_registry.dart';
@@ -85,6 +86,7 @@ class CloudService extends GetxService {
   /// Fire-and-forget usage record (never blocks or throws).
   void _trackUsage(List<Map<String, String>> messages, String out) {
     try {
+      StatsService.tap(StatsService.eventCloudCall);
       if (!Get.isRegistered<UsageTrackerService>()) return;
       var inChars = 0;
       for (final m in messages) {

@@ -14,7 +14,7 @@ import '../services/inference_service.dart';
 import '../services/hive_service.dart';
 import '../services/local_image_service.dart';
 import '../services/device_info_service.dart';
-import '../services/device_info_native.dart' as platform_info;
+import '../services/soc_family.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import '../services/skills/skill_registry_service.dart';
 import '../services/skills/github_skill_source.dart';

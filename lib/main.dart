@@ -31,6 +31,7 @@ import 'services/skills/skill_registry_service.dart';
 import 'services/mcp/mcp_registry_service.dart';
 import 'services/tts_service.dart';
 import 'services/usage_tracker_service.dart';
+import 'services/stats_service.dart';
 import 'services/update_service.dart';
 import 'core/constants.dart';
 import 'core/languages.dart';
@@ -221,6 +222,8 @@ void main() {
       Get.put(InferenceService());
       Get.put(CloudService());
       Get.put(UsageTrackerService());
+      Get.put(StatsService());
+      unawaited(Get.find<StatsService>().init().then((_) {}, onError: (_) {}));
       Get.put(DownloadService());
       Get.put(LocalImageService());
       Get.put(ServerController(), permanent: true);

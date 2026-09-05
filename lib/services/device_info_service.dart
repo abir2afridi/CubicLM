@@ -2,6 +2,7 @@ import 'package:get/get.dart';
 
 import 'device_info_native.dart' if (dart.library.html) 'device_info_web.dart'
     as platform_info;
+import 'soc_family.dart';
 
 /// Device capability detection — reads RAM to set safe inference limits.
 /// Cross-platform: works on Android/iOS natively, defaults on web.
@@ -10,7 +11,7 @@ class DeviceInfoService extends GetxService {
   final availableRamGB = 0.0.obs;
   final deviceTier = ''.obs; // 'low', 'mid', 'high', 'ultra'
   final isTensorSoC = false.obs;
-  final socFamily = platform_info.SocFamily.unknown.obs;
+  final socFamily = SocFamily.unknown.obs;
   final socHardware = ''.obs;
   final processorName = ''.obs;
   final gpuName = ''.obs;
@@ -97,7 +98,7 @@ class DeviceInfoService extends GetxService {
     isTensorSoC.value = (info['isTensorSoC'] as num? ?? 0.0) > 0.5;
     final rawIndex = (info['socFamily'] as num? ?? 8).toInt();
     final clamped = rawIndex < 0 ? 0 : (rawIndex > 8 ? 8 : rawIndex);
-    socFamily.value = platform_info.SocFamily.values[clamped];
+    socFamily.value = SocFamily.values[clamped];
     socHardware.value = (info['socHardware'] as String?) ?? '';
     processorName.value = (info['processor'] as String?) ?? '';
     gpuName.value = (info['gpuName'] as String?) ?? '';

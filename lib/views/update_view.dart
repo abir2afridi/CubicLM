@@ -166,6 +166,9 @@ class UpdateView extends StatelessWidget {
         child: Obx(() {
           final available = svc.updateAvailable.value;
           final downloading = svc.isDownloading.value;
+          final staged = !available &&
+              !downloading &&
+              svc.stagedBlocked.value;
           final latest =
               svc.lastKnownVersion.value.isEmpty ? '' : svc.lastKnownVersion.value;
           String current = '';
@@ -222,13 +225,17 @@ class UpdateView extends StatelessWidget {
                           ? LucideIcons.loader
                           : available
                               ? LucideIcons.arrowDownToLine
-                              : LucideIcons.checkCircle2,
+                              : staged
+                                  ? LucideIcons.hourglass
+                                  : LucideIcons.checkCircle2,
                       size: 16,
                       color: downloading
                           ? Dt.accent
                           : available
                               ? AppColors.warning
-                              : AppColors.success,
+                              : staged
+                                  ? Theme.of(context).hintColor
+                                  : AppColors.success,
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -236,7 +243,9 @@ class UpdateView extends StatelessWidget {
                           ? 'Downloading… ${(svc.downloadProgress.value * 100).toInt()}%'
                           : available
                               ? 'Update available${latest.isEmpty ? '' : ': v$latest'}'
-                              : "You're up to date",
+                              : staged
+                                  ? 'Rolling out — your group unlocks soon'
+                                  : "You're up to date",
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -244,7 +253,9 @@ class UpdateView extends StatelessWidget {
                               ? Dt.accent
                               : available
                                   ? AppColors.warning
-                                  : AppColors.success),
+                                  : staged
+                                      ? Theme.of(context).hintColor
+                                      : AppColors.success),
                     ),
                   ],
                 ),

@@ -9,8 +9,8 @@ Write-Host "== CubicLM — build-all ==" -ForegroundColor Cyan
 $env:JAVA_HOME = "C:\JDK17"
 $env:Path = "$env:JAVA_HOME\bin;$env:Path"
 
-Write-Host "`n[1/3] Android APK (debug)..." -ForegroundColor Yellow
-flutter build apk --debug
+Write-Host "`n[1/3] Android APK (debug, gplay flavor)..." -ForegroundColor Yellow
+flutter build apk --debug --flavor gplay
 if ($LASTEXITCODE -ne 0) { throw "Android build failed" }
 
 Write-Host "`n[2/3] Web (static)..." -ForegroundColor Yellow
@@ -22,7 +22,7 @@ flutter build windows
 if ($LASTEXITCODE -ne 0) { throw "Windows build failed" }
 
 Write-Host "`nAll builds succeeded:" -ForegroundColor Green
-Write-Host "  Android:  build/app/outputs/flutter-apk/app-debug.apk"
+Write-Host "  Android:  build/app/outputs/flutter-apk/app-gplay-debug.apk"
 Write-Host "  Web:      build/web"
 Write-Host "  Windows:  build/windows/runner/Release/cubiclm.exe"
 Write-Host "`nAbout links: edit shared/constants/platform_links.dart (see docs/PLATFORM_LINKS.md)"

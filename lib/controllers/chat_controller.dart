@@ -35,6 +35,7 @@ import '../services/skills/skill_injector.dart';
 import '../models/web_source.dart';
 import '../utils/thought_parser.dart';
 import '../utils/history_budget.dart';
+import '../services/stats_service.dart';
 
 const int _visionImageMaxSide = 768;
 const int _visionImageJpegQuality = 72;
@@ -1731,6 +1732,7 @@ class ChatController extends GetxController {
 
     // Flush any prompts queued while offline (FIFO, this chat first).
     await _flushOutbox();
+    StatsService.tap(StatsService.eventChatSent);
 
     // Generate AI Response
     await _generateAIResponse(
@@ -2028,6 +2030,7 @@ class ChatController extends GetxController {
 
           if (pngBytes != null) {
             await imageNotifications.complete(durationMs: genDurationMs ?? 0);
+            StatsService.tap(StatsService.eventImageGenerated);
             rawResponse =
                 '[IMAGE_BASE64]${await compute(base64Encode, pngBytes)}';
           } else {

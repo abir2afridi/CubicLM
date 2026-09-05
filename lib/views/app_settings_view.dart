@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../controllers/chat_controller.dart';
+import '../services/stats_service.dart';
 import '../core/routes.dart';
 import '../core/colors.dart';
 import '../services/tts_service.dart';
@@ -119,6 +120,66 @@ class AppSettingsView extends GetView<SettingsController> {
     } finally {
       passCtrl.dispose();
     }
+  }
+
+  void _showStats(BuildContext context, StatsService stats) {
+    final counts = stats.snapshot();
+    final entries = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? AppColors.surface : Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Usage statistics',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Counted on this device only. Nothing leaves the app.',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12, color: Theme.of(ctx).hintColor)),
+            const SizedBox(height: 12),
+            if (entries.isEmpty)
+              Text('No events yet.',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+            for (final e in entries)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(StatsService.label(e.key),
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14, fontWeight: FontWeight.w600)),
+                  ),
+                  Text('${e.value}',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: Dt.accent)),
+                ]),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await stats.reset();
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: Text('Reset',
+                style: GoogleFonts.plusJakartaSans(color: AppColors.error)),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _exportSettings() async {
@@ -517,6 +578,37 @@ class AppSettingsView extends GetView<SettingsController> {
                   subtitle: 'Restore preferences (keys never transfer)',
                   onTap: () => _importSettings(),
                 ),
+                Obx(() {
+                  final stats = Get.isRegistered<StatsService>()
+                      ? Get.find<StatsService>()
+                      : Get.put(StatsService());
+                  final on = stats.enabled.value;
+                  // ignore: unused_local_variable
+                  final v = stats.version.value;
+                  final counts =
+                      on ? stats.snapshot() : <String, int>{};
+                  final total =
+                      counts.values.fold<int>(0, (a, b) => a + b);
+                  return _appleListTile(
+                    context,
+                    isDark,
+                    leading: const Icon(LucideIcons.barChart3,
+                        size: 20, color: Dt.accent),
+                    title: 'Usage statistics',
+                    subtitle: !on
+                        ? 'Off — nothing is counted'
+                        : total == 0
+                            ? 'On — no events yet'
+                            : '$total events counted (device only)',
+                    trailing: Switch.adaptive(
+                      value: on,
+                      activeThumbColor: Dt.accent,
+                      onChanged: (nv) => stats.setEnabled(nv),
+                    ),
+                    showDivider: false,
+                    onTap: on ? () => _showStats(context, stats) : null,
+                  );
+                }),
                 _appleListTile(
                   context,
                   isDark,

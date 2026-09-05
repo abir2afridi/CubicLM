@@ -55,6 +55,21 @@ android {
         multiDexEnabled = true
     }
 
+    // Distribution flavors: `gplay` is the standard release (Firebase
+    // inert without google-services.json); `fdroid` gets its own
+    // applicationId for parallel install + F-Droid source builds.
+    // NOTE: any flutter build command must now pass --flavor explicitly.
+    flavorDimensions += "dist"
+    productFlavors {
+        create("gplay") {
+            dimension = "dist"
+        }
+        create("fdroid") {
+            dimension = "dist"
+            applicationIdSuffix = ".fdroid"
+            versionNameSuffix = "-fdroid"
+        }
+    }
 
     signingConfigs {
         if (hasReleaseKeystore) {

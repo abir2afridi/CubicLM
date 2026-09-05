@@ -46,9 +46,10 @@ only — never publish those APKs).
 
 ```powershell
 # Android splits (from C:\CLM):
-flutter build apk --release --split-per-abi
-# → build/app/outputs/flutter-apk/app-<abi>-release.apk
+flutter build apk --release --flavor gplay --split-per-abi
+# → build/app/outputs/flutter-apk/app-gplay-<abi>-release.apk
 # Rename on upload: cubiclm-vX.Y.Z-<abi>.apk
+# (fdroid flavor: --flavor fdroid, own applicationId for F-Droid builds)
 
 # Windows:
 flutter build windows --release

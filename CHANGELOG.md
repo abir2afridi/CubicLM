@@ -5,6 +5,15 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **F-Droid flavor** - `fdroid` build flavor (`com.cubiclm.app.fdroid` suffix); Crashlytics inert without `google-services.json`.
+- **Staged rollout** - backend-free buckets (10/25/50/100% over 7 days); manual checks bypass; rollout state on Update page.
+- **Opt-in local stats** - device-only counters (messages/images/loads/cloud calls) with viewer + reset; off by default.
+- **Web build fixed** - stub parity (shared SocFamily, engine + download stubs); `flutter build web` green.
+- **Windows installer script** - Inno Setup `windows/installer/cubiclm.iss` (unsigned; signing documented).
+
 ## [1.7.0+12] - 2026-09-05
 
 ### Added

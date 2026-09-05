@@ -27,6 +27,7 @@ class InferenceEngine {
     String? modelRuntime,
     required int contextSize,
     required String deviceTier,
+    bool isTensorSoC = false,
     String liteRtPerformanceMode = 'cpu_safe',
     bool forceLiteRtCpu = true,
     bool clearLiteRtCache = false,
@@ -38,6 +39,15 @@ class InferenceEngine {
       message: 'Local inference is not available on this platform.',
     );
   }
+
+  /// Web parity: no resident pool — always miss, caller falls back.
+  Future<bool> switchActiveModel(String modelPath) async => false;
+
+  /// Web parity: nothing resident.
+  Future<List<String>> residentModels() async => const [];
+
+  /// Web parity: no-op.
+  Future<void> resetConversation() async {}
 
   Future<String> generate({
     required String prompt,
