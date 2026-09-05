@@ -15,9 +15,9 @@
 
 | Platform | File | Size | Download |
 |---|---|---:|---|
-| Android (arm64) | `cubiclm-v1.5.0-arm64-v8a.apk` | 60 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/cubiclm-v1.5.0-arm64-v8a.apk) |
-| Android (arm32) | `cubiclm-v1.5.0-armeabi-v7a.apk` | 15 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/cubiclm-v1.5.0-armeabi-v7a.apk) |
-| Android (x86_64) | `cubiclm-v1.5.0-x86_64.apk` | 26 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/cubiclm-v1.5.0-x86_64.apk) |
+| Android (arm64) | `cubiclm-v1.5.0-arm64-v8a.apk` | 61 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/cubiclm-v1.5.0-arm64-v8a.apk) |
+| Android (arm32) | `cubiclm-v1.5.0-armeabi-v7a.apk` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/cubiclm-v1.5.0-armeabi-v7a.apk) |
+| Android (x86_64) | `cubiclm-v1.5.0-x86_64.apk` | 27 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/cubiclm-v1.5.0-x86_64.apk) |
 | Windows (x64) | `cubiclm-v1.5.0-windows-x64.zip` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/cubiclm-v1.5.0-windows-x64.zip) — unzip & run `cubiclm.exe` (WebView2 required) |
 | Checksums | `checksums.sha256` | — | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/checksums.sha256) |
 
