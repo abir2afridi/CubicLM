@@ -922,11 +922,14 @@ class ChatView extends GetView<ChatController> {
       actions: [
         _notificationBell(context, isDark),
         Obx(() {
+          // Always visible: Battle Arena needs no open chat. Session
+          // items disable gracefully on the empty state instead of
+          // hiding the whole menu (users couldn't find anything).
           final hasSession = controller.currentSessionId.value.isNotEmpty;
-          if (!hasSession) return const SizedBox.shrink();
           final selecting = controller.selectionMode.value;
           final iconColor =
               isDark ? AppColors.textPrimary : Dt.iconDefault;
+          final muted = Theme.of(context).hintColor;
           return PopupMenuButton<String>(
             tooltip: 'More options',
             icon: Icon(LucideIcons.moreVertical,
@@ -940,34 +943,47 @@ class ChatView extends GetView<ChatController> {
             itemBuilder: (_) => [
               PopupMenuItem(
                 value: 'find',
+                enabled: hasSession,
                 child: Row(children: [
-                  const Icon(LucideIcons.search, size: 16),
+                  Icon(LucideIcons.search, size: 16,
+                      color: hasSession ? null : muted),
                   const SizedBox(width: 10),
                   Text('Find in chat',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          color: hasSession ? null : muted)),
                 ]),
               ),
               PopupMenuItem(
                 value: 'export',
+                enabled: hasSession,
                 child: Row(children: [
-                  const Icon(LucideIcons.share2, size: 16),
+                  Icon(LucideIcons.share2, size: 16,
+                      color: hasSession ? null : muted),
                   const SizedBox(width: 10),
                   Text('Export chat',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          color: hasSession ? null : muted)),
                 ]),
               ),
               PopupMenuItem(
                 value: 'select',
+                enabled: hasSession,
                 child: Row(children: [
                   Icon(
                       selecting
                           ? LucideIcons.checkSquare
                           : LucideIcons.listChecks,
                       size: 16,
-                      color: selecting ? Dt.accent : null),
+                      color: selecting
+                          ? Dt.accent
+                          : (hasSession ? null : muted)),
                   const SizedBox(width: 10),
                   Text(selecting ? 'Done selecting' : 'Select messages',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14,
+                          color: hasSession ? null : muted)),
                 ]),
               ),
               PopupMenuItem(
