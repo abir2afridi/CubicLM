@@ -141,8 +141,15 @@ Future<Map<String, dynamic>> getDeviceInfo() async {
   String hardware = '';
   String processor = '';
   String gpuName = '';
+  // Device specification (brand/model/OS/CPU) for the spec card.
+  String deviceBrand = '';
+  String deviceModel = '';
+  String osVersion = '';
+  int cpuCores = 0;
+  String cpuAbi = '';
 
   try {
+    cpuCores = Platform.numberOfProcessors;
     if (Platform.isAndroid || Platform.isLinux) {
       final meminfo = await File('/proc/meminfo').readAsString();
       final totalMatch = RegExp(r'MemTotal:\s+(\d+)').firstMatch(meminfo);
@@ -210,6 +217,22 @@ Future<Map<String, dynamic>> getDeviceInfo() async {
           model: model,
         );
 
+        // Device specification via device_info_plus (one batched call).
+        try {
+          final android = await DeviceInfoPlugin().androidInfo;
+          deviceBrand = _prettyBrand(android.brand);
+          deviceModel = android.model;
+          osVersion =
+              'Android ${android.version.release} · SDK ${android.version.sdkInt}';
+          if (android.supportedAbis.isNotEmpty) {
+            cpuAbi = android.supportedAbis.first;
+          }
+        } catch (_) {
+          // getprop fallback when the plugin is unavailable.
+          deviceBrand = _prettyBrand(brand);
+          deviceModel = model;
+        }
+
         // GPU renderer name from the llama plugin's Vulkan probe.
         try {
           final gpu = await LlamaHostApi().detectGpu();
@@ -241,6 +264,10 @@ Future<Map<String, dynamic>> getDeviceInfo() async {
         }
         processor = 'Windows PC · ${win.numberOfCores} cores';
         hardware = 'x86_64';
+        deviceBrand = win.computerName.isNotEmpty ? 'PC' : '';
+        deviceModel = win.computerName;
+        osVersion = 'Windows ${win.displayVersion} (build ${win.buildNumber})';
+        cpuAbi = 'x86_64';
       } catch (_) {}
     }
   } catch (e) {
@@ -255,6 +282,11 @@ Future<Map<String, dynamic>> getDeviceInfo() async {
     'socHardware': hardware,
     'processor': processor,
     'gpuName': gpuName,
+    'deviceBrand': deviceBrand,
+    'deviceModel': deviceModel,
+    'osVersion': osVersion,
+    'cpuCores': cpuCores,
+    'cpuAbi': cpuAbi,
   };
 }
 
@@ -354,8 +386,7 @@ String? _mediatekMarketing(String model) {
 String _extractDigits(String s) =>
     RegExp(r'\d+[A-Za-z]*').firstMatch(s)?.group(0) ?? '';
 
-String _prettyVendor(String raw) {
-  switch (raw.toLowerCase()) {
+String _prettyVendor(String raw) {  switch (raw.toLowerCase()) {
     case 'qcom':
     case 'qualcomm':
       return 'Qualcomm';
@@ -372,4 +403,11 @@ String _prettyVendor(String raw) {
     default:
       return raw[0].toUpperCase() + raw.substring(1).toUpperCase();
   }
+}
+
+/// Capitalize a device brand ("xiaomi" → "Xiaomi").
+String _prettyBrand(String raw) {
+  final s = raw.trim();
+  if (s.isEmpty) return '';
+  return s[0].toUpperCase() + s.substring(1);
 }

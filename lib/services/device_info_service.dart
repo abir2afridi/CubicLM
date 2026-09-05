@@ -15,6 +15,14 @@ class DeviceInfoService extends GetxService {
   final processorName = ''.obs;
   final gpuName = ''.obs;
 
+  // Device specification for the spec card.
+  final deviceLabel = ''.obs; // e.g. "Xiaomi Redmi K20 Pro"
+  final osVersion = ''.obs; // e.g. "Android 11 · SDK 30"
+  final cpuInfo = ''.obs; // e.g. "8 cores · arm64-v8a"
+
+  /// Re-read everything (available RAM drifts; cheap enough on demand).
+  Future<void> refresh() => refreshMemoryInfo();
+
   // Recommended limits based on device RAM
   int get recommendedContextSize => _tierConfig['contextSize']!;
   int get recommendedMaxTokens => _tierConfig['maxTokens']!;
@@ -93,6 +101,16 @@ class DeviceInfoService extends GetxService {
     socHardware.value = (info['socHardware'] as String?) ?? '';
     processorName.value = (info['processor'] as String?) ?? '';
     gpuName.value = (info['gpuName'] as String?) ?? '';
+    final brand = (info['deviceBrand'] as String?) ?? '';
+    final model = (info['deviceModel'] as String?) ?? '';
+    deviceLabel.value = '$brand $model'.trim();
+    osVersion.value = (info['osVersion'] as String?) ?? '';
+    final cores = (info['cpuCores'] as num?)?.toInt() ?? 0;
+    final abi = (info['cpuAbi'] as String?) ?? '';
+    cpuInfo.value = [
+      if (cores > 0) '$cores cores',
+      if (abi.isNotEmpty) abi,
+    ].join(' · ');
   }
 
   String get tierDescription {

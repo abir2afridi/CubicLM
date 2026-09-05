@@ -6,5 +6,10 @@ Future<Map<String, dynamic>> getDeviceInfo() async {
     'isTensorSoC': 0.0,
     'socFamily': 8, // unknown
     'socHardware': '',
+    'deviceBrand': '',
+    'deviceModel': 'Web browser',
+    'osVersion': 'Web',
+    'cpuCores': 0,
+    'cpuAbi': '',
   };
 }

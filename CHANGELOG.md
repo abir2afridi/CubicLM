@@ -5,6 +5,11 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Device specification card** - Nodes → Config shows Device (brand+model), OS version, CPU cores/ABI, RAM with free-space bar, display size, plus one-tap refresh.
+
 ## [1.6.0+11] - 2026-09-05
 
 ### Added

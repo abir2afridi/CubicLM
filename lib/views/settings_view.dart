@@ -396,8 +396,97 @@ class SettingsView extends GetView<SettingsController> {
             ),
           ),
         ],
+        // ── Specification rows ──
+        Divider(height: 1, indent: 20, endIndent: 20, color: isDark ? AppColors.border : AppColors.borderLightMode),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
+          child: Row(children: [
+            Text('SPECIFICATION',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: Theme.of(context).hintColor)),
+            const Spacer(),
+            InkWell(
+              onTap: () => Get.find<DeviceInfoService>().refresh(),
+              borderRadius: BorderRadius.circular(8),
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(LucideIcons.refreshCw, size: 14),
+              ),
+            ),
+          ]),
+        ),
+        if (device.deviceLabel.value.isNotEmpty)
+          _specRow(context, isDark, LucideIcons.smartphone, 'Device',
+              device.deviceLabel.value),
+        if (device.osVersion.value.isNotEmpty)
+          _specRow(context, isDark, LucideIcons.layers, 'OS',
+              device.osVersion.value),
+        if (device.cpuInfo.value.isNotEmpty)
+          _specRow(context, isDark, LucideIcons.cpu, 'CPU',
+              device.cpuInfo.value),
+        _specRow(context, isDark, LucideIcons.memoryStick, 'RAM',
+            '${device.totalRamGB.value.toStringAsFixed(1)} GB total · '
+            '${device.availableRamGB.value.toStringAsFixed(1)} GB free'),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(52, 6, 20, 4),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              minHeight: 5,
+              value: device.totalRamGB.value > 0
+                  ? (device.availableRamGB.value /
+                          device.totalRamGB.value)
+                      .clamp(0.0, 1.0)
+                  : 0,
+              backgroundColor: (isDark ? Colors.white : Colors.black)
+                  .withValues(alpha: 0.08),
+              valueColor:
+                  const AlwaysStoppedAnimation<Color>(Dt.accent),
+            ),
+          ),
+        ),
+        _specRow(context, isDark, LucideIcons.monitorSmartphone, 'Display',
+            _displaySpec(context)),
+        const SizedBox(height: 12),
       ]);
       });
+  }
+
+  String _displaySpec(BuildContext context) {
+    try {
+      final s = MediaQuery.of(context).size;
+      return '${s.width.toStringAsFixed(0)}×${s.height.toStringAsFixed(0)} dp';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  Widget _specRow(BuildContext context, bool isDark, IconData icon,
+      String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 14, color: Theme.of(context).hintColor),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 64,
+          child: Text(label,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).hintColor)),
+        ),
+        Expanded(
+          child: Text(value,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5, fontWeight: FontWeight.w700)),
+        ),
+      ]),
+    );
   }
 
   Widget _buildLiteRtCard(BuildContext context, bool isDark) {

@@ -36,6 +36,7 @@
 - **Streaming token generation** with real-time tokens-per-second display — long answers stream as plain text (full markdown on completion) with adaptive flush (150/300ms) so the chat never janks
 - **GPU crash recovery** — automatic CPU fallback if GPU backend fails
 - **Device-tier auto-configuration** — adjusts context size and max tokens based on detected RAM
+- **Device specification card** — Nodes → Config shows brand+model, OS version, CPU cores/ABI, RAM free-space bar, display size, one-tap refresh
 - **Real hardware identification** — reads `ro.soc.*` system properties to show the actual processor (Snapdragon 8 Gen 2, Dimensity 9000, Google Tensor G3…) and probes Vulkan for the GPU renderer name (Adreno, Mali…) instead of a generic "Unknown" label; SoC-aware quantization recommendations follow from the detected family
 
 ### 🎛️ Inference Parameters (Nodes › Config)
