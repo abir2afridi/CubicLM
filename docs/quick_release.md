@@ -19,6 +19,7 @@ $env:ANDROID_SDK_ROOT = "C:\Android\Sdk"
 ## 1. Prep (code)
 
 1. `flutter analyze` — 0 issues.
+2. Verify `versionCode` increased: after building, `aapt dump badging <apk> | grep versionCode` must exceed the previous release (Android refuses downgrades; see build.gradle.kts guard).
 2. Bump `pubspec.yaml` `version: X.Y.Z+N` (semver: feat → minor, fix → patch).
 3. `CHANGELOG.md` — new `## [X.Y.Z+N] - YYYY-MM-DD` section (Added/Changed/Fixed).
 4. `website/index.html` — download URLs `vX.Y.Z`, size labels, new changelog

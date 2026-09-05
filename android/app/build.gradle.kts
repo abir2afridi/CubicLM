@@ -50,7 +50,12 @@ android {
         applicationId = "com.cubiclm.app"
         minSdk = 28
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
+        // Monotonic versionCode guard: the v1.6.0 release shipped code
+        // 2011 while pubspec build numbers are small (+12 → 12), so a raw
+        // mapping would look like a DOWNGRADE and Android would refuse to
+        // install the update (INSTALL_FAILED_VERSION_DOWNGRADE). The +100000
+        // base keeps every future code above 2011 regardless of mapping.
+        versionCode = 100000 + flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
     }

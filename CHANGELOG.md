@@ -5,14 +5,18 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.8.0+13] - 2026-09-05
 
 ### Added
+- **Battle Arena** - chat ⋮ menu → race up to 4 cloud models (same/different providers) on one prompt with live monitor (finish order, tok/s, length) and weighted overall verdict (40/30/30); One-by-one mode runs contenders serially in pick order and allows the loaded on-device model.
 - **F-Droid flavor** - `fdroid` build flavor (`com.cubiclm.app.fdroid` suffix); Crashlytics inert without `google-services.json`.
 - **Staged rollout** - backend-free buckets (10/25/50/100% over 7 days); manual checks bypass; rollout state on Update page.
 - **Opt-in local stats** - device-only counters (messages/images/loads/cloud calls) with viewer + reset; off by default.
 - **Web build fixed** - stub parity (shared SocFamily, engine + download stubs); `flutter build web` green.
 - **Windows installer script** - Inno Setup `windows/installer/cubiclm.iss` (unsigned; signing documented).
+
+### Fixed
+- **versionCode downgrade trap** - v1.6.0 shipped code 2011 vs small pubspec numbers, which Android rejects as a downgrade; `build.gradle.kts` now adds a +100000 base (verified 100012+) and the release checklist mandates aapt verification.
 
 ## [1.7.0+12] - 2026-09-05
 

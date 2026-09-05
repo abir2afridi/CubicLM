@@ -5,25 +5,25 @@
 
 # CubicLM
 
-[![Release](https://img.shields.io/github/v/release/abir2afridi/CubicLM?label=release)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.7.0)
-[![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Windows-blue)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.7.0)
+[![Release](https://img.shields.io/github/v/release/abir2afridi/CubicLM?label=release)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.8.0)
+[![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Windows-blue)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.8.0)
 [![Website](https://img.shields.io/badge/website-cubiclm.vercel.app-FF4D00)](https://cubiclm.vercel.app)
 
 > 📱⚡ A cross-platform AI chat application with local on-device inference and multi-provider cloud AI support. Runs LLMs directly on your Android device via GPU-accelerated llama.cpp 🦙 and Google's LiteRT-LM runtime ⚡, with an optional built-in OpenAI-compatible API server 🔌.
 
-## 📥 Download — v1.7.0
+## 📥 Download — v1.8.0
 
 | Platform | File | Size | Download |
 |---|---|---:|---|
-| Android (arm64) | `cubiclm-v1.7.0-arm64-v8a.apk` | 61 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.7.0/cubiclm-v1.7.0-arm64-v8a.apk) |
-| Android (arm32) | `cubiclm-v1.7.0-armeabi-v7a.apk` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.7.0/cubiclm-v1.7.0-armeabi-v7a.apk) |
-| Android (x86_64) | `cubiclm-v1.7.0-x86_64.apk` | 27 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.7.0/cubiclm-v1.7.0-x86_64.apk) |
-| Windows (x64) | `cubiclm-v1.7.0-windows-x64.zip` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.7.0/cubiclm-v1.7.0-windows-x64.zip) — unzip & run `cubiclm.exe` (WebView2 required) |
-| Checksums | `checksums.sha256` | — | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.7.0/checksums.sha256) |
+| Android (arm64) | `cubiclm-v1.8.0-arm64-v8a.apk` | 61 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.8.0/cubiclm-v1.8.0-arm64-v8a.apk) |
+| Android (arm32) | `cubiclm-v1.8.0-armeabi-v7a.apk` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.8.0/cubiclm-v1.8.0-armeabi-v7a.apk) |
+| Android (x86_64) | `cubiclm-v1.8.0-x86_64.apk` | 27 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.8.0/cubiclm-v1.8.0-x86_64.apk) |
+| Windows (x64) | `cubiclm-v1.8.0-windows-x64.zip` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.8.0/cubiclm-v1.8.0-windows-x64.zip) — unzip & run `cubiclm.exe` (WebView2 required) |
+| Checksums | `checksums.sha256` | — | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.8.0/checksums.sha256) |
 
 > **Website:** [cubiclm.vercel.app](https://cubiclm.vercel.app) — landing + direct APK / Windows downloads
-> **Full notes:** [CHANGELOG.md](CHANGELOG.md) · [Release page](https://github.com/abir2afridi/CubicLM/releases/tag/v1.7.0)
-> Web (`dart:ffi`) is tracked for the next release — Android + Windows are the supported targets for `v1.7.0`.
+> **Full notes:** [CHANGELOG.md](CHANGELOG.md) · [Release page](https://github.com/abir2afridi/CubicLM/releases/tag/v1.8.0)
+> Web (`dart:ffi`) is tracked for the next release — Android + Windows are the supported targets for `v1.8.0`.
 
 ## ✨ Features
 
@@ -157,6 +157,7 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
 - **Multi-select** — long-press or header toggle → bulk copy/share/delete via the selection bar
 - **Per-chat model pin** — switcher-sheet toggle pins the active local/cloud model to one chat (📌 pill), auto-applied on open
 - **Side-by-side compare** — one-shot challenger answers the same prompt (`⚖️` message), primary setup restored afterwards
+- **Battle Arena** — chat ⋮ menu → up to 4 cloud models race one prompt with live monitor + overall verdict
 - **Chat labels** — free-form folder label per chat with drawer filter chips
 - **Per-chat lock** — device-auth gate on open; **undo delete** (5s snackbar)
 - **Whole-chat PDF** — chat menu export alongside Markdown/.txt
@@ -487,4 +488,5 @@ Configure in **Nodes › Config → CUSTOM MCP SERVER** — single remote HTTP/S
 ## 📄 License
 
 MIT License. See [LICENSE](LICENSE) for details.
+
 

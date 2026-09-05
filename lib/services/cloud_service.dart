@@ -125,20 +125,93 @@ class CloudService extends GetxService {
   }
 
   CloudProvider _getActiveProvider() {
-    if (_provider == 'custom') {
-      final baseUrl =
-          (_hive.getSetting(AppConstants.keyCustomCloudBaseUrl) ?? '')
-              .toString()
-              .replaceAll(RegExp(r'/+$'), '');
-      final customEndpoint = '$baseUrl/chat/completions';
-      return _CustomProviderAdapter(endpoint: customEndpoint);
-    }
+    if (_provider == 'custom') return _customAdapter();
 
     final provider = CloudProviderRegistry.getById(_provider);
     if (provider == null) {
       throw Exception('Unknown provider: $_provider');
     }
     return provider;
+  }
+
+  /// Adapter for the user's configured custom endpoint (current Hive config).
+  CloudProvider _customAdapter() {
+    final baseUrl =
+        (_hive.getSetting(AppConstants.keyCustomCloudBaseUrl) ?? '')
+            .toString()
+            .replaceAll(RegExp(r'/+$'), '');
+    final customEndpoint = '$baseUrl/chat/completions';
+    return _CustomProviderAdapter(endpoint: customEndpoint);
+  }
+
+  /// True when [providerId] has what it needs to serve (API key present;
+  /// custom additionally needs its base URL). Used by pickers that list
+  /// providers other than the active one (e.g. Battle Arena).
+  bool isProviderConfigured(String providerId) {
+    try {
+      if (providerId == 'custom') {
+        final baseUrl =
+            (_hive.getSetting(AppConstants.keyCustomCloudBaseUrl) ?? '')
+                .toString();
+        return baseUrl.isNotEmpty &&
+            _readSecure(AppConstants.keyCustomCloudKey).isNotEmpty;
+      }
+      return _readApiKey(providerId).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  CloudProvider _providerFor(String providerId) {
+    if (providerId == 'custom') return _customAdapter();
+    final provider = CloudProviderRegistry.getById(providerId);
+    if (provider == null) {
+      throw Exception('Unknown provider: $providerId');
+    }
+    return provider;
+  }
+
+  /// One-shot streaming call against an EXPLICIT provider + model without
+  /// touching global settings — safe for concurrent contenders (Battle
+  /// Arena). Throws on unknown provider or transport failure.
+  Stream<String> streamMessageAs({
+    required String providerId,
+    required String model,
+    required List<Map<String, String>> messages,
+    double? temperature,
+    int? maxTokens,
+  }) async* {
+    final provider = _providerFor(providerId);
+    final apiKey = _readApiKey(providerId);
+    if (apiKey.isEmpty) {
+      throw Exception('No API key saved for $providerId.');
+    }
+    final buf = StringBuffer();
+    await for (final chunk in provider.streamMessage(
+      messages: messages,
+      apiKey: apiKey,
+      model: model,
+    )) {
+      buf.write(chunk);
+      yield chunk;
+    }
+    try {
+      if (Get.isRegistered<UsageTrackerService>()) {
+        var inChars = 0;
+        for (final m in messages) {
+          inChars += (m['content'] ?? '').length;
+        }
+        Get.find<UsageTrackerService>().record(
+          provider: providerId,
+          model: model,
+          inChars: inChars,
+          outChars: buf.length,
+        );
+      }
+    } catch (_) {}
+    try {
+      StatsService.tap(StatsService.eventCloudCall);
+    } catch (_) {}
   }
 
   String _readApiKey(String provider) {
