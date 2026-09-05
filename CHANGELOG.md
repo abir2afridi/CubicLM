@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.8.0+13] - 2026-09-05
 
 ### Added
-- **Battle Arena** - chat ⋮ menu → race up to 4 cloud models (same/different providers) on one prompt with live monitor (finish order, tok/s, length) and weighted overall verdict (40/30/30); One-by-one mode runs contenders serially in pick order and allows the loaded on-device model.
+- **Battle Arena** - chat ⋮ menu → race up to 4 cloud models (same/different providers) on one prompt with live monitor (finish order, tok/s, length) and weighted overall verdict (40/30/30); One-by-one mode runs contenders serially in pick order and allows the loaded on-device model; v2 adds metric bars + TTFT, FREE filter, full markdown responses with code preview, per-response TTS + .md export.
 - **F-Droid flavor** - `fdroid` build flavor (`com.cubiclm.app.fdroid` suffix); Crashlytics inert without `google-services.json`.
 - **Staged rollout** - backend-free buckets (10/25/50/100% over 7 days); manual checks bypass; rollout state on Update page.
 - **Opt-in local stats** - device-only counters (messages/images/loads/cloud calls) with viewer + reset; off by default.

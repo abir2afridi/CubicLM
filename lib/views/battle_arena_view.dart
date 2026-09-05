@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../controllers/battle_arena_controller.dart';
+import '../controllers/cloud_model_controller.dart';
 import '../core/colors.dart';
+import '../services/tts_service.dart';
 import '../theme/design_tokens.dart';
+import '../utils/prompt_export.dart';
+import '../utils/thought_parser.dart';
+import '../widgets/code_block.dart';
 
 /// Battle Arena: race up to 4 cloud models on one prompt with a live
 /// monitor (finish order, speed, information) and an overall verdict.
@@ -124,6 +130,8 @@ class _BattleArenaViewState extends State<BattleArenaView> {
   void _showPicker(BuildContext context, bool isDark) {
     final groups = c.pickableModels();
     final query = ValueNotifier('');
+    final freeOnly = ValueNotifier(false);
+    CloudModelController cmc() => Get.find<CloudModelController>();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -165,6 +173,57 @@ class _BattleArenaViewState extends State<BattleArenaView> {
                 onChanged: (v) => query.value = v.trim().toLowerCase(),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Row(children: [
+                ValueListenableBuilder<bool>(
+                  valueListenable: freeOnly,
+                  builder: (_, on, __) => ChoiceChip(
+                    label: Text('FREE',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11, fontWeight: FontWeight.w800)),
+                    selected: on,
+                    selectedColor:
+                        AppColors.success.withValues(alpha: 0.2),
+                    onSelected: (_) => freeOnly.value = !on,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ValueListenableBuilder<String>(
+                  valueListenable: query,
+                  builder: (_, q, __) => ValueListenableBuilder<bool>(
+                    valueListenable: freeOnly,
+                    builder: (_, fo, __) {
+                      var n = 0;
+                      groups.forEach((pid, list) {
+                        for (final m in list) {
+                          if (q.isNotEmpty &&
+                              !m.toLowerCase().contains(q) &&
+                              !c
+                                  .providerName(pid)
+                                  .toLowerCase()
+                                  .contains(q)) {
+                            continue;
+                          }
+                          if (fo) {
+                            try {
+                              if (!cmc().isFreeModel(pid, m)) {
+                                continue;
+                              }
+                            } catch (_) {}
+                          }
+                          n++;
+                        }
+                      });
+                      return Text('$n models',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              color: Theme.of(context).hintColor));
+                    },
+                  ),
+                ),
+              ]),
+            ),
             const SizedBox(height: 8),
             Expanded(
               child: groups.isEmpty
@@ -183,49 +242,53 @@ class _BattleArenaViewState extends State<BattleArenaView> {
                     )
                   : ValueListenableBuilder<String>(
                       valueListenable: query,
-                      builder: (_, q, __) => ListView(
-                        controller: scrollCtrl,
-                        padding:
-                            const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                        children: [
-                          if (c.loadedLocalName.isNotEmpty &&
-                              (q.isEmpty ||
-                                  'on-device'
-                                      .contains(q) ||
-                                  c.loadedLocalName
-                                      .toLowerCase()
-                                      .contains(q))) ...[
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                  top: 12, bottom: 4),
-                              child: Text('ON-DEVICE (SEQUENTIAL ONLY)',
-                                  style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.6)),
-                            ),
-                            Obx(() => CheckboxListTile(
-                                  dense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                  title: Text(c.loadedLocalName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style:
-                                          GoogleFonts.plusJakartaSans(
-                                              fontSize: 13)),
-                                  value: c.isPicked(
-                                      'local', c.loadedLocalName),
-                                  activeColor: Dt.accent,
-                                  onChanged: c.running.value
-                                      ? null
-                                      : (_) => c.togglePick(
-                                          'local', c.loadedLocalName),
-                                )),
+                      builder: (_, q, __) => ValueListenableBuilder<bool>(
+                        valueListenable: freeOnly,
+                        builder: (_, fo, __) => ListView(
+                          controller: scrollCtrl,
+                          padding:
+                              const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                          children: [
+                            if (c.loadedLocalName.isNotEmpty &&
+                                !fo &&
+                                (q.isEmpty ||
+                                    'on-device'
+                                        .contains(q) ||
+                                    c.loadedLocalName
+                                        .toLowerCase()
+                                        .contains(q))) ...[
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                    top: 12, bottom: 4),
+                                child: Text('ON-DEVICE (SEQUENTIAL ONLY)',
+                                    style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.6)),
+                              ),
+                              Obx(() => CheckboxListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(c.loadedLocalName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style:
+                                            GoogleFonts.plusJakartaSans(
+                                                fontSize: 13)),
+                                    value: c.isPicked(
+                                        'local', c.loadedLocalName),
+                                    activeColor: Dt.accent,
+                                    onChanged: c.running.value
+                                        ? null
+                                        : (_) => c.togglePick(
+                                            'local', c.loadedLocalName),
+                                  )),
+                            ],
+                            for (final pid in groups.keys)
+                              ..._pickerGroup(
+                                  sheetCtx, pid, groups[pid]!, q, fo),
                           ],
-                          for (final pid in groups.keys)
-                            ..._pickerGroup(
-                                sheetCtx, pid, groups[pid]!, q),
-                        ],
+                        ),
                       ),
                     ),
             ),
@@ -235,16 +298,26 @@ class _BattleArenaViewState extends State<BattleArenaView> {
     );
   }
 
-  List<Widget> _pickerGroup(
-      BuildContext sheetCtx, String providerId, List<String> models, String q) {
+  List<Widget> _pickerGroup(BuildContext sheetCtx, String providerId,
+      List<String> models, String q, bool freeOnly) {
     final name = c.providerName(providerId);
-    final filtered = q.isEmpty
-        ? models
-        : models
-            .where((m) =>
-                m.toLowerCase().contains(q) ||
-                name.toLowerCase().contains(q))
-            .toList();
+    bool freeOf(String m) {
+      try {
+        return Get.find<CloudModelController>().isFreeModel(providerId, m);
+      } catch (_) {
+        return false;
+      }
+    }
+
+    final filtered = models.where((m) {
+      if (q.isNotEmpty &&
+          !m.toLowerCase().contains(q) &&
+          !name.toLowerCase().contains(q)) {
+        return false;
+      }
+      if (freeOnly && !freeOf(m)) return false;
+      return true;
+    }).toList();
     if (filtered.isEmpty) return [];
     return [
       Padding(
@@ -259,10 +332,30 @@ class _BattleArenaViewState extends State<BattleArenaView> {
         Obx(() => CheckboxListTile(
               dense: true,
               contentPadding: EdgeInsets.zero,
-              title: Text(m,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+              title: Row(children: [
+                Expanded(
+                  child: Text(m,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                ),
+                if (freeOf(m))
+                  Container(
+                    margin: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color:
+                          AppColors.success.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text('FREE',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.success)),
+                  ),
+              ]),
               value: c.isPicked(providerId, m),
               activeColor: Dt.accent,
               onChanged: c.running.value
@@ -401,13 +494,18 @@ class _BattleArenaViewState extends State<BattleArenaView> {
                   : '';
       final st = e.status.value;
       final secs = (e.elapsedMs.value / 1000).toStringAsFixed(1);
+      final ttft = e.firstTokenMs == null
+          ? ''
+          : ' · TTFT ${(e.firstTokenMs! / 1000).toStringAsFixed(1)}s';
       final detail = st == 'error'
           ? (e.error ?? 'error')
           : st == 'running'
-              ? '$secs s · ${e.tokensPerSec.toStringAsFixed(1)} tok/s · ${e.chars} chars'
-              : '$secs s · ${e.tokensPerSec.toStringAsFixed(1)} tok/s · ${e.chars} chars';
+              ? '$secs s · ${e.tokensPerSec.toStringAsFixed(1)} tok/s · ${e.chars} chars$ttft'
+              : '$secs s · ${e.tokensPerSec.toStringAsFixed(1)} tok/s · ${e.chars} chars$ttft';
+      // Normalize bars against the best finished contender.
+      final best = _bestMetrics();
       return Padding(
-        padding: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.only(top: 10),
         child: Row(children: [
           SizedBox(
             width: 26,
@@ -437,11 +535,63 @@ class _BattleArenaViewState extends State<BattleArenaView> {
                           color: st == 'error'
                               ? AppColors.error
                               : Theme.of(context).hintColor)),
+                  if (st != 'error') ...[
+                    const SizedBox(height: 5),
+                    _metricBar(
+                        'SPD',
+                        best.speed <= 0
+                            ? 0
+                            : (e.tokensPerSec / best.speed)
+                                .clamp(0.0, 1.0),
+                        Dt.accent),
+                    const SizedBox(height: 3),
+                    _metricBar(
+                        'INFO',
+                        best.chars <= 0
+                            ? 0
+                            : (e.chars / best.chars).clamp(0.0, 1.0),
+                        AppColors.success),
+                  ],
                 ]),
           ),
         ]),
       );
     });
+  }
+
+  ({double speed, int chars}) _bestMetrics() {
+    var speed = 0.0;
+    var chars = 0;
+    for (final e in c.entries) {
+      if (e.status.value == 'error') continue;
+      if (e.tokensPerSec > speed) speed = e.tokensPerSec;
+      if (e.chars > chars) chars = e.chars;
+    }
+    return (speed: speed, chars: chars);
+  }
+
+  Widget _metricBar(String tag, double ratio, Color color) {
+    return Row(children: [
+      SizedBox(
+        width: 30,
+        child: Text(tag,
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: color)),
+      ),
+      Expanded(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: LinearProgressIndicator(
+            minHeight: 5,
+            value: ratio,
+            backgroundColor: color.withValues(alpha: 0.12),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ),
+    ]);
   }
 
   // ── Verdict ──
@@ -469,25 +619,73 @@ class _BattleArenaViewState extends State<BattleArenaView> {
           ),
         ]),
         const SizedBox(height: 10),
-        for (final id in v.order)
-          Builder(builder: (_) {
-            final row = v.rows[id]!;
-            final entry = c.entries.firstWhere((e) => e.pick.id == id,
-                orElse: () => c.entries.first);
-            final secs =
-                ((entry.doneMs ?? entry.elapsedMs.value) / 1000)
-                    .toStringAsFixed(1);
-            return Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                '#${v.order.indexOf(id) + 1} ${entry.pick.label} — '
-                'finish #${row.finishRank}, speed #${row.speedRank} '
-                '(${entry.tokensPerSec.toStringAsFixed(1)} tok/s), '
-                'length #${row.lengthRank} (${entry.chars} chars, ${secs}s)',
-                style: GoogleFonts.plusJakartaSans(fontSize: 12, height: 1.45),
-              ),
-            );
-          }),
+        Builder(builder: (_) {
+          final worst = v.rows.values.fold<double>(
+              0, (a, r) => r.score > a ? r.score : a);
+          return Column(children: [
+            for (final id in v.order)
+              Builder(builder: (_) {
+                final row = v.rows[id]!;
+                final entry =
+                    c.entries.firstWhere((e) => e.pick.id == id,
+                        orElse: () => c.entries.first);
+                final secs =
+                    ((entry.doneMs ?? entry.elapsedMs.value) / 1000)
+                        .toStringAsFixed(1);
+                // Lower score = better → invert for bar length.
+                final ratio = worst <= 0
+                    ? 1.0
+                    : (1 - (row.score - 1) / (worst <= 1 ? 1 : worst - 1))
+                        .clamp(0.0, 1.0);
+                return Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Expanded(
+                            child: Text(
+                              '#${v.order.indexOf(id) + 1} ${entry.pick.label}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          Text('${row.score.toStringAsFixed(2)} pts',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Dt.accent)),
+                        ]),
+                        const SizedBox(height: 4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            minHeight: 7,
+                            value: ratio,
+                            backgroundColor:
+                                Dt.accent.withValues(alpha: 0.12),
+                            valueColor:
+                                const AlwaysStoppedAnimation<Color>(
+                                    Dt.accent),
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'finish #${row.finishRank} · speed #${row.speedRank} '
+                          '(${entry.tokensPerSec.toStringAsFixed(1)} tok/s) · '
+                          'length #${row.lengthRank} (${entry.chars} chars, ${secs}s)',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11, height: 1.4,
+                              color: Theme.of(context).hintColor),
+                        ),
+                      ]),
+                );
+              }),
+          ]);
+        }),
       ]),
     );
   }
@@ -508,51 +706,99 @@ class _BattleArenaViewState extends State<BattleArenaView> {
 
   Widget _responseTile(
       BuildContext context, bool isDark, BattleEntry e) {
-    return Obx(() => Card(
-          child: ExpansionTile(
-            title: Text(e.pick.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13, fontWeight: FontWeight.w700)),
-            subtitle: Text(
-              e.status.value == 'running'
-                  ? 'writing… ${e.chars} chars'
-                  : e.status.value,
+    return Obx(() {
+      // Chat-page parity: render markdown (code blocks get copy/share +
+      // HTML live preview via CodeBlockBuilder), think tags stripped.
+      final answer = splitThoughtTags(e.text.value).answer.trim();
+      final shown = answer.isNotEmpty ? answer : e.text.value;
+      return Card(
+        child: ExpansionTile(
+          title: Text(e.pick.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  color: e.status.value == 'error'
-                      ? AppColors.error
-                      : Theme.of(context).hintColor),
-            ),
-            trailing: IconButton(
-              tooltip: 'Copy response',
-              icon: const Icon(LucideIcons.copy, size: 16),
-              onPressed: e.text.value.isEmpty
-                  ? null
-                  : () => Clipboard.setData(
-                      ClipboardData(text: e.text.value)),
-            ),
+                  fontSize: 13, fontWeight: FontWeight.w700)),
+          subtitle: Text(
+            e.status.value == 'running'
+                ? 'writing… ${e.chars} chars'
+                : e.status.value,
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                color: e.status.value == 'error'
+                    ? AppColors.error
+                    : Theme.of(context).hintColor),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF1E1E2E)
-                      : const Color(0xFFF8F9FA),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: SelectableText(
-                  e.text.value.isEmpty ? '(no output)' : e.text.value,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13, height: 1.5),
-                ),
+              IconButton(
+                tooltip: 'Read aloud',
+                icon: const Icon(LucideIcons.volume2, size: 16),
+                onPressed: e.text.value.isEmpty
+                    ? null
+                    : () => _speak(e.text.value),
+              ),
+              IconButton(
+                tooltip: 'Export .md',
+                icon: const Icon(LucideIcons.download, size: 16),
+                onPressed: e.text.value.isEmpty
+                    ? null
+                    : () => PromptExport.shareAsMarkdown(
+                        shown, baseName: 'battle'),
+              ),
+              IconButton(
+                tooltip: 'Copy response',
+                icon: const Icon(LucideIcons.copy, size: 16),
+                onPressed: e.text.value.isEmpty
+                    ? null
+                    : () => Clipboard.setData(
+                        ClipboardData(text: e.text.value)),
               ),
             ],
           ),
-        ));
+          children: [
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF1E1E2E)
+                    : const Color(0xFFF8F9FA),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: shown.isEmpty
+                  ? Text('(no output)',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          color: Theme.of(context).hintColor))
+                  : MarkdownBody(
+                      data: shown,
+                      selectable: true,
+                      styleSheet: MarkdownStyleSheet.fromTheme(
+                              Theme.of(context))
+                          .copyWith(
+                        p: GoogleFonts.plusJakartaSans(
+                            fontSize: 13, height: 1.5),
+                      ),
+                      builders: {
+                        'code': CodeBlockBuilder(context),
+                        'pre': CodeBlockBuilder(context),
+                      },
+                    ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  void _speak(String text) {
+    try {
+      if (Get.isRegistered<TtsService>()) {
+        Get.find<TtsService>().speak(text);
+      }
+    } catch (_) {}
   }
 
   Widget _card(bool isDark, List<Widget> children) {
