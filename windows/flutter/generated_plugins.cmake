@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  connectivity_plus
   file_selector_windows
   firebase_core
   flutter_inappwebview_windows
@@ -15,6 +16,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   share_plus
   speech_to_text_windows
   url_launcher_windows
+  win_toast
   window_manager
 )
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
@@ -38,6 +39,16 @@ class UpdateService extends GetxService {
       'https://api.github.com/repos/abir2afridi/CubicLM/releases/latest';
   static const String _kLastCheckMs = 'update_last_check_ms';
   static const String _kLastKnownVersion = 'update_last_known_version';
+
+  // Update-center preferences (Update page → ⋮ → Update settings).
+  static const String _kAutoCheck = 'update_auto_check';
+  static const String _kAutoDownload = 'update_auto_download';
+  static const String _kWifiOnly = 'update_wifi_only';
+  static const String _kAllowMobile = 'update_allow_mobile';
+  static const String _kScheduled = 'update_scheduled_window';
+  static const String _kWindowStart = 'update_window_start_min';
+  static const String _kWindowEnd = 'update_window_end_min';
+  static const String _kAutoInstall = 'update_auto_install';
   static const Duration _cooldown = Duration(hours: 24);
   static const Duration _initialDelay = Duration(seconds: 3);
   static const Duration _httpTimeout = Duration(seconds: 8);
@@ -56,6 +67,16 @@ class UpdateService extends GetxService {
   /// Whether an APK download is currently in progress.
   final isDownloading = false.obs;
 
+  // ── Update-center preferences ──
+  final autoCheck = true.obs;
+  final autoDownload = true.obs;
+  final wifiOnly = true.obs;
+  final allowMobileData = false.obs;
+  final scheduledWindow = false.obs;
+  final windowStartMin = (21 * 60).obs; // 9:00 PM
+  final windowEndMin = (23 * 60 + 30).obs; // 11:30 PM
+  final autoInstall = false.obs;
+
   /// The APK download URL extracted from the latest release assets.
   String? _apkDownloadUrl;
 
@@ -65,13 +86,167 @@ class UpdateService extends GetxService {
   /// The latest release tag for display during download.
   String _latestTag = '';
 
+  /// Local path of the last successfully downloaded APK (for later
+  /// install from the Update page when auto-install is off).
+  String? _apkSavePath;
+
+  /// True when a previously downloaded APK is still on disk.
+  bool downloadedApkReady() {
+    try {
+      final p = _apkSavePath;
+      return p != null && p.isNotEmpty && File(p).existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Open the installer for a previously downloaded APK.
+  Future<void> installSavedApk() async {
+    try {
+      final p = _apkSavePath;
+      if (p == null || p.isEmpty || !File(p).existsSync()) {
+        AppSnackbar.showTop(
+          'Nothing to install',
+          'Download the update first.',
+          icon: LucideIcons.info,
+          type: 'general',
+          iconName: 'info',
+          duration: const Duration(seconds: 3),
+        );
+        return;
+      }
+      await _openInstaller(p);
+    } catch (e) {
+      AppSnackbar.showTop('Install failed', '$e',
+          icon: LucideIcons.xCircle,
+          type: 'general',
+          iconName: 'x_circle',
+          duration: const Duration(seconds: 3));
+    }
+  }
+
+  Future<void> _openInstaller(String savePath) async {
+    // Android 8+ needs the install-packages grant or the installer
+    // silently refuses. Ask first, deep-link to settings on denial.
+    if (Platform.isAndroid && !await _ensureInstallPermission(savePath)) {
+      return;
+    }
+
+    // Trigger APK install (the OS always shows its own confirm screen).
+    final result = await OpenFile.open(savePath);
+    if (result.type != ResultType.done) {
+      AppSnackbar.showTop(
+        'Could not open installer',
+        result.message.isNotEmpty
+            ? result.message
+            : 'Please install manually.',
+        icon: LucideIcons.alertTriangle,
+        type: 'general',
+        iconName: 'alert_triangle',
+        duration: const Duration(seconds: 3),
+      );
+    }
+  }
+
   Future<UpdateService> init() async {
     // Restore persisted state from Hive.
     final cached = _getLastKnownVersion();
     if (cached != null && cached.isNotEmpty) {
       lastKnownVersion.value = cached;
     }
+    try {
+      final hive = Get.find<HiveService>();
+      autoCheck.value =
+          hive.getSetting<bool>(_kAutoCheck, defaultValue: true) ?? true;
+      autoDownload.value =
+          hive.getSetting<bool>(_kAutoDownload, defaultValue: true) ?? true;
+      wifiOnly.value =
+          hive.getSetting<bool>(_kWifiOnly, defaultValue: true) ?? true;
+      allowMobileData.value =
+          hive.getSetting<bool>(_kAllowMobile, defaultValue: false) ?? false;
+      scheduledWindow.value =
+          hive.getSetting<bool>(_kScheduled, defaultValue: false) ?? false;
+      windowStartMin.value =
+          hive.getSetting<int>(_kWindowStart, defaultValue: 21 * 60) ??
+              21 * 60;
+      windowEndMin.value =
+          hive.getSetting<int>(_kWindowEnd, defaultValue: 23 * 60 + 30) ??
+              23 * 60 + 30;
+      autoInstall.value =
+          hive.getSetting<bool>(_kAutoInstall, defaultValue: false) ?? false;
+    } catch (_) {}
     return this;
+  }
+
+  Future<void> _savePref(String key, dynamic value) async {
+    try {
+      if (Get.isRegistered<HiveService>()) {
+        await Get.find<HiveService>().setSetting(key, value);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> setAutoCheck(bool v) async {
+    autoCheck.value = v;
+    await _savePref(_kAutoCheck, v);
+  }
+
+  Future<void> setAutoDownload(bool v) async {
+    autoDownload.value = v;
+    await _savePref(_kAutoDownload, v);
+  }
+
+  Future<void> setWifiOnly(bool v) async {
+    wifiOnly.value = v;
+    await _savePref(_kWifiOnly, v);
+  }
+
+  Future<void> setAllowMobileData(bool v) async {
+    allowMobileData.value = v;
+    await _savePref(_kAllowMobile, v);
+  }
+
+  Future<void> setScheduledWindow(bool v) async {
+    scheduledWindow.value = v;
+    await _savePref(_kScheduled, v);
+  }
+
+  Future<void> setWindowStart(int minutes) async {
+    windowStartMin.value = minutes;
+    await _savePref(_kWindowStart, minutes);
+  }
+
+  Future<void> setWindowEnd(int minutes) async {
+    windowEndMin.value = minutes;
+    await _savePref(_kWindowEnd, minutes);
+  }
+
+  Future<void> setAutoInstall(bool v) async {
+    autoInstall.value = v;
+    await _savePref(_kAutoInstall, v);
+  }
+
+  /// 21*60 → "9:00 PM", 0 → "12:00 AM".
+  static String formatMinutes(int minutes) {
+    final m = minutes % (24 * 60);
+    final h24 = m ~/ 60;
+    final mm = m % 60;
+    final suffix = h24 >= 12 ? 'PM' : 'AM';
+    var h12 = h24 % 12;
+    if (h12 == 0) h12 = 12;
+    return '$h12:${mm.toString().padLeft(2, '0')} $suffix';
+  }
+
+  /// True when auto-downloads may run right now (window disabled = always).
+  bool get inDownloadWindow {
+    if (!scheduledWindow.value) return true;
+    final now = DateTime.now();
+    final cur = now.hour * 60 + now.minute;
+    final s = windowStartMin.value;
+    final e = windowEndMin.value;
+    if (s == e) return true;
+    if (s < e) return cur >= s && cur < e;
+    return cur >= s || cur < e; // overnight window
   }
 
   /// Auto check — respects 24h cooldown and starts after 3s delay.
@@ -137,7 +312,10 @@ class UpdateService extends GetxService {
         _latestTag = rawTag;
         _apkDownloadUrl = await _extractApkUrl(release);
         await _setLastKnownVersion(latest);
-        _showUpdateSnackbar(rawTag);
+        // Silent auto path handles it (download starts); otherwise nudge.
+        if (!await _handleAutoDownload()) {
+          _showUpdateSnackbar(rawTag);
+        }
       } else {
         lastKnownVersion.value = latest;
         updateAvailable.value = false;
@@ -182,9 +360,53 @@ class UpdateService extends GetxService {
   /// Backwards-compatible alias for the spec's "manually triggers check".
   Future<void> checkForUpdatesManual() => check(force: true, silent: false);
 
+  /// Auto-download gate: Android + master switch + time window + network
+  /// type. Returns true when the auto path took over (caller skips the
+  /// snackbar). Fail-closed: detection errors skip auto-download; manual
+  /// download always stays available.
+  Future<bool> _handleAutoDownload() async {
+    try {
+      if (!Platform.isAndroid) return false;
+      if (!autoDownload.value) return false;
+      if (!inDownloadWindow) return false;
+      if (isDownloading.value) return false;
+      if (!await _networkAllowsDownload()) return false;
+      await downloadAndInstallAPK(manual: false);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _networkAllowsDownload() async {
+    try {
+      final results = await Connectivity()
+          .checkConnectivity()
+          .timeout(const Duration(seconds: 5));
+      if (results.isEmpty ||
+          results.contains(ConnectivityResult.none)) {
+        return false;
+      }
+      final mobile = results.contains(ConnectivityResult.mobile);
+      final unmetered = results.any((r) =>
+          r == ConnectivityResult.wifi ||
+          r == ConnectivityResult.ethernet ||
+          r == ConnectivityResult.vpn ||
+          r == ConnectivityResult.other);
+      if (mobile && !unmetered) return allowMobileData.value;
+      if (wifiOnly.value) return unmetered;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Downloads the APK from GitHub releases and triggers Android install.
   /// Shows a progress dialog during download, then opens the APK installer.
-  Future<void> downloadAndInstallAPK() async {
+  /// [manual]=false is the silent auto path: the installer opens only when
+  /// the "Install automatically" pref is on, otherwise the file waits on
+  /// the Update page (Install button).
+  Future<void> downloadAndInstallAPK({bool manual = true}) async {
     if (isDownloading.value) return;
     final url = _apkDownloadUrl;
     if (url == null || url.isEmpty) {
@@ -274,23 +496,19 @@ class UpdateService extends GetxService {
       // Close progress dialog.
       if (Get.isDialogOpen == true) Get.back();
 
-      // Android 8+ needs the install-packages grant or the installer
-      // silently refuses. Ask first, deep-link to settings on denial.
-      if (Platform.isAndroid &&
-          !await _ensureInstallPermission(savePath)) {
-        return;
-      }
-
-      // Trigger APK install.
-      final result = await OpenFile.open(savePath);
-      if (result.type != ResultType.done) {
+      _apkSavePath = savePath;
+      // Manual taps always proceed to the installer; the auto path only
+      // when "Install automatically" is on (the OS confirms in all cases).
+      if (manual || autoInstall.value) {
+        await _openInstaller(savePath);
+      } else {
         AppSnackbar.showTop(
-          'Could not open installer',
-          result.message.isNotEmpty ? result.message : 'Please install manually.',
-          icon: LucideIcons.alertTriangle,
+          'Update downloaded',
+          'Open the Update page and tap Install when ready.',
+          icon: LucideIcons.checkCircle2,
           type: 'general',
-          iconName: 'alert_triangle',
-          duration: const Duration(seconds: 3),
+          iconName: 'check_circle_2',
+          duration: const Duration(seconds: 4),
         );
       }
     } catch (e) {

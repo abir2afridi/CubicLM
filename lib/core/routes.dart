@@ -9,6 +9,8 @@ import '../views/chat_view.dart';
 import '../views/task_view.dart';
 import '../views/splash_view.dart';
 import '../views/onboarding_view.dart';
+import '../views/update_view.dart';
+import '../views/update_settings_view.dart';
 
 abstract class AppRoutes {
   static const splash = '/splash';
@@ -16,6 +18,8 @@ abstract class AppRoutes {
   static const chat = '/chat';
   static const task = '/task';
   static const onboarding = '/onboarding';
+  static const update = '/update';
+  static const updateSettings = '/update-settings';
 }
 
 class AppPages {
@@ -52,6 +56,14 @@ class AppPages {
       binding: BindingsBuilder(() {
         Get.lazyPut(() => TaskController());
       }),
+    ),
+    GetPage(
+      name: AppRoutes.update,
+      page: () => const UpdateView(),
+    ),
+    GetPage(
+      name: AppRoutes.updateSettings,
+      page: () => const UpdateSettingsView(),
     ),
   ];
 }

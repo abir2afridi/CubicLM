@@ -370,10 +370,12 @@ Future<void> _initDeferredServices(
       timeout: const Duration(seconds: 10));
   await safePut(() => UpdateService().init(), 'UpdateService',
       timeout: const Duration(seconds: 4));
-  // Kick off auto-check (3s delay + 24h throttle inside the service).
+  // Kick off auto-check (3s delay + 24h throttle inside the service),
+  // honoring the Update-center "Check automatically" pref.
   try {
     if (Get.isRegistered<UpdateService>()) {
-      unawaited(Get.find<UpdateService>().check());
+      final svc = Get.find<UpdateService>();
+      if (svc.autoCheck.value) unawaited(svc.check());
     }
   } catch (_) {}
 
@@ -633,6 +635,13 @@ class _LockGateState extends State<LockGate>
     final settings = _settings();
     if (settings == null) return;
     if (settings.appLockEnabled.value) settings.isLocked.value = true;
+    // Desktop never hits AppLifecycleState.paused, so snapshot a
+    // streaming draft here too (same kill-recovery as Android).
+    try {
+      if (Get.isRegistered<ChatController>()) {
+        Get.find<ChatController>().saveStreamingDraft();
+      }
+    } catch (_) {}
   }
 
   /// window_manager: close is intercepted (setPreventClose at startup).

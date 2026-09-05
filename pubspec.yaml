@@ -1,7 +1,7 @@
 name: cubiclm
 description: AI Chat — Local/Cloud LLM Assistant
 publish_to: "none"
-version: 1.6.0+11
+version: 1.7.0+12
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -35,6 +35,7 @@ dependencies:
   # File System & Permissions
   path_provider: ^2.1.0
   permission_handler: ^11.3.0
+  connectivity_plus: ^6.1.4
 
   # Image Support
   image_picker: ^1.1.0
@@ -74,6 +75,7 @@ dependencies:
   flutter_inappwebview: ^6.1.5
   dart_mcp: ^0.5.2
   window_manager: ^0.4.1
+  win_toast: ^0.4.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

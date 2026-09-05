@@ -5,9 +5,14 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.7.0+12] - 2026-09-05
 
 ### Added
+- **Windows toast notifications** - background-done ping via WinRT (`win_toast` facade + web stub).
+- **Desktop pause-draft** - window blur snapshots streaming replies (kill-recovery parity with Android).
+- **Parity verification doc** - `docs/TASK_VERIFICATION_ANDROID_TO_WIN.md` (APK + bundle teardown, checklist, corrections).
+- **Update center** - App info → View Update status page (icon, status, version, highlights, check/install, ⋮ menu with Update Settings / What's New / More → Feedback & Privacy Policy).
+- **Update settings** - auto-download master, Wi-Fi-only, mobile-data, scheduled hours with on/off time pickers, auto-install, auto-check; enforced via connectivity_plus + time window.
 - **Device specification card** - Nodes → Config shows Device (brand+model), OS version, CPU cores/ABI, RAM with free-space bar, display size, plus one-tap refresh.
 
 ## [1.6.0+11] - 2026-09-05

@@ -6,6 +6,8 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import 'win_toast_notify.dart';
+
 class ImageGenerationNotificationService {
   static const int _progressNotificationId = 4201;
   static const int _foregroundNotificationId = 4202;
@@ -174,31 +176,41 @@ class ImageGenerationNotificationService {
   static const int _chatDoneNotificationId = 4203;
 
   /// Best-effort ping when a chat answer finishes while the app is
-  /// backgrounded. Android-only; never throws (missing permission just
-  /// drops the notification).
+  /// backgrounded. Android uses the notification plugin, Windows uses a
+  /// WinRT toast; other platforms no-op. Never throws (missing permission
+  /// just drops the notification).
   Future<void> notifyChatDone(String preview) async {
-    if (!Platform.isAndroid) return;
-    try {
-      await init();
-      final body = preview.trim();
-      await _notifications.show(
-        _chatDoneNotificationId,
-        'CubicLM — answer ready',
-        body.isEmpty
-            ? 'Open the app to read it.'
-            : (body.length > 180 ? '${body.substring(0, 180)}…' : body),
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            _channelId,
-            _channelName,
-            channelDescription: 'Progress updates for local image generation',
-            importance: Importance.defaultImportance,
-            priority: Priority.defaultPriority,
-            onlyAlertOnce: true,
+    final trimmed = preview.trim();
+    final body = trimmed.isEmpty
+        ? 'Open the app to read it.'
+        : (trimmed.length > 180
+            ? '${trimmed.substring(0, 180)}…'
+            : trimmed);
+    if (Platform.isAndroid) {
+      try {
+        await init();
+        await _notifications.show(
+          _chatDoneNotificationId,
+          'CubicLM — answer ready',
+          body,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              _channelId,
+              _channelName,
+              channelDescription:
+                  'Progress updates for local image generation',
+              importance: Importance.defaultImportance,
+              priority: Priority.defaultPriority,
+              onlyAlertOnce: true,
+            ),
           ),
-        ),
-      );
-    } catch (_) {}
+        );
+      } catch (_) {}
+      return;
+    }
+    if (Platform.isWindows) {
+      await showWindowsToast(title: 'CubicLM — answer ready', body: body);
+    }
   }
 
   Future<void> _showProgress({

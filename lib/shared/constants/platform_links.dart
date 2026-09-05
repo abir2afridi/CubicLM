@@ -21,7 +21,16 @@ class PlatformLinks {
   static const String androidDownloadUrl = 'https://github.com/abir2afridi/CubicLM/releases/latest';
 
   /// Centralized changelog — single source of truth.
-  static const String changelogUrl = 'https://github.com/abir2afridi/CubicLM/blob/main/CHANGELOG.md';
+  static const String changelogUrl =
+      'https://github.com/abir2afridi/CubicLM/blob/main/CHANGELOG.md';
+
+  /// Website changelog section (user-facing Feature Highlights target).
+  static const String websiteChangelogUrl =
+      'https://cubiclm.vercel.app/#changelog';
+
+  /// New-issue page (Update page → ⋮ → More → Feedback).
+  static const String issuesUrl =
+      'https://github.com/abir2afridi/CubicLM/issues/new';
 
   /// Optional: iOS / other platforms (if you add them later)
   static const String iosDownloadUrl = '';

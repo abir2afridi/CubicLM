@@ -1,4 +1,3 @@
-import 'dart:io' show Platform;
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -8,7 +7,6 @@ import '../controllers/chat_controller.dart';
 import '../core/routes.dart';
 import '../core/colors.dart';
 import '../services/tts_service.dart';
-import '../services/update_service.dart';
 import '../utils/app_snackbar.dart';
 import 'about_view.dart';
 import 'language_picker_view.dart';
@@ -555,102 +553,19 @@ class AppSettingsView extends GetView<SettingsController> {
                 ),
               ]),
               const SizedBox(height: 28),
-              _sectionLabel(context, 'Updates'),
-              _appleGroupedCard(context, isDark, children: [
-                Obx(() {
-                  final svc = Get.isRegistered<UpdateService>()
-                      ? Get.find<UpdateService>()
-                      : Get.put(UpdateService());
-                  final bool canInstall = Platform.isAndroid &&
-                      svc.updateAvailable.value &&
-                      !svc.isDownloading.value;
-                  return Column(
-                    children: [
-                      _appleListTile(
-                        context,
-                        isDark,
-                        leading: const Icon(LucideIcons.download,
-                            size: 20, color: Dt.accent),
-                        title: 'Check for updates',
-                        subtitle: 'Poll GitHub Releases for a newer version',
-                        trailing: Icon(LucideIcons.chevronRight,
-                            size: 18, color: Theme.of(context).hintColor),
-                        showDivider: canInstall ? true : false,
-                        onTap: () async {
-                          final s = Get.isRegistered<UpdateService>()
-                              ? Get.find<UpdateService>()
-                              : Get.put(UpdateService());
-                          await s.check(force: true, silent: false);
-                        },
-                      ),
-                      if (canInstall)
-                        _appleListTile(
-                          context,
-                          isDark,
-                          leading: const Icon(LucideIcons.arrowDownToLine,
-                              size: 20, color: Colors.white),
-                          title:
-                              'Install v${svc.lastKnownVersion.value}',
-                          subtitle: 'Download and install update in-app',
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Dt.accent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'UPDATE',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white),
-                            ),
-                          ),
-                          showDivider: false,
-                          onTap: () => svc.downloadAndInstallAPK(),
-                        ),
-                      if (svc.isDownloading.value)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 8),
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              ClipRRect(
-                                borderRadius:
-                                    BorderRadius.circular(4),
-                                child: LinearProgressIndicator(
-                                  value: svc
-                                      .downloadProgress.value,
-                                  minHeight: 4,
-                                  backgroundColor: Colors
-                                      .grey
-                                      .withValues(alpha: 0.2),
-                                  valueColor:
-                                      const AlwaysStoppedAnimation(
-                                          Dt.accent),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Downloading... ${(svc.downloadProgress.value * 100).toInt()}%',
-                                style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Dt.accent),
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  );
-                }),
-              ]),
-              const SizedBox(height: 28),
               _sectionLabel(context, 'settings_app_info'.tr),
               _appleGroupedCard(context, isDark, children: [
+                _appleListTile(
+                  context,
+                  isDark,
+                  leading: const Icon(LucideIcons.arrowDownToLine,
+                      size: 20, color: Dt.accent),
+                  title: 'View Update',
+                  subtitle: 'Version, highlights & update settings',
+                  trailing: Icon(LucideIcons.chevronRight,
+                      size: 18, color: Theme.of(context).hintColor),
+                  onTap: () => Get.toNamed(AppRoutes.update),
+                ),
                 Padding(
                   padding: const EdgeInsets.all(20),
                   child: InkWell(
