@@ -410,6 +410,8 @@ class CloudModelController extends GetxController {
       detected.putIfAbsent(prefix, () => []).add(id);
     }
 
+    var addedProviders = 0;
+    var addedModels = 0;
     for (final entry in detected.entries) {
       final prefix = entry.key;
       final models = entry.value;
@@ -425,15 +427,22 @@ class CloudModelController extends GetxController {
           requiresKeyForList: false,
         ));
         modelsByProvider[prefix] = models;
-        Get.find<AppLogService>().info(
-          'Auto-detected provider: $name (${models.length} models)',
-          category: LogCategory.cloud,
-        );
+        addedProviders++;
+        addedModels += models.length;
       } else {
         final existingModels = modelsByProvider[prefix] ?? [];
         final merged = {...existingModels, ...models}.toList();
         modelsByProvider[prefix] = merged;
       }
+    }
+
+    // One summary line instead of ~60 per-vendor rows drowning System Logs.
+    if (addedProviders > 0) {
+      Get.find<AppLogService>().info(
+        'Auto-detected $addedProviders providers '
+        '($addedModels models) from $sourceProvider',
+        category: LogCategory.cloud,
+      );
     }
 
     if (detected.isNotEmpty) {

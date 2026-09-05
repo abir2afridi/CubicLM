@@ -14,6 +14,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:uuid/uuid.dart';
 import '../controllers/settings_controller.dart';
+import '../controllers/model_controller.dart';
+import '../controllers/cloud_model_controller.dart';
 import '../core/constants.dart';
 import '../models/chat_message.dart';
 import '../models/chat_session.dart';
@@ -318,6 +320,32 @@ class ChatController extends GetxController {
     _scrollListenerAttached = true;
     loadSessions();
     _initSpeech();
+    _loadAutoBackupPrefs();
+    // Silent scheduled backup, once per process (no-op unless enabled).
+    if (!_autoBackupChecked) {
+      _autoBackupChecked = true;
+      unawaited(Future.delayed(
+          const Duration(seconds: 10), () => maybeAutoBackup()));
+    }
+  }
+
+  static bool _autoBackupChecked = false;
+
+  final autoBackupEnabled = false.obs;
+  final autoBackupDays = 7.obs;
+  static const List<int> autoBackupDayOptions = [1, 3, 7, 14, 30];
+
+  void _loadAutoBackupPrefs() {
+    try {
+      autoBackupEnabled.value = _hive.getSetting<bool>(
+              AppConstants.keyAutoBackupEnabled,
+              defaultValue: false) ??
+          false;
+      autoBackupDays.value = _hive.getSetting<int>(
+              AppConstants.keyAutoBackupDays,
+              defaultValue: 7) ??
+          7;
+    } catch (_) {}
   }
 
   Future<void> _initSpeech() async {
@@ -516,6 +544,31 @@ class ChatController extends GetxController {
 
   int get archivedCount => sessions.where((s) => s.archived).length;
 
+  /// Hidden chats: stronger hide — out of the drawer AND search hits
+  /// until revealed. The open chat stays open when hidden.
+  void toggleHidden(String sessionId) {
+    final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
+    if (session == null) return;
+    final updated = session.copyWith(hidden: !session.hidden);
+    _hive.saveSession(updated.id, updated.toMap());
+    final idx = sessions.indexWhere((s) => s.id == updated.id);
+    if (idx >= 0) sessions[idx] = updated;
+    sessions.sort(_sessionSort);
+    Get.snackbar(
+      updated.hidden ? 'Chat hidden' : 'Chat unhidden',
+      updated.hidden
+          ? 'Out of history and search. Use "Show hidden" to reveal.'
+          : 'Back in your history.',
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 3),
+    );
+  }
+
+  /// Show/hide hidden chats in the drawer list.
+  final showHidden = false.obs;
+
+  int get hiddenCount => sessions.where((s) => s.hidden).length;
+
   /// Per-chat persona (system-prompt addition). Empty clears to global.
   void setPersona(String sessionId, String persona) {
     final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
@@ -578,6 +631,8 @@ class ChatController extends GetxController {
       inference.refreshContextInfo();
     }
     _resetInferenceContext();
+    final opened = sessions.firstWhereOrNull((s) => s.id == sessionId);
+    if (opened != null) unawaited(_applySessionModel(opened));
     _scrollToBottom(force: true);
   }
 
@@ -683,69 +738,76 @@ class ChatController extends GetxController {
 
   // ─── Backup & Restore ───────────────────────────
 
-  /// Export every session + message to a single JSON backup file and open
-  /// the system share sheet.
+  /// Build the backup JSON string, or null when there is nothing to back
+  /// up. Shared by manual export and silent auto-backup.
   ///
   /// - [includeImages]: keep base64 image payloads (much larger file).
-  ///   Default strips them (paths never transfer across devices anyway).
   /// - [passphrase]: non-empty encrypts the payload (AES-256-CBC,
   ///   SHA-256 key). Import then requires the same passphrase.
-  ///
-  /// Desktop has no share sheet — a native save dialog is shown instead so
-  /// the user picks the destination file directly.
+  Future<String?> buildBackupJson({
+    bool includeImages = false,
+    String? passphrase,
+  }) async {
+    final sessionsRaw = _hive.getAllSessions();
+    final messagesRaw = _hive.getAllMessagesRaw();
+    if (sessionsRaw.isEmpty) return null;
+
+    final sessionsOut = sessionsRaw.map((s) {
+      final m = Map<String, dynamic>.from(s);
+      if (!includeImages) m.remove('imageBase64');
+      return m;
+    }).map((s) => ChatSession.fromMap(s).toMap()).toList();
+
+    final messagesOut = messagesRaw.map((m) {
+      final c = Map<String, dynamic>.from(m);
+      // File paths never transfer across devices.
+      c['imagePath'] = null;
+      if (!includeImages) c['imageBase64'] = null;
+      return c;
+    }).toList();
+
+    final inner = {
+      'sessions': sessionsOut,
+      'messages': messagesOut,
+    };
+    final Map<String, dynamic> payload;
+    final pass = (passphrase ?? '').trim();
+    if (pass.isNotEmpty) {
+      final plain = Uint8List.fromList(utf8.encode(
+        '${HiveService.backupMagic}${jsonEncode(inner)}',
+      ));
+      final packed = await _hive.encryptBackupBytes(plain, pass);
+      payload = {
+        'app': 'CubicLM',
+        'type': 'chat_backup_encrypted',
+        'version': 1,
+        'algo': 'aes256cbc-sha256',
+        'exportedAt': DateTime.now().toIso8601String(),
+        'data': base64Encode(packed),
+      };
+    } else {
+      payload = {
+        'app': 'CubicLM',
+        'type': 'chat_backup',
+        'version': 1,
+        'exportedAt': DateTime.now().toIso8601String(),
+        ...inner,
+      };
+    }
+    return jsonEncode(payload);
+  }
+
+  /// Export every session + message to a single JSON backup file and open
+  /// the system share sheet. Desktop has no share sheet — a native save
+  /// dialog is shown instead so the user picks the destination directly.
   Future<String?> exportAllChats({
     bool includeImages = false,
     String? passphrase,
   }) async {
     try {
-      final sessionsRaw = _hive.getAllSessions();
-      final messagesRaw = _hive.getAllMessagesRaw();
-      if (sessionsRaw.isEmpty) return 'empty';
-
-      final sessionsOut = sessionsRaw.map((s) {
-        final m = Map<String, dynamic>.from(s);
-        if (!includeImages) m.remove('imageBase64');
-        return m;
-      }).map((s) => ChatSession.fromMap(s).toMap()).toList();
-
-      final messagesOut = messagesRaw.map((m) {
-        final c = Map<String, dynamic>.from(m);
-        // File paths never transfer across devices.
-        c['imagePath'] = null;
-        if (!includeImages) c['imageBase64'] = null;
-        return c;
-      }).toList();
-
-      final inner = {
-        'sessions': sessionsOut,
-        'messages': messagesOut,
-      };
-      final Map<String, dynamic> payload;
-      final pass = (passphrase ?? '').trim();
-      if (pass.isNotEmpty) {
-        final plain = Uint8List.fromList(utf8.encode(
-          '${HiveService.backupMagic}${jsonEncode(inner)}',
-        ));
-        final packed =
-            await _hive.encryptBackupBytes(plain, pass);
-        payload = {
-          'app': 'CubicLM',
-          'type': 'chat_backup_encrypted',
-          'version': 1,
-          'algo': 'aes256cbc-sha256',
-          'exportedAt': DateTime.now().toIso8601String(),
-          'data': base64Encode(packed),
-        };
-      } else {
-        payload = {
-          'app': 'CubicLM',
-          'type': 'chat_backup',
-          'version': 1,
-          'exportedAt': DateTime.now().toIso8601String(),
-          ...inner,
-        };
-      }
-      final jsonStr = jsonEncode(payload);
+      final jsonStr = await buildBackupJson(
+          includeImages: includeImages, passphrase: passphrase);
+      if (jsonStr == null) return 'empty';
 
       if (!kIsWeb &&
           (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
@@ -796,6 +858,64 @@ class ChatController extends GetxController {
       Get.find<AppLogService>().error('Backup export failed',
           details: e, category: LogCategory.chat);
       return 'error';
+    }
+  }
+
+  /// Silent scheduled backup: writes unencrypted JSON (no images) to the
+  /// app documents dir when enabled and due, keeping the last 3 files.
+  /// Runs once per process from onInit. Never throws, never prompts.
+  /// NOTE: auto-backups are unencrypted (no unattended passphrase) —
+  /// use manual export with a passphrase for sensitive chats.
+  Future<void> maybeAutoBackup() async {
+    try {
+      final enabled = _hive.getSetting<bool>(
+              AppConstants.keyAutoBackupEnabled,
+              defaultValue: false) ??
+          false;
+      if (enabled != true) return;
+      if (kIsWeb) return;
+      final days = _hive.getSetting<int>(AppConstants.keyAutoBackupDays,
+              defaultValue: 7) ??
+          7;
+      final last = _hive.getSetting<int>(AppConstants.keyLastAutoBackup,
+              defaultValue: 0) ??
+          0;
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      if (nowMs - last < days * 24 * 60 * 60 * 1000) return;
+      final jsonStr = await buildBackupJson();
+      if (jsonStr == null) return;
+      final dir = await getApplicationDocumentsDirectory();
+      final stamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')
+          .first;
+      final file = File('${dir.path}/cubiclm_auto_backup_$stamp.json');
+      await file.writeAsString(jsonStr, flush: true);
+      // Prune to the last 3 auto-backups.
+      final autos = Directory(dir.path)
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.contains('cubiclm_auto_backup_'))
+          .toList()
+        ..sort((a, b) => b.path.compareTo(a.path));
+      for (final old in autos.skip(3)) {
+        try {
+          await old.delete();
+        } catch (_) {}
+      }
+      await _hive.setSetting(AppConstants.keyLastAutoBackup, nowMs);
+      Get.find<AppLogService>().info('Auto backup saved',
+          details: file.path, category: LogCategory.chat);
+    } catch (_) {}
+  }
+
+  Future<void> setAutoBackup(bool enabled, [int? days]) async {
+    autoBackupEnabled.value = enabled;
+    await _hive.setSetting(AppConstants.keyAutoBackupEnabled, enabled);
+    if (days != null) {
+      autoBackupDays.value = days;
+      await _hive.setSetting(AppConstants.keyAutoBackupDays, days);
     }
   }
 
@@ -1445,6 +1565,9 @@ class ChatController extends GetxController {
     _scrollToBottom(force: true);
     final tokenBuf = StringBuffer();
     Timer? tokenFlushTimer;
+    // Adaptive flush: fast generators batch at ~3fps, slow ones stay at
+    // ~7fps so first tokens still appear instantly.
+    var flushMs = 150;
 
     try {
       DateTime? thoughtStartedAt;
@@ -1466,6 +1589,9 @@ class ChatController extends GetxController {
 
       void flushTokens() {
         if (tokenBuf.isNotEmpty) {
+          // Adapt BEFORE clearing: big batches mean a fast engine that
+          // would otherwise spam rebuilds.
+          flushMs = tokenBuf.length > 200 ? 300 : 150;
           streamingResponse.value += tokenBuf.toString();
           tokenBuf.clear();
           trackThoughtTiming();
@@ -1475,9 +1601,8 @@ class ChatController extends GetxController {
 
       void bufferToken(String t) {
         tokenBuf.write(t);
-        // Coalesce to ~7fps: 40ms flushed every token batch and rebuilt the
-        // entire list per flush. 150ms is visually identical for readers.
-        tokenFlushTimer ??= Timer(const Duration(milliseconds: 150), () {
+        // Coalesce flushes: 40ms rebuilt the entire list per flush.
+        tokenFlushTimer ??= Timer(Duration(milliseconds: flushMs), () {
           flushTokens();
           tokenFlushTimer = null;
         });
@@ -1805,6 +1930,15 @@ class ChatController extends GetxController {
         if (idx >= 0) sessions[idx] = updated;
       }
       unawaited(HapticFeedback.mediumImpact());
+      // One-shot compare: challenger answers the same prompt, then the
+      // primary setup is restored. Skipped for image generations.
+      if (_compareRef != null && outImageBase64 == null) {
+        await _runComparison(
+          prompt: prompt,
+          systemPrompt: systemPromptForThisTurn,
+          history: history,
+        );
+      }
     } catch (e) {
       if (generationId != _generationSerial) {
         tokenFlushTimer?.cancel();
@@ -1828,7 +1962,7 @@ class ChatController extends GetxController {
         id: _uuid.v4(),
         chatId: currentSessionId.value,
         role: 'assistant',
-        content: '❌ Error: $e',
+        content: _friendlyGenerationError(e),
       );
       messages.add(errorMsg);
       _hive.saveMessage(errorMsg.id, errorMsg.toMap());
@@ -1880,6 +2014,428 @@ class ChatController extends GetxController {
     imageGenDecoding.value = false;
     unawaited(Get.find<InferenceService>().stopGeneration());
     Get.find<LocalImageService>().cancelGeneration();
+  }
+
+  // ─── Prompt templates ─────────────────────────
+
+  static const _kTemplatesKey = 'prompt_templates_v1';
+  final promptTemplates = <Map<String, String>>[].obs;
+  bool _templatesLoaded = false;
+
+  static List<Map<String, String>> _defaultTemplates() => const [
+        {
+          'id': 'builtin-explain-code',
+          'name': 'Explain code',
+          'body': 'Explain what this code does, step by step:\n\n',
+          'builtin': '1',
+        },
+        {
+          'id': 'builtin-fix-bug',
+          'name': 'Fix a bug',
+          'body':
+              'Find the bug in this code and fix it. Explain the cause first:\n\n',
+          'builtin': '1',
+        },
+        {
+          'id': 'builtin-summarize',
+          'name': 'Summarize',
+          'body': 'Summarize this in 5 short bullet points:\n\n',
+          'builtin': '1',
+        },
+        {
+          'id': 'builtin-eli12',
+          'name': 'Explain simply (ELI12)',
+          'body':
+              'Explain this like I am 12, with one everyday analogy and one example:\n\n',
+          'builtin': '1',
+        },
+        {
+          'id': 'builtin-translate',
+          'name': 'Translate BN↔EN',
+          'body':
+              'Translate this between Bangla and English. Keep it natural:\n\n',
+          'builtin': '1',
+        },
+        {
+          'id': 'builtin-mail',
+          'name': 'Write a mail',
+          'body': 'Write a short polite email about this:\n\n',
+          'builtin': '1',
+        },
+      ];
+
+  void ensureTemplatesLoaded() {
+    if (_templatesLoaded) return;
+    _templatesLoaded = true;
+    try {
+      final raw = _hive.getSetting<String>(_kTemplatesKey);
+      if (raw == null || raw.isEmpty) {
+        promptTemplates.assignAll(_defaultTemplates());
+        unawaited(_hive.setSetting(_kTemplatesKey, jsonEncode(promptTemplates)));
+      } else {
+        final list = (jsonDecode(raw) as List)
+            .whereType<Map>()
+            .map((m) => {
+                  'id': m['id']?.toString() ?? '',
+                  'name': m['name']?.toString() ?? '',
+                  'body': m['body']?.toString() ?? '',
+                  'builtin': m['builtin']?.toString() ?? '',
+                })
+            .where((m) => (m['name'] ?? '').isNotEmpty)
+            .toList();
+        promptTemplates.assignAll(
+            list.isEmpty ? _defaultTemplates() : list);
+      }
+    } catch (_) {
+      promptTemplates.assignAll(_defaultTemplates());
+    }
+  }
+
+  /// Insert a template into the composer (appends, keeps existing text).
+  void insertTemplate(String body) {
+    final cur = textController.text;
+    textController.text = cur.isEmpty ? body : '$cur\n$body';
+    try {
+      textController.selection =
+          TextSelection.collapsed(offset: textController.text.length);
+    } catch (_) {}
+    inputText.value = textController.text;
+    try {
+      composerFocusNode.requestFocus();
+    } catch (_) {}
+  }
+
+  Future<void> addPromptTemplate(String name, String body) async {
+    ensureTemplatesLoaded();
+    promptTemplates.add({
+      'id': _uuid.v4(),
+      'name': name.trim(),
+      'body': body,
+      'builtin': '',
+    });
+    await _hive.setSetting(_kTemplatesKey, jsonEncode(promptTemplates.toList()));
+  }
+
+  Future<void> deletePromptTemplate(String id) async {
+    ensureTemplatesLoaded();
+    promptTemplates
+        .removeWhere((t) => t['id'] == id && (t['builtin'] ?? '').isEmpty);
+    await _hive.setSetting(_kTemplatesKey, jsonEncode(promptTemplates.toList()));
+  }
+
+  // ─── Multi-select (bulk copy/share/delete) ────
+
+  final selectionMode = false.obs;
+  final selectedIds = <String>{}.obs;
+
+  void toggleSelectionMode([bool? on]) {
+    final next = on ?? !selectionMode.value;
+    selectionMode.value = next;
+    if (!next) selectedIds.clear();
+  }
+
+  void toggleSelected(String id) {
+    if (selectedIds.contains(id)) {
+      selectedIds.remove(id);
+    } else {
+      selectedIds.add(id);
+    }
+    if (selectedIds.isEmpty) selectionMode.value = false;
+  }
+
+  Future<void> deleteSelected() async {
+    final ids = selectedIds.toSet();
+    if (ids.isEmpty) return;
+    messages.removeWhere((m) => ids.contains(m.id));
+    for (final id in ids) {
+      try {
+        await _hive.deleteMessage(id);
+      } catch (_) {}
+    }
+    toggleSelectionMode(false);
+  }
+
+  /// Selected turns as markdown (for copy/share).
+  String selectedAsMarkdown() {
+    final sel = messages.where((m) => selectedIds.contains(m.id)).toList();
+    final buf = StringBuffer();
+    for (final m in sel) {
+      buf.writeln(m.role == 'user' ? '## You' : '## AI');
+      buf.writeln(m.content.trim());
+      buf.writeln();
+    }
+    return buf.toString().trim();
+  }
+
+  // ─── Per-chat model pin ─────────────────────────
+
+  /// True when the open chat overrides the global inference mode/model.
+  bool get chatHasModelPin {
+    final sid = currentSessionId.value;
+    if (sid.isEmpty) return false;
+    final s = sessions.firstWhereOrNull((e) => e.id == sid);
+    return s != null && s.modelMode.isNotEmpty;
+  }
+
+  /// Short label of the pinned model for the header pill ('' = none).
+  String get chatPinnedModelLabel {
+    final sid = currentSessionId.value;
+    if (sid.isEmpty) return '';
+    final s = sessions.firstWhereOrNull((e) => e.id == sid);
+    if (s == null || s.modelMode.isEmpty) return '';
+    var label = s.modelId;
+    if (s.modelMode == 'cloud' && s.modelProvider.isNotEmpty) {
+      label = '${s.modelProvider}: $label';
+    }
+    label = label
+        .replaceAll('.gguf', '')
+        .replaceAll('.GGUF', '')
+        .replaceAll('custom-profile:', 'custom #');
+    if (label.length > 20) label = '${label.substring(0, 20)}…';
+    return label;
+  }
+
+  /// Capture the CURRENT global mode+model into the open chat.
+  Future<void> pinModelToChat() async {
+    final sid = currentSessionId.value;
+    if (sid.isEmpty) {
+      Get.snackbar('No open chat', 'Open a chat first, then pin a model.',
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+    final settings = Get.find<SettingsController>();
+    final mode = settings.inferenceMode.value == 'cloud' ? 'cloud' : 'local';
+    String modelId = '';
+    String provider = '';
+    if (mode == 'cloud') {
+      provider = settings.cloudProvider.value;
+      if (provider == 'custom') {
+        modelId = 'custom-profile:${settings.customCloudProfileIndex.value}';
+      } else {
+        modelId = settings.selectedCloudModelName;
+      }
+      if (modelId.isEmpty) {
+        Get.snackbar('Nothing to pin', 'Pick a cloud model first.',
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+    } else {
+      modelId = Get.find<InferenceService>().loadedModelName.value;
+      if (modelId.isEmpty) {
+        modelId =
+            _hive.getSetting<String>(AppConstants.keyLocalModelName) ?? '';
+      }
+      if (modelId.isEmpty) {
+        Get.snackbar('Nothing to pin', 'Load a local model first.',
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+    }
+    final idx = sessions.indexWhere((e) => e.id == sid);
+    if (idx < 0) return;
+    final updated = sessions[idx].copyWith(
+      modelMode: mode,
+      modelId: modelId,
+      modelProvider: provider,
+    );
+    sessions[idx] = updated;
+    await _hive.saveSession(updated.id, updated.toMap());
+    Get.snackbar('Pinned to this chat', chatPinnedModelLabel,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2));
+  }
+
+  /// Forget the override — the chat follows the global mode again.
+  Future<void> clearChatModelPin() async {
+    final sid = currentSessionId.value;
+    if (sid.isEmpty) return;
+    final idx = sessions.indexWhere((e) => e.id == sid);
+    if (idx < 0) return;
+    final updated =
+        sessions[idx].copyWith(modelMode: '', modelId: '', modelProvider: '');
+    sessions[idx] = updated;
+    await _hive.saveSession(updated.id, updated.toMap());
+  }
+
+  /// Apply the session's pinned model after opening it. Never throws —
+  /// a missing local file just warns and keeps the global setup.
+  Future<void> _applySessionModel(ChatSession s) async {
+    if (s.modelMode.isEmpty) return;
+    try {
+      final settings = Get.find<SettingsController>();
+      if (s.modelMode == 'cloud') {
+        final cmc = Get.find<CloudModelController>();
+        if (s.modelProvider == 'custom') {
+          final idx =
+              int.tryParse(s.modelId.replaceFirst('custom-profile:', '')) ??
+                  0;
+          await cmc.selectCustomProfile(idx);
+          await settings.setCloudProvider('custom');
+          await settings.setInferenceMode('cloud');
+        } else if (s.modelId.isNotEmpty) {
+          await cmc.selectModel(s.modelProvider, s.modelId,
+              showSnackbar: false);
+        }
+      } else if (s.modelId.isNotEmpty) {
+        await settings.setInferenceMode('local');
+        final inference = Get.find<InferenceService>();
+        if (inference.loadedModelName.value != s.modelId) {
+          await Get.find<ModelController>().loadModel(s.modelId);
+        }
+      }
+    } catch (_) {}
+  }
+
+  // ─── Side-by-side compare ─────────────────────────
+
+  /// Challenger for the NEXT send only: {mode, provider, model}.
+  /// Cleared after the comparison runs (one-shot, never sticky).
+  Map<String, String>? _compareRef;
+  final compareLabel = ''.obs;
+
+  void setCompareChallenger(String mode, String provider, String model) {
+    _compareRef = {'mode': mode, 'provider': provider, 'model': model};
+    compareLabel.value = mode == 'cloud'
+        ? '$provider: $model'
+        : model.replaceAll('.gguf', '').replaceAll('.GGUF', '');
+  }
+
+  void clearCompareChallenger() {
+    _compareRef = null;
+    compareLabel.value = '';
+  }
+
+  /// Run the challenger on the same prompt+history AFTER the primary
+  /// answer is saved. Always restores the primary setup in finally so
+  /// the user's active model never silently changes.
+  Future<void> _runComparison({
+    required String prompt,
+    required String systemPrompt,
+    required List<Map<String, String>> history,
+  }) async {
+    final ref = _compareRef;
+    _compareRef = null;
+    compareLabel.value = '';
+    if (ref == null) return;
+    final chatId = currentSessionId.value;
+    final settings = Get.find<SettingsController>();
+    // Capture primary BEFORE any switch.
+    final primaryMode = settings.inferenceMode.value;
+    final primaryProvider = settings.cloudProvider.value;
+    final primaryCloudModel = settings.selectedCloudModelName;
+    final primaryCustomIdx = settings.customCloudProfileIndex.value;
+    final primaryLocal = Get.find<InferenceService>().loadedModelName.value;
+    final label = ref['mode'] == 'cloud'
+        ? '${ref['provider']}: ${ref['model']}'
+        : (ref['model'] ?? '')
+            .replaceAll('.gguf', '')
+            .replaceAll('.GGUF', '');
+    Get.snackbar('Comparing…', 'Asking $label too',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 2));
+    try {
+      String answer;
+      if (ref['mode'] == 'cloud') {
+        await Get.find<CloudModelController>().selectModel(
+            ref['provider'] ?? '', ref['model'] ?? '',
+            showSnackbar: false);
+        answer = await Get.find<CloudService>().sendMessage(
+          messages: [
+            {'role': 'system', 'content': systemPrompt},
+            ...history,
+          ],
+          temperature: settings.temperature.value,
+          maxTokens: settings.autoTuneParams.value
+              ? null
+              : settings.maxTokens.value,
+        );
+      } else {
+        await settings.setInferenceMode('local');
+        await Get.find<ModelController>().loadModel(ref['model'] ?? '');
+        final inference = Get.find<InferenceService>();
+        if (inference.loadedModelName.value != (ref['model'] ?? '')) {
+          throw Exception('challenger model not loaded');
+        }
+        answer = await inference.generate(
+          prompt: prompt,
+          systemPrompt: systemPrompt,
+          conversationHistory: history,
+          source: 'chat-compare',
+        );
+      }
+      if (answer.trim().isEmpty) throw Exception('empty challenger answer');
+      if (currentSessionId.value != chatId) return; // switched mid-compare
+      final msg = ChatMessage(
+        id: _uuid.v4(),
+        chatId: chatId,
+        role: 'assistant',
+        content: '⚖️ $label\n\n${answer.trim()}',
+      );
+      messages.add(msg);
+      _hive.saveMessage(msg.id, msg.toMap());
+    } catch (e) {
+      Get.find<AppLogService>().warning('Compare failed: $e',
+          category: LogCategory.chat);
+      Get.snackbar('Compare failed', e.toString(),
+          snackPosition: SnackPosition.BOTTOM);
+    } finally {
+      // Restore primary setup no matter what.
+      try {
+        if (primaryMode == 'cloud') {
+          final cmc = Get.find<CloudModelController>();
+          if (primaryProvider == 'custom') {
+            await cmc.selectCustomProfile(primaryCustomIdx);
+            await settings.setCloudProvider('custom');
+            await settings.setInferenceMode('cloud');
+          } else {
+            await cmc.selectModel(primaryProvider, primaryCloudModel,
+                showSnackbar: false);
+          }
+        } else {
+          await settings.setInferenceMode('local');
+          if (primaryLocal.isNotEmpty &&
+              Get.find<InferenceService>().loadedModelName.value !=
+                  primaryLocal) {
+            await Get.find<ModelController>().loadModel(primaryLocal);
+          }
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// Friendly error text for the chat bubble. Raw provider payloads
+  /// (OpenRouter 429 walls, HTML error pages) are unreadable in-chat —
+  /// the bubble gets the short version with a remedy, while the full
+  /// details stay in System Logs → Chat (logged by the caller).
+  String _friendlyGenerationError(Object e) {
+    final s = e.toString();
+    final lower = s.toLowerCase();
+    final rateLimited = lower.contains('429') ||
+        lower.contains('rate_limit') ||
+        lower.contains('rate-limit') ||
+        lower.contains('rate limited');
+    if (rateLimited) {
+      var wait = '';
+      final m =
+          RegExp(r'retry_after_seconds"?\s*:\s*(\d+)').firstMatch(s);
+      if (m != null) wait = ' (~${m.group(1)}s)';
+      return '⏳ The provider rate-limited this request$wait '
+          '(free shared pool).\n\n• Wait a bit and retry\n'
+          '• Or add your own API key: Explore → provider card → Add API Key';
+    }
+    if (lower.contains('socketexception') ||
+        lower.contains('failed host lookup') ||
+        lower.contains('connection refused') ||
+        lower.contains('network is unreachable') ||
+        lower.contains('timed out') ||
+        lower.contains('timeoutexception')) {
+      return '🌐 Network error — check your connection and retry.';
+    }
+    if (s.length > 300) {
+      return '❌ Error: ${s.substring(0, 300)}…\n'
+          '(Full details in System Logs → Chat)';
+    }
+    return '❌ Error: $s';
   }
 
   // ─── Edit / Regenerate / Branch ─────────────────────────

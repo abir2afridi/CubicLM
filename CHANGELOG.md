@@ -5,6 +5,30 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0+10] - 2026-09-05
+
+### Added
+- **Chat context memory guard** - history rebuilt from storage with token-budget trim (local ~60% ctx, cloud 48k chars); oversized turns middle-truncated, current + previous turn always kept; UI fallback when storage is empty; per-send `Chat context: N turns…` proof line in System Logs.
+- **Prompt templates** - 6 built-ins (explain/fix/summarize/ELI12/translate/mail) + custom add/delete, one-tap insert from the composer.
+- **Multi-select messages** - long-press or header toggle → bulk copy/share/delete with a selection bar.
+- **Per-chat model pin** - switcher-sheet toggle remembers the active local/cloud model for one chat (📌 pill), auto-applied on open.
+- **Side-by-side compare** - one-shot challenger (cloud or downloaded local) answers the same prompt; primary setup restored in `finally`.
+- **Cloud usage estimates** - per-provider in/out tokens + calls (chars/4) in Explore → Online, with reset.
+- **MCP tool approval** - Deny / Allow once / Always-allow gate (fail-closed) + Explore toggle.
+- **Auto backup** - silent JSON every N days (last 3 kept) in App Settings → DATA.
+- **Lock options** - re-lock timeout (immediate/1/5/15 min) + biometric-only mode.
+- **Hidden chats** - stronger hide than archive (out of drawer AND search) with show/hide toggle.
+- **Local API hardening** - 120 POSTs/min/IP rate limit (429), in-memory request ring surfaced in capabilities, honest 400 for `/v1/embeddings`.
+- **Claude-style prompt View/Code** - every AI answer gets a View ↔ raw toggle; Code mode copies/exports the exact visible text (.md + PDF via share sheet).
+- **Chat header overflow menu** - Find / Export / Select moved into a ⋮ menu with icons (cleaner 360dp header).
+
+### Fixed
+- **HTML preview localStorage crash** - preview now loads with `https://localhost/` origin + DOM storage enabled (`SecurityError` gone for games with saves/high-scores).
+- **Code-block header overflow** - 39px right overflow on narrow screens; buttons go icon-only under 320dp.
+- **Provider 429 wall** - rate-limit errors now show a short remedy bubble (wait/retry ETA, BYOK hint); full JSON stays in System Logs.
+- **Log spam** - 60 per-vendor `Auto-detected provider` rows collapsed to one summary line.
+- **Assistant Copy included think tags** - copy/export now uses the visible answer text.
+
 ## [1.4.0+9] - 2026-09-04
 
 ### Added

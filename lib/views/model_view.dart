@@ -12,6 +12,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/design_tokens.dart';
 import '../models/ai_model.dart';
 import '../services/download_service.dart';
+import '../services/usage_tracker_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import 'explore_skills_mcp_tabs.dart';
@@ -578,11 +579,75 @@ class ModelView extends GetView<ModelController> {
     });
   }
 
+  /// Estimated cloud usage (chars/4 tokens — no pricing table).
+  Widget _usageCard(BuildContext context) {
+    return Obx(() {
+      final t = Get.isRegistered<UsageTrackerService>()
+          ? Get.find<UsageTrackerService>()
+          : null;
+      final _ = t?.version.value; // subscribe: refresh card on new records
+      final totals = t?.totals() ?? {'in': 0, 'out': 0, 'calls': 0};
+      final rows = t?.byProvider().take(4).toList() ?? [];
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surface : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Dt.hairline),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(LucideIcons.gauge, size: 16, color: Dt.accent),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('Usage (estimate)',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13, fontWeight: FontWeight.w800)),
+            ),
+            if ((totals['calls'] ?? 0) > 0)
+              GestureDetector(
+                onTap: () => t?.reset(),
+                child: Text('Reset',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).hintColor)),
+              ),
+          ]),
+          const SizedBox(height: 8),
+          Text(
+              '↓ ${UsageTrackerService.compact(totals['in'] ?? 0)} in · ↑ ${UsageTrackerService.compact(totals['out'] ?? 0)} out · ${totals['calls']} calls',
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13, fontWeight: FontWeight.w700)),
+          if (rows.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            for (final r in rows)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                    '${r['provider']} · ↓${UsageTrackerService.compact(r['in'] ?? 0)} ↑${UsageTrackerService.compact(r['out'] ?? 0)} · ${r['calls']}',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        color: Theme.of(context).hintColor)),
+              ),
+          ],
+        ]),
+      );
+    });
+  }
+
   Widget _buildOnlineProviders(BuildContext context) {
     final cloudModels = Get.find<CloudModelController>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _usageCard(context),
+        const SizedBox(height: 16),
         Text(
           'model_cloud_providers'.tr,
           style: GoogleFonts.plusJakartaSans(

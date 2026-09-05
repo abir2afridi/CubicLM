@@ -30,6 +30,7 @@ import 'services/notification_history_service.dart';
 import 'services/skills/skill_registry_service.dart';
 import 'services/mcp/mcp_registry_service.dart';
 import 'services/tts_service.dart';
+import 'services/usage_tracker_service.dart';
 import 'services/update_service.dart';
 import 'core/constants.dart';
 import 'core/languages.dart';
@@ -204,6 +205,7 @@ void main() {
       Get.put(CloudModelController());
       Get.put(InferenceService());
       Get.put(CloudService());
+      Get.put(UsageTrackerService());
       Get.put(DownloadService());
       Get.put(LocalImageService());
       Get.put(ServerController(), permanent: true);
@@ -676,13 +678,20 @@ class _LockGateState extends State<LockGate>
     }
   }
 
+  DateTime? _backgroundedAt;
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final settings = _settings();
     if (settings == null) return;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      if (settings.appLockEnabled.value) settings.isLocked.value = true;
+      _backgroundedAt = DateTime.now();
+      // Timeout 0 locks at once; timed mode decides on resume.
+      if (settings.appLockEnabled.value &&
+          settings.lockTimeoutMinutes.value <= 0) {
+        settings.isLocked.value = true;
+      }
       // Hands-free must not keep listening in the background.
       try {
         if (Get.isRegistered<ChatController>()) {
@@ -690,9 +699,17 @@ class _LockGateState extends State<LockGate>
           if (chat.voiceMode.value) chat.setVoiceMode(false);
         }
       } catch (_) {}
-    } else if (state == AppLifecycleState.resumed &&
-        settings.isLocked.value) {
-      _authenticate(settings);
+    } else if (state == AppLifecycleState.resumed) {
+      final t = settings.lockTimeoutMinutes.value;
+      if (settings.appLockEnabled.value &&
+          !settings.isLocked.value &&
+          t > 0) {
+        final bg = _backgroundedAt;
+        if (bg != null && DateTime.now().difference(bg).inMinutes >= t) {
+          settings.isLocked.value = true;
+        }
+      }
+      if (settings.isLocked.value) _authenticate(settings);
     }
   }
 

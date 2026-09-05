@@ -221,18 +221,20 @@ class _ChatBubbleState extends State<ChatBubble> {
                                   },
                                 )
                         else if (answerContent.isNotEmpty)
-                          MarkdownBody(
-                            data: answerContent,
-                            selectable: true,
-                            styleSheet:
-                                _mdSheet ?? _markdownStyle(context),
-                            builders: {
-                              'code': _codeBuilder ??
-                                  CodeBlockBuilder(context),
-                              'pre': _codeBuilder ??
-                                  CodeBlockBuilder(context),
-                            },
-                          ),
+                          _rawMode
+                              ? _rawCodeContainer(answerContent, isDark)
+                              : MarkdownBody(
+                                  data: answerContent,
+                                  selectable: true,
+                                  styleSheet:
+                                      _mdSheet ?? _markdownStyle(context),
+                                  builders: {
+                                    'code': _codeBuilder ??
+                                        CodeBlockBuilder(context),
+                                    'pre': _codeBuilder ??
+                                        CodeBlockBuilder(context),
+                                  },
+                                ),
 
                         // Activated skills (intelligent per-prompt)
                         if (!isUser &&
@@ -322,6 +324,34 @@ class _ChatBubbleState extends State<ChatBubble> {
             // Inline action bar
             _buildActionBar(context, isUser, isDark),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// Claude-style raw/code view: exact source text in mono, selectable.
+  /// Shared by user and assistant bubbles so View ↔ Code shows and copies
+  /// byte-identical text.
+  Widget _rawCodeContainer(String text, bool isDark) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E2E) : const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.08),
+          width: 0.5,
+        ),
+      ),
+      child: SelectableText(
+        text,
+        style: GoogleFonts.firaCode(
+          fontSize: 12.5,
+          height: 1.6,
+          color: isDark ? const Color(0xFFCDD6F4) : Dt.textPrimary,
         ),
       ),
     );
@@ -448,12 +478,31 @@ class _ChatBubbleState extends State<ChatBubble> {
               ),
             ],
           ] else ...[
-            // Assistant: Copy + Read aloud + Share + Regenerate + Branch
+            // Assistant: View/Raw toggle + Copy + Read aloud + Share +
+            // Regenerate + Branch (+ .md / PDF in raw mode, like Claude's
+            // artifact Code tab). Raw mode shows/copies/exports the exact
+            // visible answer (think tags stripped).
+            _actionButton(
+              icon: _rawMode
+                  ? Icons.visibility_outlined
+                  : Icons.code_rounded,
+              tooltip: _rawMode
+                  ? 'prompt_view_rendered'.tr
+                  : 'prompt_view_raw'.tr,
+              onTap: () => setState(() => _rawMode = !_rawMode),
+              color: _rawMode ? AppColors.primary : iconColor,
+              size: iconSize,
+            ),
             _actionButton(
               icon: _copied ? Icons.check_rounded : Icons.copy_rounded,
-              tooltip: _copied ? 'Copied!' : 'Copy',
+              tooltip: _copied ? 'prompt_copied'.tr : 'prompt_copy_exact'.tr,
               onTap: () {
-                Clipboard.setData(ClipboardData(text: widget.message.content));
+                final parts = splitThoughtTags(
+                    _cleanAssistantText(widget.message.content));
+                final text = parts.answer.trim().isNotEmpty
+                    ? parts.answer.trim()
+                    : widget.message.content;
+                Clipboard.setData(ClipboardData(text: text));
                 HapticFeedback.selectionClick();
                 setState(() => _copied = true);
                 Future.delayed(const Duration(seconds: 2), () {
@@ -463,6 +512,36 @@ class _ChatBubbleState extends State<ChatBubble> {
               color: iconColor,
               size: iconSize,
             ),
+            if (_rawMode) ...[
+              _actionButton(
+                icon: Icons.download_rounded,
+                tooltip: 'prompt_download_md'.tr,
+                onTap: () {
+                  final parts = splitThoughtTags(
+                      _cleanAssistantText(widget.message.content));
+                  final text = parts.answer.trim().isNotEmpty
+                      ? parts.answer.trim()
+                      : widget.message.content;
+                  PromptExport.shareAsMarkdown(text, baseName: 'prompt');
+                },
+                color: iconColor,
+                size: iconSize,
+              ),
+              _actionButton(
+                icon: Icons.picture_as_pdf_rounded,
+                tooltip: 'prompt_download_pdf'.tr,
+                onTap: () {
+                  final parts = splitThoughtTags(
+                      _cleanAssistantText(widget.message.content));
+                  final text = parts.answer.trim().isNotEmpty
+                      ? parts.answer.trim()
+                      : widget.message.content;
+                  PromptExport.shareAsPdf(text, baseName: 'prompt');
+                },
+                color: iconColor,
+                size: iconSize,
+              ),
+            ],
             if (!kIsWeb) _buildTtsButton(iconColor, iconSize),
             _actionButton(
               icon: Icons.ios_share_rounded,

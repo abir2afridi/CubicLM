@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import '../core/constants.dart';
 import 'hive_service.dart';
 import 'secure_key_store.dart';
+import 'usage_tracker_service.dart';
 import 'cloud/cloud_provider.dart';
 import 'cloud/cloud_provider_registry.dart';
 import 'cloud/providers/openai_compatible_provider.dart';
@@ -65,10 +66,11 @@ class CloudService extends GetxService {
         buffer.write(chunk);
         onToken(chunk);
       }
+      _trackUsage(messages, buffer.toString());
       return buffer.toString();
     }
 
-    return provider.sendMessage(
+    final out = await provider.sendMessage(
       messages: messages,
       apiKey: _apiKey,
       model: _model,
@@ -76,6 +78,25 @@ class CloudService extends GetxService {
       temperature: temperature,
       maxTokens: maxTokens,
     );
+    _trackUsage(messages, out);
+    return out;
+  }
+
+  /// Fire-and-forget usage record (never blocks or throws).
+  void _trackUsage(List<Map<String, String>> messages, String out) {
+    try {
+      if (!Get.isRegistered<UsageTrackerService>()) return;
+      var inChars = 0;
+      for (final m in messages) {
+        inChars += (m['content'] ?? '').length;
+      }
+      Get.find<UsageTrackerService>().record(
+        provider: _provider,
+        model: _model,
+        inChars: inChars,
+        outChars: out.length,
+      );
+    } catch (_) {}
   }
 
   /// Send a streaming chat completion message.
@@ -86,14 +107,19 @@ class CloudService extends GetxService {
     int? maxTokens,
   }) async* {
     final provider = _getActiveProvider();
-    yield* provider.streamMessage(
+    final buf = StringBuffer();
+    await for (final chunk in provider.streamMessage(
       messages: messages,
       apiKey: _apiKey,
       model: _model,
       imageBase64: imageBase64,
       temperature: temperature,
       maxTokens: maxTokens,
-    );
+    )) {
+      buf.write(chunk);
+      yield chunk;
+    }
+    _trackUsage(messages, buf.toString());
   }
 
   CloudProvider _getActiveProvider() {

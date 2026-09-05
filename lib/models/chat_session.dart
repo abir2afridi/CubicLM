@@ -14,6 +14,20 @@ class ChatSession {
   /// backup/restore and never auto-deletes.
   final bool archived;
 
+  /// Hidden chats are a stronger hide than archive: excluded from the
+  /// drawer AND from search hits until "Show hidden". Survives
+  /// backup/restore. Old rows without the key default to false.
+  final bool hidden;
+
+  /// Pinned model override for this chat. Empty [modelMode] = follow the
+  /// global inference mode. Otherwise 'local' ([modelId] = filename) or
+  /// 'cloud' ([modelId] = model id, [modelProvider] = provider id,
+  /// 'custom-profile:<index>' encoded in modelId when provider is custom).
+  /// Old rows without the keys default to '' (safe migration).
+  final String modelMode;
+  final String modelId;
+  final String modelProvider;
+
   ChatSession({
     required this.id,
     String? title,
@@ -23,6 +37,10 @@ class ChatSession {
     this.pinned = false,
     this.persona = '',
     this.archived = false,
+    this.hidden = false,
+    this.modelMode = '',
+    this.modelId = '',
+    this.modelProvider = '',
   })  : title = title ?? 'New Chat',
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -36,6 +54,10 @@ class ChatSession {
         'pinned': pinned,
         'persona': persona,
         'archived': archived,
+        'hidden': hidden,
+        'modelMode': modelMode,
+        'modelId': modelId,
+        'modelProvider': modelProvider,
       };
 
   factory ChatSession.fromMap(Map<dynamic, dynamic> map) => ChatSession(
@@ -47,6 +69,10 @@ class ChatSession {
         pinned: map['pinned'] == true,
         persona: map['persona']?.toString() ?? '',
         archived: map['archived'] == true,
+        hidden: map['hidden'] == true,
+        modelMode: map['modelMode']?.toString() ?? '',
+        modelId: map['modelId']?.toString() ?? '',
+        modelProvider: map['modelProvider']?.toString() ?? '',
       );
 
   ChatSession copyWith({
@@ -56,6 +82,10 @@ class ChatSession {
     bool? pinned,
     String? persona,
     bool? archived,
+    bool? hidden,
+    String? modelMode,
+    String? modelId,
+    String? modelProvider,
   }) =>
       ChatSession(
         id: id,
@@ -66,5 +96,9 @@ class ChatSession {
         pinned: pinned ?? this.pinned,
         persona: persona ?? this.persona,
         archived: archived ?? this.archived,
+        hidden: hidden ?? this.hidden,
+        modelMode: modelMode ?? this.modelMode,
+        modelId: modelId ?? this.modelId,
+        modelProvider: modelProvider ?? this.modelProvider,
       );
 }

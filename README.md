@@ -5,25 +5,25 @@
 
 # CubicLM
 
-[![Release](https://img.shields.io/github/v/release/abir2afridi/CubicLM?label=release)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.4.0)
-[![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Windows-blue)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.4.0)
+[![Release](https://img.shields.io/github/v/release/abir2afridi/CubicLM?label=release)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.5.0)
+[![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Windows-blue)](https://github.com/abir2afridi/CubicLM/releases/tag/v1.5.0)
 [![Website](https://img.shields.io/badge/website-cubiclm.vercel.app-FF4D00)](https://cubiclm.vercel.app)
 
 > 📱⚡ A cross-platform AI chat application with local on-device inference and multi-provider cloud AI support. Runs LLMs directly on your Android device via GPU-accelerated llama.cpp 🦙 and Google's LiteRT-LM runtime ⚡, with an optional built-in OpenAI-compatible API server 🔌.
 
-## 📥 Download — v1.4.0
+## 📥 Download — v1.5.0
 
 | Platform | File | Size | Download |
 |---|---|---:|---|
-| Android (arm64) | `cubiclm-v1.4.0-arm64-v8a.apk` | 60 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.4.0/cubiclm-v1.4.0-arm64-v8a.apk) |
-| Android (arm32) | `cubiclm-v1.4.0-armeabi-v7a.apk` | 15 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.4.0/cubiclm-v1.4.0-armeabi-v7a.apk) |
-| Android (x86_64) | `cubiclm-v1.4.0-x86_64.apk` | 26 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.4.0/cubiclm-v1.4.0-x86_64.apk) |
-| Windows (x64) | `cubiclm-v1.4.0-windows-x64.zip` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.4.0/cubiclm-v1.4.0-windows-x64.zip) — unzip & run `cubiclm.exe` (WebView2 required) |
-| Checksums | `checksums.sha256` | — | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.4.0/checksums.sha256) |
+| Android (arm64) | `cubiclm-v1.5.0-arm64-v8a.apk` | 60 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/cubiclm-v1.5.0-arm64-v8a.apk) |
+| Android (arm32) | `cubiclm-v1.5.0-armeabi-v7a.apk` | 15 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/cubiclm-v1.5.0-armeabi-v7a.apk) |
+| Android (x86_64) | `cubiclm-v1.5.0-x86_64.apk` | 26 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/cubiclm-v1.5.0-x86_64.apk) |
+| Windows (x64) | `cubiclm-v1.5.0-windows-x64.zip` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/cubiclm-v1.5.0-windows-x64.zip) — unzip & run `cubiclm.exe` (WebView2 required) |
+| Checksums | `checksums.sha256` | — | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.5.0/checksums.sha256) |
 
 > **Website:** [cubiclm.vercel.app](https://cubiclm.vercel.app) — landing + direct APK / Windows downloads
-> **Full notes:** [CHANGELOG.md](CHANGELOG.md) · [Release page](https://github.com/abir2afridi/CubicLM/releases/tag/v1.4.0)
-> Web (`dart:ffi`) is tracked for the next release — Android + Windows are the supported targets for `v1.4.0`.
+> **Full notes:** [CHANGELOG.md](CHANGELOG.md) · [Release page](https://github.com/abir2afridi/CubicLM/releases/tag/v1.5.0)
+> Web (`dart:ffi`) is tracked for the next release — Android + Windows are the supported targets for `v1.5.0`.
 
 ## ✨ Features
 
@@ -33,7 +33,7 @@
 - **LiteRT-LM inference** via Google's LiteRT-LM runtime (.litertlm models)
 - **Stable Diffusion 1.5** on-device image generation (safetensors)
 - **Vision models** — Qwen2-VL-2B, Gemma 4 E2B/E4B for image understanding
-- **Streaming token generation** with real-time tokens-per-second display
+- **Streaming token generation** with real-time tokens-per-second display — long answers stream as plain text (full markdown on completion) with adaptive flush (150/300ms) so the chat never janks
 - **GPU crash recovery** — automatic CPU fallback if GPU backend fails
 - **Device-tier auto-configuration** — adjusts context size and max tokens based on detected RAM
 - **Real hardware identification** — reads `ro.soc.*` system properties to show the actual processor (Snapdragon 8 Gen 2, Dimensity 9000, Google Tensor G3…) and probes Vulkan for the GPU renderer name (Adreno, Mali…) instead of a generic "Unknown" label; SoC-aware quantization recommendations follow from the detected family
@@ -100,6 +100,7 @@ The chat page can fetch live web content on its own — no external services or 
 - **Cohere** (Command-A, Command-R, Aya)
 - **NVIDIA NIM** (Llama 3.1, etc.)
 - **Stability AI** (SD3.5 Flash cloud image generation)
+- **Cloud usage estimates** — Explore → Online header card: per-provider in/out tokens + calls (chars/4, no pricing table), resettable
 - **Custom OpenAI-compatible** endpoints with multiple profile support
 
 All providers share a unified plugin architecture (`lib/services/cloud/providers/`) — each provider implements the `CloudProvider` interface and registers in `CloudProviderRegistry`. Model lists auto-fetch from each provider's API on key save/refresh (with catalog fallback for providers without a `/models` endpoint), with FREE model tagging and filtering where supported. With **Auto Tune** enabled, cloud requests carry no output-token cap — models with 128K+ output budgets answer at full length.
@@ -132,12 +133,13 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
 - **Config** (`lib/services/mcp/mcp_config.dart`): single `McpConfig` (name/url/transport/bearer/enabled), transport auto-inferred from URL, Hive `mcpBox` single record.
 - **Registry** (`lib/services/mcp/mcp_registry_service.dart`): Hive + `flutter_secure_storage` (Keystore/Keychain) for token (never in Hive/plaintext), `saveConfig/testConnection/enable/disable/remove`, status/tools observables, `WidgetsBindingObserver` to disconnect on background and reconnect on resume.
 - **LLM wiring**: `CloudProvider.supportsMcpTools` + `buildRequestBody(mcpTools)` adds `tools`/`tool_choice: auto` for OpenAI-compatible providers; `OpenAICompatibleProvider.sendMessage/streamMessage` detects `tool_calls`, calls `McpRegistryService.callTool`, round-trips `tool` result via second request, then returns final answer (streaming buffers tool deltas and re-emits final answer chunked). Local models skip tools (no reliable structured output) but still benefit from Skills. Offline/unreachable still advertises tools; failed `callTool` surfaces as error tool-result.
-- **UI** — dedicated **Explore → MCP** tab and the same form in **Nodes › Config → CUSTOM MCP SERVER** (`_McpSection` + `explore_skills_mcp_tabs.dart`): single form (name, URL, bearer token with eye toggle, transport auto), Save / Test / Enable-Disable (with pre-enable tool preview dialog) / Remove, live status dot + banner, and exposed-tools list (name + description) before enabling. Stored token never enters LLM context. Explore’s 4-way toggle (Local / Online / Skills / MCP) keeps everything discoverable in one place.
+- **UI** — dedicated **Explore → MCP** tab and the same form in **Nodes › Config → CUSTOM MCP SERVER** (`_McpSection` + `explore_skills_mcp_tabs.dart`): single form (name, URL, bearer token with eye toggle, transport auto), Save / Test / Enable-Disable (with pre-enable tool preview dialog) / Remove, live status dot + banner, and exposed-tools list (name + description) before enabling. Stored token never enters LLM context. Explore’s 4-way toggle (Local / Online / Skills / MCP) keeps everything discoverable in one place. **Ask-before-run** — every tool call shows Deny / Allow once / Always-allow (fail-closed, per-tool memory); toggle in the MCP header card.
 
 ### 🔌 Built-in OpenAI-Compatible API Server
 
 - Expose local models as an OpenAI-compatible API on port 8080
 - Optional API key authentication
+- 120 POSTs/min/IP rate limit (429), in-memory request ring (see `/v1/server/capabilities`), honest 400 for `/v1/embeddings` (no on-device embedding mode)
 - Use local models from any OpenAI-compatible client on your network
 
 ### 🧩 Additional
@@ -148,6 +150,10 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
   - **App Settings** is its own destination — theme mode, typography scale, **Thinking Orbs** (custom animation per context: chatting / image generation / analyzing — each set to **Random** or any of the 9 states with live preview), **Language** (15 languages including Bangla, Hindi, Arabic, Chinese, Spanish, French, Japanese, Korean, Portuguese, German, Turkish, Indonesian, Russian, Urdu — instant switch, Hive-persisted), **Startup → Auto-load last model**, and app info (tap to open **About** page with feature highlights, tech stack, and GitHub link)
 - Multi-session chat with history (Hive persistence) and a **full-text searchable** sidebar drawer (`HiveService.searchMessages` scans `content`) with swipe-to-delete, long-press Export/Delete, and header Export (`share_plus` Markdown)
 - **Message actions** — copy, **share**, regenerate, branch into a new chat, and edit with full revision history (step back and forth between edited versions)
+- **Prompt templates** — 6 built-ins + custom (composer button → bottom sheet, one-tap insert, Hive-persisted)
+- **Multi-select** — long-press or header toggle → bulk copy/share/delete via the selection bar
+- **Per-chat model pin** — switcher-sheet toggle pins the active local/cloud model to one chat (📌 pill), auto-applied on open
+- **Side-by-side compare** — one-shot challenger answers the same prompt (`⚖️` message), primary setup restored afterwards
 - **Code blocks** with syntax highlighting, one-tap copy, and export/share
 - **Thinking Orbs** — 3D particle sphere animation (9 states: Working, Searching, Solving, Listening, Connecting, Weaving, Composing, Breathing, Shaping) with grayscale ink, size-aware speeds, and phase-continuous hard cuts; shown during chat responses, thought analysis, and image synthesis — each context configurable to **Random** shuffle or a fixed state via **App Settings › Thinking Orbs** (live orb previews in the picker)
 - **Empty state** — `assets/icons/CubicLM.png` 64×64 + animated `CubicLM` shimmer (same engine as splash) above suggestions — never a blank screen
@@ -263,7 +269,7 @@ lib/
 │   ├── notification_entry.dart  # Model-switch history entry (title/message/type/timestamp/read)
 │   └── skill_model.dart         # Skill (name/description/content/enabled/isBuiltIn/source)
 ├── controllers/
-│   ├── chat_controller.dart     # Chat logic, streaming, per-prompt skill/web-source tracking (webSources + usedSkills persisted), storage-built history with token-budget trim + UI fallback
+│   ├── chat_controller.dart     # Chat logic, streaming, per-prompt skill/web-source tracking (webSources + usedSkills persisted), storage-built history with token-budget trim + UI fallback, templates, multi-select, per-chat pin, compare
 │   ├── cloud_model_controller.dart  # Cloud model selection
 │   ├── home_controller.dart     # Tab navigation, model resume (520ms delay, async file check, 90s crash guard, 80% RAM guard, chat-idle defer)
 │   ├── model_controller.dart    # Model download/import management
@@ -271,7 +277,8 @@ lib/
 │   ├── settings_controller.dart # App settings + locale (15 langs), baseSystemPromptForModel / effectiveSystemPromptForPrompt (selective skills) + autoLoadLastModel
 │   └── task_controller.dart     # Automated task execution
 ├── services/
-│   ├── cloud_service.dart       # Multi-provider cloud API (delegates to providers)
+│   ├── cloud_service.dart       # Multi-provider cloud API (delegates to providers) + usage tracking hook
+│   ├── usage_tracker_service.dart # Estimated per-provider/model token usage (Hive JSON, chars/4)
 │   ├── cloud/                   # Cloud provider plugin architecture
 │   │   ├── cloud_provider.dart          # Abstract CloudProvider interface
 │   │   ├── cloud_provider_registry.dart # Provider registry (ID → instance)
@@ -464,7 +471,8 @@ Configure in **Nodes › Config → CUSTOM MCP SERVER** — single remote HTTP/S
 ### ⚙️ Engine & App Configuration
 
 - **Nodes › Config** — diagnostics, hardware capabilities, inference mode, Auto Tune (context/output limits), global system prompt, Skills, Custom MCP Server, local model & imaging parameters
-- **App Settings** (bottom navigation) — theme, typography scale, Thinking Orbs (Random or fixed state per context), **Language** (15 languages with instant switch), Startup auto-load, app info
+- **App Settings** (bottom navigation) — theme, typography scale, Thinking Orbs (Random or fixed state per context), **Language** (15 languages with instant switch), Startup auto-load, **App Lock re-lock timeout + biometric-only**, **Auto backup** (silent JSON every N days, last 3 kept), app info
+- **Hidden chats** — stronger hide than archive (out of drawer AND search), per-chat menu toggle with show/hide reveal
 - **Web Access** toggle — in the chat input bar; reads links from your message into the model's context
 
 ## 📄 License

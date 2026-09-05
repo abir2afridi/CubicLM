@@ -145,6 +145,12 @@ class SettingsController extends GetxController {
 
   // App Lock — require device biometrics/PIN to open the app.
   final appLockEnabled = false.obs;
+
+  /// Minutes in background before re-lock (0 = immediately, default).
+  final lockTimeoutMinutes = 0.obs;
+
+  /// Biometric-only (no device-PIN fallback in the system prompt).
+  final lockBiometricOnly = false.obs;
   final biometricsAvailable = false.obs;
 
   /// True when at least one biometric (or device credential usable by
@@ -450,6 +456,14 @@ class SettingsController extends GetxController {
         true;
     appLockEnabled.value = _hive.getSetting<bool>(
             AppConstants.keyAppLockEnabled,
+            defaultValue: false) ??
+        false;
+    lockTimeoutMinutes.value = _hive.getSetting<int>(
+            AppConstants.keyLockTimeoutMinutes,
+            defaultValue: 0) ??
+        0;
+    lockBiometricOnly.value = _hive.getSetting<bool>(
+            AppConstants.keyLockBiometricOnly,
             defaultValue: false) ??
         false;
     _detectBiometrics();
@@ -1576,14 +1590,26 @@ class SettingsController extends GetxController {
     try {
       return await _localAuth.authenticate(
         localizedReason: reason,
-        options: const la.AuthenticationOptions(
-          biometricOnly: false,
+        options: la.AuthenticationOptions(
+          biometricOnly: lockBiometricOnly.value,
           stickyAuth: true,
         ),
       );
     } catch (_) {
       return false;
     }
+  }
+
+  static const List<int> lockTimeoutOptions = [0, 1, 5, 15];
+
+  Future<void> setLockTimeoutMinutes(int minutes) async {
+    lockTimeoutMinutes.value = minutes;
+    await _hive.setSetting(AppConstants.keyLockTimeoutMinutes, minutes);
+  }
+
+  Future<void> setLockBiometricOnly(bool value) async {
+    lockBiometricOnly.value = value;
+    await _hive.setSetting(AppConstants.keyLockBiometricOnly, value);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

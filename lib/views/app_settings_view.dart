@@ -376,6 +376,44 @@ class AppSettingsView extends GetView<SettingsController> {
                       value: controller.appLockEnabled.value,
                       onChanged: (v) => controller.setAppLockEnabled(v),
                     )),
+                Obx(() {
+                  if (!controller.appLockEnabled.value) {
+                    return const SizedBox.shrink();
+                  }
+                  final t = controller.lockTimeoutMinutes.value;
+                  final label = t <= 0
+                      ? 'Immediately'
+                      : t == 1
+                          ? 'After 1 min'
+                          : 'After $t min';
+                  return _appleListTile(
+                    context,
+                    isDark,
+                    leading: const Icon(LucideIcons.timer,
+                        size: 20, color: Dt.accent),
+                    title: 'Re-lock',
+                    subtitle: 'Lock again $label in background',
+                    onTap: () => _pickLockTimeout(context, controller),
+                  );
+                }),
+                Obx(() {
+                  if (!controller.appLockEnabled.value) {
+                    return const SizedBox.shrink();
+                  }
+                  return _appleSwitchTile(
+                    context,
+                    isDark,
+                    leading: const Icon(LucideIcons.scanFace,
+                        size: 20, color: Dt.accent),
+                    title: 'Biometric only',
+                    subtitle: controller.lockBiometricOnly.value
+                        ? 'Device PIN will NOT unlock the app'
+                        : 'Allow device PIN as fallback',
+                    value: controller.lockBiometricOnly.value,
+                    onChanged: (v) =>
+                        controller.setLockBiometricOnly(v),
+                  );
+                }),
               ]),
               const SizedBox(height: 28),
               _sectionLabel(context, 'DATA'),
@@ -398,6 +436,41 @@ class AppSettingsView extends GetView<SettingsController> {
                   subtitle: 'Restore from a CubicLM backup file',
                   onTap: () => _importChats(),
                 ),
+                Obx(() {
+                  final chat = Get.isRegistered<ChatController>()
+                      ? Get.find<ChatController>()
+                      : Get.put(ChatController());
+                  return _appleSwitchTile(
+                    context,
+                    isDark,
+                    leading: const Icon(LucideIcons.history,
+                        size: 20, color: Dt.accent),
+                    title: 'Auto backup',
+                    subtitle: chat.autoBackupEnabled.value
+                        ? 'Silent JSON every ${chat.autoBackupDays.value}d (last 3 kept)'
+                        : 'Off — only manual exports',
+                    value: chat.autoBackupEnabled.value,
+                    onChanged: (v) => chat.setAutoBackup(v),
+                  );
+                }),
+                Obx(() {
+                  final chat = Get.isRegistered<ChatController>()
+                      ? Get.find<ChatController>()
+                      : Get.put(ChatController());
+                  if (!chat.autoBackupEnabled.value) {
+                    return const SizedBox.shrink();
+                  }
+                  return _appleListTile(
+                    context,
+                    isDark,
+                    leading: const Icon(LucideIcons.calendarClock,
+                        size: 20, color: Dt.accent),
+                    title: 'Backup every',
+                    subtitle:
+                        'Every ${chat.autoBackupDays.value} days (unencrypted)',
+                    onTap: () => _pickAutoBackupDays(context, chat),
+                  );
+                }),
                 _appleListTile(
                   context,
                   isDark,
@@ -852,6 +925,46 @@ class AppSettingsView extends GetView<SettingsController> {
       clipBehavior: Clip.antiAlias,
       child: Column(mainAxisSize: MainAxisSize.min, children: children),
     );
+  }
+
+  Future<void> _pickAutoBackupDays(
+      BuildContext context, ChatController chat) async {
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (dlgCtx) => SimpleDialog(
+        title: const Text('Auto backup every'),
+        children: [
+          for (final d in ChatController.autoBackupDayOptions)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dlgCtx, d),
+              child: Text(d == 1 ? 'Every day' : 'Every $d days'),
+            ),
+        ],
+      ),
+    );
+    if (picked != null) await chat.setAutoBackup(true, picked);
+  }
+
+  Future<void> _pickLockTimeout(
+      BuildContext context, SettingsController controller) async {
+    final picked = await showDialog<int>(
+      context: context,
+      builder: (dlgCtx) => SimpleDialog(
+        title: const Text('Re-lock after'),
+        children: [
+          for (final m in SettingsController.lockTimeoutOptions)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dlgCtx, m),
+              child: Text(m <= 0
+                  ? 'Immediately'
+                  : m == 1
+                      ? 'After 1 minute'
+                      : 'After $m minutes'),
+            ),
+        ],
+      ),
+    );
+    if (picked != null) await controller.setLockTimeoutMinutes(picked);
   }
 
   Widget _appleListTile(

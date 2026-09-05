@@ -79,6 +79,10 @@ class ChatView extends GetView<ChatController> {
                   child: ListView.builder(
                     controller: controller.scrollController,
                     padding: const EdgeInsets.only(top: 12, bottom: 12),
+                    // Perf: bubbles rebuild on content change anyway — no
+                    // need to keep every offscreen subtree alive.
+                    addAutomaticKeepAlives: false,
+                    addRepaintBoundaries: true,
                     itemCount: n + (streaming ? 1 : 0),
                     itemBuilder: (_, i) {
                       if (i == n && streaming) {
@@ -122,12 +126,17 @@ class ChatView extends GetView<ChatController> {
                           key: controller.findKeyFor(msg.id),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
-                            children: [dateHeader, bubble],
+                            children: [
+                              dateHeader,
+                              _selectableRow(context, msg, bubble, isDark)
+                            ],
                           ),
                         );
                       }
                       return RepaintBoundary(
-                          key: controller.findKeyFor(msg.id), child: bubble);
+                          key: controller.findKeyFor(msg.id),
+                          child:
+                              _selectableRow(context, msg, bubble, isDark));
                     },
                   ),
                 ),
@@ -155,8 +164,96 @@ class ChatView extends GetView<ChatController> {
               ],
             );
           })),
-          _inputBar(context, isDark),
+          Obx(() => controller.selectionMode.value
+              ? _selectionBar(context, isDark)
+              : _inputBar(context, isDark)),
         ],
+      ),
+    );
+  }
+
+  // ── Multi-select ──
+
+  /// Long-press enters selection mode; tap toggles while active.
+  /// Normal taps pass through (bubble buttons keep working).
+  Widget _selectableRow(
+      BuildContext context, ChatMessage msg, Widget child, bool isDark) {
+    return GestureDetector(
+      onLongPress: () {
+        controller.toggleSelectionMode(true);
+        controller.toggleSelected(msg.id);
+      },
+      onTap: () {
+        if (controller.selectionMode.value) {
+          controller.toggleSelected(msg.id);
+        }
+      },
+      child: Obx(() {
+        final selected = controller.selectionMode.value &&
+            controller.selectedIds.contains(msg.id);
+        if (!selected) return child;
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color(0x14D97757),
+            border: Border(left: BorderSide(color: Dt.accent, width: 3)),
+          ),
+          child: child,
+        );
+      }),
+    );
+  }
+
+  Widget _selectionBar(BuildContext context, bool isDark) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+      decoration: BoxDecoration(
+        color: isDark ? Dt.cardDark : Dt.card,
+        border: Border(
+            top: BorderSide(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.06))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Obx(() {
+          final n = controller.selectedIds.length;
+          return Row(
+            children: [
+              Text('$n selected',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w800, fontSize: 14)),
+              const Spacer(),
+              IconButton(
+                tooltip: 'Copy selected',
+                icon: const Icon(LucideIcons.copy, size: 20),
+                onPressed: n == 0
+                    ? null
+                    : () => Clipboard.setData(ClipboardData(
+                        text: controller.selectedAsMarkdown())),
+              ),
+              IconButton(
+                tooltip: 'Share selected',
+                icon: const Icon(LucideIcons.share2, size: 20),
+                onPressed:
+                    n == 0 ? null : () => Share.share(controller.selectedAsMarkdown()),
+              ),
+              IconButton(
+                tooltip: 'Delete selected',
+                icon: const Icon(LucideIcons.trash2,
+                    size: 20, color: AppColors.error),
+                onPressed: n == 0
+                    ? null
+                    : () => controller.deleteSelected(),
+              ),
+              IconButton(
+                tooltip: 'Done',
+                icon: const Icon(LucideIcons.x, size: 20),
+                onPressed: () => controller.toggleSelectionMode(false),
+              ),
+            ],
+          );
+        }),
       ),
     );
   }
@@ -710,23 +807,52 @@ class ChatView extends GetView<ChatController> {
         Obx(() {
           final hasSession = controller.currentSessionId.value.isNotEmpty;
           if (!hasSession) return const SizedBox.shrink();
-          return IconButton(
-            tooltip: 'Find in chat',
-            icon: Icon(LucideIcons.search,
-                size: Dt.iconSize - 2,
-                color: isDark ? AppColors.textPrimary : Dt.iconDefault),
-            onPressed: () => controller.toggleFind(true),
-          );
-        }),
-        Obx(() {
-          final hasSession = controller.currentSessionId.value.isNotEmpty;
-          if (!hasSession) return const SizedBox.shrink();
-          return IconButton(
-            tooltip: 'Export chat',
-            icon: Icon(LucideIcons.share2,
-                size: Dt.iconSize - 2,
-                color: isDark ? AppColors.textPrimary : Dt.iconDefault),
-            onPressed: () => _exportCurrentSession(context),
+          final selecting = controller.selectionMode.value;
+          final iconColor =
+              isDark ? AppColors.textPrimary : Dt.iconDefault;
+          return PopupMenuButton<String>(
+            tooltip: 'More options',
+            icon: Icon(LucideIcons.moreVertical,
+                size: Dt.iconSize - 2, color: iconColor),
+            onSelected: (v) {
+              if (v == 'find') controller.toggleFind(true);
+              if (v == 'export') _exportCurrentSession(context);
+              if (v == 'select') controller.toggleSelectionMode();
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'find',
+                child: Row(children: [
+                  const Icon(LucideIcons.search, size: 16),
+                  const SizedBox(width: 10),
+                  Text('Find in chat',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'export',
+                child: Row(children: [
+                  const Icon(LucideIcons.share2, size: 16),
+                  const SizedBox(width: 10),
+                  Text('Export chat',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'select',
+                child: Row(children: [
+                  Icon(
+                      selecting
+                          ? LucideIcons.checkSquare
+                          : LucideIcons.listChecks,
+                      size: 16,
+                      color: selecting ? Dt.accent : null),
+                  const SizedBox(width: 10),
+                  Text(selecting ? 'Done selecting' : 'Select messages',
+                      style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                ]),
+              ),
+            ],
           );
         }),
         Padding(
@@ -1240,10 +1366,22 @@ class ChatView extends GetView<ChatController> {
               if (_hasPrintable(answer))
                 Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Expanded(
-                      child: MarkdownBody(
-                          data: answer,
-                          selectable: true,
-                          styleSheet: _streamMdCached(context, isDark))),
+                      // Perf: full MarkdownBody (selectable spans + gesture
+                      // tree) rebuilt ~7x/sec while streaming is the main
+                      // jank source. Short answers keep markdown; long ones
+                      // (code dumps) stream as plain text in the same style
+                      // and get full markdown once saved. Selectable off
+                      // mid-stream — tap-hold selection works on the
+                      // finished bubble.
+                      child: RepaintBoundary(
+                          child: answer.length > 4000
+                              ? SelectableText(answer,
+                                  style: _streamMdCached(context, isDark).p)
+                              : MarkdownBody(
+                                  data: answer,
+                                  selectable: false,
+                                  styleSheet:
+                                      _streamMdCached(context, isDark)))),
                   const _BlinkingCursor(color: Dt.accent),
                 ]),
             ],
@@ -1766,6 +1904,12 @@ class ChatView extends GetView<ChatController> {
                                   .setWebFetchEnabled(!enabled),
                             );
                           }),
+                          const SizedBox(width: 6),
+                          AppCircleButton(
+                            icon: LucideIcons.layoutTemplate,
+                            tooltip: 'Prompt templates',
+                            onTap: () => _showTemplateSheet(context, isDark),
+                          ),
                           const Spacer(),
                           // Right cluster: mic (muted circle) + primary CTA (solid dark)
                           // Spacer pushes this cluster to the far right corner,
@@ -1841,7 +1985,12 @@ class ChatView extends GetView<ChatController> {
   // ── Sidebar Drawer ──
 
   /// Short label for the composer's model pill.
+  /// Pinned chats show the pinned model with 📌 (may differ from global).
   String _composerModelLabel() {
+    if (controller.chatHasModelPin) {
+      final pin = controller.chatPinnedModelLabel;
+      if (pin.isNotEmpty) return '📌 $pin';
+    }
     final s = Get.find<SettingsController>();
     if (s.inferenceMode.value == 'cloud') {
       final m = s.selectedCloudModelName;
@@ -1866,6 +2015,123 @@ class ChatView extends GetView<ChatController> {
   /// "+" sheet per reference spec §2.3: three equal tiles, then stacked
   /// row-cards — including the Web-access toggle that used to sit in the
   /// composer bar.
+  void _showTemplateSheet(BuildContext context, bool isDark) {
+    controller.ensureTemplatesLoaded();
+    showAppBottomSheet(
+      context,
+      builder: (sheetCtx) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppSheetHeader(
+                    title: 'Prompt templates',
+                    onClose: () => Navigator.pop(sheetCtx)),
+                const SizedBox(height: 6),
+                Flexible(
+                  child: Obx(() => ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: controller.promptTemplates.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 6),
+                        itemBuilder: (_, i) {
+                          final t = controller.promptTemplates[i];
+                          final builtin = (t['builtin'] ?? '').isNotEmpty;
+                          return ListTile(
+                            dense: true,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                            title: Text(t['name'] ?? '',
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontWeight: FontWeight.w700)),
+                            subtitle: Text(
+                                (t['body'] ?? '').replaceAll('\n', ' ').trim(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                            trailing: builtin
+                                ? null
+                                : IconButton(
+                                    icon: const Icon(Icons.delete_outline,
+                                        size: 18),
+                                    tooltip: 'Delete template',
+                                    onPressed: () =>
+                                        controller.deletePromptTemplate(
+                                            t['id'] ?? ''),
+                                  ),
+                            onTap: () {
+                              Navigator.pop(sheetCtx);
+                              controller.insertTemplate(t['body'] ?? '');
+                            },
+                          );
+                        },
+                      )),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('New template'),
+                    onPressed: () {
+                      Navigator.pop(sheetCtx);
+                      _showTemplateEditor(context, isDark);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showTemplateEditor(BuildContext context, bool isDark) {
+    final nameCtrl = TextEditingController();
+    final bodyCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dlgCtx) => AlertDialog(
+        title: const Text('New template'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+                controller: nameCtrl,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                    labelText: 'Name', hintText: 'e.g. Debug SQL')),
+            const SizedBox(height: 8),
+            TextField(
+                controller: bodyCtrl,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                    labelText: 'Prompt text',
+                    hintText: 'Instructions… (your text goes after)')),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dlgCtx),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () {
+                if (nameCtrl.text.trim().isEmpty ||
+                    bodyCtrl.text.trim().isEmpty) {
+                  return;
+                }
+                controller.addPromptTemplate(nameCtrl.text, bodyCtrl.text);
+                Navigator.pop(dlgCtx);
+              },
+              child: const Text('Save')),
+        ],
+      ),
+    );
+  }
+
   void _showAddToChatSheet(
     BuildContext context, {
     required bool isDark,
@@ -2141,11 +2407,50 @@ class ChatView extends GetView<ChatController> {
             ),
           );
         }),
+        // Hidden toggle — mirrors archived (read Rx first for tracking).
+        Obx(() {
+          final showing = controller.showHidden.value;
+          final n = controller.hiddenCount;
+          if (n == 0 && !showing) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => controller.showHidden.value = !showing,
+                icon: Icon(
+                  showing
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 16,
+                  color: AppColors.textMuted,
+                ),
+                label: Text(
+                  showing ? 'Hide hidden' : 'Show hidden ($n)',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textMuted),
+                ),
+                style: TextButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
+          );
+        }),
         Expanded(
           child: Obx(() {
-            final all = controller.showArchived.value
-                ? controller.sessions
+            // Read both Rx flags first so the list tracks them.
+            final showA = controller.showArchived.value;
+            final showH = controller.showHidden.value;
+            var all = showA
+                ? controller.sessions.toList()
                 : controller.sessions.where((s) => !s.archived).toList();
+            if (!showH) all = all.where((s) => !s.hidden).toList();
             final q = _sidebarQuery.value;
             final messageHits = _searchHits.toSet();
             final filtered = q.isEmpty
@@ -2351,6 +2656,7 @@ class ChatView extends GetView<ChatController> {
                   if (v == 'pin') controller.togglePin(s.id);
                   if (v == 'persona') _showPersonaDialog(context, s, isDark);
                   if (v == 'archive') controller.toggleArchive(s.id);
+                  if (v == 'hide') controller.toggleHidden(s.id);
                   if (v == 'delete') controller.deleteChat(s.id);
                 },
                 itemBuilder: (_) => [
@@ -2403,6 +2709,19 @@ class ChatView extends GetView<ChatController> {
                           size: 16),
                       const SizedBox(width: 10),
                       Text(s.archived ? 'Unarchive' : 'Archive',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                    ]),
+                  ),
+                  PopupMenuItem(
+                    value: 'hide',
+                    child: Row(children: [
+                      Icon(
+                          s.hidden
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          size: 16),
+                      const SizedBox(width: 10),
+                      Text(s.hidden ? 'Unhide' : 'Hide',
                           style: GoogleFonts.plusJakartaSans(fontSize: 14)),
                     ]),
                   ),

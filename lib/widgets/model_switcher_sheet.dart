@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../controllers/cloud_model_controller.dart';
+import '../controllers/chat_controller.dart';
 import '../controllers/home_controller.dart';
 import '../controllers/model_controller.dart';
 import '../controllers/settings_controller.dart';
@@ -131,9 +132,205 @@ class _ModelSwitcherSheetState extends State<ModelSwitcherSheet> {
                     : _CloudModelList(
                         scrollController: scrollController, isDark: isDark),
               ),
-     ],
+              _PinToChatRow(isDark: isDark),
+              _CompareRow(isDark: isDark),
+      ],
         );
       },
+    );
+  }
+}
+
+// ── Pin current model to the open chat ──
+
+class _PinToChatRow extends StatelessWidget {
+  final bool isDark;
+
+  const _PinToChatRow({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final chat = Get.find<ChatController>();
+      if (chat.currentSessionId.value.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      final pinned = chat.chatHasModelPin;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                pinned
+                    ? '📌 ${chat.chatPinnedModelLabel} · this chat only'
+                    : 'Remember current model for this chat',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).hintColor,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Switch.adaptive(
+              value: pinned,
+              activeThumbColor: Dt.accent,
+              onChanged: (on) {
+                if (on) {
+                  chat.pinModelToChat();
+                } else {
+                  chat.clearChatModelPin();
+                }
+              },
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+// ── Compare next answer with a challenger (one-shot) ──
+
+class _CompareRow extends StatelessWidget {
+  final bool isDark;
+
+  const _CompareRow({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final chat = Get.find<ChatController>();
+      final label = chat.compareLabel.value;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label.isEmpty
+                    ? 'Compare next answer with…'
+                    : '⚖️ Next answer also from $label',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).hintColor,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (label.isNotEmpty)
+              IconButton(
+                tooltip: 'Clear challenger',
+                icon: const Icon(Icons.close, size: 18),
+                onPressed: () => chat.clearCompareChallenger(),
+              )
+            else
+              IconButton(
+                tooltip: 'Pick challenger',
+                icon: const Icon(Icons.balance, size: 18),
+                onPressed: () => _pickChallenger(context),
+              ),
+          ],
+        ),
+      );
+    });
+  }
+
+  void _pickChallenger(BuildContext context) {
+    final cmc = Get.find<CloudModelController>();
+    final models = Get.find<ModelController>();
+    final entries = <Map<String, String>>[];
+    try {
+      cmc.modelsByProvider.forEach((provider, list) {
+        for (final m in list) {
+          entries.add({'mode': 'cloud', 'provider': provider, 'model': m});
+        }
+      });
+    } catch (_) {}
+    try {
+      for (final m in models.availableModels) {
+        if (models.isDownloaded(m.filename) && !models.isImageModel(m)) {
+          entries.add({'mode': 'local', 'provider': '', 'model': m.filename});
+        }
+      }
+    } catch (_) {}
+    final query = ValueNotifier('');
+    showDialog(
+      context: context,
+      builder: (dlgCtx) => AlertDialog(
+        title: const Text('Compare with'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                autofocus: true,
+                decoration: const InputDecoration(
+                    hintText: 'Search models…', isDense: true),
+                onChanged: (v) => query.value = v.trim().toLowerCase(),
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: ValueListenableBuilder<String>(
+                  valueListenable: query,
+                  builder: (_, q, __) {
+                    final filtered = q.isEmpty
+                        ? entries
+                        : entries
+                            .where((e) =>
+                                (e['model'] ?? '')
+                                    .toLowerCase()
+                                    .contains(q) ||
+                                (e['provider'] ?? '')
+                                    .toLowerCase()
+                                    .contains(q))
+                            .toList();
+                    if (filtered.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('No models found'),
+                      );
+                    }
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: filtered.length > 60 ? 60 : filtered.length,
+                      itemBuilder: (_, i) {
+                        final e = filtered[i];
+                        final title = e['mode'] == 'cloud'
+                            ? '${e['provider']}: ${e['model']}'
+                            : (e['model'] ?? '').replaceAll('.gguf', '');
+                        return ListTile(
+                          dense: true,
+                          title: Text(title,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600)),
+                          onTap: () {
+                            Navigator.pop(dlgCtx);
+                            Get.find<ChatController>().setCompareChallenger(
+                                e['mode'] ?? 'cloud',
+                                e['provider'] ?? '',
+                                e['model'] ?? '');
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dlgCtx),
+              child: const Text('Cancel')),
+        ],
+      ),
     );
   }
 }

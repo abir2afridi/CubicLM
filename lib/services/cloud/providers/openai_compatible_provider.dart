@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 
 import '../cloud_provider.dart';
+import '../../hive_service.dart';
 import '../../mcp/mcp_registry_service.dart';
 
 /// Abstract base class for providers that use OpenAI-compatible API format.
@@ -37,6 +39,86 @@ abstract class OpenAICompatibleProvider extends CloudProvider {
     }
   }
 
+  static const _kMcpApprovalKey = 'mcp_require_approval';
+  static const _kMcpAlwaysAllowKey = 'mcp_always_allow_tools';
+
+  /// Approval gate for MCP tool calls. Returns true when the call may run.
+  /// - Tools on the always-allow list run silently.
+  /// - When the approval toggle is off, everything runs (old behavior).
+  /// - Otherwise a blocking dialog asks: Deny / Allow once / Always allow.
+  /// Never throws — on any UI failure the call is denied (fail-closed).
+  Future<bool> _approveToolCall(String name, Map<String, dynamic> args) async {
+    try {
+      final hive = Get.find<HiveService>();
+      final always =
+          (hive.getSetting<List>(_kMcpAlwaysAllowKey) ?? const [])
+              .map((e) => e.toString())
+              .toSet();
+      if (always.contains(name)) return true;
+      final require =
+          hive.getSetting<bool>(_kMcpApprovalKey, defaultValue: true) ?? true;
+      if (!require) return true;
+      final argsText = _truncateArgs(args);
+      final decision = await Get.dialog<String>(
+        AlertDialog(
+          title: const Text('Allow tool call?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SelectableText(name,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Container(
+                width: double.maxFinite,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: SelectableText(argsText,
+                    style: const TextStyle(
+                        fontFamily: 'monospace', fontSize: 12)),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Get.back(result: 'deny'),
+                child: const Text('Deny')),
+            TextButton(
+                onPressed: () => Get.back(result: 'always'),
+                child: const Text('Always allow')),
+            FilledButton(
+                onPressed: () => Get.back(result: 'once'),
+                child: const Text('Allow once')),
+          ],
+        ),
+        barrierDismissible: false,
+      );
+      if (decision == 'always') {
+        try {
+          await hive.setSetting(
+              _kMcpAlwaysAllowKey, [...always, name].toList());
+        } catch (_) {}
+        return true;
+      }
+      return decision == 'once';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  String _truncateArgs(Map<String, dynamic> args) {
+    try {
+      final s = const JsonEncoder.withIndent('  ').convert(args);
+      return s.length > 800 ? '${s.substring(0, 800)}…(truncated)' : s;
+    } catch (_) {
+      final s = args.toString();
+      return s.length > 800 ? '${s.substring(0, 800)}…(truncated)' : s;
+    }
+  }
+
   Future<String> _handleToolCalls(
     List<Map<String, String>> messages,
     String apiKey,
@@ -65,7 +147,17 @@ abstract class OpenAICompatibleProvider extends CloudProvider {
       }
       Map<String, dynamic> result;
       try {
-        result = await reg.callTool(name, args);
+        final allowed = await _approveToolCall(name, args);
+        if (!allowed) {
+          result = {
+            'content': [
+              {'type': 'text', 'text': 'Tool $name was denied by the user.'}
+            ],
+            'isError': true,
+          };
+        } else {
+          result = await reg.callTool(name, args);
+        }
       } catch (e) {
         result = {
           'content': [

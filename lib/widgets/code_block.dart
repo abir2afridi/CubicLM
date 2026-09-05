@@ -129,62 +129,73 @@ class _CodeBlockState extends State<_CodeBlock> {
                 ),
               ),
             ),
-            child: Row(
-              children: [
-                if (lang.isNotEmpty) ...[
-                  Icon(Icons.code_rounded,
-                      size: 14,
-                      color: isDark
-                          ? AppColors.textMuted
-                          : Dt.textMuted),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(lang.toUpperCase(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.firaCode(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
+            // Narrow screens (360dp + long translated labels + 3 buttons)
+            // overflowed this Row by ~39px. Under 320dp the buttons go
+            // icon-only (tooltips stay) so it can never overflow.
+            child: LayoutBuilder(
+              builder: (_, constraints) {
+                final compact = constraints.maxWidth < 320;
+                return Row(
+                  children: [
+                    if (lang.isNotEmpty) ...[
+                      Icon(Icons.code_rounded,
+                          size: 14,
                           color: isDark
                               ? AppColors.textMuted
-                              : Dt.textMuted,
-                        )),
-                  ),
-                ] else
-                  Text('CODE',
-                      style: GoogleFonts.firaCode(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: isDark
-                              ? AppColors.textMuted
-                              : Dt.textMuted,
-                      )),
-                const Spacer(),
-                if (_isHtmlDocument && _previewSupported)
-                  _actionButton(
-                    icon: Icons.play_circle_outline_rounded,
-                    label: 'code_preview'.tr,
-                    color: AppColors.primary,
-                    onTap: _openLivePreview,
-                    isDark: isDark,
-                  ),
-                if (_isHtmlDocument && _previewSupported)
-                  const SizedBox(width: 4),
-                _actionButton(
-                  icon: _copied ? Icons.check_rounded : Icons.copy_rounded,
-                  label: _copied ? 'code_copied'.tr : 'code_copy'.tr,
-                  color: _copied ? AppColors.success : null,
-                  onTap: _copyCode,
-                  isDark: isDark,
-                ),
-                const SizedBox(width: 4),
-                _actionButton(
-                  icon: Icons.ios_share_rounded,
-                  label: 'code_export'.tr,
-                  onTap: _shareCode,
-                  isDark: isDark,
-                ),
-              ],
+                              : Dt.textMuted),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(lang.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.firaCode(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isDark
+                                  ? AppColors.textMuted
+                                  : Dt.textMuted,
+                            )),
+                      ),
+                    ] else
+                      Text('CODE',
+                          style: GoogleFonts.firaCode(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: isDark
+                                ? AppColors.textMuted
+                                : Dt.textMuted,
+                          )),
+                    const Spacer(),
+                    if (_isHtmlDocument && _previewSupported)
+                      _actionButton(
+                        icon: Icons.play_circle_outline_rounded,
+                        label: 'code_preview'.tr,
+                        showLabel: !compact,
+                        color: AppColors.primary,
+                        onTap: _openLivePreview,
+                        isDark: isDark,
+                      ),
+                    if (_isHtmlDocument && _previewSupported)
+                      const SizedBox(width: 4),
+                    _actionButton(
+                      icon: _copied ? Icons.check_rounded : Icons.copy_rounded,
+                      label: _copied ? 'code_copied'.tr : 'code_copy'.tr,
+                      showLabel: !compact,
+                      color: _copied ? AppColors.success : null,
+                      onTap: _copyCode,
+                      isDark: isDark,
+                    ),
+                    const SizedBox(width: 4),
+                    _actionButton(
+                      icon: Icons.ios_share_rounded,
+                      label: 'code_export'.tr,
+                      showLabel: !compact,
+                      onTap: _shareCode,
+                      isDark: isDark,
+                    ),
+                  ],
+                );
+              },
             ),
           ),
           // Code body
@@ -201,6 +212,7 @@ class _CodeBlockState extends State<_CodeBlock> {
   Widget _actionButton({
     required IconData icon,
     required String label,
+    bool showLabel = true,
     Color? color,
     required VoidCallback onTap,
     required bool isDark,
@@ -218,16 +230,18 @@ class _CodeBlockState extends State<_CodeBlock> {
                     (isDark
                         ? AppColors.textMuted
                         : Dt.textMuted)),
-            const SizedBox(width: 3),
-            Text(label,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: color ??
-                      (isDark
-                          ? AppColors.textMuted
-                          : Dt.textMuted),
-                )),
+            if (showLabel) ...[
+              const SizedBox(width: 3),
+              Text(label,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: color ??
+                        (isDark
+                            ? AppColors.textMuted
+                            : Dt.textMuted),
+                  )),
+            ],
           ],
         ),
       ),
@@ -535,12 +549,22 @@ class _HtmlPreviewPageState extends State<_HtmlPreviewPage> {
       children: [
         InAppWebView(
           initialData: InAppWebViewInitialData(
+            // Real origin is required: without a baseUrl the document
+            // loads with an opaque (about:blank) origin and ANY
+            // localStorage/sessionStorage access throws
+            // "SecurityError: Access is denied for this document"
+            // (breaks AI games using high-scores, saves, settings).
+            // https://localhost/ gives DOM storage a proper origin.
+            baseUrl: WebUri('https://localhost/'),
             data: widget.code,
             mimeType: 'text/html',
             encoding: 'utf-8',
           ),
           initialSettings: InAppWebViewSettings(
             javaScriptEnabled: true,
+            // Android WebViews disable DOM storage by default — without
+            // this, localStorage is unavailable even with a valid origin.
+            domStorageEnabled: true,
             supportZoom: true,
             transparentBackground: false,
           ),

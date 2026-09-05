@@ -10,6 +10,7 @@ import '../models/skill_model.dart';
 import '../services/mcp/mcp_config.dart';
 import '../services/mcp/mcp_connection.dart';
 import '../services/mcp/mcp_registry_service.dart';
+import '../services/hive_service.dart';
 import '../services/skills/github_skill_source.dart';
 import '../services/skills/skill_registry_service.dart';
 import '../services/skills/url_skill_source.dart';
@@ -744,9 +745,36 @@ class _ExploreMcpTabState extends State<ExploreMcpTab> {
     if (ok == true) await _reg.removeConfig(cfg.id);
   }
 
+  /// Ask-before-run toggle for MCP tool calls (Deny / Allow once / Always).
+  /// Same Hive key the cloud provider's approval gate reads.
+  Widget _approvalRow(BuildContext context) {
+    final hive = Get.find<HiveService>();
+    final require =
+        hive.getSetting<bool>('mcp_require_approval', defaultValue: true) ??
+            true;
+    return Row(children: [
+      Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Ask before running tools',
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 13, fontWeight: FontWeight.w700)),
+        Text('Model shows Deny / Allow once / Always',
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 11, color: Theme.of(context).hintColor)),
+      ])),
+      Switch.adaptive(
+        value: require,
+        activeThumbColor: Dt.accent,
+        onChanged: (v) async {
+          await hive.setSetting('mcp_require_approval', v);
+          if (mounted) setState(() {});
+        },
+      ),
+    ]);
+  }
+
   Future<void> _toggleEnable(
-      BuildContext context, bool isDark, McpConfig cfg, bool v) async {
-    if (!v) {
+      BuildContext context, bool isDark, McpConfig cfg, bool v) async {    if (!v) {
       await _reg.setEnabled(cfg.id, false);
       return;
     }
@@ -798,6 +826,8 @@ class _ExploreMcpTabState extends State<ExploreMcpTab> {
             ]),
             const SizedBox(height: 12),
             _statusBanner(status, err, tools, isDark),
+            const SizedBox(height: 12),
+            _approvalRow(context),
           ]),
         ),
         const SizedBox(height: 12),

@@ -110,6 +110,15 @@ class AppConstants {
 
   // App Lock (biometric gate)
   static const String keyAppLockEnabled = 'app_lock_enabled';
+  // Minutes in background before re-lock (0 = immediately).
+  static const String keyLockTimeoutMinutes = 'app_lock_timeout_min';
+  // Biometric-only (no device PIN fallback).
+  static const String keyLockBiometricOnly = 'app_lock_biometric_only';
+
+  // Auto backup (silent JSON to app documents, keeps last 3)
+  static const String keyAutoBackupEnabled = 'auto_backup_enabled';
+  static const String keyAutoBackupDays = 'auto_backup_days';
+  static const String keyLastAutoBackup = 'last_auto_backup_ms';
 
   // Onboarding
   static const String keyOnboardingDone = 'onboarding_done_v1';

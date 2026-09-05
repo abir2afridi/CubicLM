@@ -17,6 +17,19 @@ class OpenAiServerService {
   String? _apiKey;
   void Function(String)? _onLog;
 
+  /// Sliding-window rate limiter: max 120 POSTs/min per client IP.
+  /// Health + model list stay unlimited (monitoring stays responsive).
+  static const int _kRateMax = 120;
+  static const int _kRateWindowMs = 60000;
+  final Map<String, List<int>> _rateHits = {};
+
+  /// Ring of recent requests for diagnostics (cap 100, in-memory only).
+  final List<Map<String, dynamic>> _recentRequests = [];
+
+  /// Newest-first snapshot for UI/diagnostics.
+  List<Map<String, dynamic>> get recentRequests =>
+      List.unmodifiable(_recentRequests.reversed);
+
   bool get isRunning => _server != null;
   String? get localUrl {
     final port = _server?.port;
@@ -88,11 +101,31 @@ class OpenAiServerService {
         return;
       }
       if (request.method == 'POST' && path == '/v1/chat/completions') {
+        if (_rateLimited(request)) {
+          await _json(request, {
+            'error': 'Rate limited — max $_kRateMax requests/min per client'
+          }, status: 429);
+          return;
+        }
         await _handleChatCompletions(request);
         return;
       }
       if (request.method == 'POST' && path == '/v1/completions') {
+        if (_rateLimited(request)) {
+          await _json(request, {
+            'error': 'Rate limited — max $_kRateMax requests/min per client'
+          }, status: 429);
+          return;
+        }
         await _handleCompletions(request);
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/embeddings') {
+        // Honest 400: the on-device engine has no embedding mode.
+        await _json(request, {
+          'error': 'Embeddings are not supported by the on-device engine',
+          'hint': 'Use /v1/chat/completions or /v1/completions instead',
+        }, status: HttpStatus.badRequest);
         return;
       }
 
@@ -151,7 +184,13 @@ class OpenAiServerService {
         'audio': isLiteRt,
         'streaming': hasModel,
         'gguf': hasModel && !isLiteRt,
+        'embeddings': false,
       },
+      'limits': {
+        'post_per_min_per_ip': _kRateMax,
+        'max_body_bytes': maxBodyBytes,
+      },
+      'recent_requests': _recentRequests.length,
     });
   }
 
@@ -540,11 +579,41 @@ class OpenAiServerService {
     Map<String, dynamic> data, {
     int status = HttpStatus.ok,
   }) async {
+    _recordRequest(request, status);
     _addCorsHeaders(request.response);
     request.response.statusCode = status;
     request.response.headers.contentType = ContentType.json;
     request.response.write(jsonEncode(data));
     await request.response.close();
+  }
+
+  bool _rateLimited(HttpRequest request) {
+    try {
+      final ip = request.connectionInfo?.remoteAddress.address ?? 'unknown';
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final hits = _rateHits.putIfAbsent(ip, () => <int>[]);
+      hits.removeWhere((t) => now - t > _kRateWindowMs);
+      if (hits.length >= _kRateMax) return true;
+      hits.add(now);
+      return false;
+    } catch (_) {
+      return false; // fail-open on bookkeeping errors, never break serving
+    }
+  }
+
+  void _recordRequest(HttpRequest request, int status) {
+    try {
+      _recentRequests.add({
+        'at': DateTime.now().toIso8601String(),
+        'method': request.method,
+        'path': request.uri.path,
+        'status': status,
+        'ip': request.connectionInfo?.remoteAddress.address ?? '?',
+      });
+      if (_recentRequests.length > 100) {
+        _recentRequests.removeRange(0, _recentRequests.length - 100);
+      }
+    } catch (_) {}
   }
 
   void _addCorsHeaders(HttpResponse response) {
