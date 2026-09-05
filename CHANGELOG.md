@@ -5,6 +5,24 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Undo delete chat** - 5s UNDO snackbar restores session + messages.
+- **Whole-chat PDF export** - chat menu → Export as PDF (same Bangla-safe raster builder).
+- **Local sampling controls** - Top-P / Top-K / repeat-penalty sliders (Nodes → Config); plumbed through GGUF + LiteRT (cloud keeps provider defaults).
+- **Chat labels/folders** - free-form label per chat, drawer chips filter, menu dialog with existing-label shortcuts.
+- **Per-chat lock** - device-auth gate on open (title stays visible); menu toggle.
+- **Settings-only sync** - export/import preferences without secrets (API keys + custom profiles excluded by name + pattern).
+- **Skill share** - preview dialog → Share .md (frontmatter bundle, re-importable via From file).
+- **Server request viewer** - Nodes → Node shows last 10 requests (status/method/path/IP, 2s poll).
+- **Share-target** - Android ACTION_SEND text lands in the composer (manifest + channel + warm/cold hooks).
+- **Background-done ping** - answer finishing while backgrounded fires a notification with preview.
+- **Cold-start trace** - `[boot +Nms]` phase lines (critical path, first frame, deferred done) in System Logs.
+- **CI gate** - analyze + test on push/PR to main.
+- **Quant variants schema** - catalog `variants[]` (quant/filename/url/size) parsed + card picker + filename-keyed download resolution (no data seeded yet).
+- **History-budget unit tests** - pure trim logic extracted to `lib/utils/history_budget.dart` (9 tests).
+
 ## [1.5.0+10] - 2026-09-05
 
 ### Added

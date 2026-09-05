@@ -4,6 +4,9 @@ class OpenAiServerService {
   bool get isRunning => false;
   String? get localUrl => null;
 
+  /// Mirrors the io implementation (always empty here).
+  List<Map<String, dynamic>> get recentRequests => const [];
+
   Future<void> start({
     int port = 8080,
     String? apiKey,

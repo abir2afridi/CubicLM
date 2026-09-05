@@ -1236,6 +1236,8 @@ class ModelView extends GetView<ModelController> {
 
   void _confirmDownload(BuildContext context, AiModel model,
       {bool isToDownloadsFolder = false}) {
+    // Honor the card's quant pick: everything below stays filename-keyed.
+    model = controller.resolveForDownload(model);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1475,6 +1477,54 @@ class ModelView extends GetView<ModelController> {
                               ),
                             ],
                           ),
+                          // Quant picker — only for catalog entries that
+                          // ship variants, and only before anything is
+                          // downloaded (state below is filename-keyed).
+                          if (model.variants.isNotEmpty &&
+                              !isDownloaded &&
+                              !isCurrentlyDownloading) ...[
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                for (final opt
+                                    in model.variantOptions())
+                                  ChoiceChip(
+                                    label: Text(
+                                      opt.filename == model.filename
+                                          ? 'Default'
+                                          : (model.variants
+                                              .firstWhere(
+                                                (v) =>
+                                                    v.filename ==
+                                                    opt.filename,
+                                                orElse: () =>
+                                                    ModelVariant(
+                                                        quant: opt.filename,
+                                                        filename:
+                                                            opt.filename,
+                                                        url: opt.url),
+                                              )
+                                              .quant),
+                                      style:
+                                          GoogleFonts.plusJakartaSans(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700),
+                                    ),
+                                    selected: controller
+                                            .resolveForDownload(model)
+                                            .filename ==
+                                        opt.filename,
+                                    selectedColor: Dt.accent
+                                        .withValues(alpha: 0.2),
+                                    onSelected: (_) => controller
+                                        .selectVariant(
+                                            model, opt.filename),
+                                  ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),

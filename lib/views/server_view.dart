@@ -207,6 +207,73 @@ class ServerView extends GetView<ServerController> {
                         ])),
               ]),
               const SizedBox(height: 24),
+              _sectionLabel(context, 'Recent requests'),
+              _groupedCard(isDark, children: [
+                Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Obx(() {
+                    // Refresh subscription for the 2s request-ring poll.
+                    controller.requestTick.value;
+                    final reqs =
+                        controller.recentRequests.take(10).toList();
+                    if (reqs.isEmpty) {
+                      return Text(
+                        'No requests yet — call the server to see traffic here.',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            color: Theme.of(context).hintColor),
+                      );
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final r in reqs)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: _statusColor(r['status'])
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${r['status']}',
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: _statusColor(r['status'])),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '${r['method']} ${r['path']}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${r['ip'] ?? ''}',
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    color:
+                                        Theme.of(context).hintColor),
+                              ),
+                            ]),
+                          ),
+                      ],
+                    );
+                  }),
+                ),
+              ]),
+              const SizedBox(height: 24),
               _sectionLabel(context, 'nodes_implementation_snippets'.tr),
               _groupedCard(isDark, children: [
                 Padding(
@@ -256,6 +323,13 @@ class ServerView extends GetView<ServerController> {
   }
 
   // ── Helpers ──
+
+  Color _statusColor(dynamic status) {
+    final s = status is int ? status : int.tryParse('$status') ?? 0;
+    if (s >= 200 && s < 300) return AppColors.success;
+    if (s == 429) return AppColors.warning;
+    return AppColors.error;
+  }
 
   Widget _groupedCard(bool isDark, {required List<Widget> children}) {
     return Container(

@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show compute, kIsWeb;
+import 'package:flutter/foundation.dart'
+    show compute, kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -16,6 +17,7 @@ import 'package:uuid/uuid.dart';
 import '../controllers/settings_controller.dart';
 import '../controllers/model_controller.dart';
 import '../controllers/cloud_model_controller.dart';
+import '../controllers/home_controller.dart';
 import '../core/constants.dart';
 import '../models/chat_message.dart';
 import '../models/chat_session.dart';
@@ -32,6 +34,7 @@ import '../services/document_extractor_service.dart';
 import '../services/skills/skill_injector.dart';
 import '../models/web_source.dart';
 import '../utils/thought_parser.dart';
+import '../utils/history_budget.dart';
 
 const int _visionImageMaxSide = 768;
 const int _visionImageJpegQuality = 72;
@@ -321,6 +324,8 @@ class ChatController extends GetxController {
     loadSessions();
     _initSpeech();
     _loadAutoBackupPrefs();
+    // Pick up Android share-target text (cold start).
+    unawaited(checkSharedText());
     // Silent scheduled backup, once per process (no-op unless enabled).
     if (!_autoBackupChecked) {
       _autoBackupChecked = true;
@@ -330,6 +335,36 @@ class ChatController extends GetxController {
   }
 
   static bool _autoBackupChecked = false;
+
+  /// Pull text shared from other Android apps (ACTION_SEND → MainActivity
+  /// stash → getSharedText). Fills the composer and jumps to the chat tab.
+  /// No-op on other platforms; never throws.
+  Future<void> checkSharedText() async {
+    if (kIsWeb) return;
+    try {
+      if (defaultTargetPlatform != TargetPlatform.android) return;
+      final text = await const MethodChannel('com.cubiclm.app/model_import')
+          .invokeMethod<String>('getSharedText');
+      if (text == null || text.trim().isEmpty) return;
+      if (currentSessionId.value.isEmpty) createNewChat();
+      final cur = textController.text;
+      textController.text = cur.isEmpty ? text : '$cur\n$text';
+      try {
+        textController.selection =
+            TextSelection.collapsed(offset: textController.text.length);
+      } catch (_) {}
+      inputText.value = textController.text;
+      try {
+        if (Get.isRegistered<HomeController>()) {
+          Get.find<HomeController>().changeTab(0);
+        }
+      } catch (_) {}
+      Get.snackbar('Shared text added',
+          'Review and tap send when ready.',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 3));
+    } catch (_) {}
+  }
 
   final autoBackupEnabled = false.obs;
   final autoBackupDays = 7.obs;
@@ -569,6 +604,30 @@ class ChatController extends GetxController {
 
   int get hiddenCount => sessions.where((s) => s.hidden).length;
 
+  /// Label/folder filter for the drawer ('' = all labels).
+  final labelFilter = ''.obs;
+
+  List<String> get chatLabels {
+    final set = <String>{};
+    for (final s in sessions) {
+      final l = s.label.trim();
+      if (l.isNotEmpty) set.add(l);
+    }
+    final out = set.toList()..sort();
+    return out;
+  }
+
+  /// Set (or clear with empty) a chat's label/folder.
+  void setLabel(String sessionId, String label) {
+    final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
+    if (session == null) return;
+    final updated = session.copyWith(label: label.trim());
+    _hive.saveSession(updated.id, updated.toMap());
+    final idx = sessions.indexWhere((s) => s.id == updated.id);
+    if (idx >= 0) sessions[idx] = updated;
+    sessions.sort(_sessionSort);
+  }
+
   /// Per-chat persona (system-prompt addition). Empty clears to global.
   void setPersona(String sessionId, String persona) {
     final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
@@ -606,7 +665,12 @@ class ChatController extends GetxController {
     }
   }
 
-  void openChat(String sessionId) {
+  void openChat(String sessionId, {bool unlocked = false}) {
+    final target = sessions.firstWhereOrNull((s) => s.id == sessionId);
+    if (target != null && target.locked && !unlocked) {
+      unawaited(_authThenOpen(sessionId));
+      return;
+    }
     stopGenerating();
     currentSessionId.value = sessionId;
     hasOlderMessages.value = false;
@@ -634,6 +698,42 @@ class ChatController extends GetxController {
     final opened = sessions.firstWhereOrNull((s) => s.id == sessionId);
     if (opened != null) unawaited(_applySessionModel(opened));
     _scrollToBottom(force: true);
+  }
+
+  /// Gate for per-chat lock: authenticate first, then open unlocked.
+  /// Never throws; failed auth stays on the current chat.
+  Future<void> _authThenOpen(String sessionId) async {
+    try {
+      final ok = await Get.find<SettingsController>()
+          .authenticate(reason: 'Unlock this chat');
+      if (!ok) {
+        Get.snackbar('Locked', 'Authentication failed — chat stays closed.',
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+      if (currentSessionId.value != sessionId) {
+        openChat(sessionId, unlocked: true);
+      }
+    } catch (_) {}
+  }
+
+  /// Toggle the per-chat lock (title stays visible; content is gated).
+  void toggleLocked(String sessionId) {
+    final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
+    if (session == null) return;
+    final updated = session.copyWith(locked: !session.locked);
+    _hive.saveSession(updated.id, updated.toMap());
+    final idx = sessions.indexWhere((s) => s.id == updated.id);
+    if (idx >= 0) sessions[idx] = updated;
+    sessions.sort(_sessionSort);
+    Get.snackbar(
+      updated.locked ? 'Chat locked' : 'Chat unlocked',
+      updated.locked
+          ? 'Device auth is required to open it.'
+          : 'Opens without authentication.',
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 2),
+    );
   }
 
   /// Number of messages loaded per chat window page.
@@ -713,10 +813,22 @@ class ChatController extends GetxController {
     }
   }
 
+  ChatSession? _trashSession;
+  List<Map<String, dynamic>> _trashMessages = [];
+
   void deleteChat(String sessionId) {
     if (currentSessionId.value == sessionId && isLoading.value) {
       stopGenerating();
     }
+    // Snapshot for Undo (image files on disk are not restorable).
+    final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
+    _trashSession = session;
+    _trashMessages = session == null
+        ? []
+        : _hive
+            .getMessagesForChat(sessionId)
+            .map((m) => Map<String, dynamic>.from(m))
+            .toList();
     _hive.deleteSession(sessionId);
     sessions.removeWhere((s) => s.id == sessionId);
     if (currentSessionId.value == sessionId) {
@@ -724,6 +836,45 @@ class ChatController extends GetxController {
       messages.clear();
       hasOlderMessages.value = false;
     }
+    if (session != null) {
+      Get.snackbar(
+        'Chat deleted',
+        session.title,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 5),
+        mainButton: TextButton(
+          onPressed: () {
+            try {
+              Get.back();
+            } catch (_) {}
+            undoDeleteChat();
+          },
+          child: const Text('UNDO'),
+        ),
+      );
+    }
+  }
+
+  /// Restore the most recently deleted chat (5s UNDO window).
+  Future<void> undoDeleteChat() async {
+    final s = _trashSession;
+    if (s == null) return;
+    _trashSession = null;
+    try {
+      await _hive.saveSession(s.id, s.toMap());
+      for (final m in _trashMessages) {
+        try {
+          final id = m['id']?.toString() ?? '';
+          if (id.isNotEmpty) await _hive.saveMessage(id, m);
+        } catch (_) {}
+      }
+    } catch (_) {}
+    _trashMessages = [];
+    if (!sessions.any((e) => e.id == s.id)) {
+      sessions.add(s);
+      sessions.sort(_sessionSort);
+    }
+    if (currentSessionId.value.isEmpty) openChat(s.id);
   }
 
   void renameChat(String sessionId, String newTitle) {
@@ -916,6 +1067,121 @@ class ChatController extends GetxController {
     if (days != null) {
       autoBackupDays.value = days;
       await _hive.setSetting(AppConstants.keyAutoBackupDays, days);
+    }
+  }
+
+  /// Export app settings WITHOUT secrets (API keys live in secure
+  /// storage and custom-profile inline keys are excluded too).
+  /// Returns null on success, or an error string. Desktop shows a native
+  /// save dialog; mobile shares the file.
+  static final _settingsSecretKeys = {
+    AppConstants.keyOpenaiKey,
+    AppConstants.keyAnthropicKey,
+    AppConstants.keyGoogleKey,
+    AppConstants.keyKimiKey,
+    AppConstants.keyStabilityKey,
+    AppConstants.keyNvidiaKey,
+    AppConstants.keyOpenRouterKey,
+    AppConstants.keyDeepSeekKey,
+    AppConstants.keyZaiKey,
+    AppConstants.keyGroqKey,
+    AppConstants.keyMistralKey,
+    AppConstants.keyTogetherKey,
+    AppConstants.keyXaiKey,
+    AppConstants.keyPerplexityKey,
+    AppConstants.keyCerebrasKey,
+    AppConstants.keyFireworksKey,
+    AppConstants.keyCohereKey,
+    AppConstants.keyHuggingFaceKey,
+    AppConstants.keyXkiroKey,
+    AppConstants.keyTokenRouterKey,
+    AppConstants.keyCustomCloudKey,
+    AppConstants.keyCustomCloudProfiles,
+    AppConstants.keyServerApiKey,
+  };
+  static final _settingsSecretPattern =
+      RegExp(r'token|secret|password|apikey|api_key|credential', caseSensitive: false);
+
+  Future<String?> exportSettings() async {
+    try {
+      final all = _hive.getAllSettingsRaw();
+      all.removeWhere((k, _) =>
+          _settingsSecretKeys.contains(k) ||
+          _settingsSecretPattern.hasMatch(k));
+      final payload = {
+        'app': 'CubicLM',
+        'type': 'settings_backup',
+        'version': 1,
+        'exportedAt': DateTime.now().toIso8601String(),
+        'settings': all,
+      };
+      final jsonStr = jsonEncode(payload);
+      final stamp = DateTime.now().toIso8601String().split('T').first;
+      final fileName = 'cubiclm_settings_$stamp.json';
+      if (!kIsWeb &&
+          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+        final outPath = await FilePicker.saveFile(
+          dialogTitle: 'Save CubicLM settings',
+          fileName: fileName,
+          type: FileType.custom,
+          allowedExtensions: ['json'],
+          bytes: Uint8List.fromList(utf8.encode(jsonStr)),
+        );
+        if (outPath == null) return 'cancelled';
+        Get.find<AppLogService>().info('Settings exported',
+            details: outPath, category: LogCategory.chat);
+        return null;
+      }
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsString(jsonStr, flush: true);
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'application/json')],
+        subject: 'CubicLM settings',
+      );
+      return null;
+    } catch (e) {
+      Get.find<AppLogService>().error('Settings export failed',
+          details: e, category: LogCategory.chat);
+      return 'error';
+    }
+  }
+
+  /// Import a settings backup. Secrets are never imported (skipped).
+  /// Returns null on success, or an error string. Some settings apply
+  /// after an app restart.
+  Future<String?> importSettings() async {
+    try {
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (picked == null || picked.files.isEmpty) return 'cancelled';
+      final bytes = picked.files.first.bytes ??
+          await File(picked.files.first.path!).readAsBytes();
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is! Map || decoded['type'] != 'settings_backup') {
+        return 'Not a CubicLM settings file.';
+      }
+      final map = Map<String, dynamic>.from(decoded['settings'] ?? {});
+      var applied = 0;
+      for (final e in map.entries) {
+        if (_settingsSecretKeys.contains(e.key) ||
+            _settingsSecretPattern.hasMatch(e.key)) {
+          continue;
+        }
+        try {
+          // Only JSON-native values cross devices safely.
+          jsonEncode(e.value);
+          await _hive.setSetting(e.key, e.value);
+          applied++;
+        } catch (_) {}
+      }
+      Get.find<AppLogService>().info('Settings imported: $applied applied',
+          category: LogCategory.chat);
+      return null;
+    } catch (e) {
+      return 'Import failed: $e';
     }
   }
 
@@ -1485,58 +1751,11 @@ class ChatController extends GetxController {
   }
 
   /// Keeps the newest message (current turn) plus as many older turns as
-  /// fit [maxChars]. Oversized single turns are middle-truncated (head +
-  /// tail kept) instead of dropped, so a long code answer never wipes
-  /// context entirely. Always keeps the current + previous turn.
-  static const _kTrimMarker = '\n…(middle trimmed for context)…\n';
-
-  int _historyChars(List<Map<String, String>> msgs, [int start = 0]) {
-    var total = 0;
-    for (var i = start; i < msgs.length; i++) {
-      total += (msgs[i]['content'] ?? '').length;
-    }
-    return total;
-  }
-
-  Map<String, String> _capMiddle(Map<String, String> m, int cap) {
-    final c = m['content'] ?? '';
-    if (c.length <= cap) return m;
-    if (cap <= _kTrimMarker.length + 100) {
-      return {'role': m['role'] ?? '', 'content': c.substring(0, cap)};
-    }
-    final keep = cap - _kTrimMarker.length;
-    final head = (keep * 0.6).floor();
-    return {
-      'role': m['role'] ?? '',
-      'content': c.substring(0, head) +
-          _kTrimMarker +
-          c.substring(c.length - (keep - head)),
-    };
-  }
-
+  /// fit [maxChars]. Pure logic lives in `lib/utils/history_budget.dart`
+  /// (unit-tested); this delegates so all call sites share semantics.
   List<Map<String, String>> _fitHistoryToBudget(
-      List<Map<String, String>> history, int maxChars) {
-    if (history.length <= 1) return history;
-    // No single turn may eat more than half the budget.
-    final perMsg = (maxChars / 2).ceil();
-    final capped = history.map((m) => _capMiddle(m, perMsg)).toList();
-    // Drop oldest first, but always keep current + previous turn.
-    var start = 0;
-    while (start < capped.length - 2 &&
-        _historyChars(capped, start) > maxChars) {
-      start++;
-    }
-    var out = capped.sublist(start);
-    // Still over with just two turns: squeeze the older one further.
-    if (out.length == 2 && _historyChars(out) > maxChars) {
-      final newestLen = (out[1]['content'] ?? '').length;
-      final allowOlder = maxChars - newestLen - _kTrimMarker.length;
-      if (allowOlder > 200) {
-        out = [_capMiddle(out[0], allowOlder), out[1]];
-      }
-    }
-    return out;
-  }
+          List<Map<String, String>> history, int maxChars) =>
+      fitHistoryToBudget(history, maxChars);
 
   Future<void> _generateAIResponse({
     required String prompt,
@@ -1930,6 +2149,21 @@ class ChatController extends GetxController {
         if (idx >= 0) sessions[idx] = updated;
       }
       unawaited(HapticFeedback.mediumImpact());
+      // Background ping: the answer finished while the app is
+      // backgrounded — notify so the user knows to come back.
+      try {
+        final st = WidgetsBinding.instance.lifecycleState;
+        if (st == AppLifecycleState.paused ||
+            st == AppLifecycleState.hidden ||
+            st == AppLifecycleState.inactive) {
+          final answerPreview =
+              splitThoughtTags(rawResponse).answer.trim();
+          unawaited(Get.find<ImageGenerationNotificationService>()
+              .notifyChatDone(answerPreview.isNotEmpty
+                  ? answerPreview
+                  : rawResponse));
+        }
+      } catch (_) {}
       // One-shot compare: challenger answers the same prompt, then the
       // primary setup is restored. Skipped for image generations.
       if (_compareRef != null && outImageBase64 == null) {

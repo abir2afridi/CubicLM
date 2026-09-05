@@ -104,8 +104,7 @@ class ModelController extends GetxController {
     return models;
   }
 
-  List<AiModel> get filteredDisplayedModels {
-    final filter =
+  List<AiModel> get filteredDisplayedModels {    final filter =
         localFilter.value.isEmpty ? defaultLocalFilter : localFilter.value;
     return displayedModels.where((model) {
       switch (filter) {
@@ -126,6 +125,31 @@ class ModelController extends GetxController {
 
   String get defaultLocalFilter =>
       downloadedFiles.isNotEmpty ? 'downloaded' : 'general';
+
+  /// Chosen quant per catalog entry (base filename → variant filename).
+  /// Absent = default entry. Reactive so quant chips rebuild.
+  final selectedVariant = <String, String>{}.obs;
+
+  /// Resolve the downloadable entry honoring the user's quant pick.
+  /// Everything downstream stays filename-keyed, so download / load /
+  /// delete / progress all work unchanged for the chosen file.
+  AiModel resolveForDownload(AiModel model) {
+    if (model.variants.isEmpty) return model;
+    final picked = selectedVariant[model.filename];
+    if (picked == null || picked.isEmpty) return model;
+    for (final opt in model.variantOptions()) {
+      if (opt.filename == picked) return opt;
+    }
+    return model;
+  }
+
+  void selectVariant(AiModel model, String filename) {
+    if (filename == model.filename) {
+      selectedVariant.remove(model.filename);
+    } else {
+      selectedVariant[model.filename] = filename;
+    }
+  }
 
   double get importProgress => importTotalBytes.value <= 0
       ? 0.0
@@ -222,12 +246,9 @@ class ModelController extends GetxController {
       if (list is! List) return out;
       for (final item in list.take(500)) {
         if (item is! Map) continue;
-        final map = <String, String>{};
-        for (final e in item.entries) {
-          map[e.key.toString()] = e.value?.toString() ?? '';
-        }
-        final filename = (map['filename'] ?? '').trim();
-        final url = (map['url'] ?? '').trim();
+        final dyn = Map<String, dynamic>.from(item);
+        final filename = (dyn['filename']?.toString() ?? '').trim();
+        final url = (dyn['url']?.toString() ?? '').trim();
         if (filename.isEmpty || url.isEmpty) continue;
         final lower = url.toLowerCase();
         if (!lower.startsWith('https://')) continue;
@@ -237,10 +258,10 @@ class ModelController extends GetxController {
             !flow.endsWith('.safetensors')) {
           continue;
         }
-        if ((map['name'] ?? '').trim().isEmpty) {
-          map['name'] = filename;
+        if ((dyn['name']?.toString() ?? '').trim().isEmpty) {
+          dyn['name'] = filename;
         }
-        out.add(AiModel.fromMap(map));
+        out.add(AiModel.fromDynamic(dyn));
       }
     } catch (_) {}
     return out;

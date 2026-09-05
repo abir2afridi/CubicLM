@@ -27,6 +27,18 @@ class ServerController extends GetxController {
   final useApiKey = false.obs;
   final apiKey = ''.obs;
 
+  /// Bumps whenever the request ring is polled so the viewer refreshes.
+  final requestTick = 0.obs;
+  Timer? _requestPoll;
+
+  List<Map<String, dynamic>> get recentRequests {
+    try {
+      return _server.recentRequests;
+    } catch (_) {
+      return const [];
+    }
+  }
+
   late final TextEditingController apiKeyCtrl;
 
   static const int port = 8080;
@@ -93,6 +105,11 @@ class ServerController extends GetxController {
       localUrl.value = _server.localUrl;
       isRunning.value = true;
       serverStatus.value = 'Server running';
+      _requestPoll?.cancel();
+      _requestPoll = Timer.periodic(
+        const Duration(seconds: 2),
+        (_) => requestTick.value++,
+      );
     } catch (e) {
       lastError.value = '$e';
       serverStatus.value = 'Server failed';
@@ -105,6 +122,8 @@ class ServerController extends GetxController {
 
   Future<void> stopServer() async {
     isStarting.value = false;
+    _requestPoll?.cancel();
+    _requestPoll = null;
     await _server.stop();
     isRunning.value = false;
     localUrl.value = null;

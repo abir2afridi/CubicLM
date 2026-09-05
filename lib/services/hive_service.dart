@@ -352,8 +352,21 @@ class HiveService extends GetxService {
 
   // ─── Settings helpers ───────────────────────────
 
-  T? getSetting<T>(String key, {T? defaultValue}) {
+  /// All raw settings entries (for settings-only export).
+  Map<String, dynamic> getAllSettingsRaw() {
     try {
+      if (!_isBoxUsable(_settingsBox)) return {};
+      final out = <String, dynamic>{};
+      for (final k in _settingsBox.keys) {
+        out[k.toString()] = _settingsBox.get(k);
+      }
+      return out;
+    } catch (_) {
+      return {};
+    }
+  }
+
+  T? getSetting<T>(String key, {T? defaultValue}) {    try {
       if (!_isBoxUsable(_settingsBox)) return defaultValue;
       return _settingsBox.get(key, defaultValue: defaultValue) as T?;
     } on HiveError {

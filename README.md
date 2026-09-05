@@ -49,6 +49,7 @@
   - Output token ladder from 256 up to **128K tokens**
   - Orange warnings appear past the device's recommended limit but values stay selectable
 - **Inference temperature** — applied on every generation, local and cloud
+- **Local sampling** — Top-P / Top-K / repeat-penalty sliders (GGUF + LiteRT; cloud uses provider defaults)
 - **Context window changes** auto-reload the resident model after the slider settles
 - **RAM guard (new)** — `DeviceInfoService.canAllocateContextSize()` (`fileBytes + KV~2.5KB×context` vs 80% available RAM); `SettingsController.setContextSize` clamps to `maxSafeContextSize` with snackbar, `ModelController._confirmModelLoadSafety` includes KV estimate before showing *Restart recommended*
 - **Sampling steps** and **synthesis resolution** for image generation (Auto mode scales by available RAM)
@@ -122,7 +123,7 @@ Skills are **offline, static prompt-injection blocks** (markdown) that teach the
   - *On-Device Efficient Prompting* — concise, structured for 2K–8K contexts
   - *Study Helper — ELI12* — analogy + quiz format
   - *Creative Writer* — stories/poems/scripts
-- **UI** — dedicated **Explore → Skills** tab (4-way toggle: Local / Online / Skills / MCP) plus the same card in **Nodes › Config → SKILLS** (next to Global System Prompt) for quick access: grouped card with count, **Import → From file** (file_picker), **Browse Anthropic skills** (`anthropics/skills` via GitHub REST + raw fetch, cached 6h, rate-limit safe), **From URL** (any raw markdown URL, size/type checked, preview-before-enable). GitHub browse is a flat list (no search/categories) with per-item Import; URL import shows preview (frontmatter-parsed name/description) before save. All imports converge on `importFromMarkdown`.
+- **UI** — dedicated **Explore → Skills** tab (4-way toggle: Local / Online / Skills / MCP) plus the same card in **Nodes › Config → SKILLS** (next to Global System Prompt) for quick access: grouped card with count, **Import → From file** (file_picker), **Browse Anthropic skills** (`anthropics/skills` via GitHub REST + raw fetch, cached 6h, rate-limit safe), **From URL** (any raw markdown URL, size/type checked, preview-before-enable). Preview dialog shares a re-importable `.md` bundle. GitHub browse is a flat list (no search/categories) with per-item Import; URL import shows preview (frontmatter-parsed name/description) before save. All imports converge on `importFromMarkdown`.
 
 ### 🔌 Custom MCP Server — Single Remote Connection (no marketplace)
 
@@ -140,6 +141,7 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
 - Expose local models as an OpenAI-compatible API on port 8080
 - Optional API key authentication
 - 120 POSTs/min/IP rate limit (429), in-memory request ring (see `/v1/server/capabilities`), honest 400 for `/v1/embeddings` (no on-device embedding mode)
+- Recent-request viewer in Nodes → Node (last 10, auto-refresh)
 - Use local models from any OpenAI-compatible client on your network
 
 ### 🧩 Additional
@@ -154,12 +156,17 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
 - **Multi-select** — long-press or header toggle → bulk copy/share/delete via the selection bar
 - **Per-chat model pin** — switcher-sheet toggle pins the active local/cloud model to one chat (📌 pill), auto-applied on open
 - **Side-by-side compare** — one-shot challenger answers the same prompt (`⚖️` message), primary setup restored afterwards
+- **Chat labels** — free-form folder label per chat with drawer filter chips
+- **Per-chat lock** — device-auth gate on open; **undo delete** (5s snackbar)
+- **Whole-chat PDF** — chat menu export alongside Markdown/.txt
 - **Code blocks** with syntax highlighting, one-tap copy, and export/share
 - **Thinking Orbs** — 3D particle sphere animation (9 states: Working, Searching, Solving, Listening, Connecting, Weaving, Composing, Breathing, Shaping) with grayscale ink, size-aware speeds, and phase-continuous hard cuts; shown during chat responses, thought analysis, and image synthesis — each context configurable to **Random** shuffle or a fixed state via **App Settings › Thinking Orbs** (live orb previews in the picker)
 - **Empty state** — `assets/icons/CubicLM.png` 64×64 + animated `CubicLM` shimmer (same engine as splash) above suggestions — never a blank screen
 - **Header & composer sync** — `chat_view.dart:302,1185` both `Obx` on `InferenceService.loadedModelName` / `LocalImageService.loadedModelName` + `SettingsController` mode; composer pill `Flexible` + `14` char truncate prevents `RenderFlex overflow 4.4/12px` on 360dp
 - **Notification history** — 🔔 bell in chat header with unread badge; slide-in page grouped by Today/Yesterday/weekday with relative timestamps (Just now / 5m ago / 2h ago), swipe-to-delete, mark-all-read & clear-all; every model switch (local / cloud / back-to-local) auto-logs with timestamp and shows as a top spring-animated toast (`AppSnackbar.showTop` `lib/utils/app_snackbar.dart:29`), Hive-persisted, max 100. `LogView` copy now also uses top toast, not bottom
 - **Chat enrichments** — assistant bubbles show **Sources** chips (favicon + domain + title, tap to open) when web search was used, and **Skills used** chips (check + skill name) when a prompt matched enabled skills — so you instantly see *whether* web fetch worked and *which* skill was activated, just like ChatGPT/Claude
+- **Share-target (Android)** — text shared from any app lands in the composer via `ACTION_SEND` + method channel (cold + warm paths)
+- **Background-done ping** — answers finishing while backgrounded fire a notification with preview
 - Attachments from camera, gallery, or files (PDF/text extraction)
 - Image sharing and export
 - Dark/light theme with adjustable font scale
@@ -471,7 +478,7 @@ Configure in **Nodes › Config → CUSTOM MCP SERVER** — single remote HTTP/S
 ### ⚙️ Engine & App Configuration
 
 - **Nodes › Config** — diagnostics, hardware capabilities, inference mode, Auto Tune (context/output limits), global system prompt, Skills, Custom MCP Server, local model & imaging parameters
-- **App Settings** (bottom navigation) — theme, typography scale, Thinking Orbs (Random or fixed state per context), **Language** (15 languages with instant switch), Startup auto-load, **App Lock re-lock timeout + biometric-only**, **Auto backup** (silent JSON every N days, last 3 kept), app info
+- **App Settings** (bottom navigation) — theme, typography scale, Thinking Orbs (Random or fixed state per context), **Language** (15 languages with instant switch), Startup auto-load, **App Lock re-lock timeout + biometric-only**, **Auto backup** (silent JSON every N days, last 3 kept), **settings export/import (no secrets)**, app info
 - **Hidden chats** — stronger hide than archive (out of drawer AND search), per-chat menu toggle with show/hide reveal
 - **Web Access** toggle — in the chat input bar; reads links from your message into the model's context
 

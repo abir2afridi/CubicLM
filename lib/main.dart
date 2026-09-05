@@ -38,6 +38,21 @@ import 'core/app_translations.dart';
 
 void main() {
   final appLogBuffer = <String>[];
+  _bootStart = DateTime.now();
+  // Cold-start trace: single stopwatch, phase lines in System Logs so the
+  // slowest init is visible without a profiler attached.
+  final bootClock = Stopwatch()..start();
+  void trace(String phase) {
+    final ms = bootClock.elapsedMilliseconds;
+    final line = '[boot +${ms}ms] $phase';
+    if (Get.isRegistered<AppLogService>()) {
+      try {
+        Get.find<AppLogService>().info(line, category: LogCategory.system);
+      } catch (_) {}
+    } else {
+      appLogBuffer.add(line);
+    }
+  }
 
   runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
@@ -266,10 +281,12 @@ void main() {
     final imageNotifications = Get.put(ImageGenerationNotificationService());
 
     // ── RUN APP IMMEDIATELY — removes Android launch_background native splash ──
+    trace('critical path done (Hive + Settings)');
     runApp(const CubicLMApp());
 
     // Apply system UI after first frame so Get.mediaQuery is available.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      trace('first frame');
       try {
         settingsController.setThemeMode(settingsController.themeMode.value);
       } catch (_) {}
@@ -385,7 +402,14 @@ Future<void> _initDeferredServices(
     appLog.error('ImageNotifications.configureBackgroundService failed',
         details: e.toString(), category: LogCategory.system);
   }
+  final bootMs =
+      DateTime.now().difference(_bootStart ?? DateTime.now()).inMilliseconds;
+  appLog.info('[boot +${bootMs}ms] deferred init done',
+      category: LogCategory.system);
 }
+
+/// Process start, captured before anything else for boot tracing.
+DateTime? _bootStart;
 
 Future<void> _migrateApiKeysFromHive() async {
   if (!Get.isRegistered<HiveService>() || !Get.isRegistered<SecureKeyStore>()) {
@@ -710,6 +734,12 @@ class _LockGateState extends State<LockGate>
         }
       }
       if (settings.isLocked.value) _authenticate(settings);
+      // Pick up Android share-target text (warm resume).
+      try {
+        if (Get.isRegistered<ChatController>()) {
+          unawaited(Get.find<ChatController>().checkSharedText());
+        }
+      } catch (_) {}
     }
   }
 

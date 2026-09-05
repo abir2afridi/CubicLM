@@ -29,10 +29,32 @@ class MainActivity : FlutterFragmentActivity() {
     private var importChannel: MethodChannel? = null
     private var pendingImportResult: MethodChannel.Result? = null
     private var pendingModelsDir: String? = null
+    private var pendingSharedText: String? = null
     private val monitoredInAppDownloads = ConcurrentHashMap.newKeySet<Long>()
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleShareIntent(intent)
+    }
+
+    /// Stashes ACTION_SEND text/plain for Dart to pull via getSharedText.
+    /// Called from configureFlutterEngine (cold start) and onNewIntent.
+    private fun handleShareIntent(intent: Intent?) {
+        try {
+            if (intent?.action == Intent.ACTION_SEND &&
+                intent.type?.startsWith("text/") == true) {
+                val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
+                    ?: intent.getStringExtra(Intent.EXTRA_TEXT)
+                if (!text.isNullOrBlank()) pendingSharedText = text
+            }
+        } catch (_: Exception) {
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        handleShareIntent(intent)
         importChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, importChannelName)
         ModelDownloadService.emitter = { filename, copied, total, bps, status ->
             mainHandler.post {
@@ -192,6 +214,11 @@ class MainActivity : FlutterFragmentActivity() {
                     val enabled = call.argument<Boolean>("enabled") ?: false
                     setSecureFlag(enabled)
                     result.success(null)
+                }
+                "getSharedText" -> {
+                    val text = pendingSharedText
+                    pendingSharedText = null
+                    result.success(text)
                 }
                 else -> result.notImplemented()
             }

@@ -38,6 +38,8 @@ class InferenceEngine {
   bool _disposed = false;
   String? _liteConversationSystemPrompt;
   double? _liteConversationTemperature;
+  double? _liteConversationTopP;
+  int? _liteConversationTopK;
   bool _liteConversationHasMessages = false;
 
   /// ONE shared LlamaController per process.
@@ -344,10 +346,16 @@ class InferenceEngine {
     required String modelName,
     required int maxTokens,
     required double temperature,
+    double? topP,
+    int? topK,
+    double? repeatPenalty,
     String? imagePath,
     String? audioPath,
     void Function(String token)? onToken,
   }) async {
+    final p = topP ?? 0.9;
+    final k = topK ?? 40;
+    final r = repeatPenalty ?? 1.1;
     if (_isLiteRt) {
       return _generateLiteRt(
         prompt: prompt,
@@ -355,6 +363,8 @@ class InferenceEngine {
         systemPrompt: systemPrompt,
         maxTokens: maxTokens,
         temperature: temperature,
+        topP: p,
+        topK: k,
         imagePath: imagePath,
         audioPath: audioPath,
         onToken: onToken,
@@ -398,10 +408,10 @@ class InferenceEngine {
         template: null,
         maxTokens: maxTokens,
         temperature: temperature,
-        topP: 0.9,
-        topK: 40,
+        topP: p,
+        topK: k,
         minP: 0.05,
-        repeatPenalty: 1.1,
+        repeatPenalty: r,
         repeatLastN: 64,
       );
       print('[Inference] generateChat() started (${messages.length} messages)');
@@ -417,10 +427,10 @@ class InferenceEngine {
         prompt: fullPrompt,
         maxTokens: maxTokens,
         temperature: temperature,
-        topP: 0.9,
-        topK: 40,
+        topP: p,
+        topK: k,
         minP: 0.05,
-        repeatPenalty: 1.1,
+        repeatPenalty: r,
         repeatLastN: 64,
       );
     }
@@ -477,6 +487,8 @@ class InferenceEngine {
     required String systemPrompt,
     required int maxTokens,
     required double temperature,
+    double topP = 0.95,
+    int topK = 64,
     String? imagePath,
     String? audioPath,
     void Function(String token)? onToken,
@@ -489,6 +501,8 @@ class InferenceEngine {
       conversationHistory: conversationHistory,
       systemPrompt: systemPrompt,
       temperature: temperature,
+      topP: topP,
+      topK: topK,
     );
 
     final completer = Completer<String>();
@@ -633,12 +647,16 @@ class InferenceEngine {
     required List<Map<String, String>>? conversationHistory,
     required String systemPrompt,
     required double temperature,
+    double topP = 0.95,
+    int topK = 64,
   }) async {
     final hasIncomingHistory = conversationHistory != null &&
         conversationHistory.any((msg) => (msg['content'] ?? '').isNotEmpty);
     final shouldReset = _liteConversation == null ||
         _liteConversationSystemPrompt != systemPrompt ||
         _liteConversationTemperature != temperature ||
+        _liteConversationTopP != topP ||
+        _liteConversationTopK != topK ||
         (_liteConversationHasMessages && !hasIncomingHistory);
 
     if (!shouldReset) return;
@@ -654,13 +672,15 @@ class InferenceEngine {
             _buildLiteRtInitialMessages(prompt, conversationHistory),
         samplerConfig: LiteLmSamplerConfig(
           temperature: temperature,
-          topK: 64,
-          topP: 0.95,
+          topK: topK,
+          topP: topP,
         ),
       ),
     );
     _liteConversationSystemPrompt = systemPrompt;
     _liteConversationTemperature = temperature;
+    _liteConversationTopP = topP;
+    _liteConversationTopK = topK;
     _liteConversationHasMessages = hasIncomingHistory;
   }
 
@@ -690,6 +710,8 @@ class InferenceEngine {
       _liteConversation = null;
       _liteConversationSystemPrompt = null;
       _liteConversationTemperature = null;
+      _liteConversationTopP = null;
+      _liteConversationTopK = null;
       _liteConversationHasMessages = false;
     }
     // llama.cpp (GGUF) is stateless per-generation — no native
@@ -730,6 +752,8 @@ class InferenceEngine {
     _isLiteRt = false;
     _liteConversationSystemPrompt = null;
     _liteConversationTemperature = null;
+    _liteConversationTopP = null;
+    _liteConversationTopK = null;
     _liteConversationHasMessages = false;
   }
 

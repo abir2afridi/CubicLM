@@ -108,6 +108,10 @@ class SettingsController extends GetxController {
   final nvidiaModels = <String>[].obs;
   final isLoadingNvidiaModels = false.obs;
   final temperature = 0.1.obs;
+  // Local sampling (GGUF + LiteRT; cloud keeps provider defaults).
+  final topP = 0.9.obs;
+  final topK = 40.obs;
+  final repeatPenalty = 1.1.obs;
   final maxTokens = 512.obs;
   final contextSize = 2048.obs;
   /// Auto Tune (recommended): derive context & output limits from the
@@ -366,6 +370,15 @@ class SettingsController extends GetxController {
     temperature.value = _hive.getSetting(AppConstants.keyTemperature,
             defaultValue: AppConstants.defaultTemperature) ??
         AppConstants.defaultTemperature;
+    topP.value = _hive.getSetting(AppConstants.keyTopP,
+            defaultValue: AppConstants.defaultTopP) ??
+        AppConstants.defaultTopP;
+    topK.value = _hive.getSetting(AppConstants.keyTopK,
+            defaultValue: AppConstants.defaultTopK) ??
+        AppConstants.defaultTopK;
+    repeatPenalty.value = _hive.getSetting(AppConstants.keyRepeatPenalty,
+            defaultValue: AppConstants.defaultRepeatPenalty) ??
+        AppConstants.defaultRepeatPenalty;
     maxTokens.value = _hive.getSetting(AppConstants.keyMaxTokens,
             defaultValue: AppConstants.defaultMaxTokens) ??
         AppConstants.defaultMaxTokens;
@@ -1185,6 +1198,21 @@ class SettingsController extends GetxController {
   Future<void> setTemperature(double value) async {
     temperature.value = value;
     await _hive.setSetting(AppConstants.keyTemperature, value);
+  }
+
+  Future<void> setTopP(double value) async {
+    topP.value = value;
+    await _hive.setSetting(AppConstants.keyTopP, value);
+  }
+
+  Future<void> setTopK(int value) async {
+    topK.value = value;
+    await _hive.setSetting(AppConstants.keyTopK, value);
+  }
+
+  Future<void> setRepeatPenalty(double value) async {
+    repeatPenalty.value = value;
+    await _hive.setSetting(AppConstants.keyRepeatPenalty, value);
   }
 
   Future<void> setMaxTokens(int value) async {

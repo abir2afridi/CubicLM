@@ -171,6 +171,36 @@ class ImageGenerationNotificationService {
     FlutterBackgroundService().invoke('stopService');
   }
 
+  static const int _chatDoneNotificationId = 4203;
+
+  /// Best-effort ping when a chat answer finishes while the app is
+  /// backgrounded. Android-only; never throws (missing permission just
+  /// drops the notification).
+  Future<void> notifyChatDone(String preview) async {
+    if (!Platform.isAndroid) return;
+    try {
+      await init();
+      final body = preview.trim();
+      await _notifications.show(
+        _chatDoneNotificationId,
+        'CubicLM — answer ready',
+        body.isEmpty
+            ? 'Open the app to read it.'
+            : (body.length > 180 ? '${body.substring(0, 180)}…' : body),
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channelId,
+            _channelName,
+            channelDescription: 'Progress updates for local image generation',
+            importance: Importance.defaultImportance,
+            priority: Priority.defaultPriority,
+            onlyAlertOnce: true,
+          ),
+        ),
+      );
+    } catch (_) {}
+  }
+
   Future<void> _showProgress({
     required String title,
     required String body,

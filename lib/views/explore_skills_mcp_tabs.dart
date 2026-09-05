@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../core/colors.dart';
 import '../models/skill_model.dart';
@@ -255,8 +256,31 @@ class ExploreSkillsTab extends StatelessWidget {
           ),
         ]),
       ),
-      actions: [TextButton(onPressed: () => Get.back(), child: const Text('Close'))],
+      actions: [
+        TextButton(onPressed: () => Get.back(), child: const Text('Close')),
+        FilledButton.tonal(
+          onPressed: () => _shareSkill(skill),
+          child: const Text('Share .md'),
+        ),
+      ],
     ));
+  }
+
+  /// Share a skill as a markdown bundle (frontmatter + content) so it can
+  /// be imported on another device via Import → From file.
+  void _shareSkill(SkillModel skill) {
+    try {
+      final buf = StringBuffer()
+        ..writeln('---')
+        ..writeln('name: ${skill.name}')
+        ..writeln('description: ${skill.description}')
+        ..writeln('author: ${skill.author}')
+        ..writeln('version: ${skill.version}')
+        ..writeln('---')
+        ..writeln()
+        ..writeln(skill.content.trim());
+      Share.share(buf.toString(), subject: '${skill.name} (CubicLM skill)');
+    } catch (_) {}
   }
 
   void _confirmDelete(BuildContext context, bool isDark, SkillModel skill) {

@@ -78,6 +78,9 @@ class AppConstants {
   static const String keyImageModelPath = 'image_model_path';
   static const String keyImageModelName = 'image_model_name';
   static const String keyTemperature = 'temperature';
+  static const String keyTopP = 'top_p';
+  static const String keyTopK = 'top_k';
+  static const String keyRepeatPenalty = 'repeat_penalty';
   static const String keyMaxTokens = 'max_tokens';
   static const String keyContextSize = 'context_size';
   static const String keyServerApiKey = 'server_api_key';
@@ -125,6 +128,10 @@ class AppConstants {
 
   // Default Model Config
   static const double defaultTemperature = 0.7;
+  // Local sampling defaults (match previous hardcoded generateChat values).
+  static const double defaultTopP = 0.9;
+  static const int defaultTopK = 40;
+  static const double defaultRepeatPenalty = 1.1;
   static const int defaultMaxTokens = 1024;
   static const int defaultContextSize = 2048;
   static const String defaultLiteRtPerformanceMode = 'auto_fast';

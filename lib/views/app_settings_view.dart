@@ -123,6 +123,36 @@ class AppSettingsView extends GetView<SettingsController> {
     }
   }
 
+  Future<void> _exportSettings() async {
+    try {
+      if (!Get.isRegistered<ChatController>()) Get.put(ChatController());
+      final err = await Get.find<ChatController>().exportSettings();
+      if (err == null) {
+        AppSnackbar.showTop('Settings exported',
+            'API keys were excluded. Import them manually on the new device.',
+            icon: LucideIcons.check, type: 'general', logHistory: false);
+      } else if (err != 'cancelled') {
+        AppSnackbar.showTop('Export failed', err,
+            icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _importSettings() async {
+    try {
+      if (!Get.isRegistered<ChatController>()) Get.put(ChatController());
+      final err = await Get.find<ChatController>().importSettings();
+      if (err == null) {
+        AppSnackbar.showTop('Settings imported',
+            'Applied. Restart the app if something looks stale.',
+            icon: LucideIcons.check, type: 'general', logHistory: false);
+      } else if (err != 'cancelled') {
+        AppSnackbar.showTop('Import failed', err,
+            icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
+      }
+    } catch (_) {}
+  }
+
   Future<void> _importChats() async {
     try {
       if (!Get.isRegistered<ChatController>()) {
@@ -471,6 +501,24 @@ class AppSettingsView extends GetView<SettingsController> {
                     onTap: () => _pickAutoBackupDays(context, chat),
                   );
                 }),
+                _appleListTile(
+                  context,
+                  isDark,
+                  leading: const Icon(LucideIcons.settings2,
+                      size: 20, color: Dt.accent),
+                  title: 'Export settings',
+                  subtitle: 'Preferences without API keys',
+                  onTap: () => _exportSettings(),
+                ),
+                _appleListTile(
+                  context,
+                  isDark,
+                  leading: const Icon(LucideIcons.settings,
+                      size: 20, color: Dt.accent),
+                  title: 'Import settings',
+                  subtitle: 'Restore preferences (keys never transfer)',
+                  onTap: () => _importSettings(),
+                ),
                 _appleListTile(
                   context,
                   isDark,

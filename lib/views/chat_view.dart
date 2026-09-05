@@ -22,6 +22,7 @@ import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import '../utils/thought_parser.dart';
+import '../utils/prompt_export.dart';
 import '../widgets/attachment_preview.dart';
 import '../widgets/app_ui.dart';
 import '../theme/design_tokens.dart';
@@ -427,7 +428,7 @@ class ChatView extends GetView<ChatController> {
   }
 
   Future<void> _exportSession(BuildContext context, ChatSession session,
-      {bool asTxt = false}) async {
+      {bool asTxt = false, bool asPdf = false}) async {
     try {
       final hive = Get.find<HiveService>();
       final raw = hive.getMessagesForChat(session.id);
@@ -444,6 +445,33 @@ class ChatView extends GetView<ChatController> {
       final truncated = (safeTitle.isEmpty ? 'chat' : safeTitle)
           .substring(0, safeTitle.length > 40 ? 40 : safeTitle.length);
       final baseName = '${truncated}_${DateTime.now().millisecondsSinceEpoch}';
+
+      if (asPdf) {
+        // Whole-chat PDF via the same raster builder as per-message export
+        // (device fonts → Bangla/emoji-safe). Falls back to text share.
+        try {
+          final bytes = await PromptExport.buildPdfBytes(
+              _buildMarkdownForSession(session, msgs));
+          if (kIsWeb) {
+            await Share.share(_buildMarkdownForSession(session, msgs),
+                subject: session.title);
+            return;
+          }
+          final dir = await getTemporaryDirectory();
+          final file = File('${dir.path}/$baseName.pdf');
+          await file.writeAsBytes(bytes, flush: true);
+          await Share.shareXFiles(
+            [XFile(file.path, mimeType: 'application/pdf')],
+            text: session.title,
+            subject: session.title,
+          );
+        } catch (_) {
+          await Share.share(_buildMarkdownForSession(session, msgs),
+              subject: session.title);
+        }
+        return;
+      }
+
       final String body;
       final String fileName;
       final String mimeType;
@@ -554,6 +582,20 @@ class ChatView extends GetView<ChatController> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 20),
             ),
             ListTile(
+              leading: Icon(LucideIcons.fileDown,
+                  size: 22,
+                  color: isDark ? AppColors.textPrimary : Dt.textPrimary),
+              title: Text('Export as PDF',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 15, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.pop(context);
+                _exportSession(context, session, asPdf: true);
+              },
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+            ),
+            ListTile(
               leading: Icon(
                 Icons.push_pin_outlined,
                 size: 22,
@@ -639,6 +681,80 @@ class ChatView extends GetView<ChatController> {
   }
 
   // ── Per-chat persona ──
+  void _showLabelDialog(
+      BuildContext context, ChatSession session, bool isDark) {
+    final c = TextEditingController(text: session.label);
+    final existing = controller.chatLabels
+        .where((l) => l != session.label)
+        .toList();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? AppColors.surface : Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Chat label',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: c,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              style: GoogleFonts.plusJakartaSans(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'e.g. work, study…',
+                hintStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 13, color: AppColors.textMuted),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+            if (existing.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final l in existing)
+                    ActionChip(
+                      label: Text(l,
+                          style: GoogleFonts.plusJakartaSans(fontSize: 12)),
+                      onPressed: () {
+                        controller.setLabel(session.id, l);
+                        Navigator.pop(ctx);
+                      },
+                    ),
+                ],
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              controller.setLabel(session.id, '');
+              Navigator.pop(ctx);
+            },
+            child: Text('Clear',
+                style: GoogleFonts.plusJakartaSans(
+                    color: AppColors.textMuted)),
+          ),
+          FilledButton(
+            onPressed: () {
+              controller.setLabel(session.id, c.text);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showPersonaDialog(
       BuildContext context, ChatSession session, bool isDark) {
     final c = TextEditingController(text: session.persona);
@@ -2442,15 +2558,60 @@ class ChatView extends GetView<ChatController> {
             ),
           );
         }),
+        // Label/folder chips — only takes space when labels exist.
+        Obx(() {
+          final labels = controller.chatLabels;
+          final active = controller.labelFilter.value;
+          if (labels.isEmpty && active.isEmpty) {
+            return const SizedBox.shrink();
+          }
+          return Container(
+            height: 36,
+            margin: const EdgeInsets.only(top: 4),
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                if (active.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: const Text('All'),
+                      selected: false,
+                      onSelected: (_) =>
+                          controller.labelFilter.value = '',
+                    ),
+                  ),
+                for (final l in labels)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: ChoiceChip(
+                      label: Text(l,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12, fontWeight: FontWeight.w700)),
+                      selected: active == l,
+                      selectedColor: Dt.accent.withValues(alpha: 0.2),
+                      onSelected: (_) => controller.labelFilter.value =
+                          active == l ? '' : l,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }),
         Expanded(
           child: Obx(() {
-            // Read both Rx flags first so the list tracks them.
+            // Read Rx first so the list tracks them (see NOTE above).
             final showA = controller.showArchived.value;
             final showH = controller.showHidden.value;
+            final activeLabel = controller.labelFilter.value;
             var all = showA
                 ? controller.sessions.toList()
                 : controller.sessions.where((s) => !s.archived).toList();
             if (!showH) all = all.where((s) => !s.hidden).toList();
+            if (activeLabel.isNotEmpty) {
+              all = all.where((s) => s.label == activeLabel).toList();
+            }
             final q = _sidebarQuery.value;
             final messageHits = _searchHits.toSet();
             final filtered = q.isEmpty
@@ -2657,6 +2818,8 @@ class ChatView extends GetView<ChatController> {
                   if (v == 'persona') _showPersonaDialog(context, s, isDark);
                   if (v == 'archive') controller.toggleArchive(s.id);
                   if (v == 'hide') controller.toggleHidden(s.id);
+                  if (v == 'lock') controller.toggleLocked(s.id);
+                  if (v == 'label') _showLabelDialog(context, s, isDark);
                   if (v == 'delete') controller.deleteChat(s.id);
                 },
                 itemBuilder: (_) => [
@@ -2722,6 +2885,31 @@ class ChatView extends GetView<ChatController> {
                           size: 16),
                       const SizedBox(width: 10),
                       Text(s.hidden ? 'Unhide' : 'Hide',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                    ]),
+                  ),
+                  PopupMenuItem(
+                    value: 'label',
+                    child: Row(children: [
+                      const Icon(LucideIcons.tag, size: 16),
+                      const SizedBox(width: 10),
+                      Text(
+                          s.label.isEmpty
+                              ? 'Set label…'
+                              : 'Label: ${s.label}',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                    ]),
+                  ),
+                  PopupMenuItem(
+                    value: 'lock',
+                    child: Row(children: [
+                      Icon(
+                          s.locked
+                              ? Icons.lock_open_outlined
+                              : Icons.lock_outline_rounded,
+                          size: 16),
+                      const SizedBox(width: 10),
+                      Text(s.locked ? 'Unlock chat' : 'Lock chat',
                           style: GoogleFonts.plusJakartaSans(fontSize: 14)),
                     ]),
                   ),

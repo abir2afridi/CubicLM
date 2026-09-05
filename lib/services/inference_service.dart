@@ -388,6 +388,23 @@ class InferenceService extends GetxService {
           ) ??
           AppConstants.defaultMaxTokens;
 
+      // Local sampling params (GGUF + LiteRT; cloud uses provider defaults).
+      final topP = _hive.getSetting<double>(
+            AppConstants.keyTopP,
+            defaultValue: AppConstants.defaultTopP,
+          ) ??
+          AppConstants.defaultTopP;
+      final topK = _hive.getSetting<int>(
+            AppConstants.keyTopK,
+            defaultValue: AppConstants.defaultTopK,
+          ) ??
+          AppConstants.defaultTopK;
+      final repeatPenalty = _hive.getSetting<double>(
+            AppConstants.keyRepeatPenalty,
+            defaultValue: AppConstants.defaultRepeatPenalty,
+          ) ??
+          AppConstants.defaultRepeatPenalty;
+
       final result = await _engine!.generate(
         prompt: prompt,
         conversationHistory: conversationHistory,
@@ -395,6 +412,9 @@ class InferenceService extends GetxService {
         modelName: loadedModelName.value,
         maxTokens: maxTokens,
         temperature: temperature,
+        topP: topP,
+        topK: topK,
+        repeatPenalty: repeatPenalty,
         imagePath: imagePath,
         audioPath: audioPath,
         onToken: (token) {
