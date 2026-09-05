@@ -101,3 +101,9 @@ local_plugins/**/example/android/local.properties
 
 # Reference
 reference_local_diffusion/
+
+# Release staging (uploaded to GitHub Releases, never committed)
+cubiclm-v*.apk
+cubiclm-v*-windows-*.zip
+checksums.sha256
+release-notes-*.md
