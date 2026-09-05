@@ -131,6 +131,7 @@ class _BattleArenaViewState extends State<BattleArenaView> {
     final groups = c.pickableModels();
     final query = ValueNotifier('');
     final freeOnly = ValueNotifier(false);
+    final providerFilter = ValueNotifier<String>('');
     CloudModelController cmc() => Get.find<CloudModelController>();
     showModalBottomSheet(
       context: context,
@@ -175,6 +176,50 @@ class _BattleArenaViewState extends State<BattleArenaView> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: SizedBox(
+                height: 34,
+                child: ValueListenableBuilder<String>(
+                  valueListenable: providerFilter,
+                  builder: (_, active, __) => ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ChoiceChip(
+                          label: Text('All',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800)),
+                          selected: active.isEmpty,
+                          selectedColor:
+                              Dt.accent.withValues(alpha: 0.2),
+                          onSelected: (_) =>
+                              providerFilter.value = '',
+                        ),
+                      ),
+                      for (final pid in groups.keys)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ChoiceChip(
+                            label: Text(c.providerName(pid),
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800)),
+                            selected: active == pid,
+                            selectedColor:
+                                Dt.accent.withValues(alpha: 0.2),
+                            onSelected: (_) => providerFilter.value =
+                                active == pid ? '' : pid,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
               child: Row(children: [
                 ValueListenableBuilder<bool>(
                   valueListenable: freeOnly,
@@ -193,33 +238,38 @@ class _BattleArenaViewState extends State<BattleArenaView> {
                   valueListenable: query,
                   builder: (_, q, __) => ValueListenableBuilder<bool>(
                     valueListenable: freeOnly,
-                    builder: (_, fo, __) {
-                      var n = 0;
-                      groups.forEach((pid, list) {
-                        for (final m in list) {
-                          if (q.isNotEmpty &&
-                              !m.toLowerCase().contains(q) &&
-                              !c
-                                  .providerName(pid)
-                                  .toLowerCase()
-                                  .contains(q)) {
-                            continue;
+                    builder: (_, fo, __) =>
+                        ValueListenableBuilder<String>(
+                      valueListenable: providerFilter,
+                      builder: (_, pf, __) {
+                        var n = 0;
+                        groups.forEach((pid, list) {
+                          if (pf.isNotEmpty && pf != pid) return;
+                          for (final m in list) {
+                            if (q.isNotEmpty &&
+                                !m.toLowerCase().contains(q) &&
+                                !c
+                                    .providerName(pid)
+                                    .toLowerCase()
+                                    .contains(q)) {
+                              continue;
+                            }
+                            if (fo) {
+                              try {
+                                if (!cmc().isFreeModel(pid, m)) {
+                                  continue;
+                                }
+                              } catch (_) {}
+                            }
+                            n++;
                           }
-                          if (fo) {
-                            try {
-                              if (!cmc().isFreeModel(pid, m)) {
-                                continue;
-                              }
-                            } catch (_) {}
-                          }
-                          n++;
-                        }
-                      });
-                      return Text('$n models',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              color: Theme.of(context).hintColor));
-                    },
+                        });
+                        return Text('$n models',
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                color: Theme.of(context).hintColor));
+                      },
+                    ),
                   ),
                 ),
               ]),
@@ -244,19 +294,23 @@ class _BattleArenaViewState extends State<BattleArenaView> {
                       valueListenable: query,
                       builder: (_, q, __) => ValueListenableBuilder<bool>(
                         valueListenable: freeOnly,
-                        builder: (_, fo, __) => ListView(
-                          controller: scrollCtrl,
-                          padding:
-                              const EdgeInsets.fromLTRB(20, 0, 20, 24),
-                          children: [
-                            if (c.loadedLocalName.isNotEmpty &&
-                                !fo &&
-                                (q.isEmpty ||
-                                    'on-device'
-                                        .contains(q) ||
-                                    c.loadedLocalName
-                                        .toLowerCase()
-                                        .contains(q))) ...[
+                        builder: (_, fo, __) =>
+                            ValueListenableBuilder<String>(
+                          valueListenable: providerFilter,
+                          builder: (_, pf, __) => ListView(
+                            controller: scrollCtrl,
+                            padding:
+                                const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                            children: [
+                              if (c.loadedLocalName.isNotEmpty &&
+                                  !fo &&
+                                  pf.isEmpty &&
+                                  (q.isEmpty ||
+                                      'on-device'
+                                          .contains(q) ||
+                                      c.loadedLocalName
+                                          .toLowerCase()
+                                          .contains(q))) ...[
                               Padding(
                                 padding: const EdgeInsets.only(
                                     top: 12, bottom: 4),
@@ -285,17 +339,19 @@ class _BattleArenaViewState extends State<BattleArenaView> {
                                   )),
                             ],
                             for (final pid in groups.keys)
-                              ..._pickerGroup(
-                                  sheetCtx, pid, groups[pid]!, q, fo),
+                              if (pf.isEmpty || pf == pid)
+                                ..._pickerGroup(
+                                    sheetCtx, pid, groups[pid]!, q, fo),
                           ],
                         ),
                       ),
                     ),
+                  ),
+                ),
+              ]),
             ),
-          ]),
-        ),
-      ),
-    );
+          ),
+        );
   }
 
   List<Widget> _pickerGroup(BuildContext sheetCtx, String providerId,

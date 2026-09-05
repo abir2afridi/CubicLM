@@ -14,7 +14,7 @@
 ## 📥 Download — v1.8.1
 
 | Platform | File | Size | Download |
-|---|---|---:|---|
+| --- | --- | ---: | --- |
 | Android (arm64) | `cubiclm-v1.8.1-arm64-v8a.apk` | 61 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.8.1/cubiclm-v1.8.1-arm64-v8a.apk) |
 | Android (arm32) | `cubiclm-v1.8.1-armeabi-v7a.apk` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.8.1/cubiclm-v1.8.1-armeabi-v7a.apk) |
 | Android (x86_64) | `cubiclm-v1.8.1-x86_64.apk` | 27 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.8.1/cubiclm-v1.8.1-x86_64.apk) |

@@ -20,12 +20,12 @@ $env:ANDROID_SDK_ROOT = "C:\Android\Sdk"
 
 1. `flutter analyze` — 0 issues.
 2. Verify `versionCode` increased: after building, `aapt dump badging <apk> | grep versionCode` must exceed the previous release (Android refuses downgrades; see build.gradle.kts guard).
-2. Bump `pubspec.yaml` `version: X.Y.Z+N` (semver: feat → minor, fix → patch).
-3. `CHANGELOG.md` — new `## [X.Y.Z+N] - YYYY-MM-DD` section (Added/Changed/Fixed).
-4. `website/index.html` — download URLs `vX.Y.Z`, size labels, new changelog
+3. Bump `pubspec.yaml` `version: X.Y.Z+N` (semver: feat → minor, fix → patch).
+4. `CHANGELOG.md` — new `## [X.Y.Z+N] - YYYY-MM-DD` section (Added/Changed/Fixed).
+5. `website/index.html` — download URLs `vX.Y.Z`, size labels, new changelog
    tab (active) + detail panel; demote previous tab/panel.
-5. `README.md` — badge links, download table (file names, sizes, URLs).
-6. Commit everything. The release keystore (`cubiclm-release-key.jks`) and
+6. `README.md` — badge links, download table (file names, sizes, URLs).
+7. Commit everything. The release keystore (`cubiclm-release-key.jks`) and
    `android/key.properties` are gitignored — verify with
    `git check-ignore` before committing.
 
