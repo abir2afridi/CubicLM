@@ -107,3 +107,6 @@ cubiclm-v*.apk
 cubiclm-v*-windows-*.zip
 checksums.sha256
 release-notes-*.md
+
+# Inno Setup build output (generated installer exe, never committed)
+windows/installer/Output/
