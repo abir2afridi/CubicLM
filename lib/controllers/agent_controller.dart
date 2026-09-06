@@ -48,6 +48,21 @@ class AgentController extends GetxController {
     files.assignAll(await _ws.listFiles(p.id));
   }
 
+  /// Call after manual file ops (save/rename/add/delete) so the explorer
+  /// list AND the preview both refresh.
+  Future<void> notifyFilesChanged() async {
+    await refreshFiles();
+    _touch();
+  }
+
+  Future<void> renameProject(String name) async {
+    final p = project.value;
+    if (p == null || name.trim().isEmpty) return;
+    await _ws.renameProject(p.id, name);
+    p.name = name.trim();
+    project.refresh();
+  }
+
   Future<String?> readFile(String path) async {
     final p = project.value;
     if (p == null) return null;

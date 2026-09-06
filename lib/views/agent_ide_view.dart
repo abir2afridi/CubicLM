@@ -11,9 +11,8 @@ import '../services/agent_workspace.dart';
 import '../theme/design_tokens.dart';
 import '../utils/web_project.dart';
 
-/// Agent IDE (Toolkit): prompt → project → live localhost preview →
-/// console-error auto-fix loop. Layout: project header, preview,
-/// ask-AI bar; Files tab for explorer + editor.
+/// CubicWeb Builder — agentic website studio (Toolkit): prompt → project
+/// → live localhost preview → console-error auto-fix loop.
 class AgentIdeView extends StatefulWidget {
   const AgentIdeView({super.key});
 
@@ -48,8 +47,20 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Agent IDE',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('CubicWeb Builder',
+                style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w800)),
+            Text('Agent IDE',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).hintColor)),
+          ],
+        ),
         actions: [
           Obx(() => c.project.value == null
               ? const SizedBox.shrink()
@@ -75,6 +86,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     const PopupMenuItem(
                       value: 'export',
                       child: Text('Export ZIP',
+                          style: TextStyle(fontSize: 14)),
+                    ),
+                    const PopupMenuItem(
+                      value: 'rename',
+                      child: Text('Rename project',
                           style: TextStyle(fontSize: 14)),
                     ),
                     PopupMenuItem(
@@ -427,7 +443,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     if (_openFile == path) {
                       setState(() => _openFile = null);
                     }
-                    await c.refreshFiles();
+                    await c.notifyFilesChanged();
                   },
                 ),
               ]),
@@ -497,6 +513,32 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       _promptCtrl.clear();
     } else if (v == 'export') {
       await c.exportZip();
+    } else if (v == 'rename') {
+      final p = c.project.value;
+      if (p == null) return;
+      final nameCtrl = TextEditingController(text: p.name);
+      final next = await Get.dialog<String>(AlertDialog(
+        title: const Text('Rename project'),
+        content: TextField(
+          controller: nameCtrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration:
+              const InputDecoration(labelText: 'Name', isDense: true),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Get.back(result: null),
+              child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Get.back(result: nameCtrl.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ));
+      if (next != null && next.isNotEmpty) {
+        await c.renameProject(next);
+      }
     } else if (v == 'delete') {
       final p = c.project.value;
       if (p == null) return;
@@ -598,7 +640,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               if (_openFile == path) {
                 setState(() => _openFile = null);
               }
-              await c.refreshFiles();
+              await c.notifyFilesChanged();
               if (dlgCtx.mounted) Navigator.pop(dlgCtx);
             },
             child: const Text('Rename'),
@@ -695,7 +737,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 Get.snackbar('Add failed', err,
                     snackPosition: SnackPosition.BOTTOM);
               } else {
-                await c.refreshFiles();
+                await c.notifyFilesChanged();
               }
             },
             child: const Text('Add'),
@@ -767,7 +809,6 @@ class _FileEditorCardState extends State<_FileEditorCard> {
 
   @override
   Widget build(BuildContext context) {
-    final c = Get.find<AgentController>();
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -807,17 +848,21 @@ class _FileEditorCardState extends State<_FileEditorCard> {
             color: Dt.accent,
             onPressed: () async {
               final ws = Get.find<AgentWorkspaceService>();
-              final pid = c.project.value?.id;
+              final ac = Get.find<AgentController>();
+              final pid = ac.project.value?.id;
               if (pid == null) return;
               final err =
                   await ws.writeFile(pid, widget.path, _ctrl.text);
               if (err != null && context.mounted) {
                 Get.snackbar('Save failed', err,
                     snackPosition: SnackPosition.BOTTOM);
-              } else if (context.mounted) {
-                Get.snackbar('Saved', widget.path,
-                    snackPosition: SnackPosition.BOTTOM,
-                    duration: const Duration(seconds: 1));
+              } else {
+                await ac.notifyFilesChanged();
+                if (context.mounted) {
+                  Get.snackbar('Saved', widget.path,
+                      snackPosition: SnackPosition.BOTTOM,
+                      duration: const Duration(seconds: 1));
+                }
               }
             },
           ),

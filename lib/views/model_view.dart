@@ -167,9 +167,9 @@ class ModelView extends GetView<ModelController> {
           context,
           isDark,
           icon: LucideIcons.terminalSquare,
-          title: 'Agent IDE',
+          title: 'CubicWeb Builder',
           description:
-              'Tell AI what to build — websites in any framework, live preview, console-error auto-fix, file explorer. Static + ESM runs on-device.',
+              'Agent IDE: tell AI what to build — websites in any framework, live preview, console-error auto-fix, file explorer. Static + ESM runs on-device.',
           onTap: () => Get.to(() => const AgentIdeView()),
         ),
       ],

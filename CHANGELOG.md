@@ -16,14 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Web TTS** - read-aloud works in browsers via the flutter_tts web backend (all guards removed).
 - **Web file downloads** - Markdown/PDF/log/chat exports save real files via anchor download instead of clipboard fallback.
-- **Agent IDE (Toolkit, MVP)** - prompt → project workspace (jailed files, Hive meta) → localhost preview server → console-error auto-fix loop (changed files only, 3 rounds) → ZIP export; explorer with editor/rename/search, ask-AI modify bar.
-
-### Added
+- **CubicWeb Builder (Agent IDE, Toolkit, MVP)** - prompt → project workspace (jailed files, Hive meta) → localhost preview server → console-error auto-fix loop (changed files only, 3 rounds) → ZIP export; explorer with editor/rename/search, ask-AI modify bar, project rename, preview auto-refresh on manual edits. Website frameworks included (merged old standalone builder — one tool).
+- **Explore Toolkit tab** - Explore is now Model Hub + Toolkit; Battle Arena, Slide Maker and CubicWeb Builder live as widget cards with descriptions.
 - **F-Droid fastlane metadata** - title/descriptions/changelog/icon for store submission.
-- **Agent IDE (Toolkit)** - prompt → project workspace (jailed files, Hive meta) → localhost preview server → console-error auto-fix loop (changed files only) → ZIP export; file explorer with editor/rename/search, ask-AI modify bar. Website frameworks included (merged CubicWeb Build — no separate tool).
-- **Explore Toolkit tab** - Explore is now Model Hub + Toolkit; Battle Arena, Slide Maker and Agent IDE live as widget cards with descriptions.
-
-### Added
 - **Slide viewer modes** - Docs (paper flow) / Slides (4:3 stage) / PDF (A4 page) switcher above the carousel.
 - **Freehand slide layout** - per-slide move (drag) + resize (corner handle) for title/body/image boxes on PPT + PDF canvas; HTML export honors positions.
 - **Manual slide photos** - gallery/camera add/replace per slide (works when the model left only a box).
@@ -211,3 +206,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-08-01
 
 - Initial Android release — local llama.cpp/LiteRT-LM + cloud providers + OpenAI-compatible server.
+
