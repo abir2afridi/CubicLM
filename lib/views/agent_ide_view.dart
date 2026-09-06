@@ -67,7 +67,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Focus(
       autofocus: true,
-      onKey: (node, event) {
+      onKeyEvent: (node, event) {
         if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
           return KeyEventResult.ignored;
         }
@@ -265,7 +265,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     title: Text(f,
                         style: GoogleFonts.plusJakartaSans(fontSize: 14)),
                     value: f,
-                    groupValue: c.framework.value,
                     activeColor: Dt.accent,
                     onChanged: (v) {
                       if (v != null) c.framework.value = v;
@@ -1092,7 +1091,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     const SizedBox(width: 6),
                     GestureDetector(
                       onTap: () => c.clearAttachment(),
-                      child: Icon(LucideIcons.x,
+                      child: const Icon(LucideIcons.x,
                           size: 12, color: Dt.accent),
                     ),
                   ]),
@@ -1424,12 +1423,12 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   Widget _templateGrid(BuildContext context, bool isDark) {
     final templates = [
-      _Template('Landing Page', LucideIcons.rocket, 'Marketing page with hero, features, CTA, footer', 'Build a modern landing page with: hero section with gradient background and CTA button, features grid (3 cards with icons), testimonial section, email signup form, and footer with links. Use a professional color scheme (indigo/blue). Responsive layout.', 'Single HTML'),
-      _Template('Dashboard', LucideIcons.layoutDashboard, 'Admin panel with sidebar, charts, stats', 'Build an admin dashboard with: left sidebar navigation (5 items with icons), top bar with search and user avatar, 4 stat cards (revenue, users, orders, growth), a line chart placeholder, a data table with 5 rows, and a dark sidebar with light content area. Use Tailwind-style colors.', 'HTML + CSS + JS'),
-      _Template('Portfolio', LucideIcons.user, 'Personal portfolio with projects and contact', 'Build a personal portfolio site with: animated hero with name and title, about section with photo placeholder and bio, projects grid (4 project cards with images and tech tags), skills section with progress bars, contact form, and smooth scroll navigation. Dark theme with accent color.', 'Single HTML'),
-      _Template('Blog', LucideIcons.fileText, 'Blog with posts, sidebar, and categories', 'Build a blog homepage with: header with site name and nav, featured post hero, 3 article cards with image/title/excerpt/date, sidebar with categories and recent posts, newsletter signup, and footer. Clean typography, warm color palette.', 'HTML + CSS + JS'),
-      _Template('E-commerce', LucideIcons.shoppingCart, 'Product grid with cart and filters', 'Build a product listing page with: top nav with logo, search bar, and cart icon with badge, filter sidebar (category, price range), product grid (6 product cards with image, name, price, rating stars, add-to-cart button), and a mini cart dropdown. Modern clean design.', 'HTML + CSS + JS'),
-      _Template('SaaS Page', LucideIcons.globe, 'Product page with pricing tiers', 'Build a SaaS product page with: sticky nav, hero with product mockup, 3-step how-it-works section, pricing table (3 tiers: Free/Pro/Enterprise with feature comparison), customer logos bar, FAQ accordion, and CTA footer. Gradient accents, professional look.', 'Single HTML'),
+      const _Template('Landing Page', LucideIcons.rocket, 'Marketing page with hero, features, CTA, footer', 'Build a modern landing page with: hero section with gradient background and CTA button, features grid (3 cards with icons), testimonial section, email signup form, and footer with links. Use a professional color scheme (indigo/blue). Responsive layout.', 'Single HTML'),
+      const _Template('Dashboard', LucideIcons.layoutDashboard, 'Admin panel with sidebar, charts, stats', 'Build an admin dashboard with: left sidebar navigation (5 items with icons), top bar with search and user avatar, 4 stat cards (revenue, users, orders, growth), a line chart placeholder, a data table with 5 rows, and a dark sidebar with light content area. Use Tailwind-style colors.', 'HTML + CSS + JS'),
+      const _Template('Portfolio', LucideIcons.user, 'Personal portfolio with projects and contact', 'Build a personal portfolio site with: animated hero with name and title, about section with photo placeholder and bio, projects grid (4 project cards with images and tech tags), skills section with progress bars, contact form, and smooth scroll navigation. Dark theme with accent color.', 'Single HTML'),
+      const _Template('Blog', LucideIcons.fileText, 'Blog with posts, sidebar, and categories', 'Build a blog homepage with: header with site name and nav, featured post hero, 3 article cards with image/title/excerpt/date, sidebar with categories and recent posts, newsletter signup, and footer. Clean typography, warm color palette.', 'HTML + CSS + JS'),
+      const _Template('E-commerce', LucideIcons.shoppingCart, 'Product grid with cart and filters', 'Build a product listing page with: top nav with logo, search bar, and cart icon with badge, filter sidebar (category, price range), product grid (6 product cards with image, name, price, rating stars, add-to-cart button), and a mini cart dropdown. Modern clean design.', 'HTML + CSS + JS'),
+      const _Template('SaaS Page', LucideIcons.globe, 'Product page with pricing tiers', 'Build a SaaS product page with: sticky nav, hero with product mockup, 3-step how-it-works section, pricing table (3 tiers: Free/Pro/Enterprise with feature comparison), customer logos bar, FAQ accordion, and CTA footer. Gradient accents, professional look.', 'Single HTML'),
     ];
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1886,12 +1885,14 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                                 ));
                               } catch (e) {
                                 setSheet(() => deploying = false);
-                                ScaffoldMessenger.of(ctx).showSnackBar(
-                                  SnackBar(content: Text('Deploy failed: $e')),
-                                );
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(content: Text('Deploy failed: $e')),
+                                  );
+                                }
                               }
                             },
-                      icon: Icon(LucideIcons.upload, size: 18),
+                      icon: const Icon(LucideIcons.upload, size: 18),
                       label: const Text('Deploy'),
                     ),
                   ]),
@@ -1906,18 +1907,18 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   void _showComponentLibrary(BuildContext context, bool isDark) {
     final components = [
-      _Component('Navbar', LucideIcons.menu, 'Navigation bar with logo and links'),
-      _Component('Hero Section', LucideIcons.star, 'Full-width hero with CTA'),
-      _Component('Pricing Table', LucideIcons.creditCard, '3-tier pricing cards'),
-      _Component('FAQ Accordion', LucideIcons.helpCircle, 'Expandable Q&A items'),
-      _Component('Contact Form', LucideIcons.mail, 'Name, email, message fields'),
-      _Component('Footer', LucideIcons.arrowDown, 'Multi-column footer'),
-      _Component('Card Grid', LucideIcons.grid, 'Responsive card layout'),
-      _Component('Modal/Dialog', LucideIcons.maximize2, 'Centered overlay modal'),
-      _Component('Tabs', LucideIcons.layout, 'Tabbed content switcher'),
-      _Component('Testimonials', LucideIcons.quote, 'Customer review carousel'),
-      _Component('Stats Bar', LucideIcons.barChart3, 'Animated number counters'),
-      _Component('Timeline', LucideIcons.clock, 'Vertical step timeline'),
+      const _Component('Navbar', LucideIcons.menu, 'Navigation bar with logo and links'),
+      const _Component('Hero Section', LucideIcons.star, 'Full-width hero with CTA'),
+      const _Component('Pricing Table', LucideIcons.creditCard, '3-tier pricing cards'),
+      const _Component('FAQ Accordion', LucideIcons.helpCircle, 'Expandable Q&A items'),
+      const _Component('Contact Form', LucideIcons.mail, 'Name, email, message fields'),
+      const _Component('Footer', LucideIcons.arrowDown, 'Multi-column footer'),
+      const _Component('Card Grid', LucideIcons.grid, 'Responsive card layout'),
+      const _Component('Modal/Dialog', LucideIcons.maximize2, 'Centered overlay modal'),
+      const _Component('Tabs', LucideIcons.layout, 'Tabbed content switcher'),
+      const _Component('Testimonials', LucideIcons.quote, 'Customer review carousel'),
+      const _Component('Stats Bar', LucideIcons.barChart3, 'Animated number counters'),
+      const _Component('Timeline', LucideIcons.clock, 'Vertical step timeline'),
     ];
     showModalBottomSheet(
       context: context,
