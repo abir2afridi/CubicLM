@@ -11,6 +11,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../controllers/agent_controller.dart';
 import '../core/colors.dart';
 import '../services/agent_workspace.dart';
+import '../services/deploy_service.dart';
 import '../theme/design_tokens.dart';
 import '../utils/app_snackbar.dart';
 import '../utils/syntax_highlight.dart';
@@ -150,6 +151,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     const PopupMenuItem(
                       value: 'rename',
                       child: Text('Rename project',
+                          style: TextStyle(fontSize: 14)),
+                    ),
+                    const PopupMenuItem(
+                      value: 'deploy',
+                      child: Text('Deploy to web',
                           style: TextStyle(fontSize: 14)),
                     ),
                     PopupMenuItem(
@@ -1634,6 +1640,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       }
     } else if (v == 'switch') {
       _showProjectSwitcher(context);
+    } else if (v == 'deploy') {
+      _showDeploySheet(context);
     }
   }
 
@@ -1677,6 +1685,125 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               ],
             ),
           )),
+    );
+  }
+
+  void _showDeploySheet(BuildContext context) {
+    final p = c.project.value;
+    if (p == null) return;
+    final files = c.files;
+    if (files.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Build the project first before deploying.')),
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final tokenCtrl = TextEditingController();
+        String provider = 'vercel';
+        bool deploying = false;
+        return StatefulBuilder(
+          builder: (ctx, setSheet) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Deploy "${p.name}"',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    ChoiceChip(
+                      label: const Text('Vercel'),
+                      selected: provider == 'vercel',
+                      onSelected: (_) => setSheet(() => provider = 'vercel'),
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('Netlify'),
+                      selected: provider == 'netlify',
+                      onSelected: (_) => setSheet(() => provider = 'netlify'),
+                    ),
+                  ]),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: tokenCtrl,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: provider == 'vercel'
+                          ? 'Vercel API Token'
+                          : 'Netlify Personal Access Token',
+                      isDense: true,
+                      prefixIcon: const Icon(LucideIcons.key, size: 18),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (deploying) const LinearProgressIndicator(minHeight: 2),
+                  const SizedBox(height: 12),
+                  Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: deploying
+                          ? null
+                          : () async {
+                              if (tokenCtrl.text.trim().isEmpty) return;
+                              setSheet(() => deploying = true);
+                              try {
+                                // Read file contents from workspace.
+                                final ws = Get.find<AgentWorkspaceService>();
+                                final fileMap = <String, String>{};
+                                for (final f in files) {
+                                  final content = await ws.readFile(p.id, f);
+                                  if (content != null) fileMap[f] = content;
+                                }
+                                if (fileMap.isEmpty) {
+                                  throw Exception('No files to deploy. Build the project first.');
+                                }
+                                final result = await Get.find<DeployService>().deploy(
+                                  provider: provider,
+                                  token: tokenCtrl.text.trim(),
+                                  projectName: p.name,
+                                  files: fileMap,
+                                );
+                                if (ctx.mounted) Navigator.pop(ctx);
+                                // Show success URL.
+                                Get.dialog(AlertDialog(
+                                  title: Text('Deployed to $provider!'),
+                                  content: SelectableText(result.url,
+                                      style: GoogleFonts.firaCode(fontSize: 13)),
+                                  actions: [
+                                    FilledButton(
+                                      onPressed: () => Get.back(),
+                                      child: const Text('OK'),
+                                    ),
+                                  ],
+                                ));
+                              } catch (e) {
+                                setSheet(() => deploying = false);
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(content: Text('Deploy failed: $e')),
+                                );
+                              }
+                            },
+                      icon: Icon(LucideIcons.upload, size: 18),
+                      label: const Text('Deploy'),
+                    ),
+                  ]),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

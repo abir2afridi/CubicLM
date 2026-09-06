@@ -34,6 +34,7 @@ import 'services/usage_tracker_service.dart';
 import 'services/stats_service.dart';
 import 'services/agent_workspace.dart';
 import 'services/preview_server.dart';
+import 'services/deploy_service.dart';
 import 'services/update_service.dart';
 import 'core/constants.dart';
 import 'core/languages.dart';
@@ -237,6 +238,7 @@ void main() {
       // TTS — GetxService, async init deferred but instance available immediately.
       Get.put(TtsService());
       unawaited(Get.find<TtsService>().init().then((_) {}, onError: (_) {}));
+      Get.put(DeployService());
     } catch (e, s) {
       appLog.error('Sync service put failed',
           details: '$e\n$s', category: LogCategory.system);
