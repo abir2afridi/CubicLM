@@ -259,18 +259,25 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                         fontSize: 16, fontWeight: FontWeight.w800)),
               ),
             ),
-            for (final f in webFrameworks)
-              Obx(() => RadioListTile<String>(
-                    dense: true,
-                    title: Text(f,
-                        style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                    value: f,
-                    activeColor: Dt.accent,
-                    onChanged: (v) {
-                      if (v != null) c.framework.value = v;
-                      Navigator.pop(context);
-                    },
-                  )),
+            Obx(() => RadioGroup<String>(
+                  groupValue: c.framework.value,
+                  onChanged: (v) {
+                    if (v != null) c.framework.value = v;
+                    Navigator.pop(context);
+                  },
+                  child: Column(
+                    children: [
+                      for (final f in webFrameworks)
+                        RadioListTile<String>(
+                          dense: true,
+                          title: Text(f,
+                              style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                          value: f,
+                          activeColor: Dt.accent,
+                        ),
+                    ],
+                  ),
+                )),
             const SizedBox(height: 12),
           ],
         ),
@@ -1083,7 +1090,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(LucideIcons.image, size: 13, color: Dt.accent),
+                    const Icon(LucideIcons.image, size: 13, color: Dt.accent),
                     const SizedBox(width: 6),
                     Text('Screenshot attached',
                         style: GoogleFonts.plusJakartaSans(
