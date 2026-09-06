@@ -682,7 +682,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 ),
               ]),
             ),
-          Row(children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             if (!hasProject)
               Padding(
                 padding: const EdgeInsets.only(right: 6),
@@ -708,98 +708,35 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 ),
               ),
             if (!hasProject)
-              GestureDetector(
-                onTap: () => c.planMode.value = !c.planMode.value,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: c.planMode.value
-                        ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
-                        : (isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.black.withValues(alpha: 0.05)),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: c.planMode.value
-                            ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
-                            : (isDark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Dt.hairline)),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(LucideIcons.map,
-                        size: 12,
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: GestureDetector(
+                  onTap: () => c.planMode.value = !c.planMode.value,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: c.planMode.value
+                          ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                          : (isDark
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : Colors.black.withValues(alpha: 0.05)),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: c.planMode.value
+                              ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
+                              : (isDark
+                                  ? Colors.white.withValues(alpha: 0.08)
+                                  : Dt.hairline)),
+                    ),
+                    child: Icon(LucideIcons.map,
+                        size: 14,
                         color: c.planMode.value
                             ? const Color(0xFFF59E0B)
                             : Theme.of(context).hintColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Plan',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: c.planMode.value
-                              ? const Color(0xFFF59E0B)
-                              : Theme.of(context).hintColor),
-                    ),
-                  ]),
-                ),
-              ),
-            if (hasProject) ...[
-              GestureDetector(
-                onTap: () => c.extendedThinking.value = !c.extendedThinking.value,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: c.extendedThinking.value
-                        ? const Color(0xFF8B5CF6).withValues(alpha: 0.15)
-                        : (isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.black.withValues(alpha: 0.05)),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: c.extendedThinking.value
-                            ? const Color(0xFF8B5CF6).withValues(alpha: 0.4)
-                            : (isDark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Dt.hairline)),
                   ),
-                  child: Icon(LucideIcons.brain,
-                      size: 14,
-                      color: c.extendedThinking.value
-                          ? const Color(0xFF8B5CF6)
-                          : Theme.of(context).hintColor),
                 ),
               ),
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: () => c.webSearch.value = !c.webSearch.value,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: c.webSearch.value
-                        ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                        : (isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.black.withValues(alpha: 0.05)),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: c.webSearch.value
-                            ? const Color(0xFF10B981).withValues(alpha: 0.4)
-                            : (isDark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Dt.hairline)),
-                  ),
-                  child: Icon(LucideIcons.globe,
-                      size: 14,
-                      color: c.webSearch.value
-                          ? const Color(0xFF10B981)
-                          : Theme.of(context).hintColor),
-                ),
-              ),
-              const SizedBox(width: 6),
-            ],
             Expanded(
               child: TextField(
                 controller: _askCtrl,
@@ -819,28 +756,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            if (hasProject)
-              GestureDetector(
-                onTap: () => _showComponentLibrary(context, isDark),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.06)
-                        : Colors.black.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.08)
-                            : Dt.hairline),
-                  ),
-                  child: Icon(LucideIcons.puzzle,
-                      size: 18,
-                      color: Theme.of(context).hintColor),
-                ),
-              ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             GestureDetector(
               onTap: () async {
                 final picker = ImagePicker();
@@ -866,13 +782,89 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                         : Theme.of(context).hintColor)),
               ),
             ),
-            const SizedBox(width: 8),
-            if (hasProject)
-              IconButton(
-                tooltip: 'Auto-test project',
-                icon: const Icon(LucideIcons.shieldCheck, size: 18),
-                onPressed: busy ? null : () => c.runAutoTest(),
-              ),
+            const SizedBox(width: 4),
+            PopupMenuButton<String>(
+              tooltip: 'More options',
+              icon: Icon(LucideIcons.moreHorizontal,
+                  size: 18, color: Theme.of(context).hintColor),
+              onSelected: (v) {
+                if (v == 'thinking') {
+                  c.extendedThinking.value = !c.extendedThinking.value;
+                } else if (v == 'web') {
+                  c.webSearch.value = !c.webSearch.value;
+                } else if (v == 'components') {
+                  _showComponentLibrary(context, isDark);
+                } else if (v == 'test') {
+                  c.runAutoTest();
+                }
+              },
+              itemBuilder: (_) {
+                final items = <PopupMenuEntry<String>>[
+                  PopupMenuItem(
+                    value: 'thinking',
+                    child: Obx(() => Row(children: [
+                      Icon(LucideIcons.brain,
+                          size: 16,
+                          color: c.extendedThinking.value
+                              ? const Color(0xFF8B5CF6)
+                              : Theme.of(context).hintColor),
+                      const SizedBox(width: 10),
+                      Text('Extended Thinking',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                      if (c.extendedThinking.value) ...[
+                        const Spacer(),
+                        const Icon(LucideIcons.check,
+                            size: 14, color: Color(0xFF8B5CF6)),
+                      ],
+                    ])),
+                  ),
+                  PopupMenuItem(
+                    value: 'web',
+                    child: Obx(() => Row(children: [
+                      Icon(LucideIcons.globe,
+                          size: 16,
+                          color: c.webSearch.value
+                              ? const Color(0xFF10B981)
+                              : Theme.of(context).hintColor),
+                      const SizedBox(width: 10),
+                      Text('Web Search',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                      if (c.webSearch.value) ...[
+                        const Spacer(),
+                        const Icon(LucideIcons.check,
+                            size: 14, color: Color(0xFF10B981)),
+                      ],
+                    ])),
+                  ),
+                ];
+                if (hasProject) {
+                  items.add(const PopupMenuDivider());
+                  items.add(PopupMenuItem(
+                    value: 'components',
+                    child: Row(children: [
+                      Icon(LucideIcons.puzzle,
+                          size: 16,
+                          color: Theme.of(context).hintColor),
+                      const SizedBox(width: 10),
+                      Text('Component Library',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                    ]),
+                  ));
+                  items.add(PopupMenuItem(
+                    value: 'test',
+                    child: Row(children: [
+                      Icon(LucideIcons.shieldCheck,
+                          size: 16,
+                          color: Theme.of(context).hintColor),
+                      const SizedBox(width: 10),
+                      Text('Auto-test project',
+                          style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                    ]),
+                  ));
+                }
+                return items;
+              },
+            ),
             const SizedBox(width: 4),
             IconButton.filled(
               tooltip: busy
