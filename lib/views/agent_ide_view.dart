@@ -63,7 +63,40 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
+    return Focus(
+      autofocus: true,
+      onKey: (node, event) {
+        if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+          return KeyEventResult.ignored;
+        }
+        final isMod = HardwareKeyboard.instance.isControlPressed ||
+            HardwareKeyboard.instance.isMetaPressed;
+        // Cmd/Ctrl + Enter = send
+        if (isMod && event.logicalKey == LogicalKeyboardKey.enter) {
+          _sendFromAskBar();
+          return KeyEventResult.handled;
+        }
+        // Cmd/Ctrl + S = save current file
+        if (isMod && event.logicalKey == LogicalKeyboardKey.keyS) {
+          // Save is handled by the file editor's save button.
+          return KeyEventResult.ignored;
+        }
+        // Cmd/Ctrl + 1/2/3 = switch tabs
+        if (isMod && event.logicalKey == LogicalKeyboardKey.digit1) {
+          setState(() => _tab = 'preview');
+          return KeyEventResult.handled;
+        }
+        if (isMod && event.logicalKey == LogicalKeyboardKey.digit2) {
+          setState(() => _tab = 'files');
+          return KeyEventResult.handled;
+        }
+        if (isMod && event.logicalKey == LogicalKeyboardKey.digit3) {
+          setState(() => _tab = 'chat');
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,10 +191,27 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           _askBar(context, isDark),
         ]);
       }),
+    ),
     );
   }
 
-  // ── New project ──
+  void _sendFromAskBar() {
+    if (c.generating.value || c.fixing.value) {
+      c.cancelWork();
+      return;
+    }
+    if (_askCtrl.text.trim().isEmpty && c.attachedImage.value == null) return;
+    final text = _askCtrl.text.trim();
+    final hasImg = c.attachedImage.value != null;
+    c.topic.value = text.isEmpty && hasImg ? 'Build from this screenshot' : text;
+    _askCtrl.clear();
+    final hasProject = c.project.value != null;
+    if (hasProject) {
+      c.modifyProject();
+    } else {
+      c.newProject();
+    }
+  }
 
   /// Short framework label for the ask-row button.
   String _frameworkShort(String f) {
