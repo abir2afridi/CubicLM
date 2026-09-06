@@ -1,0 +1,1 @@
+Battle Arena (model racing with verdict), Slide Maker, CubicWeb Build website studio, F-Droid flavor, staged rollout, opt-in local stats, fixed web build, Windows installer script, versionCode guard.

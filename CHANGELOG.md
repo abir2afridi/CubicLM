@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **F-Droid fastlane metadata** - title/descriptions/changelog/icon for store submission.
 - **CubicWeb Build (Toolkit)** - prompt → complete website in any framework (Single HTML, Trio, React, Next.js, Vue 3); strict files-JSON schema + fallbacks; file explorer with per-file regen/edit/add/delete; live browser preview (temp dir + file entry, DOM storage on); one-tap ZIP export.
 
 ### Added

@@ -1,0 +1,9 @@
+CubicLM is a private, offline-first AI assistant for Android.
+
+• On-device inference: GGUF via llama.cpp (Vulkan/OpenCL) and LiteRT-LM, plus Stable Diffusion 1.5 image generation — no cloud needed.
+• 20+ cloud providers with free-tier tagging, per-chat model pins, and usage estimates.
+• Toolkit: Battle Arena (race up to 4 models with live monitor + verdict), Slide Maker (AI decks with regen, freehand layout, MD/PDF/HTML export), CubicWeb Build (prompt-to-website with preview + ZIP export).
+• Chat: multi-session history, full-text search, revisions, branches, prompt templates, multi-select, TTS + voice, web fetch with cited sources.
+• Privacy: AES-256 encrypted storage, biometric app lock, per-chat lock/hide, API keys in the device keystore, opt-in local-only stats. No accounts, no telemetry.
+
+Open source (MIT). F-Droid flavor builds without proprietary services.
