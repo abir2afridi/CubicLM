@@ -237,6 +237,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   /// Locked prompt summary on the project page: what was asked + which
   /// framework (read-only — the brief doesn't change mid-project).
+  /// The + New button starts over (back to the composer on this same page).
   Widget _promptSummaryCard(BuildContext context, bool isDark) {
     final p = c.project.value!;
     return Container(
@@ -274,6 +275,30 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   fontSize: 10.5,
                   fontWeight: FontWeight.w800,
                   color: Dt.accent)),
+        ),
+        InkWell(
+          onTap: () {
+            c.project.value = null;
+            c.files.clear();
+            c.previewUrl.value = null;
+            c.transcript.clear();
+            _promptCtrl.clear();
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(LucideIcons.plus,
+                  size: 14, color: Dt.accent),
+              const SizedBox(width: 2),
+              Text('New',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Dt.accent)),
+            ]),
+          ),
         ),
       ]),
     );
