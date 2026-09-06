@@ -803,6 +803,27 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               ),
             ),
             const SizedBox(width: 8),
+            if (hasProject)
+              GestureDetector(
+                onTap: () => _showComponentLibrary(context, isDark),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Dt.hairline),
+                  ),
+                  child: Icon(LucideIcons.puzzle,
+                      size: 18,
+                      color: Theme.of(context).hintColor),
+                ),
+              ),
+            const SizedBox(width: 8),
             GestureDetector(
               onTap: () async {
                 final picker = ImagePicker();
@@ -1868,6 +1889,95 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     );
   }
 
+  void _showComponentLibrary(BuildContext context, bool isDark) {
+    final components = [
+      _Component('Navbar', LucideIcons.menu, 'Navigation bar with logo and links'),
+      _Component('Hero Section', LucideIcons.star, 'Full-width hero with CTA'),
+      _Component('Pricing Table', LucideIcons.creditCard, '3-tier pricing cards'),
+      _Component('FAQ Accordion', LucideIcons.helpCircle, 'Expandable Q&A items'),
+      _Component('Contact Form', LucideIcons.mail, 'Name, email, message fields'),
+      _Component('Footer', LucideIcons.arrowDown, 'Multi-column footer'),
+      _Component('Card Grid', LucideIcons.grid, 'Responsive card layout'),
+      _Component('Modal/Dialog', LucideIcons.maximize2, 'Centered overlay modal'),
+      _Component('Tabs', LucideIcons.layout, 'Tabbed content switcher'),
+      _Component('Testimonials', LucideIcons.quote, 'Customer review carousel'),
+      _Component('Stats Bar', LucideIcons.barChart3, 'Animated number counters'),
+      _Component('Timeline', LucideIcons.clock, 'Vertical step timeline'),
+    ];
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Row(children: [
+                Text('Component Library',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16, fontWeight: FontWeight.w800)),
+                const Spacer(),
+                Text('Tap to insert',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: Theme.of(context).hintColor)),
+              ]),
+            ),
+            Flexible(
+              child: GridView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: 1.3,
+                ),
+                itemCount: components.length,
+                itemBuilder: (_, i) {
+                  final comp = components[i];
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _askCtrl.text += comp.prompt;
+                      _askFocus.requestFocus();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.surface
+                            : const Color(0xFFF8F9FA),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.07)
+                                : Dt.hairline),
+                      ),
+                      child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                        Icon(comp.icon, size: 18, color: Dt.accent),
+                        const SizedBox(height: 4),
+                        Text(comp.name,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showRenameDialog(
       BuildContext context, bool isDark, String path) {
     final pathCtrl = TextEditingController(text: path);
@@ -2011,6 +2121,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 extension on AgentController {
   List<AgentProject> projectsOf() =>
       Get.find<AgentWorkspaceService>().projects.toList();
+}
+
+class _Component {
+  final String name;
+  final IconData icon;
+  final String prompt;
+  const _Component(this.name, this.icon, this.prompt);
 }
 
 /// File editor card: owns its controller so parent rebuilds never wipe
