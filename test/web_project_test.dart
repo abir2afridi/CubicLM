@@ -61,5 +61,13 @@ void main() {
       expect(sys.contains('```files'), isTrue);
       expect(sys.contains('lorem ipsum'), isTrue);
     });
+
+    test('browser-run frameworks forbid bare specifiers + TS', () {
+      final vue = webSystemPrompt(framework: 'Vue 3');
+      expect(vue.contains('import map'), isTrue);
+      expect(vue.contains('esm.sh'), isTrue);
+      final single = webSystemPrompt(framework: 'Single HTML');
+      expect(single.contains('PLAIN JAVASCRIPT'), isTrue);
+    });
   });
 }

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -12,6 +13,7 @@ import '../services/cloud_service.dart';
 import '../services/inference_service.dart';
 import '../services/preview_server.dart';
 import '../utils/app_snackbar.dart';
+import '../utils/web_download.dart';
 import '../utils/web_project.dart';
 
 /// Agent-IDE orchestrator (MVP): prompt → files → local preview →
@@ -27,10 +29,69 @@ class AgentController extends GetxController {
   final generating = false.obs;
   final fixing = false.obs;
   final autoFix = true.obs;
+
+  /// Set by Stop — in-flight awaits can't be aborted, but their results
+  /// are discarded and flags reset.
+  bool _cancelled = false;
+
+  void cancelWork() {
+    _cancelled = true;
+  }
   final previewUrl = RxnString();
   final consoleError = RxnString();
   final lastError = RxnString();
   final revision = 0.obs;
+
+  /// Terminal buffer: timestamped agent activity (builds, fixes, file
+  /// ops, console errors). The AI reads the tail in repair prompts, so
+  /// it "sees" what happened — capped at 200 lines.
+  final terminal = <String>[].obs;
+
+  /// Chat transcript with the builder AI (user prompts + agent replies).
+  /// Mirrors other builders: conversation is visible, not hidden.
+  final transcript = <Map<String, String>>[].obs;
+
+  /// Live build status shown in the preview pane while working
+  /// (null when idle). E.g. "Streaming response… 12k chars".
+  final buildStatus = RxnString();
+
+  void _say(String role, String text) {
+    try {
+      transcript.add({'role': role, 'text': text});
+      while (transcript.length > 100) {
+        transcript.removeAt(0);
+      }
+    } catch (_) {}
+  }
+
+  void term(String line) {
+    try {
+      final now = DateTime.now();
+      final ts = '${now.hour.toString().padLeft(2, '0')}:'
+          '${now.minute.toString().padLeft(2, '0')}:'
+          '${now.second.toString().padLeft(2, '0')}';
+      terminal.add('[$ts] $line');
+      while (terminal.length > 200) {
+        terminal.removeAt(0);
+      }
+    } catch (_) {}
+  }
+
+  void clearTerminal() {
+    try {
+      terminal.clear();
+    } catch (_) {}
+  }
+
+  /// Last N terminal lines for prompts (AI context).
+  String terminalTail([int n = 30]) {
+    try {
+      final lines = terminal.toList();
+      return lines.skip(lines.length > n ? lines.length - n : 0).join('\n');
+    } catch (_) {
+      return '';
+    }
+  }
 
   int _autoRounds = 0;
 
@@ -38,6 +99,16 @@ class AgentController extends GetxController {
   PreviewServerService get _preview => Get.find<PreviewServerService>();
 
   void _touch() => revision.value++;
+
+  int _lastStatusMs = 0;
+
+  void _streamStatus(String prefix, int chars) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _lastStatusMs < 300) return;
+    _lastStatusMs = now;
+    buildStatus.value =
+        '$prefix… ${(chars / 1024).toStringAsFixed(1)}k chars';
+  }
 
   Future<void> refreshFiles() async {
     final p = project.value;
@@ -49,9 +120,11 @@ class AgentController extends GetxController {
   }
 
   /// Call after manual file ops (save/rename/add/delete) so the explorer
-  /// list AND the preview both refresh.
+  /// list AND the preview both refresh. Clears a stale console error —
+  /// a hand fix likely resolved it.
   Future<void> notifyFilesChanged() async {
     await refreshFiles();
+    consoleError.value = null;
     _touch();
   }
 
@@ -73,9 +146,14 @@ class AgentController extends GetxController {
     final t = topic.value.trim();
     if (t.isEmpty || generating.value) return;
     generating.value = true;
+    _cancelled = false;
     lastError.value = null;
     consoleError.value = null;
     _autoRounds = 0;
+    transcript.clear();
+    _say('user', t);
+    buildStatus.value = 'Designing project…';
+    term('> build "${t.length > 60 ? '${t.substring(0, 60)}…' : t}" (${framework.value})');
     try {
       final name = t.length > 40 ? '${t.substring(0, 40)}…' : t;
       final p = await _ws.createProject(name, framework.value);
@@ -83,7 +161,10 @@ class AgentController extends GetxController {
       final raw = await _ask(
         prompt: 'Build this website with ${framework.value}: $t',
         system: webSystemPrompt(framework: framework.value),
+        onProgress: (n) => _streamStatus('Writing project', n),
       );
+      if (_cancelled) return;
+      buildStatus.value = 'Saving files…';
       final parsed = parseFiles(raw);
       final err = await _ws.importFiles(
           p.id, {for (final f in parsed) f.path: f.content});
@@ -93,11 +174,23 @@ class AgentController extends GetxController {
       await refreshFiles();
       await _serve();
       _touch();
+      buildStatus.value = null;
+      final summary =
+          'Built ${parsed.length} files — preview is live. Tap a file to edit, or ask for changes below.';
+      _say('assistant', summary);
+      term('✓ build done — ${files.length} files, preview live');
     } catch (e) {
+      if (_cancelled) {
+        term('■ build cancelled by user');
+        return;
+      }
       lastError.value = '$e';
+      term('✗ build failed: $e');
       _log('Project build failed', e);
     } finally {
       generating.value = false;
+      buildStatus.value = null;
+      _cancelled = false;
     }
   }
 
@@ -108,7 +201,11 @@ class AgentController extends GetxController {
     final t = topic.value.trim();
     if (p == null || t.isEmpty || generating.value || fixing.value) return;
     generating.value = true;
+    _cancelled = false;
     lastError.value = null;
+    _say('user', t);
+    buildStatus.value = 'Applying change…';
+    term('> modify: "${t.length > 80 ? '${t.substring(0, 80)}…' : t}"');
     try {
       final projContext = await _projectContext(p.id);
       final raw = await _ask(
@@ -117,7 +214,9 @@ class AgentController extends GetxController {
             'Return a files-JSON object with ONLY new or fully-rewritten changed files.',
         system:
             '${webSystemPrompt(framework: p.framework)}\nSTRICT: output only files that change (plus any brand-new files).',
+        onProgress: (n) => _streamStatus('Writing change', n),
       );
+      if (_cancelled) return;
       final parsed = parseFiles(raw);
       var applied = 0;
       for (final f in parsed) {
@@ -127,16 +226,27 @@ class AgentController extends GetxController {
       await _ws.touch(p.id);
       await refreshFiles();
       _touch();
+      buildStatus.value = null;
+      term('✓ modify applied ($applied files)');
+      _say('assistant',
+          'Done — $applied file${applied == 1 ? '' : 's'} changed, preview reloaded.');
       AppSnackbar.showTop(
         'Updated',
         '$applied file${applied == 1 ? '' : 's'} changed — preview reloaded.',
         logHistory: false,
       );
     } catch (e) {
+      if (_cancelled) {
+        term('■ modify cancelled by user');
+        return;
+      }
       lastError.value = '$e';
+      term('✗ modify failed: $e');
       _log('Project modify failed', e);
     } finally {
       generating.value = false;
+      buildStatus.value = null;
+      _cancelled = false;
     }
   }
 
@@ -145,6 +255,7 @@ class AgentController extends GetxController {
   Future<void> onConsoleError(String message) async {
     final p = project.value;
     consoleError.value = message;
+    term('✗ console: ${message.length > 160 ? '${message.substring(0, 160)}…' : message}');
     if (p == null || fixing.value || generating.value) return;
     if (!autoFix.value || _autoRounds >= maxRepairRounds) return;
     _autoRounds++;
@@ -156,19 +267,26 @@ class AgentController extends GetxController {
     final err = consoleError.value;
     if (p == null || err == null || err.isEmpty || fixing.value) return;
     fixing.value = true;
+    _cancelled = false;
     lastError.value = null;
+    buildStatus.value = 'Fixing error…';
+    term('⚙ auto-fix round $_autoRounds/$maxRepairRounds…');
     try {
       final projContext = await _projectContext(p.id);
       final raw = await _ask(
         prompt: 'Fix this runtime error in the "${p.name}" '
             '${p.framework} project:\n\nERROR:\n$err\n\n'
             'CURRENT FILES:\n$projContext\n\n'
+            'RECENT TERMINAL (what happened so far):\n'
+            '${terminalTail()}\n\n'
             'Return a files-JSON object with ONLY the corrected files '
             '(complete new contents).',
         system:
             '${webSystemPrompt(framework: p.framework)}\nSTRICT: output only files that change.',
+        onProgress: (n) => _streamStatus('Writing fix', n),
       );
       final parsed = parseFiles(raw);
+      if (_cancelled) return;
       var applied = 0;
       for (final f in parsed) {
         final werr = await _ws.writeFile(p.id, f.path, f.content);
@@ -178,16 +296,27 @@ class AgentController extends GetxController {
       await refreshFiles();
       consoleError.value = null;
       _touch();
+      buildStatus.value = null;
+      term('✓ auto-fix applied ($applied files)');
+      _say('assistant',
+          'Fixed — $applied file${applied == 1 ? '' : 's'} rewritten, preview reloaded.');
       AppSnackbar.showTop(
         'Auto-fix applied',
         '$applied file${applied == 1 ? '' : 's'} rewritten — reloaded.',
         logHistory: false,
       );
     } catch (e) {
+      if (_cancelled) {
+        term('■ fix cancelled by user');
+        return;
+      }
       lastError.value = '$e';
+      term('✗ auto-fix failed: $e');
       _log('Auto-fix failed', e);
     } finally {
       fixing.value = false;
+      buildStatus.value = null;
+      _cancelled = false;
     }
   }
 
@@ -256,9 +385,15 @@ class AgentController extends GetxController {
       }
       final out = ZipEncoder().encode(archive);
       if (out.isEmpty) throw Exception('ZIP encoder returned nothing.');
-      final tmp = await getTemporaryDirectory();
       final stamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${tmp.path}/cubicagent_$stamp.zip');
+      final name = 'cubicagent_$stamp.zip';
+      if (kIsWeb) {
+        try {
+          if (await downloadWebFile(out, name, 'application/zip')) return;
+        } catch (_) {}
+      }
+      final tmp = await getTemporaryDirectory();
+      final file = File('${tmp.path}/$name');
       await file.writeAsBytes(out, flush: true);
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'application/zip')],
@@ -271,9 +406,21 @@ class AgentController extends GetxController {
 
   // ── Engine (same rules as chat) ──
 
-  Future<String> _ask({required String prompt, required String system}) async {
+  Future<String> _ask(
+      {required String prompt,
+      required String system,
+      void Function(int chars)? onProgress}) async {
     final settings = Get.find<SettingsController>();
     final buf = StringBuffer();
+    var count = 0;
+    void bump(String chunk) {
+      buf.write(chunk);
+      count += chunk.length;
+      try {
+        onProgress?.call(count);
+      } catch (_) {}
+    }
+
     if (settings.inferenceMode.value == 'cloud') {
       final cloud = Get.find<CloudService>();
       await for (final chunk in cloud.streamMessage(
@@ -286,7 +433,7 @@ class AgentController extends GetxController {
             ? null
             : settings.maxTokens.value,
       )) {
-        buf.write(chunk);
+        bump(chunk);
       }
       final out = buf.toString().trim();
       if (out.isEmpty) throw Exception('The model returned nothing.');
@@ -301,7 +448,7 @@ class AgentController extends GetxController {
       prompt: prompt,
       systemPrompt: system,
       source: 'agent',
-      onToken: buf.write,
+      onToken: bump,
     );
     final out = buf.toString().trim();
     if (out.isEmpty) throw Exception('The model returned nothing.');

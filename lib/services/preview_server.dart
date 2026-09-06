@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:get/get.dart';
+import 'package:get/get.dart' hide Response;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_static/shelf_static.dart';
@@ -27,21 +27,30 @@ class PreviewServerService extends GetxService {
 
   /// Serve [projectDir]; restarts if another project is up.
   /// Returns the base URL, or null on failure (never throws).
+  /// Unknown paths get a friendly page (not a bare 404) explaining that
+  /// framework builds needing Node can't preview statically.
   Future<String?> start(String projectId, String projectDir) async {
     try {
       if (_server != null) {
         if (_servingProjectId == projectId) return url;
         await stop();
       }
-      final handler = const Pipeline()
+      final staticHandler = createStaticHandler(
+        projectDir,
+        defaultDocument: 'index.html',
+        listDirectories: false,
+      );
+      Future<Response> handler(Request request) async {
+        final res = await staticHandler(request);
+        if (res.statusCode == 404) return _notFoundPage(request);
+        return res;
+      }
+
+      final wrapped = const Pipeline()
           .addMiddleware(logRequests(logger: (_, __) {}))
-          .addHandler(createStaticHandler(
-            projectDir,
-            defaultDocument: 'index.html',
-            listDirectories: false,
-          ));
+          .addHandler(handler);
       _server = await shelf_io.serve(
-        handler,
+        wrapped,
         InternetAddress.loopbackIPv4,
         0,
       );
@@ -53,6 +62,17 @@ class PreviewServerService extends GetxService {
       } catch (_) {}
       return null;
     }
+  }
+
+  Response _notFoundPage(Request request) {
+    const html = '''<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Not runnable here</title>
+<style>body{font-family:system-ui;background:#14141c;color:#f2f0ea;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;padding:24px;text-align:center}h1{font-size:20px;margin-bottom:10px}p{color:#9a958c;font-size:14px;line-height:1.6}a{color:#d97757}</style>
+</head><body><div><h1>Nothing browser-runnable at this path</h1>
+<p>Framework projects (Next.js, SSR, anything needing <code>npm run dev</code>) cannot preview on-device — they need Node. Open the Files tab or export the ZIP and run it on a machine with Node.</p></div></body></html>''';
+    return Response.notFound(html,
+        headers: {'content-type': 'text/html; charset=utf-8'});
   }
 
   Future<void> stop() async {

@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Agent IDE chat tab + model switcher** - conversation transcript with the builder AI; model/provider switch from the AppBar.
+- **Preview reload + live build status** - reload button + URL bar; preview shows live progress (streaming/files) until output is ready.
+- **Friendly preview 404** - framework builds needing Node get an explanatory page, not a blank error.
+- **Browser-run prompt rules** - Vue/React require import maps + esm.sh (kills the bare-specifier TypeError); plain-JS rule bans silent TS failures.
+
+### Added
+- **Agent IDE terminal** - Preview/Files/Terminal tabs; timestamped, color-coded agent log (builds, fixes, errors) that the AI reads in repair prompts; copy + clear.
+- **Agent IDE controls** - Stop buttons, auto-fix toggle, file delete confirm, web ZIP download, stale errors clear on manual edits.
+
+### Added
+- **CubicWeb Builder: stop work, auto-fix toggle, web ZIP, error auto-clear** - Stop buttons (build + ask bar), header auto-fix toggle, delete confirmations, ZIP downloads on web, stale console errors clear on manual edits.
+
+### Added
 - **Web TTS** - read-aloud works in browsers via the flutter_tts web backend (all guards removed).
 - **Web file downloads** - Markdown/PDF/log/chat exports save real files via anchor download instead of clipboard fallback.
 - **Web notifications** - background-done ping via the browser Notification API (best-effort permission).

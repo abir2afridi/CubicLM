@@ -10,6 +10,7 @@ import '../core/colors.dart';
 import '../services/agent_workspace.dart';
 import '../theme/design_tokens.dart';
 import '../utils/web_project.dart';
+import '../widgets/model_switcher_sheet.dart';
 
 /// CubicWeb Builder — agentic website studio (Toolkit): prompt → project
 /// → live localhost preview → console-error auto-fix loop.
@@ -24,7 +25,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   late final AgentController c;
   final _promptCtrl = TextEditingController();
   final _askCtrl = TextEditingController();
-  String _tab = 'preview'; // preview | files
+  String _tab = 'preview'; // preview | files | terminal
   String? _openFile;
 
   @override
@@ -62,6 +63,14 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: 'Switch model / provider',
+            icon: Icon(LucideIcons.arrowLeftRight,
+                color: isDark
+                    ? AppColors.textPrimary
+                    : Dt.iconDefault),
+            onPressed: () => showModelSwitcherSheet(context),
+          ),
           Obx(() => c.project.value == null
               ? const SizedBox.shrink()
               : PopupMenuButton<String>(
@@ -107,12 +116,15 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       body: Obx(() {
         if (c.project.value == null) return _newProjectCard(context, isDark);
         return Column(children: [
+          _promptSummaryCard(context, isDark),
           _projectHeader(context, isDark),
           _tabSwitch(),
           Expanded(
             child: _tab == 'preview'
                 ? _previewPane(context, isDark, c.revision.value)
-                : _filesPane(context, isDark),
+                : _tab == 'files'
+                    ? _filesPane(context, isDark)
+                    : _chatPane(context, isDark),
           ),
           _askBar(context, isDark),
         ]);
@@ -174,23 +186,39 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: c.generating.value ||
-                      _promptCtrl.text.trim().isEmpty
-                  ? null
-                  : () async {
-                      c.topic.value = _promptCtrl.text;
-                      await c.newProject();
-                    },
-              icon: const Icon(LucideIcons.hammer, size: 18),
-              label: const Text('Build project'),
-              style: FilledButton.styleFrom(
-                backgroundColor: Dt.accent,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
+            child: c.generating.value
+                ? OutlinedButton.icon(
+                    onPressed: c.cancelWork,
+                    icon: const Icon(LucideIcons.square, size: 16),
+                    label: const Text('Stop building'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: BorderSide(
+                          color: AppColors.error
+                              .withValues(alpha: 0.4)),
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  )
+                : FilledButton.icon(
+                    onPressed: _promptCtrl.text.trim().isEmpty
+                        ? null
+                        : () async {
+                            c.topic.value = _promptCtrl.text;
+                            await c.newProject();
+                          },
+                    icon: const Icon(LucideIcons.hammer, size: 18),
+                    label: const Text('Build project'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Dt.accent,
+                      padding:
+                          const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
           ),
         ]),
         if (c.generating.value) ...[
@@ -204,6 +232,50 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   fontSize: 12.5, color: AppColors.error, height: 1.4)),
         ],
       ],
+    );
+  }
+
+  /// Locked prompt summary on the project page: what was asked + which
+  /// framework (read-only — the brief doesn't change mid-project).
+  Widget _promptSummaryCard(BuildContext context, bool isDark) {
+    final p = c.project.value!;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: Dt.accent.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: Dt.accent.withValues(alpha: 0.25)),
+      ),
+      child: Row(children: [
+        const Icon(LucideIcons.messageSquarePlus,
+            size: 15, color: Dt.accent),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            p.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 12.5, fontWeight: FontWeight.w600, height: 1.35),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: Dt.accent.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Text(p.framework,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: Dt.accent)),
+        ),
+      ]),
     );
   }
 
@@ -229,6 +301,33 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                         fontSize: 11.5,
                         color: Theme.of(context).hintColor)),
               ]),
+        ),
+        InkWell(
+          onTap: () => c.autoFix.value = !c.autoFix.value,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(
+                c.autoFix.value
+                    ? Icons.bolt_rounded
+                    : Icons.bolt_outlined,
+                size: 14,
+                color: c.autoFix.value
+                    ? Dt.accent
+                    : Theme.of(context).hintColor,
+              ),
+              const SizedBox(width: 4),
+              Text('Auto-fix',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: c.autoFix.value
+                          ? Dt.accent
+                          : Theme.of(context).hintColor)),
+            ]),
+          ),
         ),
         if (c.generating.value || c.fixing.value)
           const SizedBox(
@@ -256,6 +355,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               value: 'files',
               icon: Icon(LucideIcons.folderOpen, size: 15),
               label: Text('Files'),
+            ),
+            ButtonSegment(
+              value: 'chat',
+              icon: Icon(LucideIcons.messageCircle, size: 15),
+              label: Text('Chat'),
             ),
           ],
           selected: {_tab},
@@ -328,28 +432,27 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               ),
             ),
             const SizedBox(width: 8),
-            Obx(() => IconButton.filled(
-                  tooltip: 'Apply change',
-                  icon: c.generating.value
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(LucideIcons.send,
-                          size: 18),
-                  style: IconButton.styleFrom(
-                      backgroundColor: Dt.accent),
-                  onPressed: c.generating.value ||
-                          _askCtrl.text.trim().isEmpty
-                      ? null
-                      : () async {
-                          c.topic.value = _askCtrl.text;
-                          _askCtrl.clear();
-                          await c.modifyProject();
-                        },
-                )),
+            Obx(() {
+              final busy = c.generating.value || c.fixing.value;
+              return IconButton.filled(
+                tooltip: busy ? 'Stop' : 'Apply change',
+                icon: busy
+                    ? const Icon(LucideIcons.square, size: 16)
+                    : const Icon(LucideIcons.send, size: 18),
+                style: IconButton.styleFrom(
+                    backgroundColor:
+                        busy ? AppColors.error : Dt.accent),
+                onPressed: busy
+                    ? c.cancelWork
+                    : (_askCtrl.text.trim().isEmpty
+                        ? null
+                        : () async {
+                            c.topic.value = _askCtrl.text;
+                            _askCtrl.clear();
+                            await c.modifyProject();
+                          }),
+              );
+            }),
           ]),
         ]),
       ),
@@ -359,6 +462,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   // ── Preview pane ──
 
   Widget _previewPane(BuildContext context, bool isDark, int revision) {
+    // While working, the preview area shows LIVE progress (files being
+    // written, tool calls) — once the project structure is complete it
+    // swaps to the rendered output. Never a dead spinner.
+    final status = c.buildStatus.value;
+    if (c.generating.value || c.fixing.value || status != null) {
+      return _buildStatusView(context, isDark, status);
+    }
     final url = c.previewUrl.value;
     if (url == null || url.isEmpty) {
       return Center(
@@ -367,14 +477,262 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 fontSize: 13, color: Theme.of(context).hintColor)),
       );
     }
-    return _AgentPreview(
-      key: ValueKey('agent-$revision-$url'),
-      url: url,
-      onConsoleError: (msg) => c.onConsoleError(msg),
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+        child: Row(children: [
+          Expanded(
+            child: Text(url,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.firaCode(
+                    fontSize: 10.5,
+                    color: Theme.of(context).hintColor)),
+          ),
+          InkWell(
+            onTap: () => setState(() => _reloadNonce++),
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.all(5),
+              child:
+                  Icon(LucideIcons.rotateCw, size: 15),
+            ),
+          ),
+        ]),
+      ),
+      Expanded(
+        flex: 3,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _AgentPreview(
+            key: ValueKey('agent-$revision-$url-$_reloadNonce'),
+            url: url,
+            onConsoleError: (msg) => c.onConsoleError(msg),
+          ),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Expanded(
+        flex: 2,
+        child: _terminalStrip(context),
+      ),
+    ]);
+  }
+
+  /// Terminal lives UNDER preview (not a separate tab): build output,
+  /// file writes, console errors — the same buffer the AI repairs from.
+  Widget _terminalStrip(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF101014),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(LucideIcons.terminal, size: 13, color: Dt.accent),
+          const SizedBox(width: 6),
+          Text('TERMINAL',
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.8,
+                  color: const Color(0xFF9A958C))),
+          const Spacer(),
+          InkWell(
+            onTap: () => Clipboard.setData(ClipboardData(
+                text: c.terminal.join('\n'))),
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(LucideIcons.copy,
+                  size: 13, color: Color(0xFF9A958C)),
+            ),
+          ),
+          InkWell(
+            onTap: c.clearTerminal,
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(LucideIcons.trash2,
+                  size: 13, color: Color(0xFF9A958C)),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        Expanded(
+          child: Obx(() {
+            if (c.terminal.isEmpty) {
+              return Text(
+                '\$ builds, fixes and errors appear here',
+                style: GoogleFonts.firaCode(
+                    fontSize: 11, color: const Color(0xFF6E6B65)),
+              );
+            }
+            final lines = c.terminal.toList();
+            final tail = lines.length > 40
+                ? lines.sublist(lines.length - 40)
+                : lines;
+            return ListView.builder(
+              itemCount: tail.length,
+              itemBuilder: (_, i) => SelectableText(
+                tail[i],
+                style: GoogleFonts.firaCode(
+                    fontSize: 10.5,
+                    height: 1.5,
+                    color: _termColor(tail[i])),
+              ),
+            );
+          }),
+        ),
+      ]),
     );
   }
 
+  /// Live build/progress view: what the AI is doing RIGHT NOW
+  /// (streaming, files, tool calls) — with per-file ticks.
+  Widget _buildStatusView(
+      BuildContext context, bool isDark, String? status) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF101014),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const SizedBox(
+                width: 15,
+                height: 15,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(status ?? 'Working…',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white)),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            Expanded(
+              child: Obx(() => ListView.builder(
+                    itemCount: c.terminal.length > 12
+                        ? 12
+                        : c.terminal.length,
+                    itemBuilder: (_, i) {
+                      final lines = c.terminal.toList();
+                      final line = lines[
+                          lines.length - (i < lines.length ? i + 1 : 1)];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 5),
+                        child: Text(
+                          line,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.firaCode(
+                              fontSize: 11,
+                              height: 1.5,
+                              color: _termColor(line)),
+                        ),
+                      );
+                    },
+                  )),
+            ),
+            Text('Output appears here when the structure is complete.',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: const Color(0xFF8E8B85))),
+          ]),
+    );
+  }
+
+  int _reloadNonce = 0;
+
+  /// Conversation with the builder AI (prompts + summaries).
+  Widget _chatPane(BuildContext context, bool isDark) {
+    return Obx(() {
+      if (c.transcript.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'No conversation yet.\nDescribe the project above or ask for changes below — every exchange lands here.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  height: 1.5,
+                  color: Theme.of(context).hintColor),
+            ),
+          ),
+        );
+      }
+      return ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        itemCount: c.transcript.length,
+        itemBuilder: (_, i) {
+          final m = c.transcript[i];
+          final user = m['role'] == 'user';
+          return Align(
+            alignment:
+                user ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 13, vertical: 9),
+              constraints: BoxConstraints(
+                  maxWidth:
+                      MediaQuery.of(context).size.width * 0.82),
+              decoration: BoxDecoration(
+                color: user
+                    ? Dt.accent
+                    : (isDark
+                        ? AppColors.surface
+                        : const Color(0xFFF1EFE9)),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: SelectableText(
+                m['text'] ?? '',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: user
+                        ? Colors.white
+                        : (isDark
+                            ? AppColors.textPrimary
+                            : Dt.textPrimary)),
+              ),
+            ),
+          );
+        },
+      );
+    });
+  }
+
   // ── Files pane ──
+
+  /// Terminal: agent activity stream. Read-only by design (no shell on
+  /// stock Android) — but the AI reads this same buffer in repair
+  /// prompts, so errors here directly drive fixes.
+  Color _termColor(String line) {
+    if (line.contains('✗')) return const Color(0xFFF48771);
+    if (line.contains('✓')) return const Color(0xFFA6E3A1);
+    if (line.contains('⚙')) return const Color(0xFFCBA6F7);
+    if (line.contains('■')) return const Color(0xFFFAB387);
+    if (line.startsWith('[') && line.contains('> ')) {
+      return const Color(0xFF89DCEB);
+    }
+    return const Color(0xFFCDD6F4);
+  }
 
   Widget _filesPane(BuildContext context, bool isDark) {
     return ListView(
@@ -437,6 +795,24 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                       size: 16,
                       color: AppColors.error.withValues(alpha: 0.8)),
                   onPressed: () async {
+                    final ok = await Get.dialog<bool>(AlertDialog(
+                      title: const Text('Delete file?'),
+                      content: Text('"$path" will be removed.'),
+                      actions: [
+                        TextButton(
+                            onPressed: () =>
+                                Get.back(result: false),
+                            child: const Text('Cancel')),
+                        FilledButton(
+                          style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.error),
+                          onPressed: () =>
+                              Get.back(result: true),
+                          child: const Text('Delete'),
+                        ),
+                      ],
+                    ));
+                    if (ok != true) return;
                     final ws = Get.find<AgentWorkspaceService>();
                     await ws.deleteFile(
                         c.project.value!.id, path);

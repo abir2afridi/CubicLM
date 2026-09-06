@@ -123,18 +123,39 @@ const List<String> webFrameworks = [
 ];
 
 String _frameworkBrief(String framework) {
+  const esmRule =
+      'BROWSER-RUNNABLE MODULES (critical): never use bare specifiers like '
+      '"vue", "react" or relative paths missing ./ or ../ — browsers throw '
+      '"Failed to resolve module specifier". Either import from a full '
+      'https://esm.sh/... URL, or add an import map in index.html mapping '
+      'bare names to esm.sh URLs.';
+  const plainJsRule =
+      'PLAIN JAVASCRIPT ONLY for browser-run targets: never emit .ts/.tsx '
+      'files or TypeScript syntax (types, interfaces, enums) — browsers '
+      'cannot execute them and fail silently.';
   switch (framework) {
     case 'HTML + CSS + JS':
-      return 'multi-file site: index.html + styles.css + app.js with relative links. No build step, runs by opening index.html.';
+      return 'multi-file site: index.html + styles.css + app.js with relative links. No build step, runs by opening index.html. '
+          '$plainJsRule';
     case 'React (Vite)':
-      return 'Vite + React app: package.json (react, react-dom, vite scripts dev/build/preview), vite.config.js, index.html loading /src/main.jsx, src/main.jsx, src/App.jsx, src/index.css. npm install && npm run dev to run.';
+      return 'Two legal shapes, pick ONE and be consistent: (A) browser-run: '
+          'single index.html + htm + esm.sh React (no JSX, no build). (B) '
+          'Vite project (package.json, vite.config.js, src/main.jsx, '
+          'App.jsx) for npm users — note it needs npm run dev, no live '
+          'preview on-device. $esmRule';
     case 'Next.js':
-      return 'Next.js App Router: package.json (next, react, react-dom, scripts dev/build/start), app/layout.jsx, app/page.jsx, app/globals.css. npm install && npm run dev to run.';
+      return 'Next.js App Router: package.json (next, react, react-dom, scripts dev/build/start), app/layout.jsx, app/page.jsx, app/globals.css. '
+          'PLAIN JAVASCRIPT (.jsx), never TypeScript. '
+          'Note: needs npm run dev — no on-device live preview; still ship complete code. $esmRule';
     case 'Vue 3':
-      return 'Vue 3 + Vite: package.json (vue, vite, @vitejs/plugin-vue, scripts), vite.config.js, index.html loading /src/main.js, src/main.js, src/App.vue, src/style.css. npm install && npm run dev to run.';
+      return 'Two legal shapes, pick ONE: (A) browser-run: index.html with '
+          'an import map {"imports":{"vue":"https://esm.sh/vue@3"}} + '
+          'inline module script using Vue.createApp (no SFC, no build). '
+          '(B) Vite SFC project for npm users. $esmRule $plainJsRule';
     case 'Single HTML':
     default:
-      return 'ONE self-contained index.html: all CSS in <style>, all JS in <script>, no external files except https CDN links. Runs by opening the file.';
+      return 'ONE self-contained index.html: all CSS in <style>, all JS in <script>, no external files except https CDN links. Runs by opening the file. '
+          '$plainJsRule';
   }
 }
 
