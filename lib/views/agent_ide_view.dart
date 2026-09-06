@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -156,6 +157,16 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     const PopupMenuItem(
                       value: 'deploy',
                       child: Text('Deploy to web',
+                          style: TextStyle(fontSize: 14)),
+                    ),
+                    const PopupMenuItem(
+                      value: 'share',
+                      child: Text('Share project link',
+                          style: TextStyle(fontSize: 14)),
+                    ),
+                    const PopupMenuItem(
+                      value: 'github',
+                      child: Text('Export to GitHub',
                           style: TextStyle(fontSize: 14)),
                     ),
                     PopupMenuItem(
@@ -1724,6 +1735,10 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       _showProjectSwitcher(context);
     } else if (v == 'deploy') {
       _showDeploySheet(context);
+    } else if (v == 'share') {
+      _shareProjectLink(context);
+    } else if (v == 'github') {
+      _exportToGitHub(context);
     }
   }
 
@@ -1976,6 +1991,121 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         ),
       ),
     );
+  }
+
+  void _shareProjectLink(BuildContext context) async {
+    final p = c.project.value;
+    if (p == null) return;
+    final ws = Get.find<AgentWorkspaceService>();
+    final files = await ws.listFiles(p.id);
+    final fileMap = <String, String>{};
+    for (final f in files) {
+      final content = await ws.readFile(p.id, f);
+      if (content != null) fileMap[f] = content;
+    }
+    if (fileMap.isEmpty) return;
+    // Compress to a data URL (base64 of JSON).
+    final json = jsonEncode({'name': p.name, 'framework': p.framework, 'files': fileMap});
+    final encoded = base64UrlEncode(utf8.encode(json));
+    final shareUrl = 'https://cubiclm.vercel.app/view?data=$encoded';
+    // Copy to clipboard.
+    await Clipboard.setData(ClipboardData(text: shareUrl));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Share link copied to clipboard!')),
+      );
+    }
+  }
+
+  void _exportToGitHub(BuildContext context) async {
+    final p = c.project.value;
+    if (p == null) return;
+    final tokenCtrl = TextEditingController();
+    final repoCtrl = TextEditingController(text: p.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '-'));
+    final ok = await Get.dialog<bool>(AlertDialog(
+      title: const Text('Export to GitHub'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: tokenCtrl,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'GitHub Personal Access Token',
+              isDense: true,
+              prefixIcon: Icon(LucideIcons.key, size: 18),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: repoCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Repository name',
+              isDense: true,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Get.back(result: false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Get.back(result: true),
+          child: const Text('Export'),
+        ),
+      ],
+    ));
+    if (ok != true || tokenCtrl.text.trim().isEmpty) return;
+    try {
+      final ws = Get.find<AgentWorkspaceService>();
+      final files = await ws.listFiles(p.id);
+      final fileMap = <String, String>{};
+      for (final f in files) {
+        final content = await ws.readFile(p.id, f);
+        if (content != null) fileMap[f] = content;
+      }
+      final token = tokenCtrl.text.trim();
+      final repoName = repoCtrl.text.trim();
+      // Create repo.
+      final createRes = await http.post(
+        Uri.parse('https://api.github.com/user/repos'),
+        headers: {
+          'Authorization': 'token $token',
+          'Accept': 'application/vnd.github.v3+json',
+        },
+        body: jsonEncode({'name': repoName, 'auto_init': false}),
+      );
+      if (createRes.statusCode != 201) {
+        throw Exception('GitHub repo creation failed (${createRes.statusCode})');
+      }
+      // Upload each file.
+      for (final e in fileMap.entries) {
+        await http.put(
+          Uri.parse('https://api.github.com/repos/$repoName/contents/${e.key}'),
+          headers: {
+            'Authorization': 'token $token',
+            'Accept': 'application/vnd.github.v3+json',
+          },
+          body: jsonEncode({
+            'message': 'Add ${e.key}',
+            'content': base64Encode(utf8.encode(e.value)),
+          }),
+        );
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Exported to github.com/$repoName')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('GitHub export failed: $e')),
+        );
+      }
+    }
   }
 
   void _showRenameDialog(
