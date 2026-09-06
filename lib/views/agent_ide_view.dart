@@ -775,6 +775,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               ),
             ),
             const SizedBox(width: 8),
+            if (hasProject)
+              IconButton(
+                tooltip: 'Auto-test project',
+                icon: const Icon(LucideIcons.shieldCheck, size: 18),
+                onPressed: busy ? null : () => c.runAutoTest(),
+              ),
+            const SizedBox(width: 4),
             IconButton.filled(
               tooltip: busy
                   ? 'Stop'

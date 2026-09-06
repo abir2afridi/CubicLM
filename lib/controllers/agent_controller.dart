@@ -528,6 +528,85 @@ class AgentController extends GetxController {
     }
   }
 
+  // ── Browser Auto-Test ──
+
+  /// Manual test button: checks console errors + asks AI to review code,
+  /// then auto-fixes any issues found.
+  Future<void> runAutoTest() async {
+    final p = project.value;
+    if (p == null || generating.value || fixing.value) return;
+    generating.value = true;
+    _cancelled = false;
+    lastError.value = null;
+    _say('user', '🔍 Auto-test: review project for bugs and improvements');
+    buildStatus.value = 'Running auto-test…';
+    term('> auto-test: reviewing "${p.name}"…');
+    try {
+      // 1) Check existing console errors.
+      final consoleErr = consoleError.value;
+      if (consoleErr != null && consoleErr.isNotEmpty) {
+        term('✗ console error detected: $consoleErr');
+        await repairFromError();
+        if (generating.value) return; // already fixing
+      }
+      // 2) Ask AI to review all files for issues.
+      final projContext = await _projectContext(p.id);
+      final raw = await _ask(
+        prompt: 'Auto-test the "${p.name}" ${p.framework} project. '
+            'Review all files for: broken links, missing images, '
+            'accessibility issues (alt text, contrast), responsive bugs, '
+            'SEO problems (missing title/meta), performance issues, '
+            'and any other bugs.\n\n'
+            'CURRENT FILES:\n$projContext\n\n'
+            'If you find issues, return a files-JSON object with the '
+            'corrected files (complete new contents). If everything looks '
+            'good, respond with just: OK',
+        system:
+            '${webSystemPrompt(framework: p.framework)}\n'
+            'You are a QA engineer. Be thorough but practical.',
+        onProgress: (n) => _streamStatus('Testing', n),
+      );
+      if (_cancelled) return;
+      if (raw.trim() == 'OK') {
+        _say('assistant',
+            'All checks passed! No issues found. The project looks good.');
+        term('✓ auto-test: all checks passed');
+        AppSnackbar.showTop('Auto-test passed', 'No issues found.',
+            logHistory: false);
+      } else {
+        final parsed = parseFiles(raw);
+        await _ws.saveCheckpoint(p.id, label: 'Before auto-test fix');
+        var applied = 0;
+        for (final f in parsed) {
+          final werr = await _ws.writeFile(p.id, f.path, f.content);
+          if (werr == null) applied++;
+        }
+        await _ws.touch(p.id);
+        await refreshFiles();
+        _touch();
+        _say('assistant',
+            'Auto-test found and fixed $applied file${applied == 1 ? '' : 's'}. '
+            'Preview reloaded — check the result.');
+        term('✓ auto-test: fixed $applied files');
+        AppSnackbar.showTop('Auto-test fixed',
+            '$applied file${applied == 1 ? '' : 's'} updated.',
+            logHistory: false);
+      }
+    } catch (e) {
+      if (_cancelled) {
+        term('■ auto-test cancelled');
+        return;
+      }
+      lastError.value = '$e';
+      term('✗ auto-test failed: $e');
+      _log('Auto-test failed', e);
+    } finally {
+      generating.value = false;
+      buildStatus.value = null;
+      _cancelled = false;
+    }
+  }
+
   /// Small-file contexts for repair/modify prompts (capped).
   Future<String> _projectContext(String projectId) async {
     final buf = StringBuffer();
