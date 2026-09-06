@@ -855,7 +855,9 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   Widget _chatPane(BuildContext context, bool isDark) {
     return Obx(() {
       final planPending = c.pendingPlan.value != null;
-      final itemCount = c.transcript.length + (planPending ? 1 : 0);
+      final hasDiffs = c.lastDiffs.isNotEmpty;
+      final extraItems = (planPending ? 1 : 0) + (hasDiffs ? 1 : 0);
+      final itemCount = c.transcript.length + extraItems;
       if (itemCount == 0) {
         return Center(
           child: Padding(
@@ -875,7 +877,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         itemCount: itemCount,
         itemBuilder: (_, i) {
-          // Last item = plan card
+          // Diff card — after all transcript + plan
+          if (hasDiffs && i == c.transcript.length + (planPending ? 1 : 0)) {
+            return _diffCard(context, isDark);
+          }
+          // Plan card — after transcript
           if (planPending && i == c.transcript.length) {
             return _planCard(context, isDark);
           }
@@ -985,6 +991,106 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         ]),
       ]),
     );
+  }
+
+  /// Diff card — shows file-by-file changes (added/removed lines).
+  Widget _diffCard(BuildContext context, bool isDark) {
+    final diffs = c.lastDiffs;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : const Color(0xFFF8F9FA),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.07)
+                : Dt.hairline),
+      ),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+        Row(children: [
+          Icon(LucideIcons.gitCompare,
+              size: 15,
+              color: Theme.of(context).hintColor),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+                '${diffs.length} file${diffs.length == 1 ? '' : 's'} changed',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800)),
+          ),
+          GestureDetector(
+            onTap: () => c.lastDiffs.clear(),
+            child: Icon(LucideIcons.x,
+                size: 14,
+                color: Theme.of(context).hintColor),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        for (final entry in diffs.entries) ...[
+          Text(entry.key,
+              style: GoogleFonts.firaCode(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Dt.accent)),
+          const SizedBox(height: 4),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 160),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E2E),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: SingleChildScrollView(
+              child: _diffLines(entry.value['old'] ?? '',
+                  entry.value['new'] ?? ''),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ]),
+    );
+  }
+
+  /// Build colored diff lines (green = added, red = removed).
+  Widget _diffLines(String oldText, String newText) {
+    final oldLines = oldText.split('\n');
+    final newLines = newText.split('\n');
+    final spans = <TextSpan>[];
+
+    // Simple line-by-line diff ( LCS would be better but this is fast).
+    final oldSet = oldLines.toSet();
+    final newSet = newLines.toSet();
+    final removed = oldLines.where((l) => !newSet.contains(l)).toList();
+    final added = newLines.where((l) => !oldSet.contains(l)).toList();
+
+    for (final line in removed.take(30)) {
+      spans.add(TextSpan(
+        text: '- $line\n',
+        style: const TextStyle(
+            color: Color(0xFFF48771), fontFamily: 'FiraCode', fontSize: 11, height: 1.5),
+      ));
+    }
+    for (final line in added.take(30)) {
+      spans.add(TextSpan(
+        text: '+ $line\n',
+        style: const TextStyle(
+            color: Color(0xFFA6E3A1), fontFamily: 'FiraCode', fontSize: 11, height: 1.5),
+      ));
+    }
+    if (spans.isEmpty) {
+      spans.add(const TextSpan(
+        text: '(no line changes)',
+        style: TextStyle(
+            color: Color(0xFF6C7086), fontFamily: 'FiraCode', fontSize: 11),
+      ));
+    }
+    return RichText(text: TextSpan(children: spans));
   }
 
   // ── Files pane ──

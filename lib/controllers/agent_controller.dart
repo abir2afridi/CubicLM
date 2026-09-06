@@ -34,6 +34,9 @@ class AgentController extends GetxController {
   /// Pending plan awaiting user approval (null when no plan pending).
   final pendingPlan = RxnString();
 
+  /// Last modify diffs — file path → (old content, new content).
+  final lastDiffs = <String, Map<String, String>>{}.obs;
+
   /// Set by Stop — in-flight awaits can't be aborted, but their results
   /// are discarded and flags reset.
   bool _cancelled = false;
@@ -229,6 +232,16 @@ class AgentController extends GetxController {
       );
       if (_cancelled) return;
       final parsed = parseFiles(raw);
+      // Capture old contents for diff view.
+      lastDiffs.clear();
+      for (final f in parsed) {
+        final old = await _ws.readFile(p.id, f.path);
+        if (old != null && old != f.content) {
+          lastDiffs[f.path] = {'old': old, 'new': f.content};
+        } else if (old == null) {
+          lastDiffs[f.path] = {'old': '', 'new': f.content};
+        }
+      }
       var applied = 0;
       for (final f in parsed) {
         final err = await _ws.writeFile(p.id, f.path, f.content);
