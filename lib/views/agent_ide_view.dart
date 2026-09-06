@@ -9,6 +9,7 @@ import '../controllers/agent_controller.dart';
 import '../core/colors.dart';
 import '../services/agent_workspace.dart';
 import '../theme/design_tokens.dart';
+import '../utils/app_snackbar.dart';
 import '../utils/web_project.dart';
 import '../widgets/model_switcher_sheet.dart';
 
@@ -204,6 +205,114 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     );
   }
 
+  void _showHistorySheet(BuildContext context) async {
+    final p = c.project.value;
+    if (p == null) return;
+    final checkpoints = await Get.find<AgentWorkspaceService>()
+        .listCheckpoints(p.id);
+    if (!context.mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: DraggableScrollableSheet(
+          initialChildSize: 0.5,
+          minChildSize: 0.3,
+          maxChildSize: 0.85,
+          expand: false,
+          builder: (_, scrollCtrl) => Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Row(children: [
+                Expanded(
+                  child: Text('History',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 16, fontWeight: FontWeight.w800)),
+                ),
+                Text('${checkpoints.length} snapshots',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: Theme.of(context).hintColor)),
+              ]),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: checkpoints.isEmpty
+                  ? Center(
+                      child: Text('No checkpoints yet.\nSnapshots are saved automatically before each build.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              color: Theme.of(context).hintColor)),
+                    )
+                  : ListView.builder(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      itemCount: checkpoints.length,
+                      itemBuilder: (_, i) {
+                        final cp = checkpoints[i];
+                        final dt = DateTime.fromMillisecondsSinceEpoch(
+                            cp.timestampMs);
+                        final timeStr =
+                            '${dt.hour.toString().padLeft(2, '0')}:'
+                            '${dt.minute.toString().padLeft(2, '0')}';
+                        final dateStr =
+                            '${dt.month}/${dt.day} $timeStr';
+                        return ListTile(
+                          dense: true,
+                          leading: Icon(
+                            i == 0
+                                ? LucideIcons.dot
+                                : LucideIcons.history,
+                            size: 16,
+                            color: i == 0
+                                ? Dt.accent
+                                : Theme.of(context).hintColor,
+                          ),
+                          title: Text(cp.label,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 13,
+                                  fontWeight: i == 0
+                                      ? FontWeight.w700
+                                      : FontWeight.w500)),
+                          subtitle: Text(
+                              '$dateStr · ${cp.fileCount} files',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  color: Theme.of(context)
+                                      .hintColor)),
+                          trailing: i == 0
+                              ? null
+                              : TextButton(
+                                  onPressed: () async {
+                                    Navigator.pop(context);
+                                    final count = await Get.find<
+                                            AgentWorkspaceService>()
+                                        .rollbackToCheckpoint(
+                                            p.id, cp.id);
+                                    await c.refreshFiles();
+                                    c.revision.value++;
+                                    AppSnackbar.showTop(
+                                      'Rolled back',
+                                      '$count files restored from "${cp.label}"',
+                                    );
+                                  },
+                                  child: Text('Restore',
+                                      style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 12,
+                                          fontWeight:
+                                              FontWeight.w700)),
+                                ),
+                        );
+                      },
+                    ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
   /// Locked prompt summary on the project page: what was asked + which
   /// framework (read-only — the brief doesn't change mid-project).
   /// The + New button starts over (back to the composer on this same page).
@@ -320,6 +429,25 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                       color: c.autoFix.value
                           ? Dt.accent
                           : Theme.of(context).hintColor)),
+            ]),
+          ),
+        ),
+        InkWell(
+          onTap: () => _showHistorySheet(context),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(LucideIcons.history,
+                  size: 14,
+                  color: Theme.of(context).hintColor),
+              const SizedBox(width: 4),
+              Text('History',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).hintColor)),
             ]),
           ),
         ),

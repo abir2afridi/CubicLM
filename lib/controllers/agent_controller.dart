@@ -167,6 +167,7 @@ class AgentController extends GetxController {
       final name = t.length > 40 ? '${t.substring(0, 40)}…' : t;
       final p = await _ws.createProject(name, framework.value);
       project.value = p;
+      await _ws.saveCheckpoint(p.id, label: 'Project created');
       final raw = await _ask(
         prompt: 'Build this website with ${framework.value}: $t',
         system: webSystemPrompt(framework: framework.value),
@@ -216,6 +217,7 @@ class AgentController extends GetxController {
     buildStatus.value = 'Applying change…';
     term('> modify: "${t.length > 80 ? '${t.substring(0, 80)}…' : t}"');
     try {
+      await _ws.saveCheckpoint(p.id, label: 'Before modify');
       final projContext = await _projectContext(p.id);
       final raw = await _ask(
         prompt: 'Modify the "${p.name}" ${p.framework} project: $t\n\n'
@@ -417,6 +419,7 @@ class AgentController extends GetxController {
     buildStatus.value = 'Fixing error…';
     term('⚙ auto-fix round $_autoRounds/$maxRepairRounds…');
     try {
+      await _ws.saveCheckpoint(p.id, label: 'Before auto-fix');
       final projContext = await _projectContext(p.id);
       final raw = await _ask(
         prompt: 'Fix this runtime error in the "${p.name}" '

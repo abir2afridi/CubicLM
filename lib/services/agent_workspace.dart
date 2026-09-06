@@ -41,6 +41,39 @@ class AgentProject {
       };
 }
 
+/// A snapshot of project files at a point in time.
+class ProjectCheckpoint {
+  final String id;
+  final String label;
+  final int timestampMs;
+  final int fileCount;
+
+  ProjectCheckpoint({
+    required this.id,
+    required this.label,
+    required this.timestampMs,
+    required this.fileCount,
+  });
+
+  factory ProjectCheckpoint.fromMap(Map m) => ProjectCheckpoint(
+        id: (m['id'] ?? '').toString(),
+        label: (m['label'] ?? '').toString(),
+        timestampMs: m['timestampMs'] is int
+            ? m['timestampMs'] as int
+            : int.tryParse(m['timestampMs'].toString()) ?? 0,
+        fileCount: m['fileCount'] is int
+            ? m['fileCount'] as int
+            : int.tryParse(m['fileCount'].toString()) ?? 0,
+      );
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'label': label,
+        'timestampMs': timestampMs,
+        'fileCount': fileCount,
+      };
+}
+
 class AgentWorkspaceService extends GetxService {
   static const _kProjects = 'agent_projects';
   static const maxFiles = 30;
@@ -268,5 +301,127 @@ class AgentWorkspaceService extends GetxService {
       if (err != null) return '${e.key}: $err';
     }
     return null;
+  }
+
+  // ── Checkpoints ──
+
+  static const int maxCheckpoints = 20;
+  static const _kCheckpoints = 'agent_checkpoints';
+
+  Future<Directory> _checkpointDir(String projectId) async {
+    final projectDir = await dirFor(projectId);
+    final cpDir = Directory('${projectDir.path}/.checkpoints');
+    if (!await cpDir.exists()) await cpDir.create(recursive: true);
+    return cpDir;
+  }
+
+  Map<String, List<Map>> _allCheckpointMeta() {
+    try {
+      final raw = Get.find<HiveService>().getSetting<Map>(_kCheckpoints);
+      if (raw == null) return {};
+      return raw.map((k, v) => MapEntry(k.toString(), List<Map>.from(v as List)));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  Future<void> _saveCheckpointMeta(
+      String projectId, List<Map> list) async {
+    try {
+      final all = _allCheckpointMeta();
+      all[projectId] = list;
+      await Get.find<HiveService>().setSetting(_kCheckpoints, all);
+    } catch (_) {}
+  }
+
+  /// Save a snapshot of all project files. Returns the checkpoint ID.
+  Future<String> saveCheckpoint(String projectId, {String? label}) async {
+    final cpId = DateTime.now().millisecondsSinceEpoch.toString();
+    final cpDir = await _checkpointDir(projectId);
+    final targetDir = Directory('${cpDir.path}/$cpId');
+    await targetDir.create(recursive: true);
+
+    // Copy all project files into the checkpoint directory.
+    final projectDir = await dirFor(projectId);
+    var fileCount = 0;
+    for (final path in await listFiles(projectId)) {
+      try {
+        final src = File('${projectDir.path}/$path');
+        final dst = File('${targetDir.path}/$path');
+        await dst.parent.create(recursive: true);
+        await src.copy(dst.path);
+        fileCount++;
+      } catch (_) {}
+    }
+
+    // Save metadata.
+    final meta = _allCheckpointMeta();
+    final list = meta[projectId] ?? [];
+    list.insert(0, ProjectCheckpoint(
+      id: cpId,
+      label: label ?? 'Auto-save',
+      timestampMs: DateTime.now().millisecondsSinceEpoch,
+      fileCount: fileCount,
+    ).toMap());
+    // Prune old checkpoints (keep maxCheckpoints).
+    while (list.length > maxCheckpoints) {
+      final oldest = list.removeLast();
+      try {
+        final oldDir = Directory('${cpDir.path}/${oldest['id']}');
+        if (await oldDir.exists()) await oldDir.delete(recursive: true);
+      } catch (_) {}
+    }
+    await _saveCheckpointMeta(projectId, list);
+    return cpId;
+  }
+
+  /// List checkpoints for a project (newest first).
+  Future<List<ProjectCheckpoint>> listCheckpoints(String projectId) async {
+    final meta = _allCheckpointMeta();
+    final list = meta[projectId] ?? [];
+    return list.map(ProjectCheckpoint.fromMap).toList();
+  }
+
+  /// Rollback project files to a checkpoint. Returns the number of files restored.
+  Future<int> rollbackToCheckpoint(String projectId, String checkpointId) async {
+    final cpDir = await _checkpointDir(projectId);
+    final srcDir = Directory('${cpDir.path}/$checkpointId');
+    if (!await srcDir.exists()) return 0;
+
+    // Clear current project files (except .checkpoints).
+    final projectDir = await dirFor(projectId);
+    await for (final e in projectDir.list(recursive: false)) {
+      if (e is Directory && e.path.endsWith('.checkpoints')) continue;
+      try {
+        if (e is File) await e.delete();
+        if (e is Directory) await e.delete(recursive: true);
+      } catch (_) {}
+    }
+
+    // Copy checkpoint files back.
+    var restored = 0;
+    await for (final e in srcDir.list(recursive: true)) {
+      if (e is File) {
+        final rel = e.path.substring(srcDir.path.length + 1).replaceAll('\\', '/');
+        final dst = File('${projectDir.path}/$rel');
+        await dst.parent.create(recursive: true);
+        await e.copy(dst.path);
+        restored++;
+      }
+    }
+    await touch(projectId);
+    return restored;
+  }
+
+  /// Delete a specific checkpoint.
+  Future<void> deleteCheckpoint(String projectId, String checkpointId) async {
+    final cpDir = await _checkpointDir(projectId);
+    final targetDir = Directory('${cpDir.path}/$checkpointId');
+    if (await targetDir.exists()) await targetDir.delete(recursive: true);
+
+    final meta = _allCheckpointMeta();
+    final list = meta[projectId] ?? [];
+    list.removeWhere((m) => m['id'] == checkpointId);
+    await _saveCheckpointMeta(projectId, list);
   }
 }
