@@ -1,8 +1,11 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../controllers/agent_controller.dart';
@@ -659,6 +662,32 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               ),
             ),
             const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () async {
+                final picker = ImagePicker();
+                final x = await picker.pickImage(
+                    source: ImageSource.gallery, imageQuality: 85);
+                if (x != null) {
+                  final bytes = await x.readAsBytes();
+                  c.attachedImage.value = base64Encode(bytes);
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.black.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Obx(() => Icon(LucideIcons.image,
+                    size: 16,
+                    color: c.attachedImage.value != null
+                        ? Dt.accent
+                        : Theme.of(context).hintColor)),
+              ),
+            ),
+            const SizedBox(width: 8),
             IconButton.filled(
               tooltip: busy
                   ? 'Stop'
@@ -671,10 +700,14 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                       busy ? AppColors.error : Dt.accent),
               onPressed: busy
                   ? c.cancelWork
-                  : (_askCtrl.text.trim().isEmpty
+                  : (_askCtrl.text.trim().isEmpty && c.attachedImage.value == null
                       ? null
                       : () async {
-                          c.topic.value = _askCtrl.text;
+                          final text = _askCtrl.text.trim();
+                          final hasImg = c.attachedImage.value != null;
+                          c.topic.value = text.isEmpty && hasImg
+                              ? 'Build from this screenshot'
+                              : text;
                           _askCtrl.clear();
                           if (hasProject) {
                             await c.modifyProject();
@@ -862,7 +895,30 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(children: [
+          Obx(() => c.attachedImage.value != null
+              ? Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Dt.accent.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(LucideIcons.image, size: 13, color: Dt.accent),
+                    const SizedBox(width: 6),
+                    Text('Screenshot attached',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11, color: Dt.accent)),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => c.clearAttachment(),
+                      child: Icon(LucideIcons.x,
+                          size: 12, color: Dt.accent),
+                    ),
+                  ]),
+                )
+              : const SizedBox.shrink()),
+          Row(children: [
               const SizedBox(
                 width: 15,
                 height: 15,

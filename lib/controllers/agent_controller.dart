@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -61,6 +63,51 @@ class AgentController extends GetxController {
   /// Live build status shown in the preview pane while working
   /// (null when idle). E.g. "Streaming response… 12k chars".
   final buildStatus = RxnString();
+
+  /// Attached image (base64, no data-uri prefix) for vision models.
+  /// Sent with the next build/modify call, then cleared.
+  final attachedImage = RxnString();
+
+  /// Element picked from the live preview (long-press in preview).
+  /// Injected as context into the next modify prompt.
+  final pickedElement = RxnString();
+
+  /// When true, long-press on any preview element captures it as context.
+  final elementPickMode = false.obs;
+
+  /// Attach an image (from gallery/camera) for vision models.
+  Future<void> attachImage() async {
+    try {
+      final picker = ImagePicker();
+      final xfile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1280,
+        imageQuality: 82,
+      );
+      if (xfile == null) return;
+      final bytes = await xfile.readAsBytes();
+      attachedImage.value = base64Encode(bytes);
+      term('📷 image attached (${(bytes.length / 1024).round()} KB)');
+    } catch (e) {
+      AppSnackbar.showTop('Attach failed', '$e', logHistory: false);
+    }
+  }
+
+  void clearAttachment() => attachedImage.value = null;
+  void clearPickedElement() => pickedElement.value = null;
+  void toggleElementPick() => elementPickMode.value = !elementPickMode.value;
+
+  /// Called by the preview's JS bridge when the user long-presses an element.
+  void onElementPicked(String info) {
+    pickedElement.value = info;
+    elementPickMode.value = false;
+    term('🎯 element picked: ${info.length > 80 ? '${info.substring(0, 80)}…' : info}');
+    AppSnackbar.showTop(
+      'Element picked',
+      'Context added — describe the change you want.',
+      logHistory: false,
+    );
+  }
 
   void _say(String role, String text) {
     try {
@@ -593,6 +640,7 @@ class AgentController extends GetxController {
         maxTokens: settings.autoTuneParams.value
             ? null
             : settings.maxTokens.value,
+        imageBase64: attachedImage.value,
       )) {
         bump(chunk);
       }
