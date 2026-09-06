@@ -114,10 +114,15 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         ],
       ),
       body: Obx(() {
-        if (c.project.value == null) return _newProjectCard(context, isDark);
+        // ONE page always: composer (or locked brief) + tabs + ask bar.
+        // No separate "start page" → "second page" jump.
+        final hasProject = c.project.value != null;
         return Column(children: [
-          _promptSummaryCard(context, isDark),
-          _projectHeader(context, isDark),
+          if (hasProject)
+            _promptSummaryCard(context, isDark)
+          else
+            _newProjectCard(context, isDark),
+          if (hasProject) _projectHeader(context, isDark),
           _tabSwitch(),
           Expanded(
             child: _tab == 'preview'
@@ -135,9 +140,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   // ── New project ──
 
   Widget _newProjectCard(BuildContext context, bool isDark) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-      children: [
+    // Compact (non-scrolling): sits atop tabs/panes on the single page.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
         _card(isDark, [
           Text('What should the AI build?',
               style: GoogleFonts.plusJakartaSans(
@@ -222,8 +231,12 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           ),
         ]),
         if (c.generating.value) ...[
-          const SizedBox(height: 20),
-          const Center(child: CircularProgressIndicator()),
+          const SizedBox(height: 12),
+          const Center(
+              child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))),
         ],
         if (c.lastError.value != null) ...[
           const SizedBox(height: 10),
@@ -231,7 +244,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               style: GoogleFonts.plusJakartaSans(
                   fontSize: 12.5, color: AppColors.error, height: 1.4)),
         ],
-      ],
+        ],
+      ),
     );
   }
 
@@ -442,12 +456,15 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             Expanded(
               child: TextField(
                 controller: _askCtrl,
+                enabled: c.project.value != null,
                 minLines: 1,
                 maxLines: 3,
                 onChanged: (v) => c.topic.value = v,
                 style: GoogleFonts.plusJakartaSans(fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'Ask AI to change anything…',
+                  hintText: c.project.value != null
+                      ? 'Ask AI to change anything…'
+                      : 'Build a project above to start chatting…',
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12)),
                   contentPadding: const EdgeInsets.symmetric(
@@ -459,6 +476,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             const SizedBox(width: 8),
             Obx(() {
               final busy = c.generating.value || c.fixing.value;
+              final ready = c.project.value != null;
               return IconButton.filled(
                 tooltip: busy ? 'Stop' : 'Apply change',
                 icon: busy
@@ -469,7 +487,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                         busy ? AppColors.error : Dt.accent),
                 onPressed: busy
                     ? c.cancelWork
-                    : (_askCtrl.text.trim().isEmpty
+                    : (!ready || _askCtrl.text.trim().isEmpty
                         ? null
                         : () async {
                             c.topic.value = _askCtrl.text;
@@ -760,6 +778,21 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   }
 
   Widget _filesPane(BuildContext context, bool isDark) {
+    if (c.project.value == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Build a project above — its files will land here.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 13,
+                height: 1.5,
+                color: Theme.of(context).hintColor),
+          ),
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
