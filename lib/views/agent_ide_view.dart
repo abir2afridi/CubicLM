@@ -114,14 +114,12 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         ],
       ),
       body: Obx(() {
-        // ONE page always: composer (or locked brief) + tabs + ask bar.
-        // No separate "start page" → "second page" jump.
+        // ONE page, chat-style: the ask bar IS the input (prompt +
+        // framework + send). No separate composer gate.
         final hasProject = c.project.value != null;
         return Column(children: [
           if (hasProject)
-            _promptSummaryCard(context, isDark)
-          else
-            _newProjectCard(context, isDark),
+            _promptSummaryCard(context, isDark),
           if (hasProject) _projectHeader(context, isDark),
           _tabSwitch(),
           Expanded(
@@ -131,6 +129,17 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     ? _filesPane(context, isDark)
                     : _chatPane(context, isDark),
           ),
+          if (!hasProject) _frameworkChips(),
+          if (!hasProject) _frameworkChips(),
+          if (!hasProject && c.lastError.value != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+              child: Text(c.lastError.value!,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5,
+                      color: AppColors.error,
+                      height: 1.4)),
+            ),
           _askBar(context, isDark),
         ]);
       }),
@@ -139,113 +148,32 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   // ── New project ──
 
-  Widget _newProjectCard(BuildContext context, bool isDark) {
-    // Compact (non-scrolling): sits atop tabs/panes on the single page.
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-        _card(isDark, [
-          Text('What should the AI build?',
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _promptCtrl,
-            maxLines: 4,
-            minLines: 2,
-            onChanged: (v) => c.topic.value = v,
-            style:
-                GoogleFonts.plusJakartaSans(fontSize: 14, height: 1.45),
-            decoration: InputDecoration(
-              hintText:
-                  'e.g. Modern e-commerce site with cart — React + Tailwind',
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              contentPadding: const EdgeInsets.all(12),
-            ),
-          ),
-          const SizedBox(height: 10),
-          DropdownButtonFormField<String>(
-            initialValue: c.framework.value,
-            items: [
+  /// Framework picker as compact chips above the ask bar (no-project
+  /// state only). The ask bar send button IS the build button.
+  Widget _frameworkChips() {
+    return Container(
+      height: 36,
+      margin: const EdgeInsets.only(top: 8),
+      child: Obx(() => ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            children: [
               for (final f in webFrameworks)
-                DropdownMenuItem(value: f, child: Text(f)),
-            ],
-            onChanged: (v) {
-              if (v != null) c.framework.value = v;
-            },
-            decoration: InputDecoration(
-              labelText: 'Framework',
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 10),
-              isDense: true,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Static + ESM frameworks preview on-device. Builds needing Node/SSR go cloud (Phase 2).',
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 11.5, color: Theme.of(context).hintColor),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: c.generating.value
-                ? OutlinedButton.icon(
-                    onPressed: c.cancelWork,
-                    icon: const Icon(LucideIcons.square, size: 16),
-                    label: const Text('Stop building'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: BorderSide(
-                          color: AppColors.error
-                              .withValues(alpha: 0.4)),
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                  )
-                : FilledButton.icon(
-                    onPressed: _promptCtrl.text.trim().isEmpty
-                        ? null
-                        : () async {
-                            c.topic.value = _promptCtrl.text;
-                            await c.newProject();
-                          },
-                    icon: const Icon(LucideIcons.hammer, size: 18),
-                    label: const Text('Build project'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Dt.accent,
-                      padding:
-                          const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ChoiceChip(
+                    label: Text(f,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700)),
+                    selected: c.framework.value == f,
+                    selectedColor:
+                        Dt.accent.withValues(alpha: 0.2),
+                    onSelected: (_) => c.framework.value = f,
                   ),
-          ),
-        ]),
-        if (c.generating.value) ...[
-          const SizedBox(height: 12),
-          const Center(
-              child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))),
-        ],
-        if (c.lastError.value != null) ...[
-          const SizedBox(height: 10),
-          Text(c.lastError.value!,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5, color: AppColors.error, height: 1.4)),
-        ],
-        ],
-      ),
+                ),
+            ],
+          )),
     );
   }
 
@@ -464,7 +392,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 decoration: InputDecoration(
                   hintText: c.project.value != null
                       ? 'Ask AI to change anything…'
-                      : 'Build a project above to start chatting…',
+                      : 'Describe what to build…',
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12)),
                   contentPadding: const EdgeInsets.symmetric(
@@ -478,7 +406,9 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               final busy = c.generating.value || c.fixing.value;
               final ready = c.project.value != null;
               return IconButton.filled(
-                tooltip: busy ? 'Stop' : 'Apply change',
+                tooltip: busy
+                    ? 'Stop'
+                    : (ready ? 'Apply change' : 'Build project'),
                 icon: busy
                     ? const Icon(LucideIcons.square, size: 16)
                     : const Icon(LucideIcons.send, size: 18),
@@ -487,12 +417,16 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                         busy ? AppColors.error : Dt.accent),
                 onPressed: busy
                     ? c.cancelWork
-                    : (!ready || _askCtrl.text.trim().isEmpty
+                    : (_askCtrl.text.trim().isEmpty
                         ? null
                         : () async {
                             c.topic.value = _askCtrl.text;
                             _askCtrl.clear();
-                            await c.modifyProject();
+                            if (ready) {
+                              await c.modifyProject();
+                            } else {
+                              await c.newProject();
+                            }
                           }),
               );
             }),
@@ -1181,22 +1115,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     );
   }
 
-  Widget _card(bool isDark, List<Widget> children) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surface : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.06)
-                : Dt.hairline),
-      ),
-      child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: children),
-    );
-  }
 }
 
 extension on AgentController {
