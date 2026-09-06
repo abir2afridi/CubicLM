@@ -729,6 +729,60 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   ]),
                 ),
               ),
+            if (hasProject) ...[
+              GestureDetector(
+                onTap: () => c.extendedThinking.value = !c.extendedThinking.value,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: c.extendedThinking.value
+                        ? const Color(0xFF8B5CF6).withValues(alpha: 0.15)
+                        : (isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.05)),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: c.extendedThinking.value
+                            ? const Color(0xFF8B5CF6).withValues(alpha: 0.4)
+                            : (isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Dt.hairline)),
+                  ),
+                  child: Icon(LucideIcons.brain,
+                      size: 14,
+                      color: c.extendedThinking.value
+                          ? const Color(0xFF8B5CF6)
+                          : Theme.of(context).hintColor),
+                ),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () => c.webSearch.value = !c.webSearch.value,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: c.webSearch.value
+                        ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                        : (isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.05)),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: c.webSearch.value
+                            ? const Color(0xFF10B981).withValues(alpha: 0.4)
+                            : (isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Dt.hairline)),
+                  ),
+                  child: Icon(LucideIcons.globe,
+                      size: 14,
+                      color: c.webSearch.value
+                          ? const Color(0xFF10B981)
+                          : Theme.of(context).hintColor),
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
             Expanded(
               child: TextField(
                 controller: _askCtrl,

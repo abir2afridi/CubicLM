@@ -32,6 +32,8 @@ class AgentController extends GetxController {
   final fixing = false.obs;
   final autoFix = true.obs;
   final planMode = false.obs;
+  final extendedThinking = false.obs;
+  final webSearch = false.obs;
 
   /// Pending plan awaiting user approval (null when no plan pending).
   final pendingPlan = RxnString();
@@ -698,6 +700,18 @@ class AgentController extends GetxController {
       required String system,
       void Function(int chars)? onProgress}) async {
     final settings = Get.find<SettingsController>();
+    // Inject extended thinking instructions.
+    var sys = system;
+    if (extendedThinking.value) {
+      sys += '\n\nTHINKING MODE: Before writing any code, think step-by-step. '
+          'Analyze requirements, consider edge cases, plan the structure, '
+          'then write clean, well-organized code.';
+    }
+    if (webSearch.value) {
+      sys += '\n\nWEB SEARCH: If you need current library versions, CDN URLs, '
+          'or best practices, include them. Use well-known, stable CDN '
+          'links (unpkg, cdnjs, jsdelivr) for external libraries.';
+    }
     final buf = StringBuffer();
     var count = 0;
     void bump(String chunk) {
@@ -712,7 +726,7 @@ class AgentController extends GetxController {
       final cloud = Get.find<CloudService>();
       await for (final chunk in cloud.streamMessage(
         [
-          {'role': 'system', 'content': system},
+          {'role': 'system', 'content': sys},
           {'role': 'user', 'content': prompt},
         ],
         temperature: settings.temperature.value,
