@@ -10,6 +10,7 @@ import '../core/colors.dart';
 import '../services/agent_workspace.dart';
 import '../theme/design_tokens.dart';
 import '../utils/app_snackbar.dart';
+import '../utils/syntax_highlight.dart';
 import '../utils/web_project.dart';
 import '../widgets/model_switcher_sheet.dart';
 
@@ -1433,6 +1434,7 @@ class _FileEditorCard extends StatefulWidget {
 class _FileEditorCardState extends State<_FileEditorCard> {
   late final TextEditingController _ctrl;
   bool _dirty = false;
+  bool _viewMode = false; // false = edit, true = highlighted view
 
   @override
   void initState() {
@@ -1486,6 +1488,13 @@ class _FileEditorCardState extends State<_FileEditorCard> {
                 Clipboard.setData(ClipboardData(text: _ctrl.text)),
           ),
           IconButton(
+            tooltip: _viewMode ? 'Edit code' : 'View highlighted',
+            icon: Icon(
+                _viewMode ? LucideIcons.pencil : LucideIcons.eye,
+                size: 16),
+            onPressed: () => setState(() => _viewMode = !_viewMode),
+          ),
+          IconButton(
             tooltip: 'Save edits',
             icon: const Icon(LucideIcons.check, size: 18),
             color: Dt.accent,
@@ -1520,15 +1529,26 @@ class _FileEditorCardState extends State<_FileEditorCard> {
                 : const Color(0xFFF8F9FA),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: SingleChildScrollView(
-            child: TextField(
-              controller: _ctrl,
-              maxLines: null,
-              style: GoogleFonts.firaCode(fontSize: 12, height: 1.5),
-              decoration:
-                  const InputDecoration.collapsed(hintText: ''),
-            ),
-          ),
+          child: _viewMode
+              ? SingleChildScrollView(
+                  padding: EdgeInsets.zero,
+                  child: SelectableText.rich(
+                    buildHighlightedSpan(
+                        highlight(_ctrl.text, widget.path)),
+                    style: GoogleFonts.firaCode(
+                        fontSize: 12, height: 1.5),
+                  ),
+                )
+              : SingleChildScrollView(
+                  child: TextField(
+                    controller: _ctrl,
+                    maxLines: null,
+                    style: GoogleFonts.firaCode(
+                        fontSize: 12, height: 1.5),
+                    decoration:
+                        const InputDecoration.collapsed(hintText: ''),
+                  ),
+                ),
         ),
       ]),
     );
