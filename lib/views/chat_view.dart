@@ -30,8 +30,6 @@ import '../widgets/chat_bubble.dart';
 import '../widgets/model_switcher_sheet.dart';
 import '../widgets/thinking_orb.dart';
 import '../widgets/thought_disclosure.dart';
-import 'battle_arena_view.dart';
-import 'slide_deck_view.dart';
 import '../core/colors.dart';
 import '../services/notification_history_service.dart';
 import 'notification_history_view.dart';
@@ -939,8 +937,6 @@ class ChatView extends GetView<ChatController> {
               if (v == 'find') controller.toggleFind(true);
               if (v == 'export') _exportCurrentSession(context);
               if (v == 'select') controller.toggleSelectionMode();
-              if (v == 'arena') Get.to(() => const BattleArenaView());
-              if (v == 'slides') Get.to(() => const SlideDeckView());
             },
             itemBuilder: (_) => [
               PopupMenuItem(
@@ -986,24 +982,6 @@ class ChatView extends GetView<ChatController> {
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 14,
                           color: hasSession ? null : muted)),
-                ]),
-              ),
-              PopupMenuItem(
-                value: 'slides',
-                child: Row(children: [
-                  const Icon(LucideIcons.presentation, size: 16),
-                  const SizedBox(width: 10),
-                  Text('Slide Maker',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                ]),
-              ),
-              PopupMenuItem(
-                value: 'arena',
-                child: Row(children: [
-                  const Icon(LucideIcons.swords, size: 16),
-                  const SizedBox(width: 10),
-                  Text('Battle Arena',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 14)),
                 ]),
               ),
             ],

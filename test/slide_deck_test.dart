@@ -66,6 +66,18 @@ Here is your deck:
       expect(html.contains('class="ph"'), isTrue);
     });
 
+    test('free layout emits absolute-positioned html', () {
+      final s = Slide(title: 'T', points: ['a'])
+        ..freeLayout = true
+        ..tDx = 0.1
+        ..tDy = 0.05
+        ..tS = 1.5;
+      final html = deckToHtml('Topic', [s]);
+      expect(html.contains('position:absolute'), isTrue);
+      expect(html.contains('left:10.0%'), isTrue);
+      expect(html.contains('font-size:45px'), isTrue); // 30 * 1.5
+    });
+
     test('prompts mention count and regen shape', () {
       final sys = slideSystemPrompt(count: 5, style: 'playful');
       expect(sys.contains('exactly 5 slides'), isTrue);

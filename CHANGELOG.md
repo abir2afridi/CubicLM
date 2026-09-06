@@ -5,6 +5,16 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Explore Toolkit tab** - Explore is now Model Hub + Toolkit; Battle Arena and Slide Maker moved from the chat ⋮ menu into widget cards with descriptions.
+
+### Added
+- **Slide viewer modes** - Docs (paper flow) / Slides (4:3 stage) / PDF (A4 page) switcher above the carousel.
+- **Freehand slide layout** - per-slide move (drag) + resize (corner handle) for title/body/image boxes on PPT + PDF canvas; HTML export honors positions.
+- **Manual slide photos** - gallery/camera add/replace per slide (works when the model left only a box).
+
 ## [1.8.1+14] - 2026-09-05
 
 ### Fixed

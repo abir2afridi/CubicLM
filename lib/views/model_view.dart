@@ -15,8 +15,10 @@ import '../services/download_service.dart';
 import '../services/usage_tracker_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
+import 'battle_arena_view.dart';
 import 'explore_skills_mcp_tabs.dart';
 import 'gallery_view.dart';
+import 'slide_deck_view.dart';
 
 class ModelView extends GetView<ModelController> {
   const ModelView({super.key});
@@ -38,7 +40,8 @@ class ModelView extends GetView<ModelController> {
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -0.5)),
         actions: [
           Obx(() {
-            if (controller.modelScope.value != 'local') {
+            if (controller.exploreTab.value != 'hub' ||
+                controller.modelScope.value != 'local') {
               return const SizedBox.shrink();
             }
             return Row(
@@ -63,25 +66,176 @@ class ModelView extends GetView<ModelController> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: _buildScopeToggle(context),
+            child: _buildExploreTabs(context),
           ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _buildActiveModelBanner(context),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                if (controller.modelScope.value == 'local') {
-                  await controller.refreshDownloaded();
-                }
-              },
-              color: Dt.accent,
-              child: Obx(() => ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
+            child: Obx(() {
+              if (controller.exploreTab.value == 'toolkit') {
+                return ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _buildToolkitTab(context),
+                  ],
+                );
+              }
+              return Column(children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildScopeToggle(context),
+                ),
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildActiveModelBanner(context),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _buildHubList(context),
+                ),
+              ]);
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Top-level Explore tabs: Model Hub (existing scopes) | Toolkit.
+  Widget _buildExploreTabs(BuildContext context) {
+    return Obx(() => SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(
+              value: 'hub',
+              icon: Icon(LucideIcons.boxes, size: 16),
+              label: Text('Model Hub', style: TextStyle(fontSize: 13)),
+            ),
+            ButtonSegment(
+              value: 'toolkit',
+              icon: Icon(LucideIcons.wrench, size: 16),
+              label: Text('Toolkit', style: TextStyle(fontSize: 13)),
+            ),
+          ],
+          selected: {controller.exploreTab.value},
+          onSelectionChanged: (s) =>
+              controller.exploreTab.value = s.first,
+          style: const ButtonStyle(
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ));
+  }
+
+  /// Toolkit tab: Battle Arena + Slide Maker as widget cards with
+  /// descriptions (moved here from the chat ⋮ menu).
+  Widget _buildToolkitTab(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'AI power tools — same engine as chat, focused workspaces.',
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 12.5,
+            color: Theme.of(context).hintColor,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _toolkitCard(
+          context,
+          isDark,
+          icon: LucideIcons.swords,
+          title: 'Battle Arena',
+          description:
+              'Race up to 4 cloud models on one prompt — same-time or one-by-one (on-device allowed). Live monitor ranks finish, speed and length, then declares an overall winner.',
+          onTap: () => Get.to(() => const BattleArenaView()),
+        ),
+        const SizedBox(height: 10),
+        _toolkitCard(
+          context,
+          isDark,
+          icon: LucideIcons.presentation,
+          title: 'Slide Maker',
+          description:
+              'AI designs every slide from a topic — Docs / Slides / PDF views, freehand move + resize, manual photos, per-slide regen. Exports Markdown, PDF and web slides.',
+          onTap: () => Get.to(() => const SlideDeckView()),
+        ),
+      ],
+    );
+  }
+
+  Widget _toolkitCard(
+    BuildContext context,
+    bool isDark, {
+    required IconData icon,
+    required String title,
+    required String description,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surface : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.07)
+                : Dt.hairline,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: Dt.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(13),
+              ),
+              child: Icon(icon, size: 22, color: Dt.accent),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text(description,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12.5,
+                          height: 1.45,
+                          color: Theme.of(context).hintColor)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(LucideIcons.chevronRight,
+                size: 18, color: Theme.of(context).hintColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHubList(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: () async {
+        if (controller.modelScope.value == 'local') {
+          await controller.refreshDownloaded();
+        }
+      },
+      color: Dt.accent,
+      child: Obx(() => ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
                       if (controller.modelScope.value == 'local') ...[
                   _buildImportingProgress(context),
                   _buildLocalFilterChips(context),
@@ -146,11 +300,7 @@ class ModelView extends GetView<ModelController> {
                 ],
               ],
             )),
-          ),
-        ),
-        ],
-      ),
-    );
+          );
   }
 
   Widget _buildScopeToggle(BuildContext context) {

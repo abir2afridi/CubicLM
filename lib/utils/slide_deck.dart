@@ -23,6 +23,19 @@ class Slide {
   String notes;
   List<int>? imageBytes;
 
+  /// Freehand layout mode: boxes move/scale freely on the canvas.
+  /// Offsets are fractions of canvas size (0.05 = 5% right/down).
+  bool freeLayout;
+  double tDx;
+  double tDy;
+  double tS;
+  double bDx;
+  double bDy;
+  double bS;
+  double iDx;
+  double iDy;
+  double iS;
+
   Slide({
     required this.title,
     List<String>? points,
@@ -30,6 +43,16 @@ class Slide {
     String? imagePrompt,
     String? notes,
     this.imageBytes,
+    this.freeLayout = false,
+    this.tDx = 0,
+    this.tDy = 0,
+    this.tS = 1,
+    this.bDx = 0,
+    this.bDy = 0,
+    this.bS = 1,
+    this.iDx = 0,
+    this.iDy = 0,
+    this.iS = 1,
   })  : points = points ?? [],
         layout = _normLayout(layout),
         imagePrompt = imagePrompt ?? '',
@@ -206,6 +229,40 @@ String deckToMarkdown(String topic, List<Slide> slides) {
   return buf.toString();
 }
 
+/// Freehand-positioned slide → absolute-positioned HTML (percent based,
+/// so it scales with the slide).
+String _freeSlideHtml(Slide s) {
+  String esc(String v) => v
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
+  String pct(double f) => '${(f * 100).toStringAsFixed(1)}%';
+  final buf = StringBuffer(
+      '<div style="position:relative;min-height:52vh;border:1px dashed #d97757;border-radius:10px;">');
+  buf.write(
+      '<div style="position:absolute;left:${pct(s.tDx)};top:${pct(s.tDy)};width:86%;'
+      'font-size:${(30 * s.tS).toStringAsFixed(0)}px;font-weight:800;">'
+      '${esc(s.title.isEmpty ? 'Untitled' : s.title)}</div>');
+  if (s.points.isNotEmpty) {
+    buf.write(
+        '<div style="position:absolute;left:${pct(s.bDx)};top:${pct(s.bDy)};width:86%;'
+        'font-size:${(17 * s.bS).toStringAsFixed(0)}px;"><ul>');
+    for (final p in s.points) {
+      buf.write('<li>${esc(p)}</li>');
+    }
+    buf.write('</ul></div>');
+  }
+  if (s.imagePrompt.trim().isNotEmpty || s.layout == 'image') {
+    buf.write(
+        '<div style="position:absolute;left:${pct(s.iDx)};top:${pct(s.iDy)};width:86%;'
+        'border:2px dashed #d97757;border-radius:10px;padding:12px;text-align:center;'
+        'font-size:${(14 * s.iS).toStringAsFixed(0)}px;">'
+        '<b>IMAGE</b><br>${esc(s.imagePrompt.trim())}</div>');
+  }
+  buf.write('</div>');
+  return buf.toString();
+}
+
 /// Deck → standalone styled HTML presentation (export + preview).
 String deckToHtml(String topic, List<Slide> slides) {
   String esc(String s) => s
@@ -238,6 +295,11 @@ ul li::before{content:'▸';position:absolute;left:0;color:#d97757}
     final s = slides[i];
     buf.writeln('<section class="slide">');
     buf.writeln('<div class="kicker">${i + 1} / ${slides.length}</div>');
+    if (s.freeLayout) {
+      buf.writeln(_freeSlideHtml(s));
+      buf.writeln('</section>');
+      continue;
+    }
     if (s.layout == 'title' && i == 0) {
       buf.writeln('<h1>${esc(s.title)}</h1>');
     } else {

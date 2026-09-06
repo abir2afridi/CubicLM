@@ -148,7 +148,7 @@ A power-user setting in **Nodes › Config** to connect one user-provided **remo
 ### 🧩 Additional
 
 - **Navigation:** Chat · Explore · Nodes · App Settings
-  - **Explore** now has a 4-way toggle — **Local** (on-device models) / **Online** (cloud providers) / **Skills** (offline prompt extensions) / **MCP** (custom remote server) — so models, skills, and MCP are discoverable in one hub
+  - **Explore** now has two tabs — **Model Hub** (Local / Online / Skills / MCP scopes) and **Toolkit** (Battle Arena + Slide Maker widget cards with descriptions)
   - **Nodes** page has two tabs — **Node** (local API server) and **Config** (diagnostics, hardware capabilities, inference mode, system prompt, Skills, Custom MCP Server, local model & imaging parameters)
   - **App Settings** is its own destination — theme mode, typography scale, **Thinking Orbs** (custom animation per context: chatting / image generation / analyzing — each set to **Random** or any of the 9 states with live preview), **Language** (15 languages including Bangla, Hindi, Arabic, Chinese, Spanish, French, Japanese, Korean, Portuguese, German, Turkish, Indonesian, Russian, Urdu — instant switch, Hive-persisted), **Startup → Auto-load last model**, and app info (tap to open **About** page with feature highlights, tech stack, and GitHub link)
 - Multi-session chat with history (Hive persistence) and a **full-text searchable** sidebar drawer (`HiveService.searchMessages` scans `content`) with swipe-to-delete, long-press Export/Delete, and header Export (`share_plus` Markdown)

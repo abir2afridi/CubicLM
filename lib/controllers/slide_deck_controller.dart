@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:get/get.dart';
+import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -241,6 +242,27 @@ class SlideDeckController extends GetxController {
         [XFile(file.path, mimeType: 'text/html')],
         subject: _deckTitle,
       );
+    } catch (e) {
+      AppSnackbar.showTop('prompt_export_failed'.tr, '$e');
+    }
+  }
+
+  /// Write the deck HTML and open it in the system browser — the exact
+  /// exported render ( closest to a Docs/Slides preview without leaving
+  /// the share flow).
+  Future<void> previewInBrowser() async {
+    if (slides.isEmpty) return;
+    try {
+      final html = deckToHtml(_deckTitle, slides.toList());
+      final dir = await getTemporaryDirectory();
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      final file = File('${dir.path}/cubiclm_slides_$stamp.html');
+      await file.writeAsString(html, flush: true);
+      final result = await OpenFile.open(file.path);
+      if (result.type != ResultType.done) {
+        AppSnackbar.showTop(
+            'Cannot open', result.message.isNotEmpty ? result.message : 'No browser found.');
+      }
     } catch (e) {
       AppSnackbar.showTop('prompt_export_failed'.tr, '$e');
     }
