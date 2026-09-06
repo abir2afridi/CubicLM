@@ -29,6 +29,10 @@ class AgentController extends GetxController {
   final generating = false.obs;
   final fixing = false.obs;
   final autoFix = true.obs;
+  final planMode = false.obs;
+
+  /// Pending plan awaiting user approval (null when no plan pending).
+  final pendingPlan = RxnString();
 
   /// Set by Stop — in-flight awaits can't be aborted, but their results
   /// are discarded and flags reset.
@@ -145,6 +149,11 @@ class AgentController extends GetxController {
   Future<void> newProject() async {
     final t = topic.value.trim();
     if (t.isEmpty || generating.value) return;
+    // If plan mode is on, generate plan first instead of building directly.
+    if (planMode.value) {
+      await generatePlan();
+      return;
+    }
     generating.value = true;
     _cancelled = false;
     lastError.value = null;
@@ -248,6 +257,142 @@ class AgentController extends GetxController {
       buildStatus.value = null;
       _cancelled = false;
     }
+  }
+
+  // ── Plan Mode ──
+
+  /// Generate a structured plan (no code yet). User reviews, then approves.
+  Future<void> generatePlan() async {
+    final t = topic.value.trim();
+    if (t.isEmpty || generating.value) return;
+    generating.value = true;
+    _cancelled = false;
+    lastError.value = null;
+    transcript.clear();
+    _say('user', t);
+    buildStatus.value = 'Thinking through the plan…';
+    term('> plan: "${t.length > 60 ? '${t.substring(0, 60)}…' : t}" (${framework.value})');
+    try {
+      final raw = await _ask(
+        prompt:
+            'Plan this ${framework.value} project based on: $t\n\n'
+            'Output a structured plan in this EXACT format inside a ```plan fenced block:\n\n'
+            '```plan\n'
+            'PROJECT: <short project name>\n'
+            'FRAMEWORK: ${framework.value}\n'
+            'DESCRIPTION: <1-2 sentence description>\n'
+            'FILES:\n'
+            '- index.html: <what this file does>\n'
+            '- styles.css: <what this file does>\n'
+            '- app.js: <what this file does>\n'
+            'FEATURES:\n'
+            '- <feature 1>\n'
+            '- <feature 2>\n'
+            'DESIGN:\n'
+            '- <color scheme, layout style, typography>\n'
+            '```\n\n'
+            'Be specific about each file\'s purpose and the design decisions. '
+            'Do NOT write any code yet — just the plan.',
+        system: _planSystemPrompt(),
+        onProgress: (n) => _streamStatus('Planning', n),
+      );
+      if (_cancelled) return;
+      // Extract plan text from response
+      final planText = _extractPlan(raw);
+      pendingPlan.value = planText;
+      _say('assistant', 'Here\'s my plan:\n\n$planText');
+      term('✓ plan ready — review and tap Build to proceed');
+      buildStatus.value = null;
+    } catch (e) {
+      if (_cancelled) {
+        term('■ plan cancelled by user');
+        return;
+      }
+      lastError.value = '$e';
+      term('✗ plan failed: $e');
+      _log('Plan generation failed', e);
+    } finally {
+      generating.value = false;
+      buildStatus.value = null;
+      _cancelled = false;
+    }
+  }
+
+  /// Build from an approved plan (plan must be in pendingPlan).
+  Future<void> buildFromPlan() async {
+    final plan = pendingPlan.value;
+    final t = topic.value.trim();
+    if (plan == null || t.isEmpty || generating.value) return;
+    pendingPlan.value = null; // consume the plan
+    generating.value = true;
+    _cancelled = false;
+    lastError.value = null;
+    consoleError.value = null;
+    _autoRounds = 0;
+    _say('user', '✓ Build it');
+    buildStatus.value = 'Building from plan…';
+    term('> build from plan (${framework.value})');
+    try {
+      final name = t.length > 40 ? '${t.substring(0, 40)}…' : t;
+      final p = await _ws.createProject(name, framework.value);
+      project.value = p;
+      final raw = await _ask(
+        prompt:
+            'Build this ${framework.value} project NOW based on this APPROVED plan:\n\n'
+            '$plan\n\n'
+            'ORIGINAL REQUEST: $t\n\n'
+            'Output EXACTLY one ```files fenced block with ALL the code. '
+            'Every file listed in the plan MUST be included with complete, '
+            'working code. No placeholders.',
+        system: webSystemPrompt(framework: framework.value),
+        onProgress: (n) => _streamStatus('Writing project', n),
+      );
+      if (_cancelled) return;
+      buildStatus.value = 'Saving files…';
+      final parsed = parseFiles(raw);
+      final err = await _ws.importFiles(
+          p.id, {for (final f in parsed) f.path: f.content});
+      if (err != null) {
+        lastError.value = 'Some files failed: $err';
+      }
+      await refreshFiles();
+      await _serve();
+      _touch();
+      buildStatus.value = null;
+      final summary =
+          'Built ${parsed.length} files from plan — preview is live.';
+      _say('assistant', summary);
+      term('✓ build done — ${files.length} files, preview live');
+    } catch (e) {
+      if (_cancelled) {
+        term('■ build cancelled by user');
+        return;
+      }
+      lastError.value = '$e';
+      term('✗ build from plan failed: $e');
+      _log('Build from plan failed', e);
+    } finally {
+      generating.value = false;
+      buildStatus.value = null;
+      _cancelled = false;
+    }
+  }
+
+  String _planSystemPrompt() {
+    return 'You are a senior web architect. When asked to plan a project, '
+        'output a structured plan — NOT code. Use the exact format requested. '
+        'Be specific about file purposes, features, and design decisions. '
+        'Keep the plan concise but actionable.';
+  }
+
+  String _extractPlan(String raw) {
+    final planFence = RegExp(r'```plan\n([\s\S]*?)```');
+    final m = planFence.firstMatch(raw);
+    if (m != null) return m.group(1)!.trim();
+    // Fallback: return everything after "PLAN:" or the full response
+    final planIdx = raw.indexOf('PLAN:');
+    if (planIdx >= 0) return raw.substring(planIdx).trim();
+    return raw.trim();
   }
 
   /// Called by the view's WebView console hook. Auto-repairs (bounded),

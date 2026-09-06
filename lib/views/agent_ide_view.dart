@@ -434,6 +434,45 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   ),
                 ),
               ),
+            if (!hasProject)
+              GestureDetector(
+                onTap: () => c.planMode.value = !c.planMode.value,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: c.planMode.value
+                        ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                        : (isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.05)),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: c.planMode.value
+                            ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
+                            : (isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Dt.hairline)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(LucideIcons.map,
+                        size: 12,
+                        color: c.planMode.value
+                            ? const Color(0xFFF59E0B)
+                            : Theme.of(context).hintColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Plan',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: c.planMode.value
+                              ? const Color(0xFFF59E0B)
+                              : Theme.of(context).hintColor),
+                    ),
+                  ]),
+                ),
+              ),
             Expanded(
               child: TextField(
                 controller: _askCtrl,
@@ -686,7 +725,9 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   /// Conversation with the builder AI (prompts + summaries).
   Widget _chatPane(BuildContext context, bool isDark) {
     return Obx(() {
-      if (c.transcript.isEmpty) {
+      final planPending = c.pendingPlan.value != null;
+      final itemCount = c.transcript.length + (planPending ? 1 : 0);
+      if (itemCount == 0) {
         return Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -703,8 +744,12 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       }
       return ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-        itemCount: c.transcript.length,
+        itemCount: itemCount,
         itemBuilder: (_, i) {
+          // Last item = plan card
+          if (planPending && i == c.transcript.length) {
+            return _planCard(context, isDark);
+          }
           final m = c.transcript[i];
           final user = m['role'] == 'user';
           return Align(
@@ -741,6 +786,76 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         },
       );
     });
+  }
+
+  /// Plan approval card — shown when AI has generated a plan awaiting review.
+  Widget _planCard(BuildContext context, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+      ),
+      child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+        Row(children: [
+          const Icon(LucideIcons.map,
+              size: 15, color: Color(0xFFF59E0B)),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text('Plan Ready',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFFF59E0B))),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        // Plan content — scrollable, max height
+        Container(
+          constraints: const BoxConstraints(maxHeight: 260),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.04)
+                : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: SingleChildScrollView(
+            child: Text(
+              c.pendingPlan.value ?? '',
+              style: GoogleFonts.firaCode(
+                  fontSize: 11.5, height: 1.5),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: () => c.buildFromPlan(),
+              icon: const Icon(LucideIcons.hammer, size: 15),
+              label: Text('Build',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w700)),
+              style: FilledButton.styleFrom(
+                  backgroundColor: Dt.accent),
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: () => c.pendingPlan.value = null,
+            child: Text('Dismiss',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12.5)),
+          ),
+        ]),
+      ]),
+    );
   }
 
   // ── Files pane ──
