@@ -173,11 +173,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           if (hasProject) _projectHeader(context, isDark),
           _tabSwitch(),
           Expanded(
-            child: _tab == 'preview'
-                ? _previewPane(context, isDark, c.revision.value)
-                : _tab == 'files'
-                    ? _filesPane(context, isDark)
-                    : _chatPane(context, isDark),
+            child: _tab == 'preview' && hasProject
+                ? _splitOrPreview(context, isDark)
+                : _tab == 'preview'
+                    ? _previewPane(context, isDark, c.revision.value)
+                    : _tab == 'files'
+                        ? _filesPane(context, isDark)
+                        : _chatPane(context, isDark),
           ),
           if (c.lastError.value != null)
             Padding(
@@ -1290,6 +1292,33 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       ));
     }
     return RichText(text: TextSpan(children: spans));
+  }
+
+  // ── Split Pane ──
+
+  Widget _splitOrPreview(BuildContext context, bool isDark) {
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+    if (!isLandscape) {
+      return _previewPane(context, isDark, c.revision.value);
+    }
+    // Landscape: preview (left) + files (right) side by side.
+    return Row(children: [
+      Expanded(
+        flex: 3,
+        child: _previewPane(context, isDark, c.revision.value),
+      ),
+      Container(
+        width: 1,
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.07)
+            : Dt.hairline,
+      ),
+      Expanded(
+        flex: 2,
+        child: _filesPane(context, isDark),
+      ),
+    ]);
   }
 
   // ── Templates ──
