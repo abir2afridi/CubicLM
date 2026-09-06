@@ -757,16 +757,15 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               ),
             ),
             const SizedBox(width: 6),
+            if (hasProject)
+              IconButton(
+                tooltip: 'Auto-test project',
+                icon: const Icon(LucideIcons.shieldCheck, size: 18),
+                onPressed: busy ? null : () => c.runAutoTest(),
+              ),
+            if (hasProject) const SizedBox(width: 4),
             GestureDetector(
-              onTap: () async {
-                final picker = ImagePicker();
-                final x = await picker.pickImage(
-                    source: ImageSource.gallery, imageQuality: 85);
-                if (x != null) {
-                  final bytes = await x.readAsBytes();
-                  c.attachedImage.value = base64Encode(bytes);
-                }
-              },
+              onTap: () => _showAttachSheet(context, isDark),
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -775,97 +774,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                       : Colors.black.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Obx(() => Icon(LucideIcons.image,
-                    size: 16,
-                    color: c.attachedImage.value != null
-                        ? Dt.accent
-                        : Theme.of(context).hintColor)),
+                child: Icon(LucideIcons.plus,
+                    size: 18, color: Theme.of(context).hintColor),
               ),
             ),
-            const SizedBox(width: 4),
-            PopupMenuButton<String>(
-              tooltip: 'More options',
-              icon: Icon(LucideIcons.moreHorizontal,
-                  size: 18, color: Theme.of(context).hintColor),
-              onSelected: (v) {
-                if (v == 'thinking') {
-                  c.extendedThinking.value = !c.extendedThinking.value;
-                } else if (v == 'web') {
-                  c.webSearch.value = !c.webSearch.value;
-                } else if (v == 'components') {
-                  _showComponentLibrary(context, isDark);
-                } else if (v == 'test') {
-                  c.runAutoTest();
-                }
-              },
-              itemBuilder: (_) {
-                final items = <PopupMenuEntry<String>>[
-                  PopupMenuItem(
-                    value: 'thinking',
-                    child: Obx(() => Row(children: [
-                      Icon(LucideIcons.brain,
-                          size: 16,
-                          color: c.extendedThinking.value
-                              ? const Color(0xFF8B5CF6)
-                              : Theme.of(context).hintColor),
-                      const SizedBox(width: 10),
-                      Text('Extended Thinking',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 13)),
-                      if (c.extendedThinking.value) ...[
-                        const Spacer(),
-                        const Icon(LucideIcons.check,
-                            size: 14, color: Color(0xFF8B5CF6)),
-                      ],
-                    ])),
-                  ),
-                  PopupMenuItem(
-                    value: 'web',
-                    child: Obx(() => Row(children: [
-                      Icon(LucideIcons.globe,
-                          size: 16,
-                          color: c.webSearch.value
-                              ? const Color(0xFF10B981)
-                              : Theme.of(context).hintColor),
-                      const SizedBox(width: 10),
-                      Text('Web Search',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 13)),
-                      if (c.webSearch.value) ...[
-                        const Spacer(),
-                        const Icon(LucideIcons.check,
-                            size: 14, color: Color(0xFF10B981)),
-                      ],
-                    ])),
-                  ),
-                ];
-                if (hasProject) {
-                  items.add(const PopupMenuDivider());
-                  items.add(PopupMenuItem(
-                    value: 'components',
-                    child: Row(children: [
-                      Icon(LucideIcons.puzzle,
-                          size: 16,
-                          color: Theme.of(context).hintColor),
-                      const SizedBox(width: 10),
-                      Text('Component Library',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 13)),
-                    ]),
-                  ));
-                  items.add(PopupMenuItem(
-                    value: 'test',
-                    child: Row(children: [
-                      Icon(LucideIcons.shieldCheck,
-                          size: 16,
-                          color: Theme.of(context).hintColor),
-                      const SizedBox(width: 10),
-                      Text('Auto-test project',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 13)),
-                    ]),
-                  ));
-                }
-                return items;
-              },
-            ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 6),
             IconButton.filled(
               tooltip: busy
                   ? 'Stop'
@@ -1901,6 +1814,147 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           ),
         );
       },
+    );
+  }
+
+  void _showAttachSheet(BuildContext context, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+              child: Row(children: [
+                Text('Add to message',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15, fontWeight: FontWeight.w800)),
+                if (c.attachedImage.value != null) ...[
+                  const Spacer(),
+                  Obx(() => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Dt.accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          const Icon(LucideIcons.image, size: 12, color: Dt.accent),
+                          const SizedBox(width: 4),
+                          Text('Image attached',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: Dt.accent)),
+                        ]),
+                      )),
+                ],
+              ]),
+            ),
+            ListTile(
+              leading: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(LucideIcons.image,
+                    size: 18, color: Color(0xFF3B82F6)),
+              ),
+              title: Text('Gallery',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+              subtitle: Text('Attach a screenshot or image',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11, color: Theme.of(context).hintColor)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final picker = ImagePicker();
+                final x = await picker.pickImage(
+                    source: ImageSource.gallery, imageQuality: 85);
+                if (x != null) {
+                  final bytes = await x.readAsBytes();
+                  c.attachedImage.value = base64Encode(bytes);
+                }
+              },
+            ),
+            if (c.project.value != null)
+              ListTile(
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(LucideIcons.puzzle,
+                      size: 18, color: Color(0xFF8B5CF6)),
+                ),
+                title: Text('Component Library',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14, fontWeight: FontWeight.w600)),
+                subtitle: Text('Insert a UI component into the prompt',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11, color: Theme.of(context).hintColor)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showComponentLibrary(context, isDark);
+                },
+              ),
+            ListTile(
+              leading: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(LucideIcons.brain,
+                    size: 18, color: Color(0xFFF59E0B)),
+              ),
+              title: Text('Extended Thinking',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+              subtitle: Obx(() => Text(
+                    c.extendedThinking.value ? 'Enabled' : 'Step-by-step reasoning',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11, color: Theme.of(context).hintColor),
+                  )),
+              trailing: Obx(() => Switch(
+                    value: c.extendedThinking.value,
+                    onChanged: (v) => c.extendedThinking.value = v,
+                  )),
+            ),
+            ListTile(
+              leading: Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(LucideIcons.globe,
+                    size: 18, color: Color(0xFF10B981)),
+              ),
+              title: Text('Web Search',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+              subtitle: Obx(() => Text(
+                    c.webSearch.value ? 'Enabled' : 'Look up current CDN/library info',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11, color: Theme.of(context).hintColor),
+                  )),
+              trailing: Obx(() => Switch(
+                    value: c.webSearch.value,
+                    onChanged: (v) => c.webSearch.value = v,
+                  )),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 
