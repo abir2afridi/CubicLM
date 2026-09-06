@@ -738,21 +738,34 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 ),
               ),
             Expanded(
-              child: TextField(
-                controller: _askCtrl,
-                focusNode: _askFocus,
-                minLines: 1,
-                maxLines: 3,
-                style: GoogleFonts.plusJakartaSans(fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: hasProject
-                      ? 'Ask AI to change anything…'
-                      : 'Describe what to build…',
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 10),
-                  isDense: true,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.black.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: TextField(
+                  controller: _askCtrl,
+                  focusNode: _askFocus,
+                  minLines: 1,
+                  maxLines: 3,
+                  textAlignVertical: TextAlignVertical.center,
+                  style: GoogleFonts.plusJakartaSans(fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: hasProject
+                        ? 'Ask AI to change anything…'
+                        : 'Describe what to build…',
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                        fontSize: 14,
+                        color: Theme.of(context).hintColor),
+                    border: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    isDense: true,
+                  ),
                 ),
               ),
             ),
