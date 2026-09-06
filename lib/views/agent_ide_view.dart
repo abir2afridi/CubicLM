@@ -25,6 +25,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   late final AgentController c;
   final _promptCtrl = TextEditingController();
   final _askCtrl = TextEditingController();
+  final _askFocus = FocusNode();
   String _tab = 'preview'; // preview | files | terminal
   String? _openFile;
 
@@ -34,12 +35,22 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     c = Get.isRegistered<AgentController>()
         ? Get.find<AgentController>()
         : Get.put(AgentController());
+    // Rebuild ONLY this view on typing (focus node persists) so the send
+    // button enables live — never write observables per keystroke.
+    _askCtrl.addListener(() {
+      if (mounted) setState(() {});
+    });
+    // Also update send button when generation/fix state changes.
+    ever(c.generating, (_) { if (mounted) setState(() {}); });
+    ever(c.fixing, (_) { if (mounted) setState(() {}); });
+    ever(c.project, (_) { if (mounted) setState(() {}); });
   }
 
   @override
   void dispose() {
     _promptCtrl.dispose();
     _askCtrl.dispose();
+    _askFocus.dispose();
     super.dispose();
   }
 
@@ -129,9 +140,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     ? _filesPane(context, isDark)
                     : _chatPane(context, isDark),
           ),
-          if (!hasProject) _frameworkChips(),
-          if (!hasProject) _frameworkChips(),
-          if (!hasProject && c.lastError.value != null)
+          if (c.lastError.value != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
               child: Text(c.lastError.value!,
@@ -148,32 +157,50 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   // ── New project ──
 
-  /// Framework picker as compact chips above the ask bar (no-project
-  /// state only). The ask bar send button IS the build button.
-  Widget _frameworkChips() {
-    return Container(
-      height: 36,
-      margin: const EdgeInsets.only(top: 8),
-      child: Obx(() => ListView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            children: [
-              for (final f in webFrameworks)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: ChoiceChip(
-                    label: Text(f,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700)),
-                    selected: c.framework.value == f,
-                    selectedColor:
-                        Dt.accent.withValues(alpha: 0.2),
-                    onSelected: (_) => c.framework.value = f,
-                  ),
-                ),
-            ],
-          )),
+  /// Short framework label for the ask-row button.
+  String _frameworkShort(String f) {
+    if (f == 'Single HTML') return 'HTML';
+    if (f == 'HTML + CSS + JS') return 'Trio';
+    if (f.startsWith('React')) return 'React';
+    if (f.startsWith('Next')) return 'Next';
+    if (f.startsWith('Vue')) return 'Vue';
+    return f.length > 8 ? f.substring(0, 8) : f;
+  }
+
+  /// Framework picker sheet (no-project state only).
+  void _showFrameworkSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Framework',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16, fontWeight: FontWeight.w800)),
+              ),
+            ),
+            for (final f in webFrameworks)
+              Obx(() => RadioListTile<String>(
+                    dense: true,
+                    title: Text(f,
+                        style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                    value: f,
+                    groupValue: c.framework.value,
+                    activeColor: Dt.accent,
+                    onChanged: (v) {
+                      if (v != null) c.framework.value = v;
+                      Navigator.pop(context);
+                    },
+                  )),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
     );
   }
 
@@ -341,6 +368,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   }
 
   Widget _askBar(BuildContext context, bool isDark) {
+    final hasProject = c.project.value != null;
+    final busy = c.generating.value || c.fixing.value;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
       decoration: BoxDecoration(
@@ -381,16 +410,39 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               ]),
             ),
           Row(children: [
+            if (!hasProject)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: GestureDetector(
+                  onTap: () => _showFrameworkSheet(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 9, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Dt.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                          color: Dt.accent.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      _frameworkShort(c.framework.value),
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: Dt.accent),
+                    ),
+                  ),
+                ),
+              ),
             Expanded(
               child: TextField(
                 controller: _askCtrl,
-                enabled: c.project.value != null,
+                focusNode: _askFocus,
                 minLines: 1,
                 maxLines: 3,
-                onChanged: (v) => c.topic.value = v,
                 style: GoogleFonts.plusJakartaSans(fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: c.project.value != null
+                  hintText: hasProject
                       ? 'Ask AI to change anything…'
                       : 'Describe what to build…',
                   border: OutlineInputBorder(
@@ -402,34 +454,30 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               ),
             ),
             const SizedBox(width: 8),
-            Obx(() {
-              final busy = c.generating.value || c.fixing.value;
-              final ready = c.project.value != null;
-              return IconButton.filled(
-                tooltip: busy
-                    ? 'Stop'
-                    : (ready ? 'Apply change' : 'Build project'),
-                icon: busy
-                    ? const Icon(LucideIcons.square, size: 16)
-                    : const Icon(LucideIcons.send, size: 18),
-                style: IconButton.styleFrom(
-                    backgroundColor:
-                        busy ? AppColors.error : Dt.accent),
-                onPressed: busy
-                    ? c.cancelWork
-                    : (_askCtrl.text.trim().isEmpty
-                        ? null
-                        : () async {
-                            c.topic.value = _askCtrl.text;
-                            _askCtrl.clear();
-                            if (ready) {
-                              await c.modifyProject();
-                            } else {
-                              await c.newProject();
-                            }
-                          }),
-              );
-            }),
+            IconButton.filled(
+              tooltip: busy
+                  ? 'Stop'
+                  : (hasProject ? 'Apply change' : 'Build project'),
+              icon: busy
+                  ? const Icon(LucideIcons.square, size: 16)
+                  : const Icon(LucideIcons.send, size: 18),
+              style: IconButton.styleFrom(
+                  backgroundColor:
+                      busy ? AppColors.error : Dt.accent),
+              onPressed: busy
+                  ? c.cancelWork
+                  : (_askCtrl.text.trim().isEmpty
+                      ? null
+                      : () async {
+                          c.topic.value = _askCtrl.text;
+                          _askCtrl.clear();
+                          if (hasProject) {
+                            await c.modifyProject();
+                          } else {
+                            await c.newProject();
+                          }
+                        }),
+            ),
           ]),
         ]),
       ),
