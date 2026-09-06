@@ -30,6 +30,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   final _askFocus = FocusNode();
   String _tab = 'preview'; // preview | files | terminal
   String? _openFile;
+  String _viewport = 'full'; // full | desktop | tablet | mobile
 
   @override
   void initState() {
@@ -462,6 +463,42 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     );
   }
 
+  // ── Viewport helpers ──
+
+  double _viewportWidth() {
+    switch (_viewport) {
+      case 'mobile':
+        return 375;
+      case 'tablet':
+        return 768;
+      case 'desktop':
+        return 1024;
+      default:
+        return double.infinity;
+    }
+  }
+
+  Widget _viewportBtn(String mode, IconData icon, String label, bool isDark) {
+    final active = _viewport == mode;
+    return GestureDetector(
+      onTap: () => setState(() => _viewport = mode),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: active
+              ? Dt.accent.withValues(alpha: 0.2)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Icon(icon,
+            size: 13,
+            color: active
+                ? Dt.accent
+                : Theme.of(context).hintColor),
+      ),
+    );
+  }
+
   Widget _tabSwitch() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -682,6 +719,23 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     fontSize: 10.5,
                     color: Theme.of(context).hintColor)),
           ),
+          // Viewport toggle
+          Container(
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            padding: const EdgeInsets.all(2),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              _viewportBtn('full', LucideIcons.monitor, 'Full', isDark),
+              _viewportBtn('desktop', LucideIcons.monitor, 'Desktop', isDark),
+              _viewportBtn('tablet', LucideIcons.tablet, 'Tablet', isDark),
+              _viewportBtn('mobile', LucideIcons.smartphone, 'Mobile', isDark),
+            ]),
+          ),
+          const SizedBox(width: 6),
           InkWell(
             onTap: () => setState(() => _reloadNonce++),
             borderRadius: BorderRadius.circular(6),
@@ -695,12 +749,19 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       ),
       Expanded(
         flex: 3,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: _AgentPreview(
-            key: ValueKey('agent-$revision-$url-$_reloadNonce'),
-            url: url,
-            onConsoleError: (msg) => c.onConsoleError(msg),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: _viewportWidth(),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _AgentPreview(
+                key: ValueKey('agent-$revision-$url-$_reloadNonce-$_viewport'),
+                url: url,
+                onConsoleError: (msg) => c.onConsoleError(msg),
+              ),
+            ),
           ),
         ),
       ),
