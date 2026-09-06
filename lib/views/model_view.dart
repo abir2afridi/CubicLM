@@ -19,6 +19,7 @@ import 'battle_arena_view.dart';
 import 'explore_skills_mcp_tabs.dart';
 import 'gallery_view.dart';
 import 'slide_deck_view.dart';
+import 'web_builder_view.dart';
 
 class ModelView extends GetView<ModelController> {
   const ModelView({super.key});
@@ -160,6 +161,16 @@ class ModelView extends GetView<ModelController> {
           description:
               'AI designs every slide from a topic — Docs / Slides / PDF views, freehand move + resize, manual photos, per-slide regen. Exports Markdown, PDF and web slides.',
           onTap: () => Get.to(() => const SlideDeckView()),
+        ),
+        const SizedBox(height: 10),
+        _toolkitCard(
+          context,
+          isDark,
+          icon: LucideIcons.globe,
+          title: 'CubicWeb Build',
+          description:
+              'Prompt → complete website in any framework (Single HTML to React/Next/Vue). Live browser preview, per-file regen + edit, one-tap ZIP export.',
+          onTap: () => Get.to(() => const WebBuilderView()),
         ),
       ],
     );

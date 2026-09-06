@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **CubicWeb Build (Toolkit)** - prompt → complete website in any framework (Single HTML, Trio, React, Next.js, Vue 3); strict files-JSON schema + fallbacks; file explorer with per-file regen/edit/add/delete; live browser preview (temp dir + file entry, DOM storage on); one-tap ZIP export.
+
+### Added
 - **Explore Toolkit tab** - Explore is now Model Hub + Toolkit; Battle Arena and Slide Maker moved from the chat ⋮ menu into widget cards with descriptions.
 
 ### Added
