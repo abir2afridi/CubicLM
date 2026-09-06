@@ -1055,17 +1055,20 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       final extraItems = (planPending ? 1 : 0) + (hasDiffs ? 1 : 0);
       final itemCount = c.transcript.length + extraItems;
       if (itemCount == 0) {
+        final hasProject = c.project.value != null;
         return Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Text(
-              'No conversation yet.\nDescribe the project above or ask for changes below — every exchange lands here.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  height: 1.5,
-                  color: Theme.of(context).hintColor),
-            ),
+            child: hasProject
+                ? Text(
+                    'No conversation yet.\nDescribe the project above or ask for changes below — every exchange lands here.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        height: 1.5,
+                        color: Theme.of(context).hintColor),
+                  )
+                : _templateGrid(context, isDark),
           ),
         );
       }
@@ -1287,6 +1290,83 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       ));
     }
     return RichText(text: TextSpan(children: spans));
+  }
+
+  // ── Templates ──
+
+  Widget _templateGrid(BuildContext context, bool isDark) {
+    final templates = [
+      _Template('Landing Page', LucideIcons.rocket, 'Marketing page with hero, features, CTA, footer', 'Build a modern landing page with: hero section with gradient background and CTA button, features grid (3 cards with icons), testimonial section, email signup form, and footer with links. Use a professional color scheme (indigo/blue). Responsive layout.', 'Single HTML'),
+      _Template('Dashboard', LucideIcons.layoutDashboard, 'Admin panel with sidebar, charts, stats', 'Build an admin dashboard with: left sidebar navigation (5 items with icons), top bar with search and user avatar, 4 stat cards (revenue, users, orders, growth), a line chart placeholder, a data table with 5 rows, and a dark sidebar with light content area. Use Tailwind-style colors.', 'HTML + CSS + JS'),
+      _Template('Portfolio', LucideIcons.user, 'Personal portfolio with projects and contact', 'Build a personal portfolio site with: animated hero with name and title, about section with photo placeholder and bio, projects grid (4 project cards with images and tech tags), skills section with progress bars, contact form, and smooth scroll navigation. Dark theme with accent color.', 'Single HTML'),
+      _Template('Blog', LucideIcons.fileText, 'Blog with posts, sidebar, and categories', 'Build a blog homepage with: header with site name and nav, featured post hero, 3 article cards with image/title/excerpt/date, sidebar with categories and recent posts, newsletter signup, and footer. Clean typography, warm color palette.', 'HTML + CSS + JS'),
+      _Template('E-commerce', LucideIcons.shoppingCart, 'Product grid with cart and filters', 'Build a product listing page with: top nav with logo, search bar, and cart icon with badge, filter sidebar (category, price range), product grid (6 product cards with image, name, price, rating stars, add-to-cart button), and a mini cart dropdown. Modern clean design.', 'HTML + CSS + JS'),
+      _Template('SaaS Page', LucideIcons.globe, 'Product page with pricing tiers', 'Build a SaaS product page with: sticky nav, hero with product mockup, 3-step how-it-works section, pricing table (3 tiers: Free/Pro/Enterprise with feature comparison), customer logos bar, FAQ accordion, and CTA footer. Gradient accents, professional look.', 'Single HTML'),
+    ];
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('Start from a template',
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).hintColor)),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 1.6,
+          ),
+          itemCount: templates.length,
+          itemBuilder: (_, i) {
+            final t = templates[i];
+            return GestureDetector(
+              onTap: () {
+                _askCtrl.text = t.prompt;
+                c.framework.value = t.framework;
+                _askFocus.requestFocus();
+              },
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppColors.surface
+                      : const Color(0xFFF8F9FA),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.07)
+                          : Dt.hairline),
+                ),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Icon(t.icon, size: 16, color: Dt.accent),
+                  const SizedBox(height: 6),
+                  Text(t.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(t.desc,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          color: Theme.of(context).hintColor)),
+                ]),
+              ),
+            );
+          },
+        ),
+      ],
+    );
   }
 
   // ── Files pane ──
@@ -1855,6 +1935,15 @@ class _FileEditorCardState extends State<_FileEditorCard> {
       ]),
     );
   }
+}
+
+class _Template {
+  final String name;
+  final IconData icon;
+  final String desc;
+  final String prompt;
+  final String framework;
+  const _Template(this.name, this.icon, this.desc, this.prompt, this.framework);
 }
 
 /// Preview WebView with console-error forwarding to the agent loop.
