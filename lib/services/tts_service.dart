@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:get/get.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -20,10 +19,6 @@ class TtsService extends GetxService {
   String get currentText => _currentText;
 
   Future<TtsService> init() async {
-    if (kIsWeb) {
-      isInitialized.value = false;
-      return this;
-    }
     try {
       _flutterTts = FlutterTts();
       await _flutterTts!.awaitSpeakCompletion(true);
@@ -56,18 +51,9 @@ class TtsService extends GetxService {
   }
 
   /// Speak [rawText]. If already speaking the same text, toggles stop.
-  /// Shows top snackbar on start/stop. Handles web stub.
+  /// Shows top snackbar on start/stop. Web uses the browser speech engine
+  /// via the flutter_tts web backend.
   Future<void> speak(String rawText) async {
-    if (kIsWeb) {
-      AppSnackbar.showTop(
-        'Not supported',
-        'Read aloud is not available on web',
-        icon: LucideIcons.volumeX,
-        iconName: 'volumeX',
-        logHistory: false,
-      );
-      return;
-    }
 
     // Respect user toggle.
     if (Get.isRegistered<SettingsController>()) {
@@ -168,7 +154,6 @@ class TtsService extends GetxService {
   }
 
   Future<void> stop() async {
-    if (kIsWeb) return;
     try {
       await _flutterTts?.stop();
     } catch (_) {}
@@ -187,7 +172,7 @@ class TtsService extends GetxService {
   }
 
   Future<void> _applyLocaleLanguage() async {
-    if (kIsWeb || _flutterTts == null) return;
+    if (_flutterTts == null) return;
     String code = 'en';
     try {
       if (Get.isRegistered<SettingsController>()) {

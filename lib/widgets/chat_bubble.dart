@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
@@ -542,7 +541,7 @@ class _ChatBubbleState extends State<ChatBubble> {
                 size: iconSize,
               ),
             ],
-            if (!kIsWeb) _buildTtsButton(iconColor, iconSize),
+            if (!isUser) _buildTtsButton(iconColor, iconSize),
             _actionButton(
               icon: Icons.ios_share_rounded,
               tooltip: 'Share',
@@ -610,7 +609,6 @@ class _ChatBubbleState extends State<ChatBubble> {
       return answer.isEmpty ? widget.message.content : answer;
     }
 
-    if (kIsWeb) return const SizedBox.shrink();
     if (!Get.isRegistered<TtsService>()) {
       return _actionButton(
         icon: Icons.volume_up_rounded,
@@ -679,7 +677,7 @@ class _ChatBubbleState extends State<ChatBubble> {
                 if (text.isNotEmpty) Share.share(text);
               },
             ),
-            if (!isUser && !kIsWeb)
+            if (!isUser)
               _menuTile(
                 icon: Icons.volume_up_rounded,
                 label: 'Read aloud',

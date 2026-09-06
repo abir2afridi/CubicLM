@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
@@ -23,6 +24,7 @@ import '../services/local_image_service.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import '../utils/thought_parser.dart';
 import '../utils/prompt_export.dart';
+import '../utils/web_download.dart';
 import '../widgets/attachment_preview.dart';
 import '../widgets/app_ui.dart';
 import '../theme/design_tokens.dart';
@@ -453,6 +455,12 @@ class ChatView extends GetView<ChatController> {
           final bytes = await PromptExport.buildPdfBytes(
               _buildMarkdownForSession(session, msgs));
           if (kIsWeb) {
+            try {
+              if (await downloadWebFile(
+                  bytes, '$baseName.pdf', 'application/pdf')) {
+                return;
+              }
+            } catch (_) {}
             await Share.share(_buildMarkdownForSession(session, msgs),
                 subject: session.title);
             return;
@@ -486,6 +494,14 @@ class ChatView extends GetView<ChatController> {
       }
 
       if (kIsWeb) {
+        try {
+          // Note: the PDF branch returns earlier; this path handles .md/.txt.
+          final name = asTxt ? '$baseName.txt' : '$baseName.md';
+          if (await downloadWebFile(utf8.encode(body), name,
+              asTxt ? 'text/plain' : 'text/markdown')) {
+            return;
+          }
+        } catch (_) {}
         await Share.share(body, subject: session.title);
         return;
       }

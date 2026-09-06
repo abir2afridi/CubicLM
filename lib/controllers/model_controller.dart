@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -552,6 +553,17 @@ class ModelController extends GetxController {
   }
 
   Future<void> downloadModel(AiModel model) async {
+    // Web has no on-device engine and no app-private model store worth
+    // filling — stop gigabyte downloads before they start.
+    if (kIsWeb) {
+      Get.snackbar(
+        'Downloads need the app',
+        'On-device models run in the Android/Windows app — use Cloud mode here.',
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 5),
+      );
+      return;
+    }
     try {
       await _download.downloadModel(
         url: model.url,

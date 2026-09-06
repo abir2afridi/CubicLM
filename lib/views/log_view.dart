@@ -14,6 +14,7 @@ import '../core/colors.dart';
 import '../theme/design_tokens.dart';
 import '../services/app_log_service.dart';
 import '../utils/app_snackbar.dart';
+import '../utils/web_download.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 class LogView extends StatelessWidget {
@@ -758,6 +759,19 @@ class LogView extends StatelessWidget {
     } catch (_) {}
     final fileName = logs.exportFileName(version);
     if (kIsWeb) {
+      // Real file download (was: clipboard fallback).
+      try {
+        final bytes = utf8.encode(text);
+        if (await downloadWebFile(bytes, fileName, 'text/plain')) {
+          AppSnackbar.showTop('Logs saved', fileName,
+              icon: LucideIcons.checkCircle2,
+              type: 'success',
+              iconName: 'check',
+              duration: const Duration(seconds: 3),
+              logHistory: false);
+          return;
+        }
+      } catch (_) {}
       await Clipboard.setData(ClipboardData(text: text));
       AppSnackbar.showTop(
         'Logs Copied',

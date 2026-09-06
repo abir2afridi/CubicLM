@@ -15,11 +15,11 @@ import '../services/download_service.dart';
 import '../services/usage_tracker_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
+import 'agent_ide_view.dart';
 import 'battle_arena_view.dart';
 import 'explore_skills_mcp_tabs.dart';
 import 'gallery_view.dart';
 import 'slide_deck_view.dart';
-import 'web_builder_view.dart';
 
 class ModelView extends GetView<ModelController> {
   const ModelView({super.key});
@@ -166,11 +166,11 @@ class ModelView extends GetView<ModelController> {
         _toolkitCard(
           context,
           isDark,
-          icon: LucideIcons.globe,
-          title: 'CubicWeb Build',
+          icon: LucideIcons.terminalSquare,
+          title: 'Agent IDE',
           description:
-              'Prompt → complete website in any framework (Single HTML to React/Next/Vue). Live browser preview, per-file regen + edit, one-tap ZIP export.',
-          onTap: () => Get.to(() => const WebBuilderView()),
+              'Tell AI what to build — websites in any framework, live preview, console-error auto-fix, file explorer. Static + ESM runs on-device.',
+          onTap: () => Get.to(() => const AgentIdeView()),
         ),
       ],
     );

@@ -6,6 +6,7 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../utils/web_notify.dart';
 import 'win_toast_notify.dart';
 
 class ImageGenerationNotificationService {
@@ -210,7 +211,14 @@ class ImageGenerationNotificationService {
     }
     if (Platform.isWindows) {
       await showWindowsToast(title: 'CubicLM — answer ready', body: body);
+      return;
     }
+    try {
+      if (await showWebNotification(
+          title: 'CubicLM — answer ready', body: body)) {
+        return;
+      }
+    } catch (_) {}
   }
 
   Future<void> _showProgress({

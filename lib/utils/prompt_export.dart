@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -7,6 +8,8 @@ import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
+
+import 'web_download.dart';
 
 /// Claude-style prompt exports.
 ///
@@ -36,10 +39,15 @@ class PromptExport {
       .replaceAll(RegExp(r'\s+'), '_');
 
   /// Writes the prompt as a `.md` file and opens the share sheet.
+  /// On web the file downloads directly (Web Share file support is spotty).
   /// Shows a snackbar instead of throwing, so icon-button callers stay lean.
   static Future<void> shareAsMarkdown(String text, {String? baseName}) async {
     try {
       final name = buildMarkdownFileName(baseName ?? 'prompt');
+      final bytes = utf8.encode(text);
+      try {
+        if (await downloadWebFile(bytes, name, 'text/markdown')) return;
+      } catch (_) {}
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$name');
       await file.writeAsString(text, flush: true);
@@ -54,11 +62,15 @@ class PromptExport {
   }
 
   /// Renders the prompt into a paginated PDF and opens the share sheet.
+  /// On web the file downloads directly.
   /// Shows a snackbar instead of throwing, so icon-button callers stay lean.
   static Future<void> shareAsPdf(String text, {String? baseName}) async {
     try {
       final bytes = await buildPdfBytes(text);
       final name = buildPdfFileName(baseName ?? 'prompt');
+      try {
+        if (await downloadWebFile(bytes, name, 'application/pdf')) return;
+      } catch (_) {}
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/$name');
       await file.writeAsBytes(bytes, flush: true);

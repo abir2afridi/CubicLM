@@ -8,11 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **F-Droid fastlane metadata** - title/descriptions/changelog/icon for store submission.
-- **CubicWeb Build (Toolkit)** - prompt → complete website in any framework (Single HTML, Trio, React, Next.js, Vue 3); strict files-JSON schema + fallbacks; file explorer with per-file regen/edit/add/delete; live browser preview (temp dir + file entry, DOM storage on); one-tap ZIP export.
+- **Web TTS** - read-aloud works in browsers via the flutter_tts web backend (all guards removed).
+- **Web file downloads** - Markdown/PDF/log/chat exports save real files via anchor download instead of clipboard fallback.
+- **Web notifications** - background-done ping via the browser Notification API (best-effort permission).
+- **Model Hub web guard** - in-app model downloads blocked on web with a Cloud-mode pointer.
 
 ### Added
-- **Explore Toolkit tab** - Explore is now Model Hub + Toolkit; Battle Arena and Slide Maker moved from the chat ⋮ menu into widget cards with descriptions.
+- **Web TTS** - read-aloud works in browsers via the flutter_tts web backend (all guards removed).
+- **Web file downloads** - Markdown/PDF/log/chat exports save real files via anchor download instead of clipboard fallback.
+- **Agent IDE (Toolkit, MVP)** - prompt → project workspace (jailed files, Hive meta) → localhost preview server → console-error auto-fix loop (changed files only, 3 rounds) → ZIP export; explorer with editor/rename/search, ask-AI modify bar.
+
+### Added
+- **F-Droid fastlane metadata** - title/descriptions/changelog/icon for store submission.
+- **Agent IDE (Toolkit)** - prompt → project workspace (jailed files, Hive meta) → localhost preview server → console-error auto-fix loop (changed files only) → ZIP export; file explorer with editor/rename/search, ask-AI modify bar. Website frameworks included (merged CubicWeb Build — no separate tool).
+- **Explore Toolkit tab** - Explore is now Model Hub + Toolkit; Battle Arena, Slide Maker and Agent IDE live as widget cards with descriptions.
 
 ### Added
 - **Slide viewer modes** - Docs (paper flow) / Slides (4:3 stage) / PDF (A4 page) switcher above the carousel.
