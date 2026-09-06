@@ -149,7 +149,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           if (c.lastError.value != null)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-              child: Text(c.lastError.value!,
+              child: Text(_friendlyError(c.lastError.value!),
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 12.5,
                       color: AppColors.error,
@@ -467,6 +467,35 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   }
 
   // ── Viewport helpers ──
+
+  String _friendlyError(String raw) {
+    final lower = raw.toLowerCase();
+    if (lower.contains('429') || lower.contains('rate limit') || lower.contains('too many requests')) {
+      return 'Rate limited — wait a moment and try again.';
+    }
+    if (lower.contains('timeout') || lower.contains('timed out')) {
+      return 'Request timed out — check your connection and try again.';
+    }
+    if (lower.contains('network') || lower.contains('socket') || lower.contains('connection')) {
+      return 'Network error — check your internet connection.';
+    }
+    if (lower.contains('401') || lower.contains('403') || lower.contains('unauthorized') || lower.contains('forbidden')) {
+      return 'API key issue — check your provider settings.';
+    }
+    if (lower.contains('500') || lower.contains('502') || lower.contains('503')) {
+      return 'Server error — the AI provider is temporarily unavailable.';
+    }
+    if (lower.contains('no local model loaded')) {
+      return 'No model loaded — load one in Explore → Local, or switch to Cloud mode.';
+    }
+    if (lower.contains('model returned nothing')) {
+      return 'The AI returned an empty response — try rephrasing your request.';
+    }
+    if (lower.contains('quota') || lower.contains('insufficient')) {
+      return 'Out of credits — check your API provider balance.';
+    }
+    return raw;
+  }
 
   double _viewportWidth() {
     switch (_viewport) {
