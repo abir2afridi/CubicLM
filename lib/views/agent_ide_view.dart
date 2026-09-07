@@ -1914,16 +1914,19 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       const _Template('E-commerce', LucideIcons.shoppingCart, 'Product grid with cart and filters', 'Build a product listing page with: top nav with logo, search bar, and cart icon with badge, filter sidebar (category, price range), product grid (6 product cards with image, name, price, rating stars, add-to-cart button), and a mini cart dropdown. Modern clean design.', 'HTML + CSS + JS'),
       const _Template('SaaS Page', LucideIcons.globe, 'Product page with pricing tiers', 'Build a SaaS product page with: sticky nav, hero with product mockup, 3-step how-it-works section, pricing table (3 tiers: Free/Pro/Enterprise with feature comparison), customer logos bar, FAQ accordion, and CTA footer. Gradient accents, professional look.', 'Single HTML'),
     ];
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text('Start from a template',
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: Theme.of(context).hintColor)),
-        const SizedBox(height: 12),
-        GridView.builder(
+    // Scrollable: inside Center the height is unbounded, so a fixed
+    // Column + grid would overflow on short screens / large text.
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Start from a template',
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).hintColor)),
+          const SizedBox(height: 12),
+          GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -1982,7 +1985,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             );
           },
         ),
-      ],
+        ],
+      ),
     );
   }
 
