@@ -166,6 +166,36 @@ void main() {
           containsAll(['custom', 'openai', 'stability']));
     });
 
+    test('routed vendors never flood the keyed top section', () async {
+      final c = makeController();
+      final s = Get.find<SettingsController>();
+      c.allProviders.clear();
+      c.allProviders.assignAll([
+        info('custom', 'Custom API'),
+        info('openrouter', 'OpenRouter'),
+        info('groq', 'Groq'),
+        info('xiaomi', 'Xiaomi'),
+      ]);
+      // Only OpenRouter key set: xiaomi borrows it (functional) but is
+      // NOT explicitly keyed.
+      s.openRouterKey.value = 'k-or';
+      s.groqKey.value = 'k-groq';
+      expect(c.isRouted('xiaomi'), isTrue);
+      expect(c.isRouted('groq'), isFalse);
+      expect(c.hasExplicitKey('xiaomi'), isFalse);
+      expect(c.hasExplicitKey('groq'), isTrue);
+      // Keyed top section: custom + explicitly-keyed only
+      // (openrouter holds its own key; xiaomi borrows it).
+      final ids = c.orderedProviders().map((p) => p.id).toList();
+      expect(ids, ['custom', 'groq', 'openrouter']);
+      // Routed bucket holds xiaomi; unkeyed bucket is empty.
+      expect(c.routedProviders.map((p) => p.id), ['xiaomi']);
+      expect(c.unkeyedProviders, isEmpty);
+      // Routed cards cannot be pinned.
+      await c.togglePin('xiaomi');
+      expect(c.pinnedProviders, isEmpty);
+    });
+
     test('unknown provider ids fail closed (no borrowed key)', () {
       final c = makeController();
       final s = Get.find<SettingsController>();

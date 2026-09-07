@@ -274,12 +274,16 @@ class CloudService extends GetxService {
       case 'tokenrouter':
         key = AppConstants.keyTokenRouterKey;
         break;
+      case 'openai':
+        key = AppConstants.keyOpenaiKey;
+        break;
       case 'custom':
         key = AppConstants.keyCustomCloudKey;
         break;
       default:
-        key = AppConstants.keyOpenaiKey;
-        break;
+        // Fail closed: unknown ids carry no key (never borrow another
+        // provider's key — that ghost-marks unkeyed providers).
+        return '';
     }
     return _readSecure(key);
   }

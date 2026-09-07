@@ -418,16 +418,41 @@ class CloudModelController extends GetxController {
     }
   }
 
+  /// Dynamic provider id → source provider that serves it
+  /// (e.g. 'xiaomi' → 'openrouter'). Persisted with discovery.
+  final routedViaProvider = <String, String>{}.obs;
+
+  /// True for auto-detected vendor cards (e.g. xiaomi via openrouter).
+  /// They borrow the source key — never "explicitly keyed".
+  bool isRouted(String id) =>
+      id != 'custom' && !_isBuiltInProvider(id);
+
+  /// Explicitly keyed = user saved a key/config for THIS provider.
+  /// Routed cards borrow their source key, so they don't count.
+  bool hasExplicitKey(String provider) {
+    if (provider == 'custom') return isConfigured(provider);
+    if (isRouted(provider)) return false;
+    return apiKeyFor(provider).isNotEmpty;
+  }
+
   List<CloudProviderInfo> _loadDiscoveredProviders() {
     try {
       final raw = _hive.getSetting<List>(_discoveredProvidersKey);
       if (raw == null) return [];
       return raw.map((e) {
         final m = Map<String, dynamic>.from(e as Map);
+        final id = (m['id'] ?? '').toString();
+        final via = (m['via'] ?? '').toString();
+        if (via.isNotEmpty && id.isNotEmpty) {
+          routedViaProvider[id] = via;
+        }
         return CloudProviderInfo(
-          id: m['id'] ?? '',
-          name: m['name'] ?? '',
-          description: m['description'] ?? 'Auto-detected provider',
+          id: id,
+          name: (m['name'] ?? '').toString(),
+          description:
+              (m['description'] ?? '').toString().isNotEmpty
+                  ? (m['description'] ?? '').toString()
+                  : 'Auto-detected provider',
           icon: Icons.auto_awesome,
           requiresKeyForList: false,
         );
@@ -440,7 +465,12 @@ class CloudModelController extends GetxController {
   Future<void> _saveDiscoveredProviders() async {
     final discovered = allProviders
         .where((p) => !_isBuiltInProvider(p.id))
-        .map((p) => {'id': p.id, 'name': p.name, 'description': p.description})
+        .map((p) => {
+              'id': p.id,
+              'name': p.name,
+              'description': p.description,
+              'via': routedViaProvider[p.id] ?? '',
+            })
         .toList();
     await _hive.setSetting(_discoveredProvidersKey, discovered);
   }
@@ -468,6 +498,7 @@ class CloudModelController extends GetxController {
       if (!existing) {
         final name = _knownCompanyNames[prefix] ?? _capitalise(prefix);
         final icon = _knownCompanyIcons[prefix] ?? Icons.cloud_outlined;
+        routedViaProvider[prefix] = sourceProvider;
         allProviders.add(CloudProviderInfo(
           id: prefix,
           name: name,
@@ -669,9 +700,12 @@ class CloudModelController extends GetxController {
 
   bool isPinned(String provider) => pinnedProviders.contains(provider);
 
-  /// Pin/unpin a KEYED provider (Custom API is always top — pin N/A).
+  /// Pin/unpin an EXPLICITLY-KEYED provider (Custom API is always
+  /// top — pin N/A; routed cards borrow keys — pin N/A).
   Future<void> togglePin(String provider) async {
-    if (provider == 'custom' || !isConfigured(provider)) return;
+    if (provider == 'custom' ||
+        isRouted(provider) ||
+        !hasExplicitKey(provider)) return;
     if (pinnedProviders.contains(provider)) {
       pinnedProviders.remove(provider);
     } else {
@@ -692,8 +726,10 @@ class CloudModelController extends GetxController {
 
   /// Card display order: Custom API always first, then pinned (pin
   /// order), then key-set (sort mode), then everything else.
-  /// Provider list for Model Hub: Custom first → pinned → keyed (sorted).
-  /// Unkeyed providers are excluded — they appear in [unkeyedProviders].
+  /// Provider list for Model Hub + switchers: Custom first → pinned →
+  /// explicitly-keyed (sorted). Routed (auto-detected, key borrowed)
+  /// and unkeyed providers are excluded — see [routedProviders] and
+  /// [unkeyedProviders].
   List<CloudProviderInfo> orderedProviders() {
     final byId = {for (final p in allProviders) p.id: p};
     final out = <CloudProviderInfo>[];
@@ -705,15 +741,17 @@ class CloudModelController extends GetxController {
     // 1) Custom always first.
     take('custom');
 
-    // 2) Pinned keyed providers (in pin order).
+    // 2) Pinned explicitly-keyed providers (in pin order).
     for (final id in pinnedProviders.toList()) {
-      if (id != 'custom' && isConfigured(id)) take(id);
+      if (id != 'custom' && hasExplicitKey(id)) take(id);
     }
 
-    // 3) Remaining keyed providers — sorted by time or name.
+    // 3) Remaining explicitly-keyed providers — sorted by time or name.
     final keyed = <CloudProviderInfo>[];
     for (final p in byId.values.toList()) {
-      if (isConfigured(p.id)) {
+      if (p.id != 'custom' &&
+          !isRouted(p.id) &&
+          hasExplicitKey(p.id)) {
         keyed.add(p);
         byId.remove(p.id);
       }
@@ -729,16 +767,25 @@ class CloudModelController extends GetxController {
       });
     }
     out.addAll(keyed);
-
-    // Unkeyed providers are NOT added here — see [unkeyedProviders].
     return out;
   }
 
-  /// Providers without an API key / custom config — shown in a separate
+  /// Auto-detected vendor cards (functional via their source key,
+  /// e.g. xiaomi via openrouter) — shown BELOW the keyed list, A–Z.
+  /// Never mixed into the keyed top section.
+  List<CloudProviderInfo> get routedProviders {
+    final list = allProviders.where((p) => isRouted(p.id)).toList();
+    list.sort(
+        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return list;
+  }
+
+  /// Built-in providers without an API key — shown in a separate
   /// "Add API Key" section at the bottom of the Model Hub.
   List<CloudProviderInfo> get unkeyedProviders {
     return allProviders
-        .where((p) => p.id != 'custom' && !isConfigured(p.id))
+        .where((p) =>
+            p.id != 'custom' && !isRouted(p.id) && !hasExplicitKey(p.id))
         .toList();
   }
 
@@ -951,6 +998,19 @@ class CloudModelController extends GetxController {
     String modelId, {
     bool showSnackbar = true,
   }) async {
+    // Routed vendor cards have no registry entry — serve them through
+    // their source provider with the full model id (e.g. openrouter +
+    // 'xiaomi/mimo-2.5'). Activating the raw dynamic id would throw
+    // 'Unknown provider' on the next chat send.
+    if (isRouted(provider)) {
+      final via = routedViaProvider[provider] ?? 'openrouter';
+      await _settings.setCloudProvider(via);
+      await _settings.setCloudModel(via, modelId);
+      await _settings.setInferenceMode('cloud');
+      if (!showSnackbar) return;
+      AppSnackbar.cloudActive('$via · $modelId');
+      return;
+    }
     final normalized =
         provider == 'google' ? modelId.replaceFirst('models/', '') : modelId;
     if (!_isBuiltInProvider(provider) && provider != 'custom') {

@@ -840,11 +840,34 @@ class ModelView extends GetView<ModelController> {
           cloudModels.modelsByProvider.length;
           cloudModels.allProviders.length;
           final keyed = cloudModels.orderedProviders();
+          final routed = cloudModels.routedProviders;
           final unkeyed = cloudModels.unkeyedProviders;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ...keyed.map((p) => _buildProviderCard(context, p)),
+              if (routed.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Text(
+                  'MORE VENDORS',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).hintColor,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Auto-detected from your aggregator imports — served through that key, no extra setup',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: Theme.of(context).hintColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...routed.map((p) => _buildProviderCard(context, p)),
+              ],
               if (unkeyed.isNotEmpty) ...[
                 const SizedBox(height: 20),
                 Text(
@@ -1296,7 +1319,40 @@ class ModelView extends GetView<ModelController> {
                               if (isReallyActive) {
                                 cloudModels.deactivateCloudProvider();
                               } else if (configured) {
-                                settings.setCloudProvider(provider.id);
+                                if (cloudModels.isRouted(provider.id)) {
+                                  // Activate through the source provider —
+                                  // the raw dynamic id can't serve chat.
+                                  final m = cloudModels
+                                      .activeModelFor(provider.id);
+                                  if (m.isNotEmpty) {
+                                    cloudModels.selectModel(provider.id, m);
+                                  } else {
+                                    settings.setCloudProvider(
+                                        cloudModels.routedViaProvider[
+                                                provider.id] ??
+                                            'openrouter');
+                                  }
+                                } else {
+                                  settings.setCloudProvider(provider.id);
+                                }
+                              } else if (cloudModels.isRouted(provider.id)) {
+                                // Routed cards borrow the source key — open
+                                // the SOURCE provider's key dialog instead.
+                                final via =
+                                    cloudModels.routedViaProvider[provider.id] ??
+                                        'openrouter';
+                                CloudProviderInfo? src;
+                                for (final p in cloudModels.allProviders) {
+                                  if (p.id == via) {
+                                    src = p;
+                                    break;
+                                  }
+                                }
+                                if (src != null) {
+                                  _showProviderKeyDialog(context, cloudModels,
+                                      src,
+                                      openModelsAfterSave: true);
+                                }
                               } else if (provider.id == 'custom') {
                                 _showCustomProviderDialog(context, cloudModels);
                               } else {
@@ -1319,7 +1375,10 @@ class ModelView extends GetView<ModelController> {
                                         ? 'model_configure_endpoint'.tr
                                          : 'model_add_api_key'.tr),
                            ),
-                         if (configured)
+                         // Routed cards borrow the source key: pin / key-edit /
+                         // import / test / refresh are meaningless here —
+                         // only the full-width action button above.
+                         if (configured && !cloudModels.isRouted(provider.id))
                            Padding(
                              padding: const EdgeInsets.only(top: 8),
                              child: Wrap(
