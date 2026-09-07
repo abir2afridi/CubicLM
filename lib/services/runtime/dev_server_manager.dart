@@ -74,11 +74,14 @@ class DevServerManager extends GetxService {
   /// [workDir] is the SHARED project workspace dir — the same files the
   /// AI agent writes, so `npm install` sees exactly those files.
   /// All progress streams through [onLog] for the terminal UI.
+  /// [onUnexpectedExit] fires only when the process dies on its own
+  /// (explicit [stop] deregisters first, so it never false-fires).
   Future<DevServerSession> start({
     required String projectId,
     required String workDir,
     required ProjectKind kind,
     required void Function(String line) onLog,
+    void Function(String projectId, int exitCode)? onUnexpectedExit,
   }) async {
     final existing = _sessions[projectId];
     if (existing != null) {
@@ -151,6 +154,16 @@ class DevServerManager extends GetxService {
       // Detach listeners (session streams stay live for log viewers).
       unawaited(sub1.cancel());
       unawaited(sub2.cancel());
+      // Crash watcher (§18 RUNTIME_CRASHED): unexpected death drops
+      // the session so Preview never points at a dead port.
+      unawaited(proc.exitCode.then((code) {
+        if (_sessions[projectId]?.proc == proc) {
+          _sessions.remove(projectId);
+          try {
+            onUnexpectedExit?.call(projectId, code);
+          } catch (_) {}
+        }
+      }));
       onLog('✓ dev server live at $url');
       return session;
     } catch (e) {

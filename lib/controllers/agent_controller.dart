@@ -455,11 +455,12 @@ class AgentController extends GetxController {
     _say('user', t);
     buildStatus.value = 'Designing project…';
     term('> build "${t.length > 60 ? '${t.substring(0, 60)}…' : t}" (${framework.value})');
+    String? createdCp;
     try {
       final name = t.length > 40 ? '${t.substring(0, 40)}…' : t;
       final p = await _ws.createProject(name, framework.value);
       project.value = p;
-      final createdCp =
+      createdCp =
           await _ws.saveCheckpoint(p.id, label: 'Project created');
       final raw = await _ask(
         prompt: 'Build this website with ${framework.value}: $t',
@@ -470,6 +471,8 @@ class AgentController extends GetxController {
       if (_cancelled) {
         // Live partial writes may already be on disk — roll back to the
         // empty just-created state so cancel means "never happened".
+        // (createdCp is definitely assigned here; the catch block below
+        // keeps the null-safe variant.)
         try {
           await _ws.rollbackToCheckpoint(p.id, createdCp);
           await refreshFiles();
@@ -516,6 +519,17 @@ class AgentController extends GetxController {
         term('■ build cancelled by user');
         return;
       }
+      // Generation failed mid-stream: live partials may be on disk —
+      // restore the empty just-created state (§7: never keep half files).
+      final cp = createdCp;
+      final p0 = project.value;
+      if (cp != null && p0 != null) {
+        try {
+          await _ws.rollbackToCheckpoint(p0.id, cp);
+          await refreshFiles();
+          _touch();
+        } catch (_) {}
+      }
       lastError.value = '$e';
       term('✗ build failed: $e');
       _log('Project build failed', e);
@@ -539,8 +553,9 @@ class AgentController extends GetxController {
     _say('user', t);
     buildStatus.value = 'Applying change…';
     term('> modify: "${t.length > 80 ? '${t.substring(0, 80)}…' : t}"');
+    String? beforeCp;
     try {
-      final beforeCp = await _ws.saveCheckpoint(p.id, label: 'Before modify');
+      beforeCp = await _ws.saveCheckpoint(p.id, label: 'Before modify');
       // Snapshot pre-modify contents for the diff view. Live partial
       // writes land on disk mid-stream, so "old" must come from BEFORE
       // generation — never from post-stream disk reads.
@@ -636,6 +651,16 @@ class AgentController extends GetxController {
       if (_cancelled) {
         term('■ modify cancelled by user');
         return;
+      }
+      // Same guard as cancel: a mid-stream failure must not leave
+      // live partial writes behind.
+      final cp = beforeCp;
+      if (cp != null) {
+        try {
+          await _ws.rollbackToCheckpoint(p.id, cp);
+          await refreshFiles();
+          _touch();
+        } catch (_) {}
       }
       lastError.value = '$e';
       term('✗ modify failed: $e');
@@ -1075,6 +1100,7 @@ class AgentController extends GetxController {
         workDir: dir.path,
         kind: previewKind.value,
         onLog: term,
+        onUnexpectedExit: (pid, code) => _onDevServerCrashed(pid, code),
       );
       devServerUrl.value = session.url;
       previewUrl.value = session.url;
@@ -1103,6 +1129,49 @@ class AgentController extends GetxController {
       devServerStarting.value = false;
       buildStatus.value = null;
     }
+  }
+
+  /// Crash handler (§18 RUNTIME_CRASHED): drop the dead URL, fall
+  /// back to static serving, and say so — never leave Preview aimed
+  /// at a dead port, and never auto-rewrite files for a dead server.
+  void _onDevServerCrashed(String pid, int code) {
+    if (project.value?.id != pid) return;
+    if (devServerUrl.value == null) return;
+    devServerUrl.value = null;
+    term('✗ RUNTIME_CRASHED — dev server exited ($code) unexpectedly');
+    _say('assistant',
+        'The dev server crashed (exit $code). Preview fell back to static files — tap “Restart dev server” to bring the live app back.');
+    unawaited(_fallbackToStatic());
+  }
+
+  Future<void> _fallbackToStatic() async {
+    final p = project.value;
+    if (p == null) return;
+    try {
+      final dir = await _ws.dirFor(p.id);
+      previewUrl.value = await _preview.start(p.id, dir.path);
+      final steps = previewSteps.toList()
+        ..removeWhere((s) => s.label == 'Preview' || s.label == 'Server');
+      steps.add(const PreviewStep('Server', 'fail', 'crashed'));
+      steps.add(
+          const PreviewStep('Preview', 'info', 'static fallback'));
+      previewSteps.assignAll(steps);
+      _touch();
+    } catch (_) {}
+  }
+
+  /// Stop + start the dev server (the diagnosis "Restart" action).
+  /// Unlike [startDevServer] (which reuses a live server), this always
+  /// bounces the process.
+  Future<void> restartDevServer() async {
+    final p = project.value;
+    if (p == null || devServerStarting.value) return;
+    try {
+      await Get.find<DevServerManager>().stop(p.id);
+    } catch (_) {}
+    devServerUrl.value = null;
+    term('■ dev server stopped — restarting…');
+    await startDevServer();
   }
 
   /// Stop this project's dev server (if any). Never throws.

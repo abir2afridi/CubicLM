@@ -10,6 +10,7 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../controllers/agent_controller.dart';
 import '../controllers/settings_controller.dart';
@@ -1032,7 +1033,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             ? 'Restart dev server'
             : 'Start dev server';
         icon = LucideIcons.play;
-        onTap = c.devServerStarting.value ? null : () => c.startDevServer();
+        onTap = c.devServerStarting.value
+            ? null
+            : () => c.devServerUrl.value != null
+                ? c.restartDevServer()
+                : c.startDevServer();
       case 'validate-build':
         label = 'Validate build';
         icon = LucideIcons.wrench;
@@ -1154,6 +1159,22 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               padding: EdgeInsets.all(5),
               child:
                   Icon(LucideIcons.rotateCw, size: 15),
+            ),
+          ),
+          InkWell(
+            onTap: () async {
+              final u = c.previewUrl.value;
+              if (u == null || u.isEmpty) return;
+              try {
+                await launchUrl(Uri.parse(u),
+                    mode: LaunchMode.externalApplication);
+              } catch (_) {}
+            },
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.all(5),
+              child:
+                  Icon(LucideIcons.externalLink, size: 15),
             ),
           ),
         ]),
