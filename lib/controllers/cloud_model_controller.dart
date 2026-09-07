@@ -825,6 +825,38 @@ class CloudModelController extends GetxController {
     }
   }
 
+  /// Verify a candidate key WITHOUT saving it. Returns null when the
+  /// provider's model-list endpoint answers 200 with a non-empty list,
+  /// otherwise a short human-readable reason.
+  Future<String?> verifyApiKey(String provider, String candidate) async {
+    final key = candidate.trim();
+    if (key.isEmpty) return 'Paste a key first.';
+    try {
+      final cloudProvider = CloudProviderRegistry.getById(provider);
+      final urls = cloudProvider?.getModelListCandidates(key) ??
+          const ['https://api.openai.com/v1/models'];
+      final headers = cloudProvider?.buildAuthHeaders(key) ??
+          {'Authorization': 'Bearer $key'};
+      for (final url in urls.take(2)) {
+        try {
+          final resp = await http
+              .get(Uri.parse(url), headers: headers)
+              .timeout(const Duration(seconds: 15));
+          if (resp.statusCode == 200) {
+            if (_parseModelIds(provider, resp.body).isNotEmpty) return null;
+          } else if (resp.statusCode == 401 || resp.statusCode == 403) {
+            return 'Invalid key (${resp.statusCode}) — check for typos.';
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+      return 'Verification failed — endpoint unreachable or key rejected.';
+    } catch (e) {
+      return 'Verification failed: $e';
+    }
+  }
+
   Future<void> saveApiKey(String provider, String value) async {
     await _settings.setApiKey(provider, value);
     if (value.isNotEmpty) {

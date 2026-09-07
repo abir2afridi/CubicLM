@@ -197,6 +197,14 @@ void main() {
       expect(c.isConfigured('no-such-provider'), isFalse);
     });
 
+    test('verifyApiKey rejects empty without touching saved keys', () async {
+      final c = makeController();
+      final s = Get.find<SettingsController>();
+      final err = await c.verifyApiKey('openai', '   ');
+      expect(err, isNotNull);
+      expect(s.openaiKey.value, isEmpty);
+    });
+
     test('orderedProviders excludes unkeyed providers', () {
       final c = makeController();
       c.allProviders.clear();

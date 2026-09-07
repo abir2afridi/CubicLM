@@ -2638,6 +2638,18 @@ class ModelView extends GetView<ModelController> {
     final keyController = cloud.apiKeyControllerFor(provider.id);
     final obscureKey = true.obs;
     final isVerifying = false.obs;
+    // Verify-before-save: Save unlocks only for the exact text that
+    // passed verification. Editing the field invalidates it.
+    final draftKey = keyController.text.obs;
+    final verifiedFor =
+        (cloud.apiKeyFor(provider.id).isNotEmpty ? keyController.text : '')
+            .obs;
+    void onDraftChanged(String v) {
+      draftKey.value = v;
+      if (v != verifiedFor.value) verifiedFor.value = '';
+      cloud.errorByProvider.remove(provider.id);
+    }
+
     final accent = _providerAccent(provider.id);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasExistingKey = cloud.apiKeyFor(provider.id).isNotEmpty;
@@ -2693,6 +2705,7 @@ class ModelView extends GetView<ModelController> {
               () => TextField(
                 controller: keyController,
                 obscureText: obscureKey.value,
+                onChanged: onDraftChanged,
                 style: GoogleFonts.firaCode(fontSize: 13),
                 decoration: InputDecoration(
                   labelText: 'API key',
@@ -2710,6 +2723,7 @@ class ModelView extends GetView<ModelController> {
                             keyController.selection = TextSelection.fromPosition(
                               TextPosition(offset: keyController.text.length),
                             );
+                            onDraftChanged(keyController.text);
                           }
                         },
                         icon: const Icon(LucideIcons.clipboardPaste, size: 20),
@@ -2742,14 +2756,36 @@ class ModelView extends GetView<ModelController> {
                 child: _buildErrorBox(context, error),
               );
             }),
-            Text(
-              'Save the key to verify it and load live models.',
-              style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                color: Theme.of(context).hintColor,
-                height: 1.35,
-              ),
-            ),
+            Obx(() {
+              final ok = verifiedFor.value.isNotEmpty &&
+                  verifiedFor.value == draftKey.value;
+              if (!ok) {
+                return Text(
+                  'Paste the key, verify it, then save.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: Theme.of(context).hintColor,
+                    height: 1.35,
+                  ),
+                );
+              }
+              return Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded,
+                      size: 16, color: AppColors.success),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Verified — this key works.',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.success,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              );
+            }),
           ],
         ),
       ),
@@ -2781,25 +2817,59 @@ class ModelView extends GetView<ModelController> {
           child: Text('common_cancel'.tr,
               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
         ),
-        ElevatedButton(
-          onPressed: () async {
-            final value = keyController.text.trim();
-            if (value.isEmpty || isVerifying.value) return;
-            isVerifying.value = true;
-            await cloud.saveApiKey(provider.id, value);
-            await cloud.refreshModels(provider.id);
-            isVerifying.value = false;
-            if ((cloud.errorByProvider[provider.id] ?? '').isNotEmpty) {
-              return;
-            }
-            Get.back(closeOverlays: false);
-          },
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-          ),
-          child:
-              Obx(() => Text(isVerifying.value ? 'Verifying...' : 'Save Key')),
-        ),
+        Obx(() => FilledButton.tonal(
+              onPressed: (isVerifying.value || draftKey.value.trim().isEmpty)
+                  ? null
+                  : () async {
+                      isVerifying.value = true;
+                      final err = await cloud.verifyApiKey(
+                          provider.id, draftKey.value);
+                      isVerifying.value = false;
+                      if (err == null) {
+                        verifiedFor.value = draftKey.value;
+                        cloud.errorByProvider.remove(provider.id);
+                      } else {
+                        verifiedFor.value = '';
+                        cloud.errorByProvider[provider.id] = err;
+                      }
+                    },
+              style: FilledButton.styleFrom(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              ),
+              child: isVerifying.value
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text('Verify',
+                      style:
+                          GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+            )),
+        Obx(() {
+          final ok = verifiedFor.value.isNotEmpty &&
+              verifiedFor.value == draftKey.value;
+          return ElevatedButton(
+            onPressed: !ok
+                ? null
+                : () async {
+                    final value = keyController.text.trim();
+                    await cloud.saveApiKey(provider.id, value);
+                    await cloud.refreshModels(provider.id);
+                    if ((cloud.errorByProvider[provider.id] ?? '')
+                        .isNotEmpty) {
+                      return;
+                    }
+                    Get.back(closeOverlays: false);
+                  },
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+            ),
+            child: Text('Save Key',
+                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
+          );
+        }),
       ],
     ));
   }
