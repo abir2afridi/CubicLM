@@ -10,13 +10,17 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
 import '../controllers/agent_controller.dart';
+import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
 import '../services/agent_workspace.dart';
 import '../services/deploy_service.dart';
+import '../services/inference_service.dart';
+import '../services/local_image_service.dart';
 import '../theme/design_tokens.dart';
 import '../utils/app_snackbar.dart';
 import '../utils/syntax_highlight.dart';
 import '../utils/web_project.dart';
+import '../widgets/app_ui.dart';
 import '../widgets/model_switcher_sheet.dart';
 
 /// CubicWeb Builder — agentic website studio (Toolkit): prompt → project
@@ -115,14 +119,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: 'Switch model / provider',
-            icon: Icon(LucideIcons.arrowLeftRight,
-                color: isDark
-                    ? AppColors.textPrimary
-                    : Dt.iconDefault),
-            onPressed: () => showModelSwitcherSheet(context),
-          ),
           Obx(() => c.project.value == null
               ? const SizedBox.shrink()
               : PopupMenuButton<String>(
@@ -643,18 +639,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   Widget _askBar(BuildContext context, bool isDark) {
     final hasProject = c.project.value != null;
     final busy = c.generating.value || c.fixing.value;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surface : Colors.white,
-        border: Border(
-            top: BorderSide(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.07)
-                    : Dt.hairline)),
-      ),
-      child: SafeArea(
-        top: false,
+    final hasContent = _askCtrl.text.trim().isNotEmpty ||
+        c.attachedImage.value != null;
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        color: Colors.transparent,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           if (c.consoleError.value != null &&
               c.consoleError.value!.isNotEmpty)
@@ -682,145 +673,239 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 ),
               ]),
             ),
-          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            if (!hasProject)
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: GestureDetector(
-                  onTap: () => _showFrameworkSheet(context),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 9, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Dt.accent.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: Dt.accent.withValues(alpha: 0.3)),
-                    ),
-                    child: Text(
-                      _frameworkShort(c.framework.value),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.surface : Dt.card,
+              borderRadius: BorderRadius.circular(Dt.rComposer),
+              border: isDark
+                  ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                  : null,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                )
+              ],
+            ),
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Text field: full-width, ABOVE the controls row ──
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+                    child: TextField(
+                      controller: _askCtrl,
+                      focusNode: _askFocus,
+                      minLines: 1,
+                      maxLines: 6,
                       style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: Dt.accent),
+                          fontSize: 16,
+                          height: 1.35,
+                          color: isDark
+                              ? AppColors.textPrimary
+                              : Dt.textPrimary,
+                          fontWeight: FontWeight.w500),
+                      decoration: InputDecoration(
+                        hintText: hasProject
+                            ? 'Ask AI to change anything…'
+                            : 'Describe what to build…',
+                        hintStyle: GoogleFonts.plusJakartaSans(
+                            fontSize: 16,
+                            color: Dt.textPlaceholder,
+                            fontWeight: FontWeight.w500),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 10),
+                        isDense: true,
+                        fillColor: Colors.transparent,
+                      ),
                     ),
+                  ),
+                  // ── Screenshot chip (attachment preview) ──
+                  Obx(() => c.attachedImage.value != null
+                      ? Container(
+                          margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Dt.accent.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: Dt.accent.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(LucideIcons.image,
+                                size: 13, color: Dt.accent),
+                            const SizedBox(width: 6),
+                            Text('Screenshot attached',
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11, color: Dt.accent)),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: () => c.clearAttachment(),
+                              child: const Icon(LucideIcons.x,
+                                  size: 12, color: Dt.accent),
+                            ),
+                          ]),
+                        )
+                      : const SizedBox.shrink()),
+                  // ── Controls row: + / model pill / tools … send ──
+                  Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // "+" — builder tools live here (left side).
+                        AppCircleButton(
+                          icon: LucideIcons.plus,
+                          tooltip: 'Builder tools',
+                          onTap: () => _showBuilderToolsSheet(
+                              context, isDark, hasProject),
+                        ),
+                        const SizedBox(width: 8),
+                        // Model selector pill — under the box, not in header.
+                        SizedBox(
+                          width: 125,
+                          child: Obx(() => AppModelPill(
+                                label: _builderModelLabel(),
+                                onTap: () =>
+                                    showModelSwitcherSheet(context),
+                              )),
+                        ),
+                        const SizedBox(width: 6),
+                        // Scrollable tools strip — never squeezes the field.
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+            if (!hasProject)
+              GestureDetector(
+                onTap: () => _showFrameworkSheet(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 9, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: Dt.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: Dt.accent.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    _frameworkShort(c.framework.value),
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: Dt.accent                    ),
                   ),
                 ),
               ),
+            if (!hasProject) const SizedBox(width: 6),
             if (!hasProject)
-              Padding(
-                padding: const EdgeInsets.only(right: 6),
-                child: GestureDetector(
-                  onTap: () => c.planMode.value = !c.planMode.value,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: c.planMode.value
-                          ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
-                          : (isDark
-                              ? Colors.white.withValues(alpha: 0.06)
-                              : Colors.black.withValues(alpha: 0.05)),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: c.planMode.value
-                              ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
-                              : (isDark
-                                  ? Colors.white.withValues(alpha: 0.08)
-                                  : Dt.hairline)),
-                    ),
-                    child: Icon(LucideIcons.map,
-                        size: 14,
+              GestureDetector(
+                onTap: () => c.planMode.value = !c.planMode.value,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: c.planMode.value
+                        ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
+                        : (isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.05)),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: c.planMode.value
+                            ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
+                            : (isDark
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : Dt.hairline)),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(LucideIcons.map,
+                        size: 12,
                         color: c.planMode.value
                             ? const Color(0xFFF59E0B)
                             : Theme.of(context).hintColor),
-                  ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Plan',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: c.planMode.value
+                              ? const Color(0xFFF59E0B)
+                              : Theme.of(context).hintColor),
+                    ),
+                  ]),
                 ),
               ),
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.black.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: TextField(
-                  controller: _askCtrl,
-                  focusNode: _askFocus,
-                  minLines: 1,
-                  maxLines: 3,
-                  textAlignVertical: TextAlignVertical.center,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 14),
-                  decoration: InputDecoration(
-                    hintText: hasProject
-                        ? 'Ask AI to change anything…'
-                        : 'Describe what to build…',
-                    hintStyle: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        color: Theme.of(context).hintColor),
-                    border: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    isDense: true,
-                  ),
-                ),
+            if (hasProject) ...[
+              AppCircleButton(
+                icon: LucideIcons.brain,
+                tooltip: 'Extended thinking',
+                iconColor: c.extendedThinking.value
+                    ? const Color(0xFF8B5CF6)
+                    : null,
+                onTap: () => c.extendedThinking.value =
+                    !c.extendedThinking.value,
               ),
+              const SizedBox(width: 6),
+              AppCircleButton(
+                icon: LucideIcons.globe,
+                tooltip: 'Web search',
+                iconColor: c.webSearch.value
+                    ? const Color(0xFF10B981)
+                    : null,
+                onTap: () =>
+                    c.webSearch.value = !c.webSearch.value,
+              ),
+              const SizedBox(width: 6),
+              AppCircleButton(
+                icon: LucideIcons.puzzle,
+                tooltip: 'Component library',
+                onTap: () =>
+                    _showComponentLibrary(context, isDark),
+              ),
+              const SizedBox(width: 6),
+            ],
+            AppCircleButton(
+              icon: LucideIcons.image,
+              tooltip: 'Attach screenshot',
+              iconColor: c.attachedImage.value != null ? Dt.accent : null,
+              onTap: () => _pickScreenshot(),
             ),
-            const SizedBox(width: 6),
-            if (hasProject)
-              IconButton(
+            if (hasProject) ...[
+              const SizedBox(width: 6),
+              AppCircleButton(
+                icon: LucideIcons.shieldCheck,
                 tooltip: 'Auto-test project',
-                icon: const Icon(LucideIcons.shieldCheck, size: 18),
-                onPressed: busy ? null : () => c.runAutoTest(),
+                onTap: busy ? null : () => c.runAutoTest(),
               ),
-            if (hasProject) const SizedBox(width: 4),
-            GestureDetector(
-              onTap: () => _showAttachSheet(context, isDark),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : Colors.black.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(LucideIcons.plus,
-                    size: 18, color: Theme.of(context).hintColor),
-              ),
-            ),
-            const SizedBox(width: 6),
-            IconButton.filled(
-              tooltip: busy
-                  ? 'Stop'
-                  : (hasProject ? 'Apply change' : 'Build project'),
-              icon: busy
-                  ? const Icon(LucideIcons.square, size: 16)
-                  : const Icon(LucideIcons.send, size: 18),
-              style: IconButton.styleFrom(
-                  backgroundColor:
-                      busy ? AppColors.error : Dt.accent),
-              onPressed: busy
-                  ? c.cancelWork
-                  : (_askCtrl.text.trim().isEmpty && c.attachedImage.value == null
-                      ? null
-                      : () async {
-                          final text = _askCtrl.text.trim();
-                          final hasImg = c.attachedImage.value != null;
-                          c.topic.value = text.isEmpty && hasImg
-                              ? 'Build from this screenshot'
-                              : text;
-                          _askCtrl.clear();
-                          if (hasProject) {
-                            await c.modifyProject();
-                          } else {
-                            await c.newProject();
-                          }
-                        }),
-            ),
-          ]),
+            ],
+                        ]),
+                      ),
+                    ),
+                    Tooltip(
+                      message: busy
+                          ? 'Stop'
+                          : (hasProject ? 'Apply change' : 'Build project'),
+                      child: AppCtaButton(
+                        icon: busy
+                            ? LucideIcons.square
+                            : LucideIcons.arrowUp,
+                        onTap: busy
+                            ? c.cancelWork
+                            : (hasContent ? _sendFromAskBar : null),
+                      ),
+                    ),
+                  ]),
+            ]),
+          ),
         ]),
       ),
     );
@@ -1830,147 +1915,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     );
   }
 
-  void _showAttachSheet(BuildContext context, bool isDark) {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-              child: Row(children: [
-                Text('Add to message',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15, fontWeight: FontWeight.w800)),
-                if (c.attachedImage.value != null) ...[
-                  const Spacer(),
-                  Obx(() => Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Dt.accent.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          const Icon(LucideIcons.image, size: 12, color: Dt.accent),
-                          const SizedBox(width: 4),
-                          Text('Image attached',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Dt.accent)),
-                        ]),
-                      )),
-                ],
-              ]),
-            ),
-            ListTile(
-              leading: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3B82F6).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(LucideIcons.image,
-                    size: 18, color: Color(0xFF3B82F6)),
-              ),
-              title: Text('Gallery',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14, fontWeight: FontWeight.w600)),
-              subtitle: Text('Attach a screenshot or image',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11, color: Theme.of(context).hintColor)),
-              onTap: () async {
-                Navigator.pop(ctx);
-                final picker = ImagePicker();
-                final x = await picker.pickImage(
-                    source: ImageSource.gallery, imageQuality: 85);
-                if (x != null) {
-                  final bytes = await x.readAsBytes();
-                  c.attachedImage.value = base64Encode(bytes);
-                }
-              },
-            ),
-            if (c.project.value != null)
-              ListTile(
-                leading: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF8B5CF6).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(LucideIcons.puzzle,
-                      size: 18, color: Color(0xFF8B5CF6)),
-                ),
-                title: Text('Component Library',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14, fontWeight: FontWeight.w600)),
-                subtitle: Text('Insert a UI component into the prompt',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11, color: Theme.of(context).hintColor)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showComponentLibrary(context, isDark);
-                },
-              ),
-            ListTile(
-              leading: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(LucideIcons.brain,
-                    size: 18, color: Color(0xFFF59E0B)),
-              ),
-              title: Text('Extended Thinking',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14, fontWeight: FontWeight.w600)),
-              subtitle: Obx(() => Text(
-                    c.extendedThinking.value ? 'Enabled' : 'Step-by-step reasoning',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11, color: Theme.of(context).hintColor),
-                  )),
-              trailing: Obx(() => Switch(
-                    value: c.extendedThinking.value,
-                    onChanged: (v) => c.extendedThinking.value = v,
-                  )),
-            ),
-            ListTile(
-              leading: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(LucideIcons.globe,
-                    size: 18, color: Color(0xFF10B981)),
-              ),
-              title: Text('Web Search',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 14, fontWeight: FontWeight.w600)),
-              subtitle: Obx(() => Text(
-                    c.webSearch.value ? 'Enabled' : 'Look up current CDN/library info',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11, color: Theme.of(context).hintColor),
-                  )),
-              trailing: Obx(() => Switch(
-                    value: c.webSearch.value,
-                    onChanged: (v) => c.webSearch.value = v,
-                  )),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showComponentLibrary(BuildContext context, bool isDark) {
     final components = [
       const _Component('Navbar', LucideIcons.menu, 'Navigation bar with logo and links'),
@@ -2173,6 +2117,162 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         );
       }
     }
+  }
+
+  /// Short label for the builder composer model pill (mirrors chat).
+  String _builderModelLabel() {
+    final s = Get.find<SettingsController>();
+    if (s.inferenceMode.value == 'cloud') {
+      final m = s.selectedCloudModelName;
+      if (m.isEmpty) return 'Cloud';
+      final short = m.contains('/') ? m.split('/').last : m;
+      return short.length > 18 ? '${short.substring(0, 18)}…' : short;
+    }
+    final inf = Get.find<InferenceService>();
+    final img = Get.find<LocalImageService>();
+    final name = inf.isModelLoaded.value
+        ? inf.loadedModelName.value
+        : img.isModelLoaded.value
+            ? img.loadedModelName.value
+            : '';
+    if (name.isEmpty) return 'Local';
+    final stripped = name.replaceAll(
+        RegExp(r'\.(gguf|litertlm|safetensors)$', caseSensitive: false), '');
+    return stripped.length > 14 ? '${stripped.substring(0, 14)}…' : stripped;
+  }
+
+  Future<void> _pickScreenshot() async {
+    final picker = ImagePicker();
+    final x = await picker.pickImage(
+        source: ImageSource.gallery, imageQuality: 85);
+    if (x != null) {
+      final bytes = await x.readAsBytes();
+      c.attachedImage.value = base64Encode(bytes);
+    }
+  }
+
+  /// "+" sheet: every builder tool in one place (left-side entry point).
+  void _showBuilderToolsSheet(
+      BuildContext context, bool isDark, bool hasProject) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? AppColors.surface : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 36,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 8, top: 12),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.surfaceLight : Dt.hairline,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+            child: Row(children: [
+              Text('Builder tools',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16, fontWeight: FontWeight.w800)),
+              const Spacer(),
+              Text('All options here',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12, color: Theme.of(context).hintColor)),
+            ]),
+          ),
+          Flexible(
+            child: ListView(shrinkWrap: true, children: [
+              if (!hasProject)
+                ListTile(
+                  leading: const Icon(LucideIcons.layers, size: 22),
+                  title: Text('Framework — ${_frameworkShort(c.framework.value)}',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15, fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    _showFrameworkSheet(context);
+                  },
+                ),
+              if (!hasProject)
+                Obx(() => SwitchListTile(
+                      secondary: const Icon(LucideIcons.map, size: 22),
+                      title: Text('Plan mode',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15, fontWeight: FontWeight.w600)),
+                      value: c.planMode.value,
+                      onChanged: (v) => c.planMode.value = v,
+                    )),
+              if (hasProject)
+                Obx(() => SwitchListTile(
+                      secondary: const Icon(LucideIcons.brain, size: 22),
+                      title: Text('Extended thinking',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15, fontWeight: FontWeight.w600)),
+                      value: c.extendedThinking.value,
+                      onChanged: (v) => c.extendedThinking.value = v,
+                    )),
+              if (hasProject)
+                Obx(() => SwitchListTile(
+                      secondary: const Icon(LucideIcons.globe, size: 22),
+                      title: Text('Web search',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 15, fontWeight: FontWeight.w600)),
+                      value: c.webSearch.value,
+                      onChanged: (v) => c.webSearch.value = v,
+                    )),
+              if (hasProject)
+                ListTile(
+                  leading: const Icon(LucideIcons.puzzle, size: 22),
+                  title: Text('Component library',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15, fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    _showComponentLibrary(context, isDark);
+                  },
+                ),
+              ListTile(
+                leading: const Icon(LucideIcons.image, size: 22),
+                title: Text('Attach screenshot',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15, fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _pickScreenshot();
+                },
+              ),
+              if (hasProject)
+                ListTile(
+                  leading: const Icon(LucideIcons.shieldCheck, size: 22),
+                  title: Text('Auto-test project',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 15, fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    c.runAutoTest();
+                  },
+                ),
+              ListTile(
+                leading: const Icon(LucideIcons.box, size: 22),
+                title: Text('Switch model',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15, fontWeight: FontWeight.w600)),
+                subtitle: Text(_builderModelLabel(),
+                    style: GoogleFonts.plusJakartaSans(fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  showModelSwitcherSheet(context);
+                },
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+        ]),
+      ),
+    );
   }
 
   void _showRenameDialog(
