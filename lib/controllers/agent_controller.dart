@@ -15,6 +15,8 @@ import '../services/app_log_service.dart';
 import '../services/cloud_service.dart';
 import '../services/inference_service.dart';
 import '../services/preview_server.dart';
+import '../services/runtime/cli_manager.dart';
+import '../services/runtime/cli_manifest.dart';
 import '../services/runtime/cloud_runtime.dart';
 import '../services/runtime/dev_server_manager.dart';
 import '../services/runtime/preview_router.dart';
@@ -96,8 +98,19 @@ class AgentController extends GetxController {
   final devServerUrl = RxnString();
   final devServerStarting = false.obs;
 
+  /// True while `npm run build` validation runs.
+  final validatingBuild = false.obs;
+
   /// Cloud fallback provider (unconfigured in this build — honest stub).
   final CloudRuntimeProvider cloudRuntime = UnconfiguredCloudRuntime();
+
+  /// Manifest id of the CLI currently attached to the terminal input
+  /// (null = input runs one-shot shell commands).
+  final activeCliId = RxnString();
+
+  /// Terminal-detected CLI awaiting the user's Add/Ignore choice.
+  final detectedCliId = RxnString();
+  final detectedCliVersion = RxnString();
 
   /// Terminal buffer: timestamped agent activity (builds, fixes, file
   /// ops, console errors). The AI reads the tail in repair prompts, so
@@ -262,6 +275,124 @@ class AgentController extends GetxController {
     }
   }
 
+  /// Merge issue lists without code+path duplicates (disk validation
+  /// and write-fidelity often flag the same file twice).
+  void _mergeIssues(
+      List<ProjectIssue> base, List<ProjectIssue> extra) {
+    final have = base.map((i) => '${i.code}:${i.path}').toSet();
+    for (final i in extra) {
+      if (have.add('${i.code}:${i.path}')) base.add(i);
+    }
+  }
+
+  /// Generation integrity (§8): read back what was just written and
+  /// compare byte-for-byte, plus hygiene-scan the generated source.
+  /// Catches truncation/corruption between model output and disk —
+  /// surfaced as blockers, never silently previewed.
+  Future<List<ProjectIssue>> _verifyWriteFidelity(
+      String projectId, Map<String, String> expected) async {
+    final issues = <ProjectIssue>[];
+    for (final e in expected.entries) {
+      String? actual;
+      try {
+        actual = await _ws.readFile(projectId, e.key);
+      } catch (_) {}
+      if (actual == null) {
+        issues.add(ProjectIssue('write-missing',
+            '"${e.key}" is missing on disk after writing — the write failed.',
+            path: e.key));
+      } else if (actual.length != e.value.length) {
+        issues.add(ProjectIssue('write-truncated',
+            '"${e.key}" on disk (${actual.length} chars) differs from generated source (${e.value.length} chars) — truncated or corrupted in transit.',
+            path: e.key));
+      } else if (actual != e.value) {
+        issues.add(ProjectIssue('write-corrupted',
+            '"${e.key}" on disk differs from generated source — serialization corrupted it.',
+            path: e.key));
+      }
+      issues.addAll(sourceHygieneIssues(e.key, e.value));
+    }
+    return issues;
+  }
+
+  /// Production build validation (`npm run build`) for Node projects.
+  /// Streams real compiler output to the terminal; failures flow into
+  /// the existing Ask-AI loop via the terminal wand button.
+  Future<void> validateBuild() async {
+    final p = project.value;
+    if (p == null ||
+        validatingBuild.value ||
+        generating.value ||
+        fixing.value) {
+      return;
+    }
+    if (!projectNeedsNode(previewKind.value)) {
+      AppSnackbar.showTop('Build check',
+          'Only Node projects need `npm run build` — this one previews statically.',
+          logHistory: false);
+      return;
+    }
+    validatingBuild.value = true;
+    buildStatus.value = 'Running npm run build…';
+    term('> npm run build  (production validation)');
+    try {
+      String? npm;
+      try {
+        npm = (await Get.find<RuntimeManager>().refresh()).npmPath;
+      } catch (_) {}
+      if (npm == null || npm.isEmpty) {
+        term('✗ NEXT_BUILD_FAILED — npm unavailable (NPM_MISSING): Node.js runtime missing.');
+        lastError.value = 'npm is unavailable — Node.js runtime missing.';
+        return;
+      }
+      final dir = await _ws.dirFor(p.id);
+      final session = await ProcessRunner.startSession(
+        npm,
+        const ['run', 'build'],
+        workingDirectory: dir.path,
+        commandLabel: 'npm run build',
+      );
+      final sub1 = session.stdoutLines.listen(term);
+      final sub2 = session.stderrLines.listen(term);
+      int code;
+      try {
+        code = await session.exitCode
+            .timeout(const Duration(minutes: 10));
+      } on TimeoutException {
+        code = -1;
+        try {
+          await session.kill(true);
+        } catch (_) {}
+      }
+      try {
+        await sub1.cancel();
+      } catch (_) {}
+      try {
+        await sub2.cancel();
+      } catch (_) {}
+      if (code == 0) {
+        term('✓ npm run build passed');
+        _say('assistant',
+            'Production build passed (`npm run build` ✅). Preview keeps running the dev server.');
+        AppSnackbar.showTop(
+            'Build passed', '`npm run build` succeeded.',
+            logHistory: false);
+      } else {
+        term('✗ NEXT_BUILD_FAILED (exit $code) — compiler output above; tap the terminal wand (Ask AI) and I’ll fix it');
+        lastError.value =
+            '`npm run build` failed (exit $code) — see Terminal, then Ask AI to Fix.';
+        _say('assistant',
+            'The production build failed (exit $code) — full compiler output is in the Terminal. Tap the wand button there (Ask AI to Fix) and I’ll repair the source.');
+      }
+    } catch (e) {
+      term('✗ build check failed: $e');
+      lastError.value = '$e';
+    } finally {
+      validatingBuild.value = false;
+      buildStatus.value = null;
+    }
+  }
+
   /// Clear all live-streaming state (call when generation settles).
   void _clearStreaming() {
     try {
@@ -353,6 +484,24 @@ class AgentController extends GetxController {
       }
       await refreshFiles();
       await _serve();
+      // Integrity gate (§8): what landed on disk must equal what the
+      // model emitted — byte-for-byte — plus hygiene scan.
+      final fidelity = await _verifyWriteFidelity(
+          p.id, {for (final f in parsed) f.path: f.content});
+      if (fidelity.isNotEmpty) {
+        _mergeIssues(previewIssues, fidelity);
+        final blocking =
+            previewIssues.where((i) => i.blocksPreview).toList();
+        if (blocking.isNotEmpty) {
+          previewDecision.value = routePreview(
+              kind: previewKind.value,
+              issues: previewIssues.toList(),
+              nodeAvailable: true);
+          term('✗ source validation failed: ${blocking.map((i) => i.code).join(', ')}');
+          _say('assistant',
+              'Generated source validation failed — ${blocking.length} problem(s), not previewing blindly:\n${blocking.map((i) => '• ${i.message}').join('\n')}\nTap “Ask AI to Fix” and I’ll regenerate the broken files.');
+        }
+      }
       _touch();
       buildStatus.value = null;
       final summary =
@@ -405,6 +554,7 @@ class AgentController extends GetxController {
       final raw = await _ask(
         prompt: 'Modify the "${p.name}" ${p.framework} project: $t\n\n'
             'CURRENT FILES:\n$projContext\n\n'
+            'LOCAL DEV CLIs (on-device): ${_cliContextLine()}\n\n'
             'Return a files-JSON object with ONLY new or fully-rewritten changed files.',
         system:
             '${webSystemPrompt(framework: p.framework)}\nSTRICT: output only files that change (plus any brand-new files).',
@@ -440,6 +590,35 @@ class AgentController extends GetxController {
       }
       await _ws.touch(p.id);
       await refreshFiles();
+      // Re-route preview diagnosis from current disk state (cheap and
+      // pure — no server auto-start here; _serve owns that on open).
+      final contentsNow = await _projectContents(p.id);
+      final kindNow = detectProject(contentsNow);
+      previewKind.value = kindNow;
+      final fidelityNow = await _verifyWriteFidelity(
+          p.id, {for (final f in parsed) f.path: f.content});
+      for (final f in parsed) {
+        fidelityNow.addAll(sourceHygieneIssues(f.path, f.content));
+      }
+      final mergedNow = validateProject(kindNow, contentsNow);
+      _mergeIssues(mergedNow, fidelityNow);
+      previewIssues.assignAll(mergedNow);
+      var nodeOk = false;
+      try {
+        nodeOk =
+            (await Get.find<RuntimeManager>().refresh()).nodeAvailable;
+      } catch (_) {}
+      previewDecision.value = routePreview(
+          kind: kindNow,
+          issues: previewIssues.toList(),
+          nodeAvailable: nodeOk);
+      final fidelityBlocking =
+          fidelityNow.where((i) => i.blocksPreview).toList();
+      if (fidelityBlocking.isNotEmpty) {
+        term('✗ source validation failed: ${fidelityBlocking.map((i) => i.code).join(', ')}');
+        _say('assistant',
+            'Change applied, but source validation failed:\n${fidelityBlocking.map((i) => '• ${i.message}').join('\n')}\nTap “Ask AI to Fix” and I’ll regenerate the broken files.');
+      }
       _touch();
       buildStatus.value = null;
       term('✓ modify applied ($applied files)');
@@ -630,6 +809,7 @@ class AgentController extends GetxController {
         prompt: 'Fix this runtime error in the "${p.name}" '
             '${p.framework} project:\n\nERROR:\n$err\n\n'
             'CURRENT FILES:\n$projContext\n\n'
+            'LOCAL DEV CLIs (on-device): ${_cliContextLine()}\n\n'
             'RECENT TERMINAL (what happened so far):\n'
             '${terminalTail()}\n\n'
             'Return a files-JSON object with ONLY the corrected files '
@@ -966,7 +1146,11 @@ class AgentController extends GetxController {
       term('✗ shell unavailable on Web builds.');
       return;
     }
-    term('> $cmd');
+    // Secrets never hit the log or the persisted history.
+    term('> ${redactCommand(cmd)}');
+    try {
+      Get.find<CliManagerService>().recordCommand(cmd);
+    } catch (_) {}
     final parts = _splitCommand(cmd);
     if (parts.isEmpty) return;
     String workDir;
@@ -982,6 +1166,10 @@ class AgentController extends GetxController {
     } catch (_) {
       workDir = '';
     }
+    Map<String, String>? env;
+    try {
+      env = await Get.find<CliManagerService>().managedEnv();
+    } catch (_) {}
     try {
       final exe =
           await ProcessRunner.resolveExecutable(parts.first) ?? parts.first;
@@ -989,6 +1177,7 @@ class AgentController extends GetxController {
         exe,
         parts.sublist(1),
         workingDirectory: workDir.isEmpty ? null : workDir,
+        environment: env,
         commandLabel: cmd,
       );
       final sub1 = session.stdoutLines.listen(term);
@@ -1001,8 +1190,177 @@ class AgentController extends GetxController {
         await sub2.cancel();
       } catch (_) {}
       term(code == 0 ? '✓ exit 0' : '✗ exit $code');
+      // Adopt terminal-installed CLIs into the manager (§34).
+      if (code == 0) {
+        try {
+          final found = await Get.find<CliManagerService>()
+              .detectAfterCommand(cmd, code);
+          if (found != null) {
+            detectedCliId.value = found.id;
+            detectedCliVersion.value =
+                Get.find<CliManagerService>().versions[found.id] ?? '';
+          }
+        } catch (_) {}
+      }
     } catch (e) {
-      term('✗ could not run "$cmd": $e');
+      term('✗ could not run "${redactCommand(cmd)}": $e');
+    }
+  }
+
+  // ── Interactive CLI sessions ──
+
+  /// Launch a managed CLI's real executable inside the current project
+  /// (shared workspace) and attach the terminal input to its stdin.
+  Future<void> openCli(String manifestId) async {
+    CliManagerService mgr;
+    try {
+      mgr = Get.find<CliManagerService>();
+    } catch (_) {
+      term('✗ CLI manager unavailable.');
+      return;
+    }
+    final m = mgr.manifestById(manifestId);
+    if (m == null) return;
+    await stopActiveCli(silent: true);
+    String workDir;
+    try {
+      final p = project.value;
+      workDir = p == null
+          ? (await getApplicationDocumentsDirectory()).path
+          : (await _ws.dirFor(p.id)).path;
+    } catch (_) {
+      term('✗ could not resolve working directory.');
+      return;
+    }
+    try {
+      final session = await mgr.launchInProject(m, workDir);
+      activeCliId.value = m.id;
+      final where = project.value?.name ?? 'sandbox';
+      term('▶ ${m.displayName} started in $where — type below to interact, ■ to stop');
+      session.stdoutLines.listen(term);
+      session.stderrLines.listen(term);
+      unawaited(session.exitCode.then((code) {
+        if (activeCliId.value == m.id) activeCliId.value = null;
+        term(code == 0
+            ? '■ ${m.displayName} exited (0)'
+            : '■ ${m.displayName} exited ($code)');
+      }));
+    } catch (e) {
+      term('✗ could not start ${m.displayName}: $e');
+      AppSnackbar.showTop(
+        '${m.displayName} could not start',
+        '$e',
+        logHistory: false,
+      );
+    }
+  }
+
+  /// Send a line to the attached CLI's stdin (redacted in logs).
+  void sendStdinToCli(String line) {
+    final id = activeCliId.value;
+    if (id == null) return;
+    try {
+      final s = Get.find<CliManagerService>().launchedSession(id);
+      if (s == null) {
+        activeCliId.value = null;
+        term('■ session already ended');
+        return;
+      }
+      term('› ${redactCommand(line)}');
+      s.writeStdin('$line\n');
+    } catch (_) {
+      activeCliId.value = null;
+    }
+  }
+
+  /// Stop the attached CLI: Ctrl+C (SIGINT) first, SIGTERM fallback.
+  Future<void> stopActiveCli({bool silent = false}) async {
+    final id = activeCliId.value;
+    if (id == null) return;
+    activeCliId.value = null;
+    CliManagerService? mgr;
+    try {
+      mgr = Get.find<CliManagerService>();
+    } catch (_) {}
+    final s = mgr?.launchedSession(id);
+    if (s == null) {
+      if (!silent) term('■ session already ended');
+      return;
+    }
+    if (!silent) term('■ stopping (Ctrl+C)…');
+    try {
+      await s.interrupt();
+      await s.exitCode.timeout(const Duration(seconds: 3));
+      if (!silent) term('■ stopped');
+    } catch (_) {
+      try {
+        await mgr?.killLaunched(id);
+        if (!silent) term('■ stopped');
+      } catch (_) {}
+    }
+  }
+
+  /// "Ask AI to Fix": send the latest terminal failure to the builder
+  /// agent with command + error + project context (info only, the agent
+  /// edits files through its normal confirmed flow).
+  Future<void> askAiToFixTerminalError() async {
+    if (generating.value || fixing.value) return;
+    final p = project.value;
+    if (p == null) {
+      AppSnackbar.showTop('No project open',
+          'Open or build a project first, then ask AI to fix.',
+          logHistory: false);
+      return;
+    }
+    final lines = terminal.toList();
+    String lastCmd = '';
+    final errs = <String>[];
+    for (var i = lines.length - 1;
+        i >= 0 && errs.length < 15 && (lines.length - i) < 60;
+        i--) {
+      final l = lines[i];
+      final stripped = l.replaceFirst(RegExp(r'^\[\d{2}:\d{2}:\d{2}\] '), '');
+      if (stripped.startsWith('> ') && lastCmd.isEmpty) {
+        lastCmd = stripped.substring(2);
+      }
+      if (RegExp(r'✗|error|Error|ERR|failed|FAIL|Exception|EACCES|ENOENT')
+          .hasMatch(l)) {
+        errs.insert(0, l);
+      }
+    }
+    if (errs.isEmpty) {
+      AppSnackbar.showTop(
+          'No errors', 'The terminal shows no recent failures.',
+          logHistory: false);
+      return;
+    }
+    topic.value = 'Fix this terminal failure in the "${p.name}" project'
+        '${lastCmd.isEmpty ? '' : ' (command: $lastCmd)'}:\n'
+        '${errs.join('\n')}\n\n'
+        'LOCAL DEV CLIs (on-device): ${_cliContextLine()}\n'
+        'Return a files-JSON object with the corrected files (complete new contents).';
+    await modifyProject();
+  }
+
+  /// First-run welcome lines (§61). Shown once ever.
+  Future<void> ensureTerminalWelcome() async {
+    try {
+      final mgr = Get.find<CliManagerService>();
+      if (await mgr.consumeWelcome()) {
+        term('Welcome to CubicLM Terminal');
+        term('• Run real commands: node --version · npm install · ls');
+        term('• Tap the package icon to install AI coding CLIs');
+        term('• Launched CLIs run inside the current project');
+      }
+    } catch (_) {}
+  }
+
+  /// One info line for AI prompts so the agent knows local CLIs (§33).
+  String _cliContextLine() {
+    try {
+      return Get.find<CliManagerService>().cliContextLine();
+    } catch (_) {
+      return 'none installed';
     }
   }
 

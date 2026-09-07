@@ -17,6 +17,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 
 import 'dev_url_parser.dart';
+import 'framework_runtime.dart';
 import 'process_runner.dart';
 import 'project_detector.dart';
 import 'runtime_manager.dart';
@@ -50,6 +51,12 @@ class DevServerSession {
     required this.startedAt,
     List<String>? recentLogs,
   }) : recentLogs = recentLogs ?? [];
+
+  /// Actual port parsed from the live URL (never assumed).
+  int? get port => parseDevServerPort(url);
+
+  /// Framework adapter driving this session.
+  FrameworkRuntime get runtime => runtimeFor(kind);
 }
 
 class DevServerManager extends GetxService {
@@ -93,8 +100,9 @@ class DevServerManager extends GetxService {
     await _ensureDeps(npm: npm, workDir: workDir, onLog: onLog);
 
     final port = await _freePort();
-    final args = _devArgs(kind, port);
-    onLog('> ${args.join(' ')}  (in project dir)');
+    final adapter = runtimeFor(kind);
+    final args = adapter.devArgs(port);
+    onLog('> npm ${args.join(' ')}  (${adapter.label} in project dir)');
     ProcessSession proc;
     try {
       proc = await ProcessRunner.startSession(
@@ -174,24 +182,6 @@ class DevServerManager extends GetxService {
   }
 
   // ── internals ──
-
-  List<String> _devArgs(ProjectKind kind, int port) {
-    if (kind == ProjectKind.nextjs) {
-      return [
-        'run', 'dev', '--', '-H', '127.0.0.1', '-p', '$port',
-      ];
-    }
-    return [
-      'run',
-      'dev',
-      '--',
-      '--host',
-      '127.0.0.1',
-      '--port',
-      '$port',
-      '--strictPort',
-    ];
-  }
 
   Future<void> _ensureDeps({
     required String npm,

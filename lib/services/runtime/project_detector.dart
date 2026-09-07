@@ -92,8 +92,16 @@ ProjectKind detectProject(Map<String, String> files) {
   final pkg = readPackageJson(files);
   final hasPkg = lookupFile(files, 'package.json') != null;
 
+  String scriptsText() {
+    final s = pkg['scripts'];
+    if (s is! Map) return '';
+    return s.values.map((v) => v.toString().toLowerCase()).join(' ');
+  }
+
   // Next.js wins over Vite when both markers exist (next depends on react).
   if (_hasDep(pkg, 'next') ||
+      scriptsText().contains('next dev') ||
+      scriptsText().contains('next start') ||
       _hasAnyFile(files, const [
         'next.config.js',
         'next.config.mjs',
@@ -106,7 +114,13 @@ ProjectKind detectProject(Map<String, String> files) {
     return ProjectKind.nextjs;
   }
 
+  final scripts = scriptsText();
+  final runsVite = RegExp(r'(^|\s|;)vite(\s|$)').hasMatch(scripts) ||
+      scripts.contains('vite build') ||
+      scripts.contains('vite dev') ||
+      scripts.contains('vite preview');
   if (_hasDep(pkg, 'vite') ||
+      runsVite ||
       _hasDep(pkg, '@vitejs/plugin-react') ||
       _hasDep(pkg, '@vitejs/plugin-vue') ||
       _hasDep(pkg, '@sveltejs/vite-plugin-svelte') ||

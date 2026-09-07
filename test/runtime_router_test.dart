@@ -52,7 +52,14 @@ void main() {
       final d = routePreview(
           kind: ProjectKind.vite, issues: const [], nodeAvailable: true);
       expect(d.route, PreviewRoute.devServerPipeline);
-      expect(d.actions, contains('start-dev-server'));
+      expect(d.actions, containsAll(['start-dev-server', 'validate-build']));
+    });
+
+    test('next + node offers the same pipeline actions', () {
+      final d = routePreview(
+          kind: ProjectKind.nextjs, issues: const [], nodeAvailable: true);
+      expect(d.route, PreviewRoute.devServerPipeline);
+      expect(d.actions, contains('validate-build'));
     });
 
     test('vite without node offers recheck + cloud', () {

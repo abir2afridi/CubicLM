@@ -66,6 +66,33 @@ void main() {
       expect(detectProject({'package.json': 'not json {{{'}),
           ProjectKind.nodeGeneric);
     });
+
+    test('next dev script detects nextjs without config files', () {
+      expect(
+          detectProject({
+            'package.json':
+                '{"dependencies":{"next":"14","react":"18","react-dom":"18"},"scripts":{"dev":"next dev","build":"next build","start":"next start"}}',
+            'app/page.jsx': 'x',
+          }),
+          ProjectKind.nextjs);
+    });
+
+    test('vite script detects vite without config file', () {
+      expect(
+          detectProject({
+            'package.json':
+                '{"scripts":{"dev":"vite","build":"vite build"},"dependencies":{"react":"18"}}',
+          }),
+          ProjectKind.vite);
+    });
+
+    test('vitest-only script is not mistaken for vite', () {
+      expect(
+          detectProject({
+            'package.json': '{"scripts":{"test":"vitest run"}}',
+          }),
+          ProjectKind.nodeGeneric);
+    });
   });
 
   group('projectNeedsNode', () {

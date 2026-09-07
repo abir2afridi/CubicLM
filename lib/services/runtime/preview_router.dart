@@ -64,7 +64,7 @@ PreviewDecision routePreview({
         return const PreviewDecision(
           PreviewRoute.devServerPipeline,
           'Node available — dev server can run',
-          ['start-dev-server', 'open-terminal'],
+          ['start-dev-server', 'validate-build', 'open-terminal'],
         );
       }
       return const PreviewDecision(

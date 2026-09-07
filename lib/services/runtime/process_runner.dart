@@ -70,6 +70,19 @@ class ProcessSession {
       return false;
     }
   }
+
+  /// Ctrl+C equivalent: SIGINT on POSIX (lets CLIs handle it), graceful
+  /// terminate on Windows. Returns true if the signal was delivered.
+  Future<bool> interrupt() async {
+    try {
+      if (Platform.isWindows) {
+        return _proc.kill(ProcessSignal.sigterm);
+      }
+      return _proc.kill(ProcessSignal.sigint);
+    } catch (_) {
+      return false;
+    }
+  }
 }
 
 /// Minimal stream merge (avoids adding package:async dependency).

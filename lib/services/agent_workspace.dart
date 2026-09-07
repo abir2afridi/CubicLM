@@ -196,7 +196,26 @@ class AgentWorkspaceService extends GetxService {
       }
       final out = File('${dir.path}/$clean');
       await out.parent.create(recursive: true);
-      await out.writeAsString(content, flush: true);
+      // Atomic write: crash mid-write must never leave a truncated
+      // file behind (same-dir rename is atomic on POSIX, near-atomic
+      // on Windows with the delete fallback below).
+      final tmp = File(
+          '${out.path}.tmp-${DateTime.now().microsecondsSinceEpoch}');
+      try {
+        await tmp.writeAsString(content, flush: true);
+        try {
+          await tmp.rename(out.path);
+        } catch (_) {
+          try {
+            if (await out.exists()) await out.delete();
+          } catch (_) {}
+          await tmp.rename(out.path);
+        }
+      } finally {
+        try {
+          if (await tmp.exists()) await tmp.delete();
+        } catch (_) {}
+      }
       await touch(projectId);
       return null;
     } catch (e) {

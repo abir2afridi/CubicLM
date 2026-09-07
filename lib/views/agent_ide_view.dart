@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -12,7 +13,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../controllers/agent_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import '../services/runtime/cli_manager.dart';
 import '../services/runtime/project_detector.dart';
+import '../widgets/cli_sheets.dart';
 import '../services/agent_workspace.dart';
 import '../services/deploy_service.dart';
 import '../services/inference_service.dart';
@@ -67,6 +70,21 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           _tab == 'files') {
         setState(() => _openFile = c.streamingFiles.keys.first);
       }
+    });
+    // Terminal input suggestions rebuild as the user types.
+    _termCtrl.addListener(() { if (mounted) setState(() {}); });
+    unawaited(c.ensureTerminalWelcome());
+    // Offer to adopt terminal-installed CLIs into the manager.
+    ever(c.detectedCliId, (_) {
+      if (!mounted) return;
+      final id = c.detectedCliId.value;
+      if (id == null || id.isEmpty) return;
+      c.detectedCliId.value = null;
+      try {
+        final m = Get.find<CliManagerService>().manifestById(id);
+        if (m == null) return;
+        showCliDetectedDialog(m, c.detectedCliVersion.value ?? '');
+      } catch (_) {}
     });
   }
 
@@ -1014,6 +1032,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             : 'Start dev server';
         icon = LucideIcons.play;
         onTap = c.devServerStarting.value ? null : () => c.startDevServer();
+      case 'validate-build':
+        label = 'Validate build';
+        icon = LucideIcons.wrench;
+        onTap =
+            c.validatingBuild.value ? null : () => c.validateBuild();
       case 'recheck-runtime':
         label = 'Recheck runtime';
         icon = LucideIcons.rotateCw;
@@ -1183,6 +1206,46 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   letterSpacing: 0.8,
                   color: const Color(0xFF9A958C))),
           const Spacer(),
+          Obx(() => c.activeCliId.value == null
+              ? const SizedBox.shrink()
+              : InkWell(
+                  onTap: () => c.stopActiveCli(),
+                  borderRadius: BorderRadius.circular(6),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4),
+                    child: Icon(LucideIcons.square,
+                        size: 13, color: AppColors.error),
+                  ),
+                )),
+          InkWell(
+            onTap: () => showCliManagerSheet(context),
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(LucideIcons.package,
+                  size: 13, color: Color(0xFF9A958C)),
+            ),
+          ),
+          InkWell(
+            onTap: () => showRecentCommandsSheet(context, (cmd) {
+              _termCtrl.text = cmd;
+            }),
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(LucideIcons.history,
+                  size: 13, color: Color(0xFF9A958C)),
+            ),
+          ),
+          InkWell(
+            onTap: () => c.askAiToFixTerminalError(),
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(LucideIcons.wand2,
+                  size: 13, color: Color(0xFF9A958C)),
+            ),
+          ),
           InkWell(
             onTap: () => Clipboard.setData(ClipboardData(
                 text: c.terminal.join('\n'))),
@@ -1229,6 +1292,96 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             );
           }),
         ),
+        // ── Attached CLI banner (input routes to its stdin) ──
+        Obx(() {
+          final id = c.activeCliId.value;
+          if (id == null) return const SizedBox.shrink();
+          String name = id;
+          try {
+            name = Get.find<CliManagerService>()
+                    .manifestById(id)
+                    ?.displayName ??
+                id;
+          } catch (_) {}
+          return Container(
+            margin: const EdgeInsets.only(top: 6),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: Dt.accent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(children: [
+              Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                      shape: BoxShape.circle, color: Dt.accent)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text('$name attached — input goes to the CLI (!cmd runs shell)',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.firaCode(
+                        fontSize: 10.5, color: Dt.accent)),
+              ),
+              InkWell(
+                onTap: () => c.stopActiveCli(),
+                borderRadius: BorderRadius.circular(6),
+                child: const Padding(
+                  padding: EdgeInsets.all(2),
+                  child: Icon(LucideIcons.square,
+                      size: 12, color: AppColors.error),
+                ),
+              ),
+            ]),
+          );
+        }),
+        // ── Autocomplete (installed CLIs + recent, non-intrusive) ──
+        Builder(builder: (_) {
+          List<String> sug = const [];
+          try {
+            final attached = c.activeCliId.value != null;
+            if (!attached && _termCtrl.text.trim().isNotEmpty) {
+              sug = Get.find<CliManagerService>()
+                  .suggestCommands(_termCtrl.text);
+            }
+          } catch (_) {}
+          if (sug.isEmpty) return const SizedBox.shrink();
+          return Container(
+            margin: const EdgeInsets.only(top: 6),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final s in sug)
+                  InkWell(
+                    onTap: () {
+                      _termCtrl.text = s.endsWith(' ') ? s : '$s ';
+                      _termCtrl.selection = TextSelection.collapsed(
+                          offset: _termCtrl.text.length);
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color:
+                            Colors.white.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(s,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.firaCode(
+                              fontSize: 10.5,
+                              color: const Color(0xFF89DCEB))),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }),
         // ── Real shell input: runs in the project dir, streams output ──
         Container(
           margin: const EdgeInsets.only(top: 6),
@@ -1238,11 +1391,12 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(children: [
-            Text('\$',
+            Obx(() => Text(
+                c.activeCliId.value == null ? '\$' : '›',
                 style: GoogleFonts.firaCode(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: Dt.accent)),
+                    color: Dt.accent))),
             const SizedBox(width: 6),
             Expanded(
               child: TextField(
@@ -1258,17 +1412,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   contentPadding:
                       const EdgeInsets.symmetric(vertical: 8),
                 ),
-                onSubmitted: (v) {
-                  c.runShellCommand(v);
-                  _termCtrl.clear();
-                },
+                onSubmitted: (_) => _submitTermInput(),
               ),
             ),
             InkWell(
-              onTap: () {
-                c.runShellCommand(_termCtrl.text);
-                _termCtrl.clear();
-              },
+              onTap: _submitTermInput,
               borderRadius: BorderRadius.circular(6),
               child: const Padding(
                 padding: EdgeInsets.all(6),
@@ -1280,6 +1428,21 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         ),
       ]),
     );
+  }
+
+  /// Route terminal input: attached CLI gets stdin, `!cmd` (or no
+  /// attachment) runs a real one-shot shell command.
+  void _submitTermInput() {
+    final v = _termCtrl.text;
+    _termCtrl.clear();
+    if (v.trim().isEmpty) return;
+    final attached = c.activeCliId.value != null;
+    if (attached && !v.trimLeft().startsWith('!')) {
+      c.sendStdinToCli(v);
+    } else {
+      c.runShellCommand(
+          attached ? v.trimLeft().substring(1) : v);
+    }
   }
 
   /// Live build/progress view: what the AI is doing RIGHT NOW
@@ -2957,6 +3120,11 @@ class _AgentPreviewState extends State<_AgentPreview> {
   bool _loading = true;
   String? _error;
 
+  /// Forwarded to the agent loop at most once per page load, and never
+  /// while AI is writing or the dev server is (re)starting — a reload
+  /// racing a restart must not trigger pointless file rewrites.
+  bool _forwardedLoadError = false;
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -2982,10 +3150,25 @@ class _AgentPreviewState extends State<_AgentPreview> {
             },
             onReceivedError: (_, __, err) {
               if (mounted) {
+                final wasLoading = _loading;
                 setState(() {
                   _loading = false;
                   _error = err.description;
                 });
+                // PREVIEW_LOAD_FAILED → agent loop (once per load, never
+                // mid-generation/restart where failures are expected).
+                if (wasLoading && !_forwardedLoadError) {
+                  _forwardedLoadError = true;
+                  try {
+                    final ac = Get.find<AgentController>();
+                    if (!ac.generating.value &&
+                        !ac.fixing.value &&
+                        !ac.devServerStarting.value) {
+                      ac.onConsoleError(
+                          'Page load failed: ${err.description}');
+                    }
+                  } catch (_) {}
+                }
               }
             },
             onConsoleMessage: (_, msg) {

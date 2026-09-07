@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:cubiclm/utils/web_project.dart';
@@ -117,6 +119,47 @@ void main() {
       final out = parsePartialFiles(raw);
       expect(out.single.path, 'a.html');
       expect(out.single.content, 'abc');
+    });
+  });
+
+  // §26 corruption patterns: the parser performs ZERO transforms, so a
+  // realistic Next.js payload must survive byte-for-byte.
+  group('parseFiles preserves source exactly', () {
+    String roundTrip(String path, String content) {
+      final payload = jsonEncode({
+        'files': [
+          {'path': path, 'content': content}
+        ]
+      });
+      final out = parseFiles('```files\n$payload\n```');
+      expect(out.length, 1);
+      expect(out.single.path, path);
+      return out.single.content;
+    }
+
+    test('layout with {children} stays intact', () {
+      const src = "import './globals.css';\n\nexport default function RootLayout({ children }) {\n  return (\n    <html lang=\"en\">\n      <body>{children}</body>\n    </html>\n  );\n}\n";
+      expect(roundTrip('app/layout.jsx', src), src);
+    });
+
+    test('fragments, components and anchors survive', () {
+      const src = "export default function Page() {\n  return (\n    <>\n      <Navigation />\n      <Hero />\n      <a href=\"#contact\">Get In Touch</a>\n    </>\n  );\n}\n";
+      expect(roundTrip('app/page.jsx', src), src);
+    });
+
+    test('template literals keep backticks and \${}', () {
+      const src = "const id = `g-\${a.slice(1)}-\${b.slice(1)}`;\nconst q = \"it's \" + 'a \"test\"';\n";
+      expect(roundTrip('app/components/X.jsx', src), src);
+    });
+
+    test('client directives, hooks and imports survive', () {
+      const src = "'use client';\n\nimport { useEffect, useState } from 'react';\nimport Navigation from './components/Navigation';\n\nexport default function Navigation() {\n  const [open, setOpen] = useState(false);\n  useEffect(() => {\n    const onScroll = () => setScrolled(window.scrollY > 20);\n    window.addEventListener('scroll', onScroll);\n    return () => window.removeEventListener('scroll', onScroll);\n  }, []);\n  return null;\n}\n";
+      expect(roundTrip('app/components/Navigation.jsx', src), src);
+    });
+
+    test('css braces, vars and media queries survive', () {
+      const src = ":root {\n  --bg: #0a0a0f;\n}\n@media (max-width: 768px) {\n  .nav-links {\n    transform: translateX(100%);\n  }\n}\n";
+      expect(roundTrip('app/globals.css', src), src);
     });
   });
 }

@@ -34,6 +34,7 @@ import 'services/usage_tracker_service.dart';
 import 'services/stats_service.dart';
 import 'services/agent_workspace.dart';
 import 'services/preview_server.dart';
+import 'services/runtime/cli_manager.dart';
 import 'services/runtime/dev_server_manager.dart';
 import 'services/runtime/runtime_manager.dart';
 import 'services/deploy_service.dart';
@@ -235,6 +236,9 @@ void main() {
       Get.put(PreviewServerService());
       Get.put(RuntimeManager());
       Get.put(DevServerManager());
+      Get.put(CliManagerService());
+      unawaited(
+          Get.find<CliManagerService>().init().then((_) {}, onError: (_) {}));
       Get.put(DownloadService());
       Get.put(LocalImageService());
       Get.put(ServerController(), permanent: true);
