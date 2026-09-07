@@ -102,6 +102,118 @@ List<WebFile> parseFiles(String raw) {
   return [WebFile(path: 'index.html', content: t.isEmpty ? '' : t)];
 }
 
+/// One file mid-stream: [content] may be a prefix of the final text.
+/// [complete] is true only when the closing quote was actually seen.
+class PartialWebFile {
+  final String path;
+  final String content;
+  final bool complete;
+
+  const PartialWebFile(this.path, this.content, {this.complete = false});
+}
+
+/// Incrementally parse a streaming ```files fence into files-so-far.
+///
+/// Unlike [parseFiles] this NEVER falls back to raw-text-as-index.html:
+/// a buffer without a ```files fence yields [] (no garbage mid-stream).
+/// Closed entries come first (in order), then at most one trailing
+/// partial entry whose content is JSON-unescaped on a best-effort basis
+/// (a cut escape sequence at the tail is trimmed and retried).
+List<PartialWebFile> parsePartialFiles(String raw) {
+  final out = <PartialWebFile>[];
+  final fenceAt = raw.indexOf('```files');
+  if (fenceAt < 0) return out;
+  var body = raw.substring(fenceAt + '```files'.length);
+  // Drop a closing fence if the stream already finished it.
+  final closeAt = body.lastIndexOf('```');
+  if (closeAt >= 0) body = body.substring(0, closeAt);
+  if (body.trim().isEmpty) return out;
+
+  // Fast path: the whole payload already decodes.
+  final trimmed = body.trim();
+  if (trimmed.startsWith('{')) {
+    try {
+      final decoded = jsonDecode(trimmed);
+      final list = decoded is Map ? decoded['files'] : null;
+      if (list is List) {
+        for (final f in list.whereType<Map>()) {
+          if (out.length >= maxFiles) break;
+          final path = sanitizePath((f['path'] ?? '').toString());
+          if (path.isEmpty) continue;
+          var content = (f['content'] ?? '').toString();
+          if (content.length > maxFileChars) {
+            content = content.substring(0, maxFileChars);
+          }
+          out.add(PartialWebFile(path, content, complete: true));
+        }
+        if (out.isNotEmpty) return out;
+      }
+    } catch (_) {
+      // Truncated JSON — fall through to the incremental scan.
+    }
+  }
+
+  // Incremental scan: closed "path","content" pairs first.
+  final closedRe = RegExp(
+      r'"path"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"content"\s*:\s*"((?:[^"\\]|\\.)*)"');
+  final closedSpans = <int>[];
+  for (final m in closedRe.allMatches(body)) {
+    if (out.length >= maxFiles) break;
+    final path = sanitizePath(_unescapeJsonString(m.group(1) ?? ''));
+    if (path.isEmpty) continue;
+    var content = _unescapeJsonString(m.group(2) ?? '');
+    if (content.length > maxFileChars) {
+      content = content.substring(0, maxFileChars);
+    }
+    out.add(PartialWebFile(path, content, complete: true));
+    closedSpans.add(m.start);
+    closedSpans.add(m.end);
+  }
+
+  // Trailing partial entry: "path":"P","content":"<unfinished…>
+  final openRe = RegExp(r'"path"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"content"\s*:\s*"');
+  for (final m in openRe.allMatches(body)) {
+    // Skip ones already consumed as closed entries.
+    var consumed = false;
+    for (var i = 0; i < closedSpans.length; i += 2) {
+      if (m.start >= closedSpans[i] && m.start < closedSpans[i + 1]) {
+        consumed = true;
+        break;
+      }
+    }
+    if (consumed || out.length >= maxFiles) continue;
+    final path = sanitizePath(_unescapeJsonString(m.group(1) ?? ''));
+    if (path.isEmpty) continue;
+    var tail = body.substring(m.end);
+    // Cut at the next entry start so a partial never swallows siblings.
+    final nextPath = RegExp(r'"path"\s*:').firstMatch(tail);
+    if (nextPath != null) tail = tail.substring(0, nextPath.start);
+    var content = _unescapeJsonString(tail);
+    if (content.length > maxFileChars) {
+      content = content.substring(0, maxFileChars);
+    }
+    out.add(PartialWebFile(path, content));
+  }
+  return out;
+}
+
+/// Best-effort JSON string unescape. A trailing cut escape (e.g. `\u12`)
+/// is trimmed and retried; total failure returns the raw text.
+String _unescapeJsonString(String s) {
+  var candidate = s;
+  for (var attempt = 0; attempt < 10; attempt++) {
+    try {
+      final v = jsonDecode('"$candidate"');
+      if (v is String) return v;
+      return s;
+    } catch (_) {
+      if (candidate.isEmpty) return '';
+      candidate = candidate.substring(0, candidate.length - 1);
+    }
+  }
+  return s;
+}
+
 /// Entry HTML for preview (root index.html preferred).
 String? entryHtmlPath(List<WebFile> files) {
   for (final f in files) {

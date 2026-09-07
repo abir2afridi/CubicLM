@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -61,6 +62,17 @@ class AgentController extends GetxController {
 
   /// Last modify diffs — file path → (old content, new content).
   final lastDiffs = <String, Map<String, String>>{}.obs;
+
+  /// Live-streamed files mid-generation (path → partial content).
+  /// Shown in the Files tab + streaming editor while the AI writes;
+  /// cleared once final files land on disk.
+  final streamingFiles = <String, String>{}.obs;
+
+  /// True while partial output is being flushed (drives live UI).
+  final streamingActive = false.obs;
+
+  /// True once partial files hit disk at least once (live preview on).
+  final livePreviewReady = false.obs;
 
   /// Set by Stop — in-flight awaits can't be aborted, but their results
   /// are discarded and flags reset.
@@ -200,6 +212,66 @@ class AgentController extends GetxController {
         '$prefix… ${(chars / 1024).toStringAsFixed(1)}k chars';
   }
 
+  int _lastLiveWriteMs = 0;
+
+  /// Merge one streamed buffer into live file state.
+  ///
+  /// - Updates [streamingFiles] so the Files tab + streaming editor
+  ///   show code AS the AI writes it (v0/Replit-style).
+  /// - For previewable output (no package.json in the partial set) the
+  ///   partial files are ALSO written to disk (throttled) so the
+  ///   preview WebView reloads live. npm/framework output skips disk
+  ///   writes — it cannot execute until installed/built anyway.
+  /// - Never throws; streaming must not break generation.
+  Future<void> _flushPartial(String buf, String projectId) async {
+    List<PartialWebFile> partial;
+    try {
+      partial = parsePartialFiles(buf);
+    } catch (_) {
+      return;
+    }
+    if (partial.isEmpty || _cancelled) return;
+    streamingActive.value = true;
+    var changed = false;
+    for (final f in partial) {
+      if (streamingFiles[f.path] != f.content) {
+        streamingFiles[f.path] = f.content;
+        changed = true;
+      }
+    }
+    if (!changed) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final hasPackageJson = partial.any((f) {
+      final p = f.path.toLowerCase();
+      return p == 'package.json' || p.endsWith('/package.json');
+    });
+    if (!hasPackageJson && now - _lastLiveWriteMs >= 1500) {
+      _lastLiveWriteMs = now;
+      try {
+        var wrote = false;
+        for (final f in partial) {
+          final err = await _ws.writeFile(projectId, f.path, f.content);
+          if (err == null) wrote = true;
+        }
+        if (wrote && !_cancelled) {
+          await refreshFiles();
+          livePreviewReady.value = true;
+          _touch(); // reload the preview WebView
+        }
+      } catch (_) {}
+    }
+  }
+
+  /// Clear all live-streaming state (call when generation settles).
+  void _clearStreaming() {
+    try {
+      streamingFiles.clear();
+    } catch (_) {}
+    streamingActive.value = false;
+    livePreviewReady.value = false;
+    _lastLiveWriteMs = 0;
+  }
+
   Future<void> refreshFiles() async {
     final p = project.value;
     if (p == null) {
@@ -253,13 +325,25 @@ class AgentController extends GetxController {
       final name = t.length > 40 ? '${t.substring(0, 40)}…' : t;
       final p = await _ws.createProject(name, framework.value);
       project.value = p;
-      await _ws.saveCheckpoint(p.id, label: 'Project created');
+      final createdCp =
+          await _ws.saveCheckpoint(p.id, label: 'Project created');
       final raw = await _ask(
         prompt: 'Build this website with ${framework.value}: $t',
         system: webSystemPrompt(framework: framework.value),
         onProgress: (n) => _streamStatus('Writing project', n),
+        onPartial: (buf) => unawaited(_flushPartial(buf, p.id)),
       );
-      if (_cancelled) return;
+      if (_cancelled) {
+        // Live partial writes may already be on disk — roll back to the
+        // empty just-created state so cancel means "never happened".
+        try {
+          await _ws.rollbackToCheckpoint(p.id, createdCp);
+          await refreshFiles();
+          _touch();
+        } catch (_) {}
+        term('■ build cancelled by user — rolled back');
+        return;
+      }
       buildStatus.value = 'Saving files…';
       final parsed = parseFiles(raw);
       final err = await _ws.importFiles(
@@ -284,6 +368,7 @@ class AgentController extends GetxController {
       term('✗ build failed: $e');
       _log('Project build failed', e);
     } finally {
+      _clearStreaming();
       generating.value = false;
       buildStatus.value = null;
       _cancelled = false;
@@ -303,7 +388,19 @@ class AgentController extends GetxController {
     buildStatus.value = 'Applying change…';
     term('> modify: "${t.length > 80 ? '${t.substring(0, 80)}…' : t}"');
     try {
-      await _ws.saveCheckpoint(p.id, label: 'Before modify');
+      final beforeCp = await _ws.saveCheckpoint(p.id, label: 'Before modify');
+      // Snapshot pre-modify contents for the diff view. Live partial
+      // writes land on disk mid-stream, so "old" must come from BEFORE
+      // generation — never from post-stream disk reads.
+      Map<String, String> before = {};
+      try {
+        before = await _projectContents(p.id);
+        var total = 0;
+        for (final v in before.values) {
+          total += v.length;
+        }
+        if (total > 1000000) before = {};
+      } catch (_) {}
       final projContext = await _projectContext(p.id);
       final raw = await _ask(
         prompt: 'Modify the "${p.name}" ${p.framework} project: $t\n\n'
@@ -312,13 +409,24 @@ class AgentController extends GetxController {
         system:
             '${webSystemPrompt(framework: p.framework)}\nSTRICT: output only files that change (plus any brand-new files).',
         onProgress: (n) => _streamStatus('Writing change', n),
+        onPartial: (buf) => unawaited(_flushPartial(buf, p.id)),
       );
-      if (_cancelled) return;
+      if (_cancelled) {
+        // Live partial writes may already be on disk — restore the
+        // pre-modify snapshot so cancel is lossless.
+        try {
+          await _ws.rollbackToCheckpoint(p.id, beforeCp);
+          await refreshFiles();
+          _touch();
+        } catch (_) {}
+        term('■ modify cancelled by user — rolled back');
+        return;
+      }
       final parsed = parseFiles(raw);
-      // Capture old contents for diff view.
+      // Diff against the pre-modify snapshot (not live-written disk).
       lastDiffs.clear();
       for (final f in parsed) {
-        final old = await _ws.readFile(p.id, f.path);
+        final old = before[f.path] ?? await _ws.readFile(p.id, f.path);
         if (old != null && old != f.content) {
           lastDiffs[f.path] = {'old': old, 'new': f.content};
         } else if (old == null) {
@@ -351,6 +459,7 @@ class AgentController extends GetxController {
       term('✗ modify failed: $e');
       _log('Project modify failed', e);
     } finally {
+      _clearStreaming();
       generating.value = false;
       buildStatus.value = null;
       _cancelled = false;
@@ -978,7 +1087,8 @@ class AgentController extends GetxController {
   Future<String> _ask(
       {required String prompt,
       required String system,
-      void Function(int chars)? onProgress}) async {
+      void Function(int chars)? onProgress,
+      void Function(String partial)? onPartial}) async {
     final settings = Get.find<SettingsController>();
     // Inject extended thinking instructions.
     var sys = system;
@@ -994,12 +1104,23 @@ class AgentController extends GetxController {
     }
     final buf = StringBuffer();
     var count = 0;
+    var lastPartialMs = 0;
     void bump(String chunk) {
       buf.write(chunk);
       count += chunk.length;
       try {
         onProgress?.call(count);
       } catch (_) {}
+      // Throttled live-flush hook for streaming file preview (~2/sec).
+      if (onPartial != null) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        if (now - lastPartialMs >= 500) {
+          lastPartialMs = now;
+          try {
+            onPartial(buf.toString());
+          } catch (_) {}
+        }
+      }
     }
 
     if (settings.inferenceMode.value == 'cloud') {

@@ -70,4 +70,53 @@ void main() {
       expect(single.contains('PLAIN JAVASCRIPT'), isTrue);
     });
   });
+
+  group('parsePartialFiles', () {
+    test('no fence yields nothing (never raw-text garbage)', () {
+      expect(parsePartialFiles('hello world'), isEmpty);
+      expect(parsePartialFiles('```html\n<h1>Hi</h1>\n```'), isEmpty);
+      expect(parsePartialFiles(''), isEmpty);
+    });
+
+    test('closed entries parse with complete=true', () {
+      const raw = '```files\n{"files":[{"path":"index.html","content":"<h1>Hi</h1>"},{"path":"a.css","content":"h1{color:red}"}]}';
+      final out = parsePartialFiles(raw);
+      expect(out.length, 2);
+      expect(out[0].path, 'index.html');
+      expect(out[0].content, '<h1>Hi</h1>');
+      expect(out[0].complete, isTrue);
+    });
+
+    test('truncated content yields one partial entry', () {
+      const raw = '```files\n{"files":[{"path":"index.html","content":"<h1>Hi<';
+      final out = parsePartialFiles(raw);
+      expect(out.length, 1);
+      expect(out[0].path, 'index.html');
+      expect(out[0].content, '<h1>Hi<');
+      expect(out[0].complete, isFalse);
+    });
+
+    test('complete file plus trailing partial sibling', () {
+      const raw = '```files\n{"files":[{"path":"a.html","content":"<b>x</b>"},{"path":"b.css","content":"h1{color:';
+      final out = parsePartialFiles(raw);
+      expect(out.length, 2);
+      expect(out[0].complete, isTrue);
+      expect(out[1].path, 'b.css');
+      expect(out[1].content, 'h1{color:');
+      expect(out[1].complete, isFalse);
+    });
+
+    test('escaped sequences unescape progressively', () {
+      const raw = '```files\n{"files":[{"path":"a.html","content":"<p>line1\\nline2';
+      final out = parsePartialFiles(raw);
+      expect(out.single.content, '<p>line1\nline2');
+    });
+
+    test('cut escape at tail is trimmed, not fatal', () {
+      const raw = '```files\n{"files":[{"path":"a.html","content":"abc\\u12';
+      final out = parsePartialFiles(raw);
+      expect(out.single.path, 'a.html');
+      expect(out.single.content, 'abc');
+    });
+  });
 }

@@ -58,6 +58,16 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     ever(c.generating, (_) { if (mounted) setState(() {}); });
     ever(c.fixing, (_) { if (mounted) setState(() {}); });
     ever(c.project, (_) { if (mounted) setState(() {}); });
+    // Auto-open the first streaming file on the Files tab so the user
+    // watches code appear without hunting for it.
+    ever(c.streamingFiles, (_) {
+      if (!mounted) return;
+      if (_openFile == null &&
+          c.streamingFiles.isNotEmpty &&
+          _tab == 'files') {
+        setState(() => _openFile = c.streamingFiles.keys.first);
+      }
+    });
   }
 
   @override
@@ -107,21 +117,81 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       },
       child: Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('CubicWeb Builder',
-                style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w800)),
-            Text('Agent IDE',
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).hintColor)),
-          ],
-        ),
+        // Project identity lives IN the header: name + framework/files
+        // once built, app title before that.
+        title: Obx(() {
+          final p = c.project.value;
+          if (p == null) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('CubicWeb Builder',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontWeight: FontWeight.w800)),
+                Text('Agent IDE',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).hintColor)),
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(p.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w800)),
+              Text('${p.framework} · ${c.files.length} files',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).hintColor)),
+            ],
+          );
+        }),
         actions: [
+          // History + Auto-fix live in the header too (always visible,
+          // dimmed until a project exists).
+          Obx(() {
+            final hasP = c.project.value != null;
+            final dim = Theme.of(context)
+                .hintColor
+                .withValues(alpha: 0.45);
+            return Row(mainAxisSize: MainAxisSize.min, children: [
+              IconButton(
+                tooltip: hasP ? 'History' : 'History (needs a project)',
+                icon: Icon(LucideIcons.history,
+                    size: 20, color: hasP ? Dt.accent : dim),
+                onPressed:
+                    hasP ? () => _showHistorySheet(context) : null,
+              ),
+              IconButton(
+                tooltip: hasP
+                    ? 'Auto-fix ${c.autoFix.value ? 'on' : 'off'}'
+                    : 'Auto-fix (needs a project)',
+                icon: Icon(
+                    c.autoFix.value
+                        ? Icons.bolt_rounded
+                        : Icons.bolt_outlined,
+                    size: 20,
+                    color: !hasP
+                        ? dim
+                        : (c.autoFix.value
+                            ? Dt.accent
+                            : Theme.of(context).hintColor)),
+                onPressed: hasP
+                    ? () => c.autoFix.value = !c.autoFix.value
+                    : null,
+              ),
+            ]);
+          }),
           // Always visible: without a project the icon is dimmed and
           // project-dependent items are disabled.
           Obx(() {
@@ -199,7 +269,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         return Column(children: [
           if (hasProject)
             _promptSummaryCard(context, isDark),
-          _projectHeader(context, isDark),
           _tabSwitch(),
           Expanded(
             child: _tab == 'preview' && hasProject
@@ -475,102 +544,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   }
 
   // ── Header / tabs / ask ──
-
-  Widget _projectHeader(BuildContext context, bool isDark) {
-    // Always visible: without a project the row shows a placeholder
-    // and the actions render dimmed (no function yet).
-    final p = c.project.value;
-    final dim = Theme.of(context).hintColor.withValues(alpha: 0.45);
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
-      child: Row(children: [
-        Expanded(
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(p?.name ?? 'No project yet',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: p == null ? dim : null)),
-                Text(
-                    p == null
-                        ? 'Describe below to start building'
-                        : '${p.framework} · ${c.files.length} files',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11.5,
-                        color: p == null
-                            ? dim
-                            : Theme.of(context).hintColor)),
-              ]),
-        ),
-        InkWell(
-          onTap: p == null
-              ? null
-              : () => c.autoFix.value = !c.autoFix.value,
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(
-                c.autoFix.value
-                    ? Icons.bolt_rounded
-                    : Icons.bolt_outlined,
-                size: 14,
-                color: p == null
-                    ? dim
-                    : (c.autoFix.value
-                        ? Dt.accent
-                        : Theme.of(context).hintColor),
-              ),
-              const SizedBox(width: 4),
-              Text('Auto-fix',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: p == null
-                          ? dim
-                          : (c.autoFix.value
-                              ? Dt.accent
-                              : Theme.of(context).hintColor))),
-            ]),
-          ),
-        ),
-        InkWell(
-          onTap: p == null ? null : () => _showHistorySheet(context),
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(LucideIcons.history,
-                  size: 14,
-                  color: p == null
-                      ? dim
-                      : Theme.of(context).hintColor),
-              const SizedBox(width: 4),
-              Text('History',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: p == null
-                          ? dim
-                          : Theme.of(context).hintColor)),
-            ]),
-          ),
-        ),
-        if (c.generating.value || c.fixing.value)
-          const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-      ]),
-    );
-  }
 
   // ── Viewport helpers ──
 
@@ -864,43 +837,48 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   ),
                 ]),
               ),
-            if (hasProject) ...[
-              AppCircleButton(
-                icon: LucideIcons.brain,
-                tooltip: 'Extended thinking',
-                iconColor: c.extendedThinking.value
-                    ? const Color(0xFF8B5CF6)
-                    : null,
-                onTap: () => c.extendedThinking.value =
-                    !c.extendedThinking.value,
-              ),
-              const SizedBox(width: 6),
-              AppCircleButton(
-                icon: LucideIcons.globe,
-                tooltip: 'Web search',
-                iconColor: c.webSearch.value
-                    ? const Color(0xFF10B981)
-                    : null,
-                onTap: () =>
-                    c.webSearch.value = !c.webSearch.value,
-              ),
-              const SizedBox(width: 6),
-              AppCircleButton(
-                icon: LucideIcons.puzzle,
-                tooltip: 'Component library',
-                onTap: () =>
-                    _showComponentLibrary(context, isDark),
-              ),
-              const SizedBox(width: 6),
-            ],
-            if (hasProject) ...[
-              const SizedBox(width: 6),
-              AppCircleButton(
+            // Shared tools — identical before AND after build. Only
+            // Auto-test needs a project (dimmed + disabled until then).
+            if (!hasProject) const SizedBox(width: 6),
+            AppCircleButton(
+              icon: LucideIcons.brain,
+              tooltip: 'Extended thinking',
+              iconColor: c.extendedThinking.value
+                  ? const Color(0xFF8B5CF6)
+                  : null,
+              onTap: () => c.extendedThinking.value =
+                  !c.extendedThinking.value,
+            ),
+            const SizedBox(width: 6),
+            AppCircleButton(
+              icon: LucideIcons.globe,
+              tooltip: 'Web search',
+              iconColor: c.webSearch.value
+                  ? const Color(0xFF10B981)
+                  : null,
+              onTap: () =>
+                  c.webSearch.value = !c.webSearch.value,
+            ),
+            const SizedBox(width: 6),
+            AppCircleButton(
+              icon: LucideIcons.puzzle,
+              tooltip: 'Component library',
+              onTap: () =>
+                  _showComponentLibrary(context, isDark),
+            ),
+            const SizedBox(width: 6),
+            Opacity(
+              opacity: hasProject ? 1.0 : 0.35,
+              child: AppCircleButton(
                 icon: LucideIcons.shieldCheck,
-                tooltip: 'Auto-test project',
-                onTap: busy ? null : () => c.runAutoTest(),
+                tooltip: hasProject
+                    ? 'Auto-test project'
+                    : 'Auto-test (needs a project)',
+                onTap: (!hasProject || busy)
+                    ? null
+                    : () => c.runAutoTest(),
               ),
-            ],
+            ),
                         ]),
                       ),
                     ),
@@ -926,6 +904,45 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   }
 
   // ── Preview pane ──
+
+  /// Slim progress pill shown ABOVE the live preview while the AI keeps
+  /// writing (v0-style: preview stays visible, progress floats on top).
+  Widget _liveProgressPill(
+      BuildContext context, bool isDark, String? status) {
+    return Obx(() {
+      final n = c.streamingFiles.length;
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: Dt.accent.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(10),
+          border:
+              Border.all(color: Dt.accent.withValues(alpha: 0.3)),
+        ),
+        child: Row(children: [
+          const SizedBox(
+              width: 13,
+              height: 13,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+                status ??
+                    (n > 0
+                        ? 'Writing $n file${n == 1 ? '' : 's'}… preview updating live'
+                        : 'AI is writing…'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Dt.accent)),
+          ),
+        ]),
+      );
+    });
+  }
 
   /// Runtime diagnosis card: what kind of project this is, which
   /// pipeline steps passed/failed, and specific fix actions.
@@ -1088,7 +1105,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     // written, tool calls) — once the project structure is complete it
     // swaps to the rendered output. Never a dead spinner.
     final status = c.buildStatus.value;
-    if (c.generating.value || c.fixing.value || status != null) {
+    final working = c.generating.value || c.fixing.value || status != null;
+    // v0-style live preview: once partial files hit disk, keep the
+    // WebView up and reloading instead of hiding it behind a spinner.
+    final live = c.streamingActive.value && c.livePreviewReady.value;
+    if (working && !live) {
       return _buildStatusView(context, isDark, status);
     }
     final url = c.previewUrl.value;
@@ -1099,8 +1120,9 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 fontSize: 13, color: Theme.of(context).hintColor)),
       );
     }
-    return Column(children: [
+     return Column(children: [
       _previewDiagnosisCard(context, isDark),
+      if (working) _liveProgressPill(context, isDark, status),
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
         child: Row(children: [
@@ -1794,11 +1816,18 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       children: [
         Row(children: [
           Expanded(
-            child: Text('${c.files.length} files',
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: Theme.of(context).hintColor)),
+            child: Obx(() {
+              final extra = c.streamingFiles.keys
+                  .where((k) => !c.files.contains(k))
+                  .length;
+              final total = c.files.length + extra;
+              return Text(
+                  extra > 0 ? '$total files ($extra writing…)' : '$total files',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: Theme.of(context).hintColor));
+            }),
           ),
           TextButton.icon(
             onPressed: () => _showAddDialog(context, isDark),
@@ -1820,16 +1849,48 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           onSubmitted: (q) => _showSearchResults(context, isDark, q),
         ),
         const SizedBox(height: 8),
-        for (final path in c.files)
+        for (final path in _allFilePaths())
           Card(
             child: ListTile(
               dense: true,
               leading: Icon(_iconFor(path),
                   size: 18, color: Dt.accent),
-              title: Text(path,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+              title: Row(children: [
+                Expanded(
+                  child: Text(path,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style:
+                          GoogleFonts.plusJakartaSans(fontSize: 13)),
+                ),
+                Obx(() => c.streamingFiles.containsKey(path)
+                    ? Container(
+                        margin: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Dt.accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Dt.accent)),
+                              const SizedBox(width: 4),
+                              Text('writing',
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      color: Dt.accent)),
+                            ]),
+                      )
+                    : const SizedBox.shrink()),
+              ]),
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                 IconButton(
                   tooltip: 'Open',
@@ -1882,7 +1943,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             ),
           ),
         if (_openFile != null &&
-            c.files.contains(_openFile)) ...[
+            (c.files.contains(_openFile) ||
+                c.streamingFiles.containsKey(_openFile))) ...[
           const SizedBox(height: 8),
           _fileEditor(context, isDark, _openFile!),
         ],
@@ -1909,7 +1971,21 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     return LucideIcons.file;
   }
 
+  /// Disk files + in-flight streamed files, disk order first.
+  List<String> _allFilePaths() {
+    final out = [...c.files];
+    for (final k in c.streamingFiles.keys) {
+      if (!out.contains(k)) out.add(k);
+    }
+    return out;
+  }
+
   Widget _fileEditor(BuildContext context, bool isDark, String path) {
+    // While the AI is writing this file, show the LIVE stream instead
+    // of a stale disk read (tap in and watch the code appear).
+    if (c.streamingActive.value && c.streamingFiles.containsKey(path)) {
+      return _StreamingFileCard(path: path, isDark: isDark);
+    }
     return FutureBuilder<String?>(
       key: ValueKey('editor-$path-${c.revision.value}'),
       future: c.readFile(path),
@@ -2456,34 +2532,31 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                       value: c.planMode.value,
                       onChanged: (v) => c.planMode.value = v,
                     )),
-              if (hasProject)
-                Obx(() => SwitchListTile(
-                      secondary: const Icon(LucideIcons.brain, size: 22),
-                      title: Text('Extended thinking',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15, fontWeight: FontWeight.w600)),
-                      value: c.extendedThinking.value,
-                      onChanged: (v) => c.extendedThinking.value = v,
-                    )),
-              if (hasProject)
-                Obx(() => SwitchListTile(
-                      secondary: const Icon(LucideIcons.globe, size: 22),
-                      title: Text('Web search',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15, fontWeight: FontWeight.w600)),
-                      value: c.webSearch.value,
-                      onChanged: (v) => c.webSearch.value = v,
-                    )),
-              if (hasProject)
-                ListTile(
-                  leading: const Icon(LucideIcons.puzzle, size: 22),
-                  title: Text('Component library',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15, fontWeight: FontWeight.w600)),
-                  onTap: () {
-                    Navigator.pop(sheetCtx);
-                    _showComponentLibrary(context, isDark);
-                  },
+              Obx(() => SwitchListTile(
+                    secondary: const Icon(LucideIcons.brain, size: 22),
+                    title: Text('Extended thinking',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15, fontWeight: FontWeight.w600)),
+                    value: c.extendedThinking.value,
+                    onChanged: (v) => c.extendedThinking.value = v,
+                  )),
+              Obx(() => SwitchListTile(
+                    secondary: const Icon(LucideIcons.globe, size: 22),
+                    title: Text('Web search',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 15, fontWeight: FontWeight.w600)),
+                    value: c.webSearch.value,
+                    onChanged: (v) => c.webSearch.value = v,
+                  )),
+              ListTile(
+                leading: const Icon(LucideIcons.puzzle, size: 22),
+                title: Text('Component library',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15, fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _showComponentLibrary(context, isDark);
+                },
                 ),
               ListTile(
                 leading: const Icon(LucideIcons.image, size: 22),
@@ -2676,6 +2749,100 @@ class _Component {
   final IconData icon;
   final String prompt;
   const _Component(this.name, this.icon, this.prompt);
+}
+
+/// Live streaming file card: read-only highlighted view of the code
+/// AS the AI writes it. Auto-scrolls while open; replaced by the real
+/// editor once the file lands on disk.
+class _StreamingFileCard extends StatefulWidget {
+  final String path;
+  final bool isDark;
+  const _StreamingFileCard({required this.path, required this.isDark});
+
+  @override
+  State<_StreamingFileCard> createState() => _StreamingFileCardState();
+}
+
+class _StreamingFileCardState extends State<_StreamingFileCard> {
+  final _scroll = ScrollController();
+  int _shown = 0;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = Get.find<AgentController>();
+    return Obx(() {
+      final content = c.streamingFiles[widget.path] ?? '';
+      if (content.length != _shown) {
+        _shown = content.length;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scroll.hasClients) {
+            try {
+              _scroll.jumpTo(_scroll.position.maxScrollExtent);
+            } catch (_) {}
+          }
+        });
+      }
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF101014),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: Dt.accent.withValues(alpha: 0.35)),
+        ),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(children: [
+                Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                        shape: BoxShape.circle, color: Dt.accent)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(widget.path,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.firaCode(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFFCDD6F4))),
+                ),
+                Text('${(content.length / 1024).toStringAsFixed(1)}k',
+                    style: GoogleFonts.firaCode(
+                        fontSize: 10,
+                        color: const Color(0xFF6E6B65))),
+              ]),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 320),
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  child: SelectableText.rich(
+                    buildHighlightedSpan(
+                        highlight(content, widget.path)),
+                    style: GoogleFonts.firaCode(
+                        fontSize: 11, height: 1.5),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text('AI is writing… edits unlock when done',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10.5,
+                      color: const Color(0xFF6E6B65))),
+            ]),
+      );
+    });
+  }
 }
 
 /// File editor card: owns its controller so parent rebuilds never wipe
