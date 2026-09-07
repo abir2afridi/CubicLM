@@ -2702,44 +2702,84 @@ class ModelView extends GetView<ModelController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Obx(
-              () => TextField(
-                controller: keyController,
-                obscureText: obscureKey.value,
-                onChanged: onDraftChanged,
-                style: GoogleFonts.firaCode(fontSize: 13),
-                decoration: InputDecoration(
-                  labelText: 'API key',
-                  hintText: 'Paste ${provider.name} key',
-                  prefixIcon: const Icon(Icons.key_outlined, size: 23),
-                  suffixIcon: Row(
-                    mainAxisSize: MainAxisSize.min,
+              () => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
+                      Text(
+                        'API key',
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).hintColor,
+                        ),
+                      ),
+                      const Spacer(),
                       if (draftKey.value.isNotEmpty)
-                        IconButton(
-                          tooltip: 'Clear',
-                          onPressed: () {
+                        InkWell(
+                          onTap: () {
                             keyController.clear();
                             onDraftChanged('');
                           },
-                          icon: const Icon(Icons.close_rounded, size: 20),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Tooltip(
+                            message: 'Clear',
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 19,
+                                color: Theme.of(context).hintColor,
+                              ),
+                            ),
+                          ),
                         ),
-                      IconButton(
-                        tooltip: 'Paste from clipboard',
-                        onPressed: () async {
-                          final data = await Clipboard.getData('text/plain');
+                      InkWell(
+                        onTap: () async {
+                          final data =
+                              await Clipboard.getData('text/plain');
                           if (data?.text != null) {
                             keyController.text = data!.text!;
-                            keyController.selection = TextSelection.fromPosition(
-                              TextPosition(offset: keyController.text.length),
+                            keyController.selection =
+                                TextSelection.fromPosition(
+                              TextPosition(
+                                  offset: keyController.text.length),
                             );
                             onDraftChanged(keyController.text);
                           }
                         },
-                        icon: const Icon(LucideIcons.clipboardPaste, size: 20),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Tooltip(
+                          message: 'Paste from clipboard',
+                          child: Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Icon(
+                              LucideIcons.clipboardPaste,
+                              size: 19,
+                              color: Theme.of(context).hintColor,
+                            ),
+                          ),
+                        ),
                       ),
-                      IconButton(
-                        tooltip: obscureKey.value ? 'Show API key' : 'Hide API key',
-                        onPressed: () => obscureKey.value = !obscureKey.value,
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: keyController,
+                    obscureText: obscureKey.value,
+                    onChanged: onDraftChanged,
+                    style: GoogleFonts.firaCode(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Paste ${provider.name} key',
+                      prefixIcon: const Icon(Icons.key_outlined, size: 23),
+                      suffixIcon: IconButton(
+                        tooltip: obscureKey.value
+                            ? 'Show API key'
+                            : 'Hide API key',
+                        onPressed: () =>
+                            obscureKey.value = !obscureKey.value,
                         icon: Icon(
                           obscureKey.value
                               ? Icons.visibility_outlined
@@ -2747,11 +2787,11 @@ class ModelView extends GetView<ModelController> {
                           size: 20,
                         ),
                       ),
-                    ],
+                      contentPadding: const EdgeInsets.symmetric(
+                          vertical: 20, horizontal: 18),
+                    ),
                   ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 20, horizontal: 18),
-                ),
+                ],
               ),
             ),
             const SizedBox(height: 14),
