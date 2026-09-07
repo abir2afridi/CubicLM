@@ -84,6 +84,11 @@ dev_dependencies:
   flutter_lints: ^3.0.0
 
 dependency_overrides:
+  # Vendored 0.257.0: `LucideIconData extends IconData` no longer
+  # compiles where IconData is final (newer Flutter); replaced with
+  # plain const IconData (see local_plugins/lucide_icons/README.md).
+  lucide_icons:
+    path: local_plugins/lucide_icons
   llama_flutter_android:
     path: local_plugins/llama_flutter_android
   # Vendored 1.0.1 with corrected Windows pluginClass (see note in its
