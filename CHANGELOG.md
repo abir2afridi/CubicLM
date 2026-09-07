@@ -7,34 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0+15] - 2026-09-07
+
 ### Added
+- **CubicWeb Builder full flow** - plan mode, checkpoint/undo history, syntax-highlighted editor, diff view, responsive viewports, screenshot-to-code, keyboard shortcuts, 6 project templates, split pane (landscape), deploy to Vercel/Netlify, share link, GitHub export, component library, extended-thinking + web-search toggles, browser auto-test with auto-fix.
+- **Live streaming build** - files appear in the Files tab as the AI writes (writing badges, live highlighted editor, auto-open); static preview reloads live v0-style with progress pill; cancel rolls back to checkpoint.
+- **Real local runtime layer** - project detector (static/Vite/Next/Node), source validator, dev-server manager (npm install, free-port pick, URL parse, health check, crash watcher, restart), real shell terminal with history/autocomplete/stdin attach.
+- **Terminal CLI manager** - install catalog (Claude Code, OpenCode, Cline, Kilo — verified packages), one-tap npm installs, Open/Verify/Update/Repair/Uninstall, persistent registry, ANSI-safe log, storage + cache tools.
+- **CubicWeb System Logs** - structured runtime/platform diagnostics (CW-* codes, evidence classifier, dedup, traces, redaction, persistence), diagnostics screen with filters/details/actions, AI no-rewrite guards.
+- **Next.js pipeline** - atomic writes, byte-for-byte integrity gates, framework adapters, `npm run build` validation, load-failure forwarding, external-browser button.
+- **Cloud model tools** - Import from /models (new-count report), Test all models (online/failed dots + latency), auto-hide failed, auto-sync interval (configurable 6h–weekly) with sync row.
 - **Agent IDE chat tab + model switcher** - conversation transcript with the builder AI; model/provider switch from the AppBar.
 - **Preview reload + live build status** - reload button + URL bar; preview shows live progress (streaming/files) until output is ready.
-- **Friendly preview 404** - framework builds needing Node get an explanatory page, not a blank error.
 - **Browser-run prompt rules** - Vue/React require import maps + esm.sh (kills the bare-specifier TypeError); plain-JS rule bans silent TS failures.
+- **Web TTS / downloads / notifications / Model Hub guard** - read-aloud in browsers, real file downloads, background-done ping, model-download guard with Cloud pointer.
+- **Explore Toolkit tab** - Model Hub + Toolkit; Battle Arena, Slide Maker and CubicWeb Builder as widget cards.
+- **Slide viewer modes + freehand layout + manual photos** - Docs/Slides/PDF switcher, drag/resize boxes, gallery/camera per slide.
+- **F-Droid fastlane metadata** - store submission title/descriptions/changelog/icon.
 
-### Added
-- **Agent IDE terminal** - Preview/Files/Terminal tabs; timestamped, color-coded agent log (builds, fixes, errors) that the AI reads in repair prompts; copy + clear.
-- **Agent IDE controls** - Stop buttons, auto-fix toggle, file delete confirm, web ZIP download, stale errors clear on manual edits.
+### Fixed
+- **Header cleanup** - project identity lives in the AppBar (name + framework/files, History + Auto-fix + New actions); duplicate below-header cards removed; composer options identical pre/post build.
+- **Template grid overflow** - template picker scrolls on short screens.
+- **RadioListTile / Focus onKey deprecations** - migrated to RadioGroup + onKeyEvent; const/lint pass clean.
+- **Chat menu + SizeTransition** - menu always visible with graceful disables; SDK-spanning deprecation silence (CI green).
+- **Static 404 wording** - neutral file-not-found; routing specifics live in the preview diagnosis card.
 
-### Added
-- **CubicWeb Builder: stop work, auto-fix toggle, web ZIP, error auto-clear** - Stop buttons (build + ask bar), header auto-fix toggle, delete confirmations, ZIP downloads on web, stale console errors clear on manual edits.
-
-### Added
-- **Web TTS** - read-aloud works in browsers via the flutter_tts web backend (all guards removed).
-- **Web file downloads** - Markdown/PDF/log/chat exports save real files via anchor download instead of clipboard fallback.
-- **Web notifications** - background-done ping via the browser Notification API (best-effort permission).
-- **Model Hub web guard** - in-app model downloads blocked on web with a Cloud-mode pointer.
-
-### Added
-- **Web TTS** - read-aloud works in browsers via the flutter_tts web backend (all guards removed).
-- **Web file downloads** - Markdown/PDF/log/chat exports save real files via anchor download instead of clipboard fallback.
-- **CubicWeb Builder (Agent IDE, Toolkit, MVP)** - prompt → project workspace (jailed files, Hive meta) → localhost preview server → console-error auto-fix loop (changed files only, 3 rounds) → ZIP export; explorer with editor/rename/search, ask-AI modify bar, project rename, preview auto-refresh on manual edits. Website frameworks included (merged old standalone builder — one tool).
-- **Explore Toolkit tab** - Explore is now Model Hub + Toolkit; Battle Arena, Slide Maker and CubicWeb Builder live as widget cards with descriptions.
-- **F-Droid fastlane metadata** - title/descriptions/changelog/icon for store submission.
-- **Slide viewer modes** - Docs (paper flow) / Slides (4:3 stage) / PDF (A4 page) switcher above the carousel.
-- **Freehand slide layout** - per-slide move (drag) + resize (corner handle) for title/body/image boxes on PPT + PDF canvas; HTML export honors positions.
-- **Manual slide photos** - gallery/camera add/replace per slide (works when the model left only a box).
+### Performance
+- **Streaming throttles** - partial parse ~2/sec, live disk write 1.5s, preview reload only on change; capped buffers and file sizes throughout.
 
 ## [1.8.1+14] - 2026-09-05
 

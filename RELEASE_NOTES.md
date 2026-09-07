@@ -1,24 +1,29 @@
-# CubicLM v1.2.0
+# CubicLM v1.9.0
 
-**15 languages. One tap to switch.**
+**CubicWeb Builder goes pro: live streaming builds, real runtimes, system diagnostics.**
 
-CubicLM now speaks your language — literally. Switch between English, বাংলা, हिन्दी, العربية, 中文, Español, Français, 日本語, 한국어, Português, Deutsch, Türkçe, Bahasa Indonesia, Русский, and اردو instantly from App Settings. No restart needed.
+The biggest CubicLM release yet — the website builder now streams files live like v0, runs real dev servers, manages terminal CLIs, and tells code errors apart from environment failures.
 
 ## What's New
 
-- **Language Picker** — Apple-style full-page selector with native script labels and country flags. Instant apply, top toast confirmation.
-- **Community Infrastructure** — 15 issue templates, CONTRIBUTING guide, CODE_OF_CONDUCT, SECURITY policy, auto-labeling, Dependabot.
-- **Build Fix** — Android Kotlin daemon no longer crashes from memory pressure during incremental builds.
+- **Live streaming builds** — files appear as the AI writes; preview reloads live
+- **Real local runtime** — project detection, validation, dev servers, real shell
+- **Terminal CLI manager** — one-tap installs (Claude Code, OpenCode, Cline, Kilo)
+- **CubicWeb System Logs** — CW-* diagnostics, no more infinite AI fix-loops
+- **Next.js pipeline** — integrity gates, build check, crash recovery
+- **Cloud model tools** — import from /models, test-all with online dots, auto-sync
+- **Builder extras** — plan mode, undo history, templates, deploy, diff view, mobile/tablet/desktop preview
 
 ## Downloads
 
 | Platform | File |
 |---|---|
-| Android (arm64) | `cubiclm-v1.2.0-arm64-v8a.apk` |
-| Android (arm32) | `cubiclm-v1.2.0-armeabi-v7a.apk` |
-| Android (x86_64) | `cubiclm-v1.2.0-x86_64.apk` |
-| Windows (x64) | `cubiclm-v1.2.0-windows-x64.zip` |
+| Android (arm64) | `cubiclm-v1.9.0-arm64-v8a.apk` |
+| Android (arm32) | `cubiclm-v1.9.0-armeabi-v7a.apk` |
+| Android (x86_64) | `cubiclm-v1.9.0-x86_64.apk` |
+| Windows (x64) | `cubiclm-v1.9.0-windows-x64.zip` |
 
 ## Known Limitations
 
-- Web build blocked by `dart:ffi` (`sd_ffi_bindings.dart`). Android + Windows are supported.
+- On-device Node.js is not bundled: framework previews need a desktop or exported ZIP (the app says so explicitly instead of failing silently).
+- No cloud execution backend yet — "Use Cloud" explains instead of pretending.
