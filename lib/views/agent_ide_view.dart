@@ -119,60 +119,73 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           ],
         ),
         actions: [
-          Obx(() => c.project.value == null
-              ? const SizedBox.shrink()
-              : PopupMenuButton<String>(
-                  tooltip: 'Project',
-                  icon: Icon(LucideIcons.folderGit2,
-                      color: isDark
+          // Always visible: without a project the icon is dimmed and
+          // project-dependent items are disabled.
+          Obx(() {
+            final hasP = c.project.value != null;
+            return PopupMenuButton<String>(
+              tooltip: 'Project',
+              icon: Icon(LucideIcons.folderGit2,
+                  color: hasP
+                      ? (isDark
                           ? AppColors.textPrimary
-                          : Dt.iconDefault),
-                  onSelected: (v) => _onProjectMenu(v),
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                      value: 'switch',
-                      child: Text('Switch project (${c.projectsOf().length})',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14)),
-                    ),
-                    const PopupMenuItem(
-                      value: 'new',
-                      child: Text('New project',
-                          style: TextStyle(fontSize: 14)),
-                    ),
-                    const PopupMenuItem(
-                      value: 'export',
-                      child: Text('Export ZIP',
-                          style: TextStyle(fontSize: 14)),
-                    ),
-                    const PopupMenuItem(
-                      value: 'rename',
-                      child: Text('Rename project',
-                          style: TextStyle(fontSize: 14)),
-                    ),
-                    const PopupMenuItem(
-                      value: 'deploy',
-                      child: Text('Deploy to web',
-                          style: TextStyle(fontSize: 14)),
-                    ),
-                    const PopupMenuItem(
-                      value: 'share',
-                      child: Text('Share project link',
-                          style: TextStyle(fontSize: 14)),
-                    ),
-                    const PopupMenuItem(
-                      value: 'github',
-                      child: Text('Export to GitHub',
-                          style: TextStyle(fontSize: 14)),
-                    ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete project',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14, color: AppColors.error)),
-                    ),
-                  ],
-                )),
+                          : Dt.iconDefault)
+                      : Theme.of(context)
+                          .hintColor
+                          .withValues(alpha: 0.45)),
+              onSelected: (v) => _onProjectMenu(v),
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'switch',
+                  child: Text('Switch project (${c.projectsOf().length})',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14)),
+                ),
+                const PopupMenuItem(
+                  value: 'new',
+                  child: Text('New project',
+                      style: TextStyle(fontSize: 14)),
+                ),
+                PopupMenuItem(
+                  value: 'export',
+                  enabled: hasP,
+                  child: const Text('Export ZIP',
+                      style: TextStyle(fontSize: 14)),
+                ),
+                PopupMenuItem(
+                  value: 'rename',
+                  enabled: hasP,
+                  child: const Text('Rename project',
+                      style: TextStyle(fontSize: 14)),
+                ),
+                PopupMenuItem(
+                  value: 'deploy',
+                  enabled: hasP,
+                  child: const Text('Deploy to web',
+                      style: TextStyle(fontSize: 14)),
+                ),
+                PopupMenuItem(
+                  value: 'share',
+                  enabled: hasP,
+                  child: const Text('Share project link',
+                      style: TextStyle(fontSize: 14)),
+                ),
+                PopupMenuItem(
+                  value: 'github',
+                  enabled: hasP,
+                  child: const Text('Export to GitHub',
+                      style: TextStyle(fontSize: 14)),
+                ),
+                PopupMenuItem(
+                  value: 'delete',
+                  enabled: hasP,
+                  child: Text('Delete project',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 14, color: AppColors.error)),
+                ),
+              ],
+            );
+          }),
           const SizedBox(width: 4),
         ],
       ),
@@ -183,7 +196,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         return Column(children: [
           if (hasProject)
             _promptSummaryCard(context, isDark),
-          if (hasProject) _projectHeader(context, isDark),
+          _projectHeader(context, isDark),
           _tabSwitch(),
           Expanded(
             child: _tab == 'preview' && hasProject
@@ -461,7 +474,10 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   // ── Header / tabs / ask ──
 
   Widget _projectHeader(BuildContext context, bool isDark) {
-    final p = c.project.value!;
+    // Always visible: without a project the row shows a placeholder
+    // and the actions render dimmed (no function yet).
+    final p = c.project.value;
+    final dim = Theme.of(context).hintColor.withValues(alpha: 0.45);
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
       child: Row(children: [
@@ -469,20 +485,28 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(p.name,
+                Text(p?.name ?? 'No project yet',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16, fontWeight: FontWeight.w800)),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: p == null ? dim : null)),
                 Text(
-                    '${p.framework} · ${c.files.length} files',
+                    p == null
+                        ? 'Describe below to start building'
+                        : '${p.framework} · ${c.files.length} files',
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 11.5,
-                        color: Theme.of(context).hintColor)),
+                        color: p == null
+                            ? dim
+                            : Theme.of(context).hintColor)),
               ]),
         ),
         InkWell(
-          onTap: () => c.autoFix.value = !c.autoFix.value,
+          onTap: p == null
+              ? null
+              : () => c.autoFix.value = !c.autoFix.value,
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding:
@@ -493,23 +517,27 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     ? Icons.bolt_rounded
                     : Icons.bolt_outlined,
                 size: 14,
-                color: c.autoFix.value
-                    ? Dt.accent
-                    : Theme.of(context).hintColor,
+                color: p == null
+                    ? dim
+                    : (c.autoFix.value
+                        ? Dt.accent
+                        : Theme.of(context).hintColor),
               ),
               const SizedBox(width: 4),
               Text('Auto-fix',
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: c.autoFix.value
-                          ? Dt.accent
-                          : Theme.of(context).hintColor)),
+                      color: p == null
+                          ? dim
+                          : (c.autoFix.value
+                              ? Dt.accent
+                              : Theme.of(context).hintColor))),
             ]),
           ),
         ),
         InkWell(
-          onTap: () => _showHistorySheet(context),
+          onTap: p == null ? null : () => _showHistorySheet(context),
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding:
@@ -517,13 +545,17 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(LucideIcons.history,
                   size: 14,
-                  color: Theme.of(context).hintColor),
+                  color: p == null
+                      ? dim
+                      : Theme.of(context).hintColor),
               const SizedBox(width: 4),
               Text('History',
                   style: GoogleFonts.plusJakartaSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: Theme.of(context).hintColor)),
+                      color: p == null
+                          ? dim
+                          : Theme.of(context).hintColor)),
             ]),
           ),
         ),
@@ -804,45 +836,30 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   ),
                 ),
               ),
-            if (!hasProject) const SizedBox(width: 6),
-            if (!hasProject)
-              GestureDetector(
-                onTap: () => c.planMode.value = !c.planMode.value,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: c.planMode.value
-                        ? const Color(0xFFF59E0B).withValues(alpha: 0.15)
-                        : (isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.black.withValues(alpha: 0.05)),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: c.planMode.value
-                            ? const Color(0xFFF59E0B).withValues(alpha: 0.4)
-                            : (isDark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Dt.hairline)),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(LucideIcons.map,
-                        size: 12,
-                        color: c.planMode.value
-                            ? const Color(0xFFF59E0B)
-                            : Theme.of(context).hintColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Plan',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: c.planMode.value
-                              ? const Color(0xFFF59E0B)
-                              : Theme.of(context).hintColor),
-                    ),
-                  ]),
+            if (!hasProject && c.planMode.value)
+              const SizedBox(width: 6),
+            if (!hasProject && c.planMode.value)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
                 ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(LucideIcons.map,
+                      size: 12, color: Color(0xFFF59E0B)),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Plan',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFFF59E0B)),
+                  ),
+                ]),
               ),
             if (hasProject) ...[
               AppCircleButton(
@@ -873,12 +890,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               ),
               const SizedBox(width: 6),
             ],
-            AppCircleButton(
-              icon: LucideIcons.image,
-              tooltip: 'Attach screenshot',
-              iconColor: c.attachedImage.value != null ? Dt.accent : null,
-              onTap: () => _pickScreenshot(),
-            ),
             if (hasProject) ...[
               const SizedBox(width: 6),
               AppCircleButton(
@@ -1463,9 +1474,15 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             final t = templates[i];
             return GestureDetector(
               onTap: () {
+                // Fill the prompt only — framework stays as the user
+                // picked it (no silent override).
                 _askCtrl.text = t.prompt;
-                c.framework.value = t.framework;
                 _askFocus.requestFocus();
+                AppSnackbar.showTop(
+                  'Template inserted',
+                  'Framework: ${c.framework.value} — change it from the composer if needed.',
+                  logHistory: false,
+                );
               },
               child: Container(
                 padding: const EdgeInsets.all(10),
