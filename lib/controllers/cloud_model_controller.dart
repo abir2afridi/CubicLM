@@ -825,6 +825,9 @@ class CloudModelController extends GetxController {
     }
   }
 
+  /// Models found by the last successful verification, per provider.
+  final verifiedModelCountByProvider = <String, int>{}.obs;
+
   /// Verify a candidate key WITHOUT saving it. Returns null when the
   /// provider's model-list endpoint answers 200 with a non-empty list,
   /// otherwise a short human-readable reason.
@@ -843,7 +846,11 @@ class CloudModelController extends GetxController {
               .get(Uri.parse(url), headers: headers)
               .timeout(const Duration(seconds: 15));
           if (resp.statusCode == 200) {
-            if (_parseModelIds(provider, resp.body).isNotEmpty) return null;
+            final ids = _parseModelIds(provider, resp.body);
+            if (ids.isNotEmpty) {
+              verifiedModelCountByProvider[provider] = ids.length;
+              return null;
+            }
           } else if (resp.statusCode == 401 || resp.statusCode == 403) {
             return 'Invalid key (${resp.statusCode}) — check for typos.';
           }

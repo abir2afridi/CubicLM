@@ -2769,21 +2769,111 @@ class ModelView extends GetView<ModelController> {
                   ),
                 );
               }
+              final count =
+                  cloud.verifiedModelCountByProvider[provider.id] ?? 0;
               return Row(
                 children: [
                   const Icon(Icons.check_circle_rounded,
                       size: 16, color: AppColors.success),
                   const SizedBox(width: 6),
-                  Text(
-                    'Verified — this key works.',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.success,
-                      height: 1.35,
+                  Expanded(
+                    child: Text(
+                      count > 0
+                          ? 'Verified — $count models found.'
+                          : 'Verified — this key works.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.success,
+                        height: 1.35,
+                      ),
                     ),
                   ),
                 ],
+              );
+            }),
+            const SizedBox(height: 14),
+            // Full-width stacked actions: no cramped 3-button row.
+            Obx(() => SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.tonal(
+                    onPressed: (isVerifying.value ||
+                            draftKey.value.trim().isEmpty)
+                        ? null
+                        : () async {
+                            isVerifying.value = true;
+                            final err = await cloud.verifyApiKey(
+                                provider.id, draftKey.value);
+                            isVerifying.value = false;
+                            if (err == null) {
+                              verifiedFor.value = draftKey.value;
+                              cloud.errorByProvider.remove(provider.id);
+                            } else {
+                              verifiedFor.value = '';
+                              cloud.errorByProvider[provider.id] = err;
+                            }
+                          },
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: isVerifying.value
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.verified_outlined, size: 18),
+                              const SizedBox(width: 8),
+                              Text('Verify Key',
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14)),
+                            ],
+                          ),
+                  ),
+                )),
+            const SizedBox(height: 8),
+            Obx(() {
+              final ok = verifiedFor.value.isNotEmpty &&
+                  verifiedFor.value == draftKey.value;
+              return SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: !ok
+                      ? null
+                      : () async {
+                          final value = keyController.text.trim();
+                          await cloud.saveApiKey(provider.id, value);
+                          await cloud.refreshModels(provider.id);
+                          if ((cloud.errorByProvider[provider.id] ?? '')
+                              .isNotEmpty) {
+                            return;
+                          }
+                          Get.back(closeOverlays: false);
+                        },
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.save_outlined, size: 18),
+                      const SizedBox(width: 8),
+                      Text('Save Key',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w800, fontSize: 14)),
+                    ],
+                  ),
+                ),
               );
             }),
           ],
@@ -2817,59 +2907,6 @@ class ModelView extends GetView<ModelController> {
           child: Text('common_cancel'.tr,
               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
         ),
-        Obx(() => FilledButton.tonal(
-              onPressed: (isVerifying.value || draftKey.value.trim().isEmpty)
-                  ? null
-                  : () async {
-                      isVerifying.value = true;
-                      final err = await cloud.verifyApiKey(
-                          provider.id, draftKey.value);
-                      isVerifying.value = false;
-                      if (err == null) {
-                        verifiedFor.value = draftKey.value;
-                        cloud.errorByProvider.remove(provider.id);
-                      } else {
-                        verifiedFor.value = '';
-                        cloud.errorByProvider[provider.id] = err;
-                      }
-                    },
-              style: FilledButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              ),
-              child: isVerifying.value
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text('Verify',
-                      style:
-                          GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-            )),
-        Obx(() {
-          final ok = verifiedFor.value.isNotEmpty &&
-              verifiedFor.value == draftKey.value;
-          return ElevatedButton(
-            onPressed: !ok
-                ? null
-                : () async {
-                    final value = keyController.text.trim();
-                    await cloud.saveApiKey(provider.id, value);
-                    await cloud.refreshModels(provider.id);
-                    if ((cloud.errorByProvider[provider.id] ?? '')
-                        .isNotEmpty) {
-                      return;
-                    }
-                    Get.back(closeOverlays: false);
-                  },
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-            ),
-            child: Text('Save Key',
-                style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-          );
-        }),
       ],
     ));
   }
