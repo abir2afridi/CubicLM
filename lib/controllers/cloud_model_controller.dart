@@ -834,6 +834,13 @@ class CloudModelController extends GetxController {
   Future<String?> verifyApiKey(String provider, String candidate) async {
     final key = candidate.trim();
     if (key.isEmpty) return 'Paste a key first.';
+    // Wrong-key-type fast path: Google AI Studio keys always start
+    // with "AIza" — anything else (e.g. "AQ.…") is rejected by Google
+    // before any quota/model check, so say so without a network call.
+    if (provider == 'google' && !key.startsWith('AIza')) {
+      return 'Not a Gemini API key — AI Studio keys start with "AIza". '
+          'Create one free at aistudio.google.com/apikey.';
+    }
     try {
       final cloudProvider = CloudProviderRegistry.getById(provider);
       final urls = cloudProvider?.getModelListCandidates(key) ??
@@ -853,6 +860,10 @@ class CloudModelController extends GetxController {
             }
           } else if (resp.statusCode == 401 || resp.statusCode == 403) {
             return 'Invalid key (${resp.statusCode}) — check for typos.';
+          } else if (resp.statusCode == 400 &&
+              resp.body.contains('API_KEY_INVALID')) {
+            // Google's "not a valid key" shape (wrong key type).
+            return 'Invalid key (400) — this key is not valid for the Gemini API.';
           }
         } catch (_) {
           continue;

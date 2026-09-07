@@ -197,6 +197,12 @@ void main() {
       expect(c.isConfigured('no-such-provider'), isFalse);
     });
 
+    test('verifyApiKey rejects non-AIza google keys without network', () async {
+      final c = makeController();
+      final err = await c.verifyApiKey('google', 'AQ.Ab8xyz');
+      expect(err, contains('AIza'));
+    });
+
     test('verifyApiKey rejects empty without touching saved keys', () async {
       final c = makeController();
       final s = Get.find<SettingsController>();
