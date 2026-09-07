@@ -2714,6 +2714,15 @@ class ModelView extends GetView<ModelController> {
                   suffixIcon: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (draftKey.value.isNotEmpty)
+                        IconButton(
+                          tooltip: 'Clear',
+                          onPressed: () {
+                            keyController.clear();
+                            onDraftChanged('');
+                          },
+                          icon: const Icon(Icons.close_rounded, size: 20),
+                        ),
                       IconButton(
                         tooltip: 'Paste from clipboard',
                         onPressed: () async {
