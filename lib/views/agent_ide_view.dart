@@ -192,6 +192,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               ),
             ]);
           }),
+          IconButton(
+            tooltip: 'New project',
+            icon: const Icon(LucideIcons.plus, size: 20, color: Dt.accent),
+            onPressed: _newProjectReset,
+          ),
           // Always visible: without a project the icon is dimmed and
           // project-dependent items are disabled.
           Obx(() {
@@ -267,8 +272,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         // framework + send). No separate composer gate.
         final hasProject = c.project.value != null;
         return Column(children: [
-          if (hasProject)
-            _promptSummaryCard(context, isDark),
           _tabSwitch(),
           Expanded(
             child: _tab == 'preview' && hasProject
@@ -477,70 +480,14 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   /// Locked prompt summary on the project page: what was asked + which
   /// framework (read-only — the brief doesn't change mid-project).
   /// The + New button starts over (back to the composer on this same page).
-  Widget _promptSummaryCard(BuildContext context, bool isDark) {
-    final p = c.project.value!;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: Dt.accent.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: Dt.accent.withValues(alpha: 0.25)),
-      ),
-      child: Row(children: [
-        const Icon(LucideIcons.messageSquarePlus,
-            size: 15, color: Dt.accent),
-        const SizedBox(width: 9),
-        Expanded(
-          child: Text(
-            p.name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 12.5, fontWeight: FontWeight.w600, height: 1.35),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: Dt.accent.withValues(alpha: 0.14),
-            borderRadius: BorderRadius.circular(7),
-          ),
-          child: Text(p.framework,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                  color: Dt.accent)),
-        ),
-        InkWell(
-          onTap: () {
-            c.project.value = null;
-            c.files.clear();
-            c.previewUrl.value = null;
-            c.transcript.clear();
-            _promptCtrl.clear();
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(LucideIcons.plus,
-                  size: 14, color: Dt.accent),
-              const SizedBox(width: 2),
-              Text('New',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: Dt.accent)),
-            ]),
-          ),
-        ),
-      ]),
-    );
+  /// Reset to the empty composer (same reset the old summary card's
+  /// "New" button performed). Safe anytime — pre-project it just clears.
+  void _newProjectReset() {
+    c.project.value = null;
+    c.files.clear();
+    c.previewUrl.value = null;
+    c.transcript.clear();
+    _promptCtrl.clear();
   }
 
   // ── Header / tabs / ask ──
