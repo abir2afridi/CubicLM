@@ -410,124 +410,43 @@ class CloudModelController extends GetxController {
       ));
     }
 
-    final discovered = _loadDiscoveredProviders();
-    for (final p in discovered) {
-      if (!allProviders.any((e) => e.id == p.id)) {
-        allProviders.add(p);
-      }
-    }
-  }
-
-  /// Dynamic provider id → source provider that serves it
-  /// (e.g. 'xiaomi' → 'openrouter'). Persisted with discovery.
-  final routedViaProvider = <String, String>{}.obs;
-
-  /// True for auto-detected vendor cards (e.g. xiaomi via openrouter).
-  /// They borrow the source key — never "explicitly keyed".
-  bool isRouted(String id) =>
-      id != 'custom' && !_isBuiltInProvider(id);
-
-  /// Explicitly keyed = user saved a key/config for THIS provider.
-  /// Routed cards borrow their source key, so they don't count.
-  bool hasExplicitKey(String provider) {
-    if (provider == 'custom') return isConfigured(provider);
-    if (isRouted(provider)) return false;
-    return apiKeyFor(provider).isNotEmpty;
-  }
-
-  List<CloudProviderInfo> _loadDiscoveredProviders() {
-    try {
-      final raw = _hive.getSetting<List>(_discoveredProvidersKey);
-      if (raw == null) return [];
-      return raw.map((e) {
-        final m = Map<String, dynamic>.from(e as Map);
-        final id = (m['id'] ?? '').toString();
-        final via = (m['via'] ?? '').toString();
-        if (via.isNotEmpty && id.isNotEmpty) {
-          routedViaProvider[id] = via;
-        }
-        return CloudProviderInfo(
-          id: id,
-          name: (m['name'] ?? '').toString(),
-          description:
-              (m['description'] ?? '').toString().isNotEmpty
-                  ? (m['description'] ?? '').toString()
-                  : 'Auto-detected provider',
-          icon: Icons.auto_awesome,
-          requiresKeyForList: false,
-        );
-      }).where((p) => p.id.isNotEmpty && p.name.isNotEmpty).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  Future<void> _saveDiscoveredProviders() async {
-    final discovered = allProviders
-        .where((p) => !_isBuiltInProvider(p.id))
-        .map((p) => {
-              'id': p.id,
-              'name': p.name,
-              'description': p.description,
-              'via': routedViaProvider[p.id] ?? '',
-            })
-        .toList();
-    await _hive.setSetting(_discoveredProvidersKey, discovered);
+    // No auto-detected vendor cards: aggregator models live inside
+    // their source card. Purge leftovers from older builds.
+    Future.microtask(_purgeDynamicProviders);
   }
 
   bool _isBuiltInProvider(String id) {
     return CloudProviderRegistry.contains(id) || id == 'custom';
   }
 
-  void autoDetectProvidersFromModels(String sourceProvider, List<String> modelIds) {
-    final detected = <String, List<String>>{};
-    for (final id in modelIds) {
-      final slash = id.indexOf('/');
-      if (slash <= 0) continue;
-      final prefix = id.substring(0, slash).toLowerCase();
-      if (_isBuiltInProvider(prefix) || prefix == 'custom') continue;
-      detected.putIfAbsent(prefix, () => []).add(id);
-    }
-
-    var addedProviders = 0;
-    var addedModels = 0;
-    for (final entry in detected.entries) {
-      final prefix = entry.key;
-      final models = entry.value;
-      final existing = allProviders.any((p) => p.id == prefix);
-      if (!existing) {
-        final name = _knownCompanyNames[prefix] ?? _capitalise(prefix);
-        final icon = _knownCompanyIcons[prefix] ?? Icons.cloud_outlined;
-        routedViaProvider[prefix] = sourceProvider;
-        allProviders.add(CloudProviderInfo(
-          id: prefix,
-          name: name,
-          description: '$name models via $sourceProvider',
-          icon: icon,
-          requiresKeyForList: false,
-        ));
-        modelsByProvider[prefix] = models;
-        addedProviders++;
-        addedModels += models.length;
-      } else {
-        final existingModels = modelsByProvider[prefix] ?? [];
-        final merged = {...existingModels, ...models}.toList();
-        modelsByProvider[prefix] = merged;
+  /// One-time purge of legacy auto-detected vendor cards (xiaomi, qwen,
+  /// …): they duplicated the source card's model list and their ids
+  /// can't serve chat. Drops their persisted caches so they never
+  /// reappear; the stale-active guard in onInit resets the active
+  /// provider if it pointed at one.
+  Future<void> _purgeDynamicProviders() async {
+    try {
+      final raw = _hive.getSetting<List>(_discoveredProvidersKey);
+      final ids = <String>[];
+      if (raw != null) {
+        for (final e in raw) {
+          try {
+            final m = Map<String, dynamic>.from(e as Map);
+            final id = (m['id'] ?? '').toString();
+            if (id.isNotEmpty) ids.add(id);
+          } catch (_) {}
+        }
       }
-    }
-
-    // One summary line instead of ~60 per-vendor rows drowning System Logs.
-    if (addedProviders > 0) {
-      Get.find<AppLogService>().info(
-        'Auto-detected $addedProviders providers '
-        '($addedModels models) from $sourceProvider',
-        category: LogCategory.cloud,
-      );
-    }
-
-    if (detected.isNotEmpty) {
-      _saveDiscoveredProviders();
-    }
+      for (final id in ids) {
+        await _hive.deleteSetting('$_cachePrefix$id');
+        await _hive.deleteSetting('$_cacheTimePrefix$id');
+        await _hive.deleteSetting('$_workingUrlPrefix$id');
+        await _hive.deleteSetting('$_healthPrefix$id');
+        await _hive.deleteSetting(_dynamicKey(id));
+        await _hive.deleteSetting('$_keyTimePrefix$id');
+      }
+      await _hive.deleteSetting(_discoveredProvidersKey);
+    } catch (_) {}
   }
 
   String _capitalise(String s) {
@@ -606,9 +525,8 @@ class CloudModelController extends GetxController {
   }
 
   String apiKeyFor(String provider) {
-    if (!_isBuiltInProvider(provider) && provider != 'custom') {
-      return apiKeyFor('openrouter');
-    }
+    // Fail closed: only explicit per-provider keys. No borrowing across
+    // providers (that ghost-marked keyless providers as configured).
     switch (provider) {
       case 'openai':
         return _settings.openaiKey.value;
@@ -700,12 +618,9 @@ class CloudModelController extends GetxController {
 
   bool isPinned(String provider) => pinnedProviders.contains(provider);
 
-  /// Pin/unpin an EXPLICITLY-KEYED provider (Custom API is always
-  /// top — pin N/A; routed cards borrow keys — pin N/A).
+  /// Pin/unpin a KEYED provider (Custom API is always top — pin N/A).
   Future<void> togglePin(String provider) async {
-    if (provider == 'custom' ||
-        isRouted(provider) ||
-        !hasExplicitKey(provider)) return;
+    if (provider == 'custom' || !isConfigured(provider)) return;
     if (pinnedProviders.contains(provider)) {
       pinnedProviders.remove(provider);
     } else {
@@ -727,9 +642,8 @@ class CloudModelController extends GetxController {
   /// Card display order: Custom API always first, then pinned (pin
   /// order), then key-set (sort mode), then everything else.
   /// Provider list for Model Hub + switchers: Custom first → pinned →
-  /// explicitly-keyed (sorted). Routed (auto-detected, key borrowed)
-  /// and unkeyed providers are excluded — see [routedProviders] and
-  /// [unkeyedProviders].
+  /// keyed (sorted by time or name). Unkeyed providers are excluded —
+  /// they appear in [unkeyedProviders].
   List<CloudProviderInfo> orderedProviders() {
     final byId = {for (final p in allProviders) p.id: p};
     final out = <CloudProviderInfo>[];
@@ -741,17 +655,15 @@ class CloudModelController extends GetxController {
     // 1) Custom always first.
     take('custom');
 
-    // 2) Pinned explicitly-keyed providers (in pin order).
+    // 2) Pinned keyed providers (in pin order).
     for (final id in pinnedProviders.toList()) {
-      if (id != 'custom' && hasExplicitKey(id)) take(id);
+      if (id != 'custom' && isConfigured(id)) take(id);
     }
 
-    // 3) Remaining explicitly-keyed providers — sorted by time or name.
+    // 3) Remaining keyed providers — sorted by time or name.
     final keyed = <CloudProviderInfo>[];
     for (final p in byId.values.toList()) {
-      if (p.id != 'custom' &&
-          !isRouted(p.id) &&
-          hasExplicitKey(p.id)) {
+      if (p.id != 'custom' && isConfigured(p.id)) {
         keyed.add(p);
         byId.remove(p.id);
       }
@@ -770,22 +682,16 @@ class CloudModelController extends GetxController {
     return out;
   }
 
-  /// Auto-detected vendor cards (functional via their source key,
-  /// e.g. xiaomi via openrouter) — shown BELOW the keyed list, A–Z.
-  /// Never mixed into the keyed top section.
-  List<CloudProviderInfo> get routedProviders {
-    final list = allProviders.where((p) => isRouted(p.id)).toList();
-    list.sort(
-        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    return list;
-  }
-
   /// Built-in providers without an API key — shown in a separate
   /// "Add API Key" section at the bottom of the Model Hub.
+  /// (Legacy dynamic ids are excluded everywhere; they are purged
+  /// on launch and can neither serve nor configure.)
   List<CloudProviderInfo> get unkeyedProviders {
     return allProviders
         .where((p) =>
-            p.id != 'custom' && !isRouted(p.id) && !hasExplicitKey(p.id))
+            p.id != 'custom' &&
+            _isBuiltInProvider(p.id) &&
+            !isConfigured(p.id))
         .toList();
   }
 
@@ -998,19 +904,6 @@ class CloudModelController extends GetxController {
     String modelId, {
     bool showSnackbar = true,
   }) async {
-    // Routed vendor cards have no registry entry — serve them through
-    // their source provider with the full model id (e.g. openrouter +
-    // 'xiaomi/mimo-2.5'). Activating the raw dynamic id would throw
-    // 'Unknown provider' on the next chat send.
-    if (isRouted(provider)) {
-      final via = routedViaProvider[provider] ?? 'openrouter';
-      await _settings.setCloudProvider(via);
-      await _settings.setCloudModel(via, modelId);
-      await _settings.setInferenceMode('cloud');
-      if (!showSnackbar) return;
-      AppSnackbar.cloudActive('$via · $modelId');
-      return;
-    }
     final normalized =
         provider == 'google' ? modelId.replaceFirst('models/', '') : modelId;
     if (!_isBuiltInProvider(provider) && provider != 'custom') {
@@ -1262,7 +1155,8 @@ class CloudModelController extends GetxController {
       await _hive.setSetting(
           '$_cacheTimePrefix$provider', fetchedAt.toIso8601String());
       await _hive.setSetting('$_workingUrlPrefix$provider', workingUrl);
-      autoDetectProvidersFromModels(provider, ids);
+      // NOTE: no auto-detected vendor cards — aggregator models stay
+      // inside their source card (company chips filter by vendor).
     } catch (e) {
       errorByProvider[provider] = '$e';
       Get.find<AppLogService>().warning(
