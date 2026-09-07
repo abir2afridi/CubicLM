@@ -589,14 +589,14 @@ class CliManagerService extends GetxService {
             timeout: const Duration(seconds: 30));
         if (r.ok) version = r.stdout.trim().split('\n').first.trim();
       } catch (_) {}
-      _pendingDetection = _Detected(m, version, bin);
+      _pendingDetection = DetectedCli(m, version, bin);
       return m;
     }
     return null;
   }
 
-  _Detected? _pendingDetection;
-  _Detected? consumeDetection() {
+  DetectedCli? _pendingDetection;
+  DetectedCli? consumeDetection() {
     final d = _pendingDetection;
     _pendingDetection = null;
     return d;
@@ -681,8 +681,10 @@ class CliManagerService extends GetxService {
       environment: ctx.env.isEmpty ? null : ctx.env,
       timeout: const Duration(minutes: 3),
     );
-    if (!r.ok) throw ProviderException('cache-failed',
-        'npm cache clean failed (exit ${r.exitCode}).');
+    if (!r.ok) {
+      throw ProviderException('cache-failed',
+          'npm cache clean failed (exit ${r.exitCode}).');
+    }
     return 'npm cache cleared';
   }
 
@@ -806,12 +808,12 @@ class CliManagerService extends GetxService {
   }
 }
 
-class _Detected {
+class DetectedCli {
   final CliManifest manifest;
   final String version;
   final String binaryPath;
 
-  const _Detected(this.manifest, this.version, this.binaryPath);
+  const DetectedCli(this.manifest, this.version, this.binaryPath);
 }
 
 String _stripVersion(String pkg) {

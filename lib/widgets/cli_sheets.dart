@@ -62,7 +62,7 @@ void showCliManagerSheet(BuildContext context) {
               onClose: () => Navigator.pop(sheetCtx)),
           Flexible(
             child: Obx(() {
-              final items = kCliCatalog;
+              const items = kCliCatalog;
               return ListView.separated(
                 shrinkWrap: true,
                 itemCount: items.length + 1,
@@ -339,13 +339,13 @@ Widget _catalogRow(BuildContext context, BuildContext sheetCtx,
 
 // ── Install / update / repair flow ──
 
-typedef _OpRunner = Future<String?> Function(
+typedef CliOpRunner = Future<String?> Function(
     CliStepFn onStep, void Function(String) onLog, bool Function() isCancelled);
 
 /// Operation sheet with REAL step progress (never faked): each step flips
 /// to ✓/✗ only when the underlying operation actually finishes/fails.
 void showCliOpSheet(BuildContext context, CliManifest m,
-    {required String title, required _OpRunner runner}) {
+    {required String title, required CliOpRunner runner}) {
   showAppBottomSheet(
     context,
     builder: (sheetCtx) => _CliOpSheet(
@@ -359,7 +359,7 @@ void showCliOpSheet(BuildContext context, CliManifest m,
 class _CliOpSheet extends StatefulWidget {
   final CliManifest manifest;
   final String title;
-  final _OpRunner runner;
+  final CliOpRunner runner;
 
   const _CliOpSheet(
       {required this.manifest, required this.title, required this.runner});
