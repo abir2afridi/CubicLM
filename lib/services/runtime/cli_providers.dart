@@ -77,11 +77,39 @@ String _stripVersion(String pkg) {
   return at < 0 ? pkg : pkg.substring(0, at);
 }
 
+/// Install-provider abstraction (§16). New mechanisms (binary,
+/// archive, git…) plug in here without touching the manager or UI.
+abstract class CliInstallProvider {
+  /// Human id, e.g. 'npm'.
+  String get id;
+
+  /// Real install. Throws [ProviderException] on failure.
+  Future<ProviderResult> install(
+    CliManifest manifest,
+    CliInstallCtx ctx, {
+    required CliStepFn onStep,
+    required void Function(String line) onLog,
+    bool Function()? isCancelled,
+    bool latest = false,
+  });
+
+  /// Real verification (binary exists + version runs).
+  Future<ProviderResult> verify(
+    CliManifest manifest,
+    CliInstallCtx ctx, {
+    required CliStepFn onStep,
+  });
+}
+
 /// Real `npm install -g <pkg> --prefix <managed>` provider.
-class NpmGlobalProvider {
+class NpmGlobalProvider implements CliInstallProvider {
   /// Install [manifest] for real, streaming progress through [onStep]
   /// and raw lines through [onLog]. [isCancelled] is polled; the npm
   /// process is killed on cancel. Throws [ProviderException] on failure.
+  @override
+  String get id => 'npm';
+
+  @override
   Future<ProviderResult> install(
     CliManifest manifest,
     CliInstallCtx ctx, {
@@ -159,7 +187,7 @@ class NpmGlobalProvider {
     if (code != 0) {
       onStep('install-package', 'fail', 'npm exited with code $code');
       throw ProviderException('install-failed',
-          'npm install failed (exit $code) — see terminal log.');
+          'npm install failed (exit $code) — see terminal log. If you are offline, connect and Retry.');
     }
     onStep('install-package', 'ok', 'Package installed');
 
@@ -167,6 +195,7 @@ class NpmGlobalProvider {
   }
 
   /// Verify the binary exists + runs its version command for real.
+  @override
   Future<ProviderResult> verify(
     CliManifest manifest,
     CliInstallCtx ctx, {

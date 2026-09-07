@@ -44,6 +44,9 @@ class CliManagerService extends GetxService {
   /// Last known versions per manifest id.
   final versions = <String, String>{}.obs;
 
+  /// Newest published versions seen (update checks, §35).
+  final latestVersions = <String, String>{}.obs;
+
   /// Manifest id currently installing (queue of one — §59).
   final installingId = RxnString();
 
@@ -456,6 +459,9 @@ class CliManagerService extends GetxService {
           ));
         }
         liveStatus[m.id] = CliStatus.ready;
+        // Background update check (§35): never blocks, never fails
+        // loudly — offline just means "unknown", not an error state.
+        unawaited(_refreshUpdateAvailable(m, versions[m.id] ?? ''));
       } catch (_) {
         liveStatus[m.id] = CliStatus.broken;
       }
@@ -472,6 +478,23 @@ class CliManagerService extends GetxService {
         await verify(m);
       } catch (_) {}
     }
+  }
+
+  /// Compare current vs published; flip to updateAvailable when newer.
+  Future<void> _refreshUpdateAvailable(
+      CliManifest m, String current) async {
+    try {
+      if (m.provider != CliProviderKind.npm) return;
+      final ctx = await _ctx();
+      final latest = await NpmGlobalProvider.latestVersion(m, ctx);
+      if (latest == null || latest.isEmpty) return;
+      latestVersions[m.id] = latest;
+      if (current.isNotEmpty &&
+          latest != current &&
+          liveStatus[m.id] == CliStatus.ready) {
+        liveStatus[m.id] = CliStatus.updateAvailable;
+      }
+    } catch (_) {}
   }
 
   /// Newest published version (needs net) or null when unknowable.

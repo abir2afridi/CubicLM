@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:cubiclm/services/runtime/ansi.dart';
+import 'package:cubiclm/services/runtime/cli_manager.dart';
 import 'package:cubiclm/services/runtime/cli_manifest.dart';
 import 'package:cubiclm/services/runtime/cli_providers.dart';
 
@@ -99,7 +101,56 @@ void main() {
       expect(cliIsLaunchable(CliStatus.notInstalled), isFalse);
     });
   });
+
+  group('stripAnsi', () {
+    test('removes colors and cursor codes, keeps text', () {
+      expect(stripAnsi('\x1B[32m✓ ok\x1B[0m'), '✓ ok');
+      expect(stripAnsi('\x1B[1;34mclaude\x1B[0m'), 'claude');
+      expect(stripAnsi('\x1B[?1049h\x1B[Htitle'), 'title');
+    });
+
+    test('plain text untouched', () {
+      expect(stripAnsi('npm run dev'), 'npm run dev');
+      expect(stripAnsi(''), '');
+    });
+  });
+
+  group('command history', () {
+    test('records, dedups, caps and skips secrets', () {
+      final mgr = CliManagerService();
+      for (var i = 0; i < 60; i++) {
+        mgr.recordCommand('cmd-$i');
+      }
+      expect(mgr.recentCommands.length, 50);
+      expect(mgr.recentCommands.first, 'cmd-59');
+      mgr.recordCommand('cmd-59');
+      expect(mgr.recentCommands.length, 50);
+      expect(mgr.recentCommands.first, 'cmd-59');
+      mgr.recordCommand('run --token abc123');
+      expect(mgr.recentCommands.contains('run --token abc123'), isFalse);
+      mgr.recordCommand('cline auth');
+      expect(mgr.recentCommands.contains('cline auth'), isFalse);
+      mgr.recordCommand('   ');
+      expect(mgr.recentCommands.length, 50);
+    });
+
+    test('suggests installed commands by prefix', () {
+      final mgr = CliManagerService();
+      mgr.recordCommand('npm run dev');
+      // git is a system entry → suggested even when unregistered.
+      expect(suggestContains(mgr.suggestCommands('gi'), 'git'), isTrue);
+      expect(
+          suggestContains(
+              mgr.suggestCommands('npm'), 'npm run dev'),
+          isTrue);
+      expect(mgr.suggestCommands(''), isEmpty);
+      expect(mgr.suggestCommands('zzz'), isEmpty);
+    });
+  });
 }
+
+bool suggestContains(List<String> sug, String want) =>
+    sug.any((s) => s == want || s.startsWith('$want '));
 
 List<String> npmOnePkgs(Iterable<CliManifest> ms) =>
     ms.map((m) => m.npmPackage ?? '').toList();

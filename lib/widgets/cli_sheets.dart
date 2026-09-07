@@ -71,7 +71,7 @@ void showCliManagerSheet(BuildContext context) {
                   if (i == items.length) {
                     return _storageFooter(sheetCtx, mgr);
                   }
-                  return _cliRow(sheetCtx, c, mgr, items[i]);
+                  return _cliRow(context, sheetCtx, c, mgr, items[i]);
                 },
               );
             }),
@@ -95,8 +95,8 @@ void showCliManagerSheet(BuildContext context) {
   );
 }
 
-Widget _cliRow(BuildContext sheetCtx, AgentController c,
-    CliManagerService mgr, CliManifest m) {
+Widget _cliRow(BuildContext context, BuildContext sheetCtx,
+    AgentController c, CliManagerService mgr, CliManifest m) {
   final st = mgr.statusOf(m);
   final ver = mgr.versions[m.id] ?? '';
   final launchable = cliIsLaunchable(st);
@@ -142,12 +142,28 @@ Widget _cliRow(BuildContext sheetCtx, AgentController c,
           },
           child: const Text('Open'),
         ),
+      // Unhealthy states get an inline Fix shortcut (§13) — full
+      // actions stay in the detail sheet to keep cards clean (§5).
+      if (!launchable &&
+          (st == CliStatus.runtimeMissing ||
+              st == CliStatus.binaryMissing ||
+              st == CliStatus.broken ||
+              st == CliStatus.error))
+        TextButton(
+          onPressed: () {
+            Navigator.pop(sheetCtx);
+            showCliDetailSheet(context, m);
+          },
+          child: Text('Fix',
+              style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w700, color: AppColors.error)),
+        ),
       IconButton(
         tooltip: 'More actions',
         icon: const Icon(LucideIcons.moreVertical, size: 18),
         onPressed: () {
           Navigator.pop(sheetCtx);
-          showCliDetailSheet(sheetCtx, m);
+          showCliDetailSheet(context, m);
         },
       ),
     ]),
@@ -588,10 +604,14 @@ void showCliDetailSheet(BuildContext context, CliManifest m) {
             child: Obx(() {
               final st = mgr.statusOf(m);
               final ver = mgr.versions[m.id] ?? '';
+              final latest = mgr.latestVersions[m.id] ?? '';
               final entry = mgr.installed
                   .firstWhereOrNull((e) => e.manifestId == m.id);
               return ListView(shrinkWrap: true, children: [
                 _detailRow('Version', ver.isEmpty ? '—' : ver),
+                if (latest.isNotEmpty && latest != ver)
+                  _detailRow('Latest', latest,
+                      color: const Color(0xFF4ADE80)),
                 _detailRow('Status', cliStatusLabel(st),
                     color: _statusColor(st)),
                 _detailRow('Runtime', m.runtime),

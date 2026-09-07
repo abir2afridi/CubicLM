@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../controllers/agent_controller.dart';
 import '../controllers/settings_controller.dart';
@@ -1253,6 +1254,19 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             child: const Padding(
               padding: EdgeInsets.all(4),
               child: Icon(LucideIcons.copy,
+                  size: 13, color: Color(0xFF9A958C)),
+            ),
+          ),
+          InkWell(
+            onTap: () {
+              final text = c.terminal.join('\n');
+              if (text.trim().isEmpty) return;
+              Share.share(text, subject: 'CubicLM terminal log');
+            },
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(LucideIcons.share2,
                   size: 13, color: Color(0xFF9A958C)),
             ),
           ),

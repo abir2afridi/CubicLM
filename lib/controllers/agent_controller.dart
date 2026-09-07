@@ -15,6 +15,7 @@ import '../services/app_log_service.dart';
 import '../services/cloud_service.dart';
 import '../services/inference_service.dart';
 import '../services/preview_server.dart';
+import '../services/runtime/ansi.dart';
 import '../services/runtime/cli_manager.dart';
 import '../services/runtime/cli_manifest.dart';
 import '../services/runtime/cloud_runtime.dart';
@@ -185,7 +186,9 @@ class AgentController extends GetxController {
       final ts = '${now.hour.toString().padLeft(2, '0')}:'
           '${now.minute.toString().padLeft(2, '0')}:'
           '${now.second.toString().padLeft(2, '0')}';
-      terminal.add('[$ts] $line');
+      // Strip TUI control codes for the log view (colors/cursor/
+      // alternate-screen sequences would render as garbage here).
+      terminal.add('[$ts] ${stripAnsi(line)}');
       while (terminal.length > 200) {
         terminal.removeAt(0);
       }
@@ -1236,7 +1239,7 @@ class AgentController extends GetxController {
       final session = await mgr.launchInProject(m, workDir);
       activeCliId.value = m.id;
       final where = project.value?.name ?? 'sandbox';
-      term('▶ ${m.displayName} started in $where — type below to interact, ■ to stop');
+      term('▶ ${m.displayName} started (pid ${session.pid}) in $where — type below to interact, ■ to stop');
       session.stdoutLines.listen(term);
       session.stderrLines.listen(term);
       unawaited(session.exitCode.then((code) {
@@ -1534,6 +1537,10 @@ class AgentController extends GetxController {
     try {
       Get.find<DevServerManager>().stopAll();
     } catch (_) {}
+    try {
+      Get.find<CliManagerService>().killAllLaunched();
+    } catch (_) {}
+    activeCliId.value = null;
     super.onClose();
   }
 }
