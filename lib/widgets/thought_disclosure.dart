@@ -165,9 +165,9 @@ class _ThoughtDisclosureState extends State<ThoughtDisclosure>
         // Content
         SizeTransition(
           sizeFactor: _expandAnimation,
-          // ignore: deprecated_member_use
           // `alignment` exists only on newer Flutter; axisAlignment keeps
           // this compiling on stable 3.38 and CI's newer SDK alike.
+          // ignore: deprecated_member_use
           axisAlignment: -1.0,
           child: Container(
             margin: const EdgeInsets.only(top: 4, bottom: 12),
