@@ -90,6 +90,14 @@ class CliManagerService extends GetxService {
     if (_ready) return;
     _ready = true;
     try {
+      Get.find<RuntimeManager>().registerRunner('cli', () {
+        if (_launched.isEmpty) return '';
+        return _launched.entries
+            .map((e) => '• CLI ${e.key} (pid ${e.value.pid})')
+            .join('\n');
+      });
+    } catch (_) {}
+    try {
       final docs = await getApplicationDocumentsDirectory();
       _cliDir = '${docs.path}/cli';
       try {

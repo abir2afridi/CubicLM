@@ -36,11 +36,21 @@ enum NodeInstallState {
   notInstalled,
 }
 
+/// First non-empty output line (version strings). Pure — tested.
+String firstVersionLine(String output) {
+  for (final line in output.split('\n')) {
+    final t = line.trim();
+    if (t.isNotEmpty) return t.length > 64 ? t.substring(0, 64) : t;
+  }
+  return '';
+}
+
 /// Snapshot of what the device can actually execute.
 class RuntimeStatus {
   final bool nodeAvailable;
   final String nodeVersion;
   final String npmVersion;
+  final String npxVersion;
   final String? nodePath;
   final String? npmPath;
   final String platform;
@@ -54,6 +64,7 @@ class RuntimeStatus {
     required this.nodeAvailable,
     this.nodeVersion = '',
     this.npmVersion = '',
+    this.npxVersion = '',
     this.nodePath,
     this.npmPath,
     this.platform = '',
@@ -80,6 +91,36 @@ class RuntimeManager extends GetxService {
   );
 
   bool _checking = false;
+
+  /// Live runner registry ("which runtimes are currently running?").
+  /// Dev servers, CLI sessions (and future runtimes) register a
+  /// describer here — no imports, no cycles, extensible by design.
+  final _runners = <String, String Function()>{};
+
+  void registerRunner(String id, String Function() describe) {
+    try {
+      _runners[id] = describe;
+    } catch (_) {}
+  }
+
+  void unregisterRunner(String id) {
+    try {
+      _runners.remove(id);
+    } catch (_) {}
+  }
+
+  /// Human summary of everything executing right now.
+  String runningSummary() {
+    final lines = <String>[];
+    for (final d in _runners.values) {
+      try {
+        final s = d().trim();
+        if (s.isNotEmpty) lines.add(s);
+      } catch (_) {}
+    }
+    if (lines.isEmpty) return 'No runtimes running.';
+    return lines.join('\n');
+  }
 
   /// Probe node + npm. Safe to call repeatedly (guarded + cached 30s).
   Future<RuntimeStatus> refresh({bool force = false}) async {
@@ -162,7 +203,7 @@ class RuntimeManager extends GetxService {
           nodePath, const ['--version'],
           timeout: const Duration(seconds: 15));
       if (!r.ok) throw Exception(r.stderr.trim());
-      nodeVer = r.stdout.trim().split('\n').first.trim();
+      nodeVer = firstVersionLine(r.stdout);
     } catch (e) {
       return RuntimeStatus(
         nodeAvailable: false,
@@ -190,14 +231,26 @@ class RuntimeManager extends GetxService {
         final r = await ProcessRunner.runOneShot(
             npmPath, const ['--version'],
             timeout: const Duration(seconds: 15));
-        if (r.ok) npmVer = r.stdout.trim().split('\n').first.trim();
+        if (r.ok) npmVer = firstVersionLine(r.stdout);
       } catch (_) {}
     }
+    // npx probe (non-fatal — informational only).
+    String npxVer = '';
+    try {
+      final npx = await ProcessRunner.resolveExecutable('npx');
+      if (npx != null) {
+        final r = await ProcessRunner.runOneShot(
+            npx, const ['--version'],
+            timeout: const Duration(seconds: 15));
+        if (r.ok) npxVer = firstVersionLine(r.stdout);
+      }
+    } catch (_) {}
 
     return RuntimeStatus(
       nodeAvailable: true,
       nodeVersion: nodeVer,
       npmVersion: npmVer,
+      npxVersion: npxVer,
       nodePath: nodePath,
       npmPath: npmPath,
       platform: platform,

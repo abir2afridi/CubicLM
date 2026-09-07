@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Performance
 - **Streaming throttles** - partial parse ~2/sec, live disk write 1.5s, preview reload only on change; capped buffers and file sizes throughout.
 
+### Fixed
+- **Runtime hardening** - npx version probe, live "which runtimes are running" registry (dev servers + CLI sessions), Case-A regression pins (framework kinds never route static), template grid scrolls on short screens.
+
 ## [1.8.1+14] - 2026-09-05
 
 ### Fixed

@@ -20,6 +20,8 @@ void main() {
     test('static has no dev process', () {
       expect(() => runtimeFor(ProjectKind.staticSite).devArgs(80),
           throwsUnsupportedError);
+      expect(() => runtimeFor(ProjectKind.unknown).devArgs(80),
+          throwsUnsupportedError);
     });
 
     test('every kind resolves a labeled adapter', () {

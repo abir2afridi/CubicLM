@@ -62,6 +62,20 @@ class DevServerSession {
 class DevServerManager extends GetxService {
   final _sessions = <String, DevServerSession>{};
 
+  @override
+  void onInit() {
+    super.onInit();
+    try {
+      Get.find<RuntimeManager>().registerRunner('dev-servers', () {
+        if (_sessions.isEmpty) return '';
+        return _sessions.values
+            .map((s) =>
+                '• ${s.runtime.label} dev server ${s.url} (project ${s.projectId})')
+            .join('\n');
+      });
+    } catch (_) {}
+  }
+
   /// Active servers (projectId → session).
   Map<String, DevServerSession> get sessions => Map.unmodifiable(_sessions);
 

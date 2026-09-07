@@ -68,5 +68,41 @@ void main() {
       expect(d.route, PreviewRoute.devServerPipeline);
       expect(d.actions, containsAll(['recheck-runtime', 'use-cloud']));
     });
+
+    test('Case-A regression: framework kinds NEVER route static', () {
+      for (final k in [
+        ProjectKind.vite,
+        ProjectKind.nextjs,
+        ProjectKind.nodeGeneric
+      ]) {
+        for (final node in [true, false]) {
+          final d = routePreview(
+              kind: k, issues: const [], nodeAvailable: node);
+          expect(d.route, isNot(PreviewRoute.staticServe),
+              reason: '$k node=$node');
+        }
+      }
+    });
+
+    test('blocking issues win over node availability', () {
+      final d = routePreview(
+        kind: ProjectKind.vite,
+        issues: const [
+          ProjectIssue('missing-entry', 'no entry', path: 'index.html')
+        ],
+        nodeAvailable: true,
+      );
+      expect(d.route, PreviewRoute.blockedInvalid);
+      expect(d.actions, contains('fix-issues'));
+    });
+
+    test('static with blockers is blocked, not silently served', () {
+      final d = routePreview(
+        kind: ProjectKind.staticSite,
+        issues: const [ProjectIssue('missing-entry', 'no entry')],
+        nodeAvailable: false,
+      );
+      expect(d.route, PreviewRoute.blockedInvalid);
+    });
   });
 }
