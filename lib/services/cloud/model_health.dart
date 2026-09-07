@@ -155,6 +155,26 @@ List<String> findNewModels(List<String> before, List<String> after) {
   return after.where((m) => !known.contains(m)).toList();
 }
 
+/// True for transient probe failures worth ONE retry after a short
+/// backoff (rate limits from burst probing, overloaded / 5xx,
+/// timeouts). Auth / not-found / quota-zero errors are permanent.
+bool isRetryableProbeError(String raw) {
+  final lower = raw.toLowerCase();
+  if (RegExp(r'\b(429|408|500|502|503|504)\b').hasMatch(lower)) return true;
+  const markers = [
+    'rate limit',
+    'too many requests',
+    'overloaded',
+    'try again',
+    'timeout',
+    'timed out',
+    'temporarily',
+    'connection reset',
+    'socket',
+  ];
+  return markers.any(lower.contains);
+}
+
 /// Non-blocking key-shape hint ("does this look like provider X's
 /// key?"). Returns null when fine or provider unknown — formats can
 /// change, so this never blocks saving.

@@ -116,6 +116,22 @@ void main() {
     });
   });
 
+  group('isRetryableProbeError', () {
+    test('transient errors retry', () {
+      expect(isRetryableProbeError('Rate limited (429)'), isTrue);
+      expect(isRetryableProbeError('Exception: 503 overloaded'), isTrue);
+      expect(isRetryableProbeError('TimeoutException after 60s'), isTrue);
+      expect(isRetryableProbeError('socket reset by peer'), isTrue);
+    });
+
+    test('permanent errors do not retry', () {
+      expect(isRetryableProbeError('Invalid key (401)'), isFalse);
+      expect(isRetryableProbeError('Not found (404)'), isFalse);
+      expect(isRetryableProbeError('Quota is zero — no allowance'), isFalse);
+      expect(isRetryableProbeError('Unknown provider: x'), isFalse);
+    });
+  });
+
   group('keyFormatHint', () {
     test('google expects AIza prefix', () {
       expect(keyFormatHint('google', 'AIzaSyABC123'), isNull);

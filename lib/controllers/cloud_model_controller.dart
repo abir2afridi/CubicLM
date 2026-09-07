@@ -1259,7 +1259,12 @@ class CloudModelController extends GetxController {
       testingByProvider[provider] == true;
 
   /// Ping every listed model with one tiny chat call (concurrency 3,
-  /// 20s each). Records online/failed + latency per model. Cancel via
+  /// 60s each — thinking models need time for the first token).
+  /// Transient failures (429/5xx/timeout) get ONE retry after 8s so
+  /// burst probing doesn't mass-mark working models as failed. A probe
+  /// counts when the stream yields any chunk or completes cleanly
+  /// (empty first chunks are normal for reasoning models).
+  /// Records online/failed + latency per model. Cancel via
   /// [cancelTesting]. Skipped entirely without an API key.
   Future<void> testAllModels(String provider) async {
     if (isTesting(provider)) return;
@@ -1310,16 +1315,7 @@ class CloudModelController extends GetxController {
                       DateTime.now().millisecondsSinceEpoch));
           final sw = Stopwatch()..start();
           try {
-            await cloud
-                .streamMessageAs(
-                  providerId: provider,
-                  model: model,
-                  messages: const [
-                    {'role': 'user', 'content': 'Reply with: ok'}
-                  ],
-                )
-                .first
-                .timeout(const Duration(seconds: 20));
+            await _probeModel(cloud, provider, model);
             sw.stop();
             _setOneHealth(
                 provider,
@@ -1371,6 +1367,45 @@ class CloudModelController extends GetxController {
 
   void cancelTesting(String provider) {
     _testCancel[provider] = true;
+  }
+
+  /// One model probe: streams 'Reply with: ok' and succeeds on any
+  /// chunk or clean completion (reasoning models often open with
+  /// empty/thought chunks and need tens of seconds). Transient
+  /// errors get a single retry after 8s backoff.
+  Future<void> _probeModel(
+      CloudService cloud, String provider, String model) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) {
+        await Future.delayed(const Duration(seconds: 8));
+      }
+      try {
+        var gotChunk = false;
+        await for (final chunk in cloud
+            .streamMessageAs(
+              providerId: provider,
+              model: model,
+              messages: const [
+                {'role': 'user', 'content': 'Reply with: ok'}
+              ],
+            )
+            .timeout(const Duration(seconds: 60))) {
+          gotChunk = true;
+          if (chunk.trim().isNotEmpty) break;
+        }
+        if (!gotChunk) throw Exception('Empty response stream');
+        return;
+      } catch (e) {
+        lastError = e;
+        if (_testCancel[provider] == true) rethrow;
+        if (attempt == 0 && isRetryableProbeError(summarizeModelError(e))) {
+          continue;
+        }
+        rethrow;
+      }
+    }
+    throw lastError ?? Exception('Probe failed');
   }
 
   final _testCancel = <String, bool>{};
