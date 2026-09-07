@@ -1285,10 +1285,13 @@ class ModelView extends GetView<ModelController> {
                   child: Obx(() {
                     final configured = cloudModels.isConfigured(provider.id);
                     final isReallyActive = isSelected && configured;
-                    return Row(
+                    // Main action stays full-width; icon actions get
+                    // their own row below so the button never shrinks.
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: FilledButton.tonal(
+                        FilledButton.tonal(
                             onPressed: () {
                               if (isReallyActive) {
                                 cloudModels.deactivateCloudProvider();
@@ -1314,12 +1317,17 @@ class ModelView extends GetView<ModelController> {
                                     ? 'model_set_as_active'.tr
                                     : provider.id == 'custom'
                                         ? 'model_configure_endpoint'.tr
-                                        : 'model_add_api_key'.tr),
-                          ),
-                        ),
-                        if (configured) ...[
-                          const SizedBox(width: 8),
-                          if (provider.id != 'custom')
+                                         : 'model_add_api_key'.tr),
+                           ),
+                         if (configured)
+                           Padding(
+                             padding: const EdgeInsets.only(top: 8),
+                             child: Wrap(
+                               spacing: 8,
+                               runSpacing: 8,
+                               crossAxisAlignment: WrapCrossAlignment.center,
+                               children: [
+                           if (provider.id != 'custom')
                             Obx(() {
                               final pinned =
                                   cloudModels.isPinned(provider.id);
@@ -1433,7 +1441,9 @@ class ModelView extends GetView<ModelController> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
-                        ],
+                               ],
+                             ),
+                           ),
                       ],
                     );
                   }),

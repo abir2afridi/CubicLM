@@ -141,6 +141,39 @@ void main() {
       expect(unkeyed, isNot(contains('custom')));
     });
 
+    test('no ghost keys: stability mirrors nothing without its own key', () {
+      final c = makeController();
+      final s = Get.find<SettingsController>();
+      c.allProviders.clear();
+      c.allProviders.assignAll([
+        info('custom', 'Custom API'),
+        info('openai', 'OpenAI'),
+        info('stability', 'Stability AI'),
+      ]);
+      // Only the OpenAI key is set — stability must stay unconfigured.
+      s.openaiKey.value = 'k-openai';
+      expect(c.apiKeyFor('stability'), isEmpty);
+      expect(c.isConfigured('stability'), isFalse);
+      expect(c.isConfigured('openai'), isTrue);
+      final ids = c.orderedProviders().map((p) => p.id).toList();
+      expect(ids, ['custom', 'openai']);
+      expect(c.unkeyedProviders.map((p) => p.id), contains('stability'));
+      // With its own key, stability joins the keyed list.
+      s.stabilityKey.value = 'k-stability';
+      expect(c.isConfigured('stability'), isTrue);
+      expect(
+          c.orderedProviders().map((p) => p.id),
+          containsAll(['custom', 'openai', 'stability']));
+    });
+
+    test('unknown provider ids fail closed (no borrowed key)', () {
+      final c = makeController();
+      final s = Get.find<SettingsController>();
+      s.openaiKey.value = 'k-openai';
+      expect(c.apiKeyFor('no-such-provider'), isEmpty);
+      expect(c.isConfigured('no-such-provider'), isFalse);
+    });
+
     test('orderedProviders excludes unkeyed providers', () {
       final c = makeController();
       c.allProviders.clear();

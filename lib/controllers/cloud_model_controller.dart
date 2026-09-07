@@ -579,6 +579,8 @@ class CloudModelController extends GetxController {
       return apiKeyFor('openrouter');
     }
     switch (provider) {
+      case 'openai':
+        return _settings.openaiKey.value;
       case 'openrouter':
         return _settings.openRouterKey.value;
       case 'anthropic':
@@ -614,10 +616,16 @@ class CloudModelController extends GetxController {
       case 'xkiro':
         return _settings.xkiroKey.value;
       case 'tokenrouter':
-        return _settings.tokenrouterKey.value;      case 'custom':
+        return _settings.tokenrouterKey.value;
+      case 'stability':
+        return _settings.stabilityKey.value;
+      case 'custom':
         return _settings.customCloudKey.value;
       default:
-        return _settings.openaiKey.value;
+        // Fail closed: unknown ids are unconfigured (never borrow
+        // another provider's key — that ghost-marks unkeyed providers
+        // as configured and leaks keys across providers).
+        return '';
     }
   }
 
