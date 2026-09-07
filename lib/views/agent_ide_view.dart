@@ -219,6 +219,63 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             icon: const Icon(LucideIcons.plus, size: 20, color: Dt.accent),
             onPressed: _newProjectReset,
           ),
+          // CubicWeb System Logs in the main header (badge = unread).
+          Obx(() {
+            int n = 0;
+            try {
+              n = Get.find<CubicWebLogger>().unreadErrors.value;
+            } catch (_) {}
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  tooltip: 'CubicWeb System Logs',
+                  icon: Icon(LucideIcons.activity,
+                      size: 20,
+                      color: n > 0
+                          ? AppColors.error
+                          : (isDark
+                              ? AppColors.textPrimary
+                              : Dt.iconDefault)),
+                  onPressed: () =>
+                      Get.to(() => const SystemLogsView(),
+                          transition: Transition.rightToLeft,
+                          duration:
+                              const Duration(milliseconds: 260),
+                          curve: Curves.easeOutCubic),
+                ),
+                if (n > 0)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 4, vertical: 1),
+                      constraints: const BoxConstraints(
+                          minWidth: 16, minHeight: 16),
+                      decoration: BoxDecoration(
+                        color: AppColors.error,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: Theme.of(context)
+                                .scaffoldBackgroundColor,
+                            width: 1.5),
+                      ),
+                      child: Center(
+                        child: Text(
+                          n > 99 ? '99+' : '$n',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                              height: 1),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          }),
           // Always visible: without a project the icon is dimmed and
           // project-dependent items are disabled.
           Obx(() {
@@ -829,13 +886,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   c.webSearch.value = !c.webSearch.value,
             ),
             const SizedBox(width: 6),
-            AppCircleButton(
-              icon: LucideIcons.puzzle,
-              tooltip: 'Component library',
-              onTap: () =>
-                  _showComponentLibrary(context, isDark),
-            ),
-            const SizedBox(width: 6),
             Opacity(
               opacity: hasProject ? 1.0 : 0.35,
               child: AppCircleButton(
@@ -1278,54 +1328,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               padding: EdgeInsets.all(4),
               child: Icon(LucideIcons.wand2,
                   size: 13, color: Color(0xFF9A958C)),
-            ),
-          ),
-          InkWell(
-            onTap: () => Get.to(() => const SystemLogsView(),
-                transition: Transition.rightToLeft,
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOutCubic),
-            borderRadius: BorderRadius.circular(6),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Obx(() {
-                int n = 0;
-                try {
-                  n = Get.find<CubicWebLogger>().unreadErrors.value;
-                } catch (_) {}
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    const Icon(LucideIcons.activity,
-                        size: 13, color: Color(0xFF9A958C)),
-                    if (n > 0)
-                      Positioned(
-                        right: -4,
-                        top: -4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 3, vertical: 1),
-                          constraints: const BoxConstraints(
-                              minWidth: 13, minHeight: 13),
-                          decoration: BoxDecoration(
-                            color: AppColors.error,
-                            borderRadius: BorderRadius.circular(7),
-                          ),
-                          child: Center(
-                            child: Text(
-                              n > 99 ? '99+' : '$n',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 7,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                  height: 1),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              }),
             ),
           ),
           InkWell(

@@ -497,7 +497,7 @@ ClassificationResult classifyFailure({
 
   // 8. Timeouts.
   if (has(['timed out', 'timeoutexception', 'etimedout'])) {
-    return ClassificationResult(
+    return const ClassificationResult(
       category: CwCategory.process,
       errorCode: CwCodes.processFailed,
       aiCanFix: false,

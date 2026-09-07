@@ -34,7 +34,7 @@ void main() {
     });
 
     test('long unknown errors are trimmed to one line', () {
-      final e = Exception('weird\nmultiline   error ' + 'x' * 200);
+      final e = Exception('weird\nmultiline   error ${'x' * 200}');
       final s = summarizeModelError(e);
       expect(s.contains('\n'), isFalse);
       expect(s.length, lessThanOrEqualTo(91));
