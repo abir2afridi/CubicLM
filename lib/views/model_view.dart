@@ -8,6 +8,7 @@ import '../controllers/cloud_model_controller.dart';
 import '../controllers/model_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import '../services/cloud/model_health.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/design_tokens.dart';
 import '../models/ai_model.dart';
@@ -818,10 +819,120 @@ class ModelView extends GetView<ModelController> {
             letterSpacing: 1.2,
           ),
         ),
+        const SizedBox(height: 8),
+        _buildSyncRow(context, cloudModels),
         const SizedBox(height: 12),
         ...cloudModels.providers.map((p) => _buildProviderCard(context, p)),
       ],
     );
+  }
+
+  /// Global model-list sync row: last auto-sync, cadence picker
+  /// (MODEL SYNC INTERVAL HOURS), and manual sync-now.
+  Widget _buildSyncRow(
+      BuildContext context, CloudModelController cloudModels) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Obx(() {
+      final hours = cloudModels.modelSyncIntervalHours.value;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surface : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: isDark
+                  ? AppColors.border
+                  : AppColors.borderLightMode),
+        ),
+        child: Row(children: [
+          const Icon(LucideIcons.refreshCw, size: 14, color: Dt.accent),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              cloudModels.autoSyncLabel(),
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11.5,
+                  color: Theme.of(context).hintColor,
+                  fontWeight: FontWeight.w600),
+            ),
+          ),
+          InkWell(
+            onTap: () => _showSyncIntervalDialog(context, cloudModels),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: Dt.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text('Every ${hours}h',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: Dt.accent)),
+            ),
+          ),
+          const SizedBox(width: 6),
+          InkWell(
+            onTap: () => cloudModels.syncAllNow(),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text('Sync now',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).hintColor)),
+            ),
+          ),
+        ]),
+      );
+    });
+  }
+
+  void _showSyncIntervalDialog(
+      BuildContext context, CloudModelController cloudModels) {
+    const options = [6, 12, 24, 48, 168];
+    Get.dialog(AlertDialog(
+      title: const Text('Model sync interval'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+              'MODEL SYNC INTERVAL HOURS — how often the model list auto-refreshes from each provider.'),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final h in options)
+                ChoiceChip(
+                  label: Text(h == 168 ? 'Weekly' : 'Every ${h}h'),
+                  selected:
+                      cloudModels.modelSyncIntervalHours.value == h,
+                  onSelected: (_) {
+                    cloudModels.setSyncIntervalHours(h);
+                    Get.back();
+                  },
+                ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Get.back(), child: const Text('Close')),
+      ],
+    ));
   }
 
   Widget _buildSkillsTab(BuildContext context) {
@@ -901,6 +1012,9 @@ class ModelView extends GetView<ModelController> {
                   Obx(() {
                     final all = cloudModels.modelsByProvider[provider.id] ?? [];
                     final freeCount = cloudModels.freeModelCountFor(provider.id);
+                    final health = cloudModels.healthSummaryFor(provider.id);
+                    final online = health.$1;
+                    final failed = health.$2;
                     return Row(
                       children: [
                         Text(
@@ -933,7 +1047,33 @@ class ModelView extends GetView<ModelController> {
                               style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.success)),
                           ),
                         ],
+                        if (online > 0 || failed > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: (failed > 0 ? AppColors.error : AppColors.success)
+                                  .withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text('$online online · $failed failed',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  color: failed > 0
+                                      ? AppColors.error
+                                      : AppColors.success)),
+                          ),
+                        ],
                         const Spacer(),
+                        if (failed > 0)
+                          Obx(() => _miniFilterChip(
+                            context,
+                            'Auto-hide failed',
+                            cloudModels.autoHideFailed.value,
+                            () => cloudModels.setAutoHideFailed(
+                                !cloudModels.autoHideFailed.value),
+                          )),
                         if (freeCount > 0)
                           Obx(() => _miniFilterChip(
                             context,
@@ -1040,6 +1180,7 @@ class ModelView extends GetView<ModelController> {
                           final model = filtered[index];
                           final isActive = activeModel == model;
                           final isFree = cloudModels.isFreeModel(provider.id, model);
+                          final health = cloudModels.healthFor(provider.id, model);
                           return _modelListTile(
                             context, cloudModels, provider.id,
                             index: index,
@@ -1047,6 +1188,9 @@ class ModelView extends GetView<ModelController> {
                             isActive: isActive,
                             isFree: isFree,
                             isDark: isDark,
+                            healthStatus: health?.status ??
+                                ModelHealthStatus.unknown,
+                            healthError: health?.error ?? '',
                             onTap: () => cloudModels.selectModel(provider.id, model),
                           );
                         },
@@ -1103,6 +1247,70 @@ class ModelView extends GetView<ModelController> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                           ),
+                          if (provider.supportsFetch)
+                            IconButton(
+                              onPressed: () =>
+                                  cloudModels.importModels(provider.id),
+                              icon: const Icon(LucideIcons.download, size: 20),
+                              tooltip: 'Import from /models',
+                              style: IconButton.styleFrom(
+                                backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Dt.pillMuted,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          Obx(() {
+                            final testing =
+                                cloudModels.isTesting(provider.id);
+                            if (testing) {
+                              final done = cloudModels
+                                      .testDoneByProvider[provider.id] ??
+                                  0;
+                              final total = cloudModels
+                                      .testTotalByProvider[provider.id] ??
+                                  0;
+                              return Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text('$done/$total',
+                                        style: GoogleFonts.firaCode(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: Dt.accent)),
+                                    IconButton(
+                                      onPressed: () => cloudModels
+                                          .cancelTesting(provider.id),
+                                      icon: const Icon(
+                                          LucideIcons.square,
+                                          size: 18),
+                                      tooltip: 'Cancel testing',
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: AppColors.error
+                                            .withValues(alpha: 0.12),
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12)),
+                                      ),
+                                    ),
+                                  ]);
+                            }
+                            return IconButton(
+                              onPressed: () => cloudModels
+                                  .testAllModels(provider.id),
+                              icon: const Icon(
+                                  LucideIcons.activity, size: 20),
+                              tooltip:
+                                  'Test all models (one tiny call each)',
+                              style: IconButton.styleFrom(
+                                backgroundColor: isDark
+                                    ? Colors.white
+                                        .withValues(alpha: 0.05)
+                                    : Dt.pillMuted,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(12)),
+                              ),
+                            );
+                          }),
                           IconButton(
                             onPressed: () => cloudModels.refreshModels(provider.id),
                             icon: const Icon(LucideIcons.refreshCw, size: 20),
@@ -1246,6 +1454,8 @@ class ModelView extends GetView<ModelController> {
     required bool isActive,
     required bool isFree,
     required bool isDark,
+    ModelHealthStatus healthStatus = ModelHealthStatus.unknown,
+    String healthError = '',
     required VoidCallback onTap,
   }) {
     return InkWell(
@@ -1304,6 +1514,32 @@ class ModelView extends GetView<ModelController> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (healthStatus == ModelHealthStatus.online ||
+                healthStatus == ModelHealthStatus.failed ||
+                healthStatus == ModelHealthStatus.testing) ...[
+              const SizedBox(width: 8),
+              Tooltip(
+                message: healthStatus == ModelHealthStatus.online
+                    ? 'Online — answered a test call'
+                    : healthStatus == ModelHealthStatus.testing
+                        ? 'Testing…'
+                        : (healthError.isEmpty
+                            ? 'Failed'
+                            : 'Failed: $healthError'),
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: healthStatus == ModelHealthStatus.online
+                        ? AppColors.success
+                        : healthStatus == ModelHealthStatus.testing
+                            ? Dt.accent
+                            : AppColors.error,
+                  ),
+                ),
+              ),
+            ],
             if (isFree) ...[
               const SizedBox(width: 8),
               Container(

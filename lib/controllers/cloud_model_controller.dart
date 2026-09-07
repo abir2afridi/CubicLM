@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -8,10 +9,12 @@ import 'package:http/http.dart' as http;
 import '../core/constants.dart';
 import '../utils/app_snackbar.dart';
 import '../services/app_log_service.dart';
+import '../services/cloud/cloud_provider_registry.dart';
+import '../services/cloud/model_health.dart';
+import '../services/cloud_service.dart';
 import '../services/hive_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
-import '../services/cloud/cloud_provider_registry.dart';
 import 'settings_controller.dart';
 
 class CloudProviderInfo {
@@ -40,6 +43,10 @@ class CloudModelController extends GetxController {
   static const _cacheTimePrefix = 'cloud_model_cache_time_';
   static const _workingUrlPrefix = 'cloud_model_working_url_';
   static const _discoveredProvidersKey = 'cloud_discovered_providers';
+  static const _healthPrefix = 'cloud_model_health_';
+  static const _autoHideKey = 'cloud_auto_hide_failed';
+  static const _syncIntervalKey = 'cloud_sync_interval_hours';
+  static const _lastAutoSyncKey = 'cloud_last_auto_sync';
 
   static const _knownCompanyIcons = <String, IconData>{
     'openai': Icons.auto_awesome,
@@ -300,6 +307,21 @@ class CloudModelController extends GetxController {
   final companyFilterByProvider = <String, String>{}.obs;
   final freeFirstByProvider = <String, bool>{}.obs;
   final modelTagsByProvider = <String, Map<String, List<String>>>{}.obs;
+
+  /// Liveness per provider+model (online/failed/untested).
+  final modelHealthByProvider =
+      <String, Map<String, ModelHealth>>{}.obs;
+
+  /// Test-all progress: provider → done count / total count.
+  final testingByProvider = <String, bool>{}.obs;
+  final testDoneByProvider = <String, int>{}.obs;
+  final testTotalByProvider = <String, int>{}.obs;
+
+  /// Hide failed models from lists when true (persisted).
+  final autoHideFailed = false.obs;
+
+  /// Auto-sync cadence in hours (persisted, 1–168, default 24).
+  final modelSyncIntervalHours = 24.obs;
   final customProviderError = ''.obs;
   final providerSearchQuery = ''.obs;
   final _dynamicActiveModel = <String, String>{}.obs;
@@ -314,6 +336,10 @@ class CloudModelController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    autoHideFailed.value =
+        _hive.getSetting<bool>(_autoHideKey) ?? false;
+    modelSyncIntervalHours.value =
+        _clampInterval(_hive.getSetting<int>(_syncIntervalKey));
     _initProviders();
     if (!providers.any((provider) => provider.id == activeProvider)) {
       _settings.setCloudProvider('openrouter');
@@ -333,8 +359,15 @@ class CloudModelController extends GetxController {
       if (active.isNotEmpty && !(modelsByProvider[provider.id]?.contains(active) ?? false)) {
         modelsByProvider[provider.id] = [...(modelsByProvider[provider.id] ?? []), active];
       }
+      _loadHealth(provider.id);
     }
     _syncCustomControllers();
+    Future.microtask(maybeAutoSync);
+  }
+
+  int _clampInterval(int? v) {
+    if (v == null) return 24;
+    return v.clamp(1, 168);
   }
 
   void _initProviders() {
@@ -608,6 +641,15 @@ class CloudModelController extends GetxController {
     var source = [...(modelsByProvider[provider] ?? const <String>[])];
     if (active.isNotEmpty && !source.contains(active)) {
       source.insert(0, active);
+    }
+    // Auto-hide failed: drop failed models, but NEVER the active one —
+    // hiding the in-use model would strand the picker.
+    if (autoHideFailed.value) {
+      final health = modelHealthByProvider[provider] ?? const {};
+      source = source.where((id) {
+        if (id == active) return true;
+        return health[id]?.status != ModelHealthStatus.failed;
+      }).toList();
     }
     if (company != null && company.isNotEmpty) {
       source = source
@@ -1026,6 +1068,309 @@ class CloudModelController extends GetxController {
     } finally {
       isLoadingProvider[provider] = false;
     }
+  }
+
+  /// Explicit "Import from /models": fetch the provider's live model
+  /// list and report how many NEW ids arrived (0 = already current).
+  /// Returns the new-model count, or -1 when there is no API key.
+  Future<int> importModels(String provider) async {
+    if (provider != 'custom' && apiKeyFor(provider).isEmpty) {
+      AppSnackbar.showTop('API key needed',
+          'Add an API key for this provider first, then import.',
+          logHistory: false);
+      return -1;
+    }
+    final before =
+        Set<String>.from(modelsByProvider[provider] ?? const <String>[]);
+    await refreshModels(provider);
+    final after = modelsByProvider[provider] ?? const <String>[];
+    final fresh = findNewModels(before.toList(), after);
+    if (errorByProvider[provider]?.isNotEmpty == true) {
+      AppSnackbar.showTop(
+          'Import failed', errorByProvider[provider] ?? 'Unknown error',
+          logHistory: false);
+      return 0;
+    }
+    if (fresh.isEmpty) {
+      AppSnackbar.showTop('Already up to date',
+          '${after.length} models — nothing new on /models.',
+          logHistory: false);
+    } else {
+      AppSnackbar.showTop('Imported ${fresh.length} new model${fresh.length == 1 ? '' : 's'}',
+          fresh.take(3).join(', ') +
+              (fresh.length > 3 ? ' (+${fresh.length - 3} more)' : ''),
+          logHistory: false);
+    }
+    return fresh.length;
+  }
+
+  // ── Test all models ──
+
+  bool isTesting(String provider) =>
+      testingByProvider[provider] == true;
+
+  /// Ping every listed model with one tiny chat call (concurrency 3,
+  /// 20s each). Records online/failed + latency per model. Cancel via
+  /// [cancelTesting]. Skipped entirely without an API key.
+  Future<void> testAllModels(String provider) async {
+    if (isTesting(provider)) return;
+    if (provider != 'custom' && apiKeyFor(provider).isEmpty) {
+      AppSnackbar.showTop('API key needed',
+          'Add an API key for this provider first, then test.',
+          logHistory: false);
+      return;
+    }
+    final models = [...(modelsByProvider[provider] ?? const <String>[])];
+    if (models.isEmpty) {
+      AppSnackbar.showTop(
+          'Nothing to test', 'Import the model list first.',
+          logHistory: false);
+      return;
+    }
+    testingByProvider[provider] = true;
+    testTotalByProvider[provider] = models.length;
+    testDoneByProvider[provider] = 0;
+    _testCancel[provider] = false;
+    _setHealth(
+        provider,
+        Map<String, ModelHealth>.from(modelHealthByProvider[provider] ?? {}),
+        persist: false);
+    try {
+      CloudService cloud;
+      try {
+        cloud = Get.find<CloudService>();
+      } catch (_) {
+        AppSnackbar.showTop(
+            'Cloud unavailable', 'CloudService is not running.',
+            logHistory: false);
+        return;
+      }
+      var cursor = 0;
+      Future<void> worker() async {
+        while (true) {
+          if (_testCancel[provider] == true) return;
+          final i = cursor++;
+          if (i >= models.length) return;
+          final model = models[i];
+          _setOneHealth(
+              provider,
+              ModelHealth(
+                  modelId: model,
+                  status: ModelHealthStatus.testing,
+                  checkedAtMs:
+                      DateTime.now().millisecondsSinceEpoch));
+          final sw = Stopwatch()..start();
+          try {
+            await cloud
+                .streamMessageAs(
+                  providerId: provider,
+                  model: model,
+                  messages: const [
+                    {'role': 'user', 'content': 'Reply with: ok'}
+                  ],
+                )
+                .first
+                .timeout(const Duration(seconds: 20));
+            sw.stop();
+            _setOneHealth(
+                provider,
+                ModelHealth(
+                    modelId: model,
+                    status: ModelHealthStatus.online,
+                    latencyMs: sw.elapsedMilliseconds,
+                    checkedAtMs:
+                        DateTime.now().millisecondsSinceEpoch));
+          } catch (e) {
+            sw.stop();
+            _setOneHealth(
+                provider,
+                ModelHealth(
+                    modelId: model,
+                    status: ModelHealthStatus.failed,
+                    latencyMs: sw.elapsedMilliseconds,
+                    error: summarizeModelError(e),
+                    checkedAtMs:
+                        DateTime.now().millisecondsSinceEpoch));
+          } finally {
+            testDoneByProvider[provider] =
+                (testDoneByProvider[provider] ?? 0) + 1;
+          }
+        }
+      }
+
+      await Future.wait([worker(), worker(), worker()]);
+      await _saveHealth(provider);
+      final ok = (modelHealthByProvider[provider] ?? {})
+          .values
+          .where((h) => h.status == ModelHealthStatus.online)
+          .length;
+      final bad = (modelHealthByProvider[provider] ?? {})
+          .values
+          .where((h) => h.status == ModelHealthStatus.failed)
+          .length;
+      AppSnackbar.showTop(
+          _testCancel[provider] == true
+              ? 'Testing cancelled'
+              : 'Testing done',
+          '$ok online · $bad failed',
+          logHistory: false);
+    } finally {
+      testingByProvider[provider] = false;
+      _testCancel.remove(provider);
+    }
+  }
+
+  void cancelTesting(String provider) {
+    _testCancel[provider] = true;
+  }
+
+  final _testCancel = <String, bool>{};
+
+  // ── Health store ──
+
+  ModelHealth? healthFor(String provider, String model) =>
+      modelHealthByProvider[provider]?[model];
+
+  /// (online, failed) counts for badges.
+  (int, int) healthSummaryFor(String provider) {
+    var ok = 0;
+    var bad = 0;
+    for (final h in (modelHealthByProvider[provider] ?? {}).values) {
+      if (h.status == ModelHealthStatus.online) ok++;
+      if (h.status == ModelHealthStatus.failed) bad++;
+    }
+    return (ok, bad);
+  }
+
+  void _setOneHealth(String provider, ModelHealth h) {
+    final map =
+        Map<String, ModelHealth>.from(modelHealthByProvider[provider] ?? {});
+    map[h.modelId] = h;
+    _setHealth(provider, map, persist: false);
+  }
+
+  void _setHealth(String provider, Map<String, ModelHealth> map,
+      {bool persist = true}) {
+    modelHealthByProvider[provider] = map;
+    if (persist) unawaited(_saveHealth(provider));
+  }
+
+  Future<void> _saveHealth(String provider) async {
+    try {
+      final map = modelHealthByProvider[provider] ?? {};
+      // Cap stored rows to models still listed (stale ids dropped).
+      final listed = (modelsByProvider[provider] ?? const <String>[]).toSet();
+      final rows = map.values
+          .where((h) => listed.contains(h.modelId))
+          .map((h) => h.toMap())
+          .toList();
+      await _hive.setSetting('$_healthPrefix$provider', rows);
+    } catch (_) {}
+  }
+
+  void _loadHealth(String provider) {
+    try {
+      final raw = _hive.getSetting<List>('$_healthPrefix$provider');
+      if (raw == null) return;
+      final map = <String, ModelHealth>{};
+      for (final m in raw.whereType<Map>()) {
+        try {
+          final h = ModelHealth.fromMap(m);
+          if (h.modelId.isNotEmpty) map[h.modelId] = h;
+        } catch (_) {}
+      }
+      if (map.isNotEmpty) modelHealthByProvider[provider] = map;
+    } catch (_) {}
+  }
+
+  // ── Auto-hide failed ──
+
+  Future<void> setAutoHideFailed(bool v) async {
+    autoHideFailed.value = v;
+    try {
+      await _hive.setSetting(_autoHideKey, v);
+    } catch (_) {}
+  }
+
+  // ── Auto-sync ──
+
+  Future<void> setSyncIntervalHours(int h) async {
+    modelSyncIntervalHours.value = _clampInterval(h);
+    try {
+      await _hive.setSetting(
+          _syncIntervalKey, modelSyncIntervalHours.value);
+    } catch (_) {}
+  }
+
+  String autoSyncLabel() {
+    final raw = _hive.getSetting<String>(_lastAutoSyncKey);
+    if (raw == null || raw.isEmpty) return 'Never auto-synced';
+    final at = DateTime.tryParse(raw);
+    if (at == null) return 'Never auto-synced';
+    final diff = DateTime.now().difference(at);
+    if (diff.inMinutes < 1) return 'Auto-synced just now';
+    if (diff.inHours < 1) return 'Auto-synced ${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return 'Auto-synced ${diff.inHours}h ago';
+    return 'Auto-synced ${diff.inDays}d ago';
+  }
+
+  /// Manual "Sync now": refresh every configured provider right away
+  /// and stamp the auto-sync clock.
+  Future<void> syncAllNow() async {
+    var synced = 0;
+    for (final p in providers) {
+      if (p.id == 'custom') continue;
+      if (apiKeyFor(p.id).isEmpty) continue;
+      try {
+        await refreshModels(p.id);
+        if (errorByProvider[p.id]?.isNotEmpty != true) synced++;
+      } catch (_) {}
+    }
+    try {
+      await _hive.setSetting(
+          _lastAutoSyncKey, DateTime.now().toIso8601String());
+    } catch (_) {}
+    AppSnackbar.showTop('Sync complete',
+        synced == 0
+            ? 'No configured provider to refresh.'
+            : '$synced provider${synced == 1 ? '' : 's'} refreshed.',
+        logHistory: false);
+  }
+
+  /// Background auto-sync on start: refresh every configured provider
+  /// whose cache is older than the interval (or never fetched).
+  /// Fire-and-forget, per-provider guarded — never blocks startup.
+  Future<void> maybeAutoSync() async {
+    try {
+      final last = _hive.getSetting<String>(_lastAutoSyncKey);
+      if (!shouldAutoSync(
+          lastSyncIso: last,
+          intervalHours: modelSyncIntervalHours.value,
+          now: DateTime.now())) {
+        return;
+      }
+      var synced = 0;
+      for (final p in providers) {
+        if (p.id == 'custom') continue;
+        if (apiKeyFor(p.id).isEmpty) continue;
+        final fetched = fetchedAtByProvider[p.id];
+        final stale = fetched == null ||
+            DateTime.now().difference(fetched).inHours >=
+                modelSyncIntervalHours.value;
+        if (!stale) continue;
+        try {
+          await refreshModels(p.id);
+          synced++;
+        } catch (_) {}
+      }
+      await _hive.setSetting(
+          _lastAutoSyncKey, DateTime.now().toIso8601String());
+      if (synced > 0) {
+        AppSnackbar.showTop('Models auto-synced',
+            '$synced provider${synced == 1 ? '' : 's'} refreshed.',
+            logHistory: false);
+      }
+    } catch (_) {}
   }
 
   Future<void> refreshCustomModels() async {
