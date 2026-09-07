@@ -16,6 +16,8 @@ import '../services/cloud_service.dart';
 import '../services/inference_service.dart';
 import '../services/preview_server.dart';
 import '../services/runtime/ansi.dart';
+import '../services/cubicweb/cubicweb_event.dart';
+import '../services/cubicweb/cubicweb_logger.dart';
 import '../services/runtime/cli_manager.dart';
 import '../services/runtime/cli_manifest.dart';
 import '../services/runtime/cloud_runtime.dart';
@@ -104,6 +106,45 @@ class AgentController extends GetxController {
 
   /// Cloud fallback provider (unconfigured in this build — honest stub).
   final CloudRuntimeProvider cloudRuntime = UnconfiguredCloudRuntime();
+
+  /// Correlation id for the current build/modify/fix operation (§23).
+  /// Passed to every CubicWeb event so one operation's story rebuilds.
+  String currentTraceId = '';
+
+  CubicWebLogger? get _cw {
+    try {
+      return Get.find<CubicWebLogger>();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _cwPlatform() {
+    try {
+      return Get.find<RuntimeManager>().status.value.platform;
+    } catch (_) {
+      try {
+        if (kIsWeb) return 'web';
+        return Platform.operatingSystem;
+      } catch (_) {
+        return '';
+      }
+    }
+  }
+
+  /// Recent system diagnostics for AI prompts (§16/17). Empty when
+  /// nothing environmental failed — keeps prompts lean.
+  String _cwDiagnosticsForAi() {
+    try {
+      final pid = project.value?.id ?? '';
+      final ctx = _cw?.recentForAi(projectId: pid) ?? '';
+      if (ctx.isEmpty) return '';
+      return 'SYSTEM DIAGNOSTICS (environment — items marked aiCanFix: false '
+          'CANNOT be fixed by editing code, do not rewrite files for them):\n$ctx\n\n';
+    } catch (_) {
+      return '';
+    }
+  }
 
   /// Manifest id of the CLI currently attached to the terminal input
   /// (null = input runs one-shot shell commands).
@@ -346,6 +387,23 @@ class AgentController extends GetxController {
       if (npm == null || npm.isEmpty) {
         term('✗ NEXT_BUILD_FAILED — npm unavailable (NPM_MISSING): Node.js runtime missing.');
         lastError.value = 'npm is unavailable — Node.js runtime missing.';
+        try {
+          _cw?.log(
+            severity: CwSeverity.error,
+            category: CwCategory.runtime,
+            component: 'TERMINAL',
+            errorCode: CwCodes.executableUnavailable,
+            title: 'npm unavailable for build check',
+            message:
+                'The project needs Node.js for `npm run build`, but npm is unavailable in this environment.',
+            operation: 'npm run build',
+            projectId: p.id,
+            traceId: currentTraceId,
+            platform: _cwPlatform(),
+            aiCanFix: false,
+            fallbackAvailable: 'USE_CLOUD_RUNTIME',
+          );
+        } catch (_) {}
         return;
       }
       final dir = await _ws.dirFor(p.id);
@@ -451,6 +509,7 @@ class AgentController extends GetxController {
     lastError.value = null;
     consoleError.value = null;
     _autoRounds = 0;
+    currentTraceId = newTraceId();
     transcript.clear();
     _say('user', t);
     buildStatus.value = 'Designing project…';
@@ -550,6 +609,7 @@ class AgentController extends GetxController {
     generating.value = true;
     _cancelled = false;
     lastError.value = null;
+    currentTraceId = newTraceId();
     _say('user', t);
     buildStatus.value = 'Applying change…';
     term('> modify: "${t.length > 80 ? '${t.substring(0, 80)}…' : t}"');
@@ -572,6 +632,7 @@ class AgentController extends GetxController {
       final raw = await _ask(
         prompt: 'Modify the "${p.name}" ${p.framework} project: $t\n\n'
             'CURRENT FILES:\n$projContext\n\n'
+            '${_cwDiagnosticsForAi()}'
             'LOCAL DEV CLIs (on-device): ${_cliContextLine()}\n\n'
             'Return a files-JSON object with ONLY new or fully-rewritten changed files.',
         system:
@@ -811,20 +872,74 @@ class AgentController extends GetxController {
 
   /// Called by the view's WebView console hook. Auto-repairs (bounded),
   /// otherwise surfaces with a manual Fix button.
+  ///
+  /// Page-load failures are classified first: a dead dev server is an
+  /// environment problem (System Logs), never a rewrite trigger (§27).
   Future<void> onConsoleError(String message) async {
     final p = project.value;
     consoleError.value = message;
     term('✗ console: ${message.length > 160 ? '${message.substring(0, 160)}…' : message}');
+    if (message.startsWith('Page load failed') && p != null) {
+      ClassificationResult? c;
+      try {
+        c = classifyFailure(
+          stderr: message,
+          platform: _cwPlatform(),
+          localhostExpected: devServerUrl.value != null,
+        );
+      } catch (_) {}
+      if (c != null && c.errorCode != null && !c.aiCanFix) {
+        try {
+          _cw?.log(
+            severity: CwSeverity.error,
+            category: c.category,
+            component: 'WEBVIEW',
+            errorCode: c.errorCode!,
+            title: c.title,
+            message: c.explanation,
+            technicalDetails: message,
+            operation: 'preview-load',
+            projectId: p.id,
+            traceId: currentTraceId,
+            platform: _cwPlatform(),
+            aiCanFix: false,
+            fallbackAvailable: c.fallbackAvailable,
+          );
+          term('■ ${c.errorCode} — ${c.title} (see System Logs; no code rewrite)');
+        } catch (_) {}
+        return;
+      }
+    }
     if (p == null || fixing.value || generating.value) return;
     if (!autoFix.value || _autoRounds >= maxRepairRounds) return;
     _autoRounds++;
     await repairFromError();
   }
 
+  /// True when the triggering error deserves a file rewrite. Separated
+  /// so the auto-fix trigger, the manual button and tests share it.
+  bool _shouldRewriteForError(String err) {
+    ClassificationResult c;
+    try {
+      c = classifyFailure(stderr: err, platform: _cwPlatform());
+    } catch (_) {
+      return true;
+    }
+    if (c.errorCode != null && !c.aiCanFix) {
+      term('■ ${c.errorCode} — ${c.title}: environment problem, skipping code rewrite (see System Logs)');
+      _say('assistant',
+          '${c.title} (${c.errorCode}). ${c.explanation} I did not modify your files — open CubicWeb System Logs for details.');
+      return false;
+    }
+    return true;
+  }
+
   Future<void> repairFromError() async {
     final p = project.value;
     final err = consoleError.value;
     if (p == null || err == null || err.isEmpty || fixing.value) return;
+    // No-loop guard (§5): environment failures must not trigger rewrites.
+    if (!_shouldRewriteForError(err)) return;
     fixing.value = true;
     _cancelled = false;
     lastError.value = null;
@@ -837,6 +952,7 @@ class AgentController extends GetxController {
         prompt: 'Fix this runtime error in the "${p.name}" '
             '${p.framework} project:\n\nERROR:\n$err\n\n'
             'CURRENT FILES:\n$projContext\n\n'
+            '${_cwDiagnosticsForAi()}'
             'LOCAL DEV CLIs (on-device): ${_cliContextLine()}\n\n'
             'RECENT TERMINAL (what happened so far):\n'
             '${terminalTail()}\n\n'
@@ -1065,6 +1181,25 @@ class AgentController extends GetxController {
         previewDecision.value = routePreview(
             kind: kind, issues: issues, nodeAvailable: false);
         term('✗ preview needs Node.js — runtime unavailable (${st.platform})');
+        try {
+          _cw?.log(
+            severity: CwSeverity.error,
+            category: CwCategory.preview,
+            component: 'PREVIEW',
+            errorCode: CwCodes.frameworkNeedsRuntime,
+            title:
+                '${CwCodes.titles[CwCodes.frameworkNeedsRuntime]} (${projectKindLabel(kind)})',
+            message:
+                'The project is a ${projectKindLabel(kind)} project and needs Node.js (`npm run dev`), which is unavailable on ${st.platform}. The source may be valid — AI code changes cannot fix this.',
+            operation: 'preview-serve',
+            projectId: p.id,
+            traceId: currentTraceId,
+            platform: st.platform,
+            runtime: st.deviceAbi,
+            aiCanFix: false,
+            fallbackAvailable: 'USE_CLOUD_RUNTIME',
+          );
+        } catch (_) {}
         _say('assistant',
             'This is a ${projectKindLabel(kind)} project — it needs Node.js (`npm run dev`), which is not available on this device. '
             'Static serving cannot execute JSX, so the preview would only show unstyled HTML. '
@@ -1105,6 +1240,24 @@ class AgentController extends GetxController {
       devServerUrl.value = session.url;
       previewUrl.value = session.url;
       _touch();
+      // Recovery story (§41): a live server after a blocking runtime
+      // issue is worth one INFO event, not silence.
+      try {
+        _cw?.log(
+          severity: CwSeverity.info,
+          category: CwCategory.preview,
+          component: 'DEV_SERVER',
+          title: 'Development server started',
+          message:
+              '${session.runtime.label} dev server live at ${session.url} (port ${session.port ?? '?'}).',
+          operation: 'npm run dev',
+          projectId: p.id,
+          traceId: currentTraceId,
+          platform: _cwPlatform(),
+          aiCanFix: true,
+          fallbackUsed: 'LOCAL_RUNTIME',
+        );
+      } catch (_) {}
       final steps = previewSteps.toList()
         ..removeWhere((s) => s.label == 'Preview' || s.label == 'Server');
       steps.add(const PreviewStep('Deps', 'ok', 'node_modules ready'));
@@ -1115,6 +1268,34 @@ class AgentController extends GetxController {
       _say('assistant', 'Dev server is live — the preview now shows the real running app.');
     } on DevServerException catch (e) {
       term('✗ dev server: ${e.message}');
+      // Structured mapping (§18): dependency-flavored failures return
+      // null and stay on the AI path; the rest become System Logs.
+      try {
+        final code = devServerCodeToCw(e.code, e.message);
+        if (code != null) {
+          final cls = classifyFailure(
+              command: 'npm run dev',
+              stderr: e.message,
+              platform: _cwPlatform());
+          _cw?.log(
+            severity: CwSeverity.error,
+            category: cls.category,
+            component: 'DEV_SERVER',
+            errorCode: code,
+            title: CwCodes.titleFor(code),
+            message: e.message,
+            operation: 'npm run dev',
+            projectId: p.id,
+            traceId: currentTraceId,
+            platform: _cwPlatform(),
+            aiCanFix: false,
+            fallbackAvailable: cls.fallbackAvailable.isEmpty
+                ? 'USE_CLOUD_RUNTIME'
+                : cls.fallbackAvailable,
+          );
+          term('■ $code — ${CwCodes.titleFor(code)} (see System Logs)');
+        }
+      } catch (_) {}
       final steps = previewSteps.toList()
         ..removeWhere((s) => s.label == 'Preview' || s.label == 'Server');
       steps.add(PreviewStep('Server', 'fail', e.code));
@@ -1139,6 +1320,23 @@ class AgentController extends GetxController {
     if (devServerUrl.value == null) return;
     devServerUrl.value = null;
     term('✗ RUNTIME_CRASHED — dev server exited ($code) unexpectedly');
+    try {
+      _cw?.log(
+        severity: CwSeverity.error,
+        category: CwCategory.preview,
+        component: 'DEV_SERVER',
+        errorCode: CwCodes.devServerFailed,
+        title: 'Development server stopped unexpectedly',
+        message:
+            'The dev server process exited with code $code. The environment killed or crashed it — rewriting source files will not help.',
+        operation: 'npm run dev',
+        projectId: pid,
+        traceId: currentTraceId,
+        platform: _cwPlatform(),
+        aiCanFix: false,
+        fallbackAvailable: 'RETRY',
+      );
+    } catch (_) {}
     _say('assistant',
         'The dev server crashed (exit $code). Preview fell back to static files — tap “Restart dev server” to bring the live app back.');
     unawaited(_fallbackToStatic());
@@ -1242,6 +1440,20 @@ class AgentController extends GetxController {
     try {
       env = await Get.find<CliManagerService>().managedEnv();
     } catch (_) {}
+    // Evidence buffer for classification (stderr-ish tail, capped).
+    final evidence = StringBuffer();
+    void collect(String line) {
+      if (evidence.length < 2000) {
+        evidence.writeln(line);
+        if (evidence.length > 2000) {
+          final s = evidence.toString();
+          evidence
+            ..clear()
+            ..write(s.substring(s.length - 2000));
+        }
+      }
+    }
+
     try {
       final exe =
           await ProcessRunner.resolveExecutable(parts.first) ?? parts.first;
@@ -1252,8 +1464,14 @@ class AgentController extends GetxController {
         environment: env,
         commandLabel: cmd,
       );
-      final sub1 = session.stdoutLines.listen(term);
-      final sub2 = session.stderrLines.listen(term);
+      final sub1 = session.stdoutLines.listen((l) {
+        term(l);
+        collect(l);
+      });
+      final sub2 = session.stderrLines.listen((l) {
+        term(l);
+        collect(l);
+      });
       final code = await session.exitCode;
       try {
         await sub1.cancel();
@@ -1262,6 +1480,25 @@ class AgentController extends GetxController {
         await sub2.cancel();
       } catch (_) {}
       term(code == 0 ? '✓ exit 0' : '✗ exit $code');
+      // Classify failures at the source (§12/39): environment evidence
+      // becomes a System Log; ordinary failures stay terminal-only.
+      if (code != 0) {
+        try {
+          final ev = _cw?.logClassified(
+            component: 'TERMINAL',
+            operation: 'shell',
+            command: cmd,
+            exitCode: code,
+            stderr: evidence.toString(),
+            platform: _cwPlatform(),
+            projectId: project.value?.id ?? '',
+            traceId: currentTraceId,
+          );
+          if (ev != null) {
+            term('■ ${ev.errorCode} — ${ev.title} (see System Logs; no code rewrite)');
+          }
+        } catch (_) {}
+      }
       // Adopt terminal-installed CLIs into the manager (§34).
       if (code == 0) {
         try {
@@ -1276,6 +1513,22 @@ class AgentController extends GetxController {
       }
     } catch (e) {
       term('✗ could not run "${redactCommand(cmd)}": $e');
+      // Spawn failure IS evidence (executable missing, exec format…).
+      try {
+        final ev = _cw?.logClassified(
+          component: 'TERMINAL',
+          operation: 'shell-spawn',
+          command: cmd,
+          exception: e,
+          processSpawnFailed: true,
+          platform: _cwPlatform(),
+          projectId: project.value?.id ?? '',
+          traceId: currentTraceId,
+        );
+        if (ev != null) {
+          term('■ ${ev.errorCode} — ${ev.title} (see System Logs)');
+        }
+      } catch (_) {}
     }
   }
 
@@ -1412,6 +1665,34 @@ class AgentController extends GetxController {
         'LOCAL DEV CLIs (on-device): ${_cliContextLine()}\n'
         'Return a files-JSON object with the corrected files (complete new contents).';
     await modifyProject();
+  }
+
+  /// Cloud fallback tap (§18/41): no backend is bundled, so this
+  /// records CW-CLOUD-001 (the ORIGINAL local failure stays visible)
+  /// and explains honestly instead of pretending to deploy.
+  void useCloudFallback() {
+    final p = project.value;
+    try {
+      _cw?.log(
+        severity: CwSeverity.warning,
+        category: CwCategory.cloud,
+        component: 'CLOUD',
+        errorCode: CwCodes.cloudUnavailable,
+        title: CwCodes.titleFor(CwCodes.cloudUnavailable),
+        message:
+            'Cloud execution was requested${p == null ? '' : ' for "${p.name}"'}, but no cloud runtime is configured in this build.',
+        operation: 'cloud-fallback',
+        projectId: p?.id ?? '',
+        traceId: currentTraceId,
+        platform: _cwPlatform(),
+        aiCanFix: false,
+      );
+    } catch (_) {}
+    AppSnackbar.showTop(
+      'Cloud runtime',
+      cloudRuntime.unavailableReason,
+      logHistory: false,
+    );
   }
 
   /// First-run welcome lines (§61). Shown once ever.

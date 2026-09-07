@@ -13,6 +13,8 @@ import 'dart:io';
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../cubicweb/cubicweb_event.dart';
+import '../cubicweb/cubicweb_logger.dart';
 import '../hive_service.dart';
 import 'cli_manifest.dart';
 import 'cli_providers.dart';
@@ -226,6 +228,24 @@ class CliManagerService extends GetxService {
       if (!st.nodeAvailable || st.npmPath == null) {
         onStep('check-runtime', 'fail', 'Node.js unavailable');
         liveStatus[m.id] = CliStatus.runtimeMissing;
+        try {
+          Get.find<CubicWebLogger>().log(
+            severity: CwSeverity.error,
+            category: CwCategory.runtime,
+            component: 'CLI',
+            errorCode: CwCodes.nodeUnavailable,
+            title:
+                '${m.displayName} needs Node.js — ${CwCodes.titles[CwCodes.nodeUnavailable]}',
+            message:
+                'Installing ${m.displayName} requires Node.js, which is unavailable on ${st.platform}. AI code changes cannot fix this.',
+            operation: 'cli-install',
+            command: m.command,
+            platform: st.platform,
+            runtime: st.deviceAbi,
+            aiCanFix: false,
+            fallbackAvailable: 'USE_CLOUD_RUNTIME',
+          );
+        } catch (_) {}
         throw ProviderException('runtime-missing',
             'Node.js runtime unavailable — ${st.missingGuidance()}');
       }

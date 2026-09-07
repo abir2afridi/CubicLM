@@ -15,8 +15,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../controllers/agent_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import '../services/cubicweb/cubicweb_logger.dart';
 import '../services/runtime/cli_manager.dart';
 import '../services/runtime/project_detector.dart';
+import 'system_logs_view.dart';
 import '../widgets/cli_sheets.dart';
 import '../services/agent_workspace.dart';
 import '../services/deploy_service.dart';
@@ -1016,6 +1018,20 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 Wrap(spacing: 8, runSpacing: 8, children: [
                   for (final a in decision.actions)
                     _diagnosisAction(context, a),
+                  ActionChip(
+                    label: Text('System Logs',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700)),
+                    avatar: const Icon(LucideIcons.activity, size: 14),
+                    onPressed: () =>
+                        Get.to(() => const SystemLogsView(),
+                            transition: Transition.rightToLeft,
+                            duration:
+                                const Duration(milliseconds: 260),
+                            curve: Curves.easeOutCubic),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ]),
               ],
             ]),
@@ -1050,11 +1066,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       case 'use-cloud':
         label = 'Run in cloud';
         icon = LucideIcons.cloud;
-        onTap = () => AppSnackbar.showTop(
-              'Cloud runtime',
-              c.cloudRuntime.unavailableReason,
-              logHistory: false,
-            );
+        onTap = () => c.useCloudFallback();
       case 'fix-issues':
         label = 'Ask AI to Fix';
         icon = LucideIcons.wand2;
@@ -1266,6 +1278,54 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               padding: EdgeInsets.all(4),
               child: Icon(LucideIcons.wand2,
                   size: 13, color: Color(0xFF9A958C)),
+            ),
+          ),
+          InkWell(
+            onTap: () => Get.to(() => const SystemLogsView(),
+                transition: Transition.rightToLeft,
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic),
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Obx(() {
+                int n = 0;
+                try {
+                  n = Get.find<CubicWebLogger>().unreadErrors.value;
+                } catch (_) {}
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(LucideIcons.activity,
+                        size: 13, color: Color(0xFF9A958C)),
+                    if (n > 0)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 3, vertical: 1),
+                          constraints: const BoxConstraints(
+                              minWidth: 13, minHeight: 13),
+                          decoration: BoxDecoration(
+                            color: AppColors.error,
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Center(
+                            child: Text(
+                              n > 99 ? '99+' : '$n',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 7,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  height: 1),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              }),
             ),
           ),
           InkWell(

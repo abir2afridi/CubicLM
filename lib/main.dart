@@ -34,6 +34,7 @@ import 'services/usage_tracker_service.dart';
 import 'services/stats_service.dart';
 import 'services/agent_workspace.dart';
 import 'services/preview_server.dart';
+import 'services/cubicweb/cubicweb_logger.dart';
 import 'services/runtime/cli_manager.dart';
 import 'services/runtime/dev_server_manager.dart';
 import 'services/runtime/runtime_manager.dart';
@@ -239,6 +240,9 @@ void main() {
       Get.put(CliManagerService());
       unawaited(
           Get.find<CliManagerService>().init().then((_) {}, onError: (_) {}));
+      Get.put(CubicWebLogger());
+      unawaited(
+          Get.find<CubicWebLogger>().init().then((_) {}, onError: (_) {}));
       Get.put(DownloadService());
       Get.put(LocalImageService());
       Get.put(ServerController(), permanent: true);
