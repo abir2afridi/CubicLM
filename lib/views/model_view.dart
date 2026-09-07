@@ -1096,7 +1096,12 @@ class ModelView extends GetView<ModelController> {
                     final health = cloudModels.healthSummaryFor(provider.id);
                     final online = health.$1;
                     final failed = health.$2;
-                    return Row(
+                    // Wrap (not Row): badges + chips flow to the next
+                    // line on narrow screens instead of overflowing.
+                    return Wrap(
+                      spacing: 6,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
                           'Models',
@@ -1106,7 +1111,6 @@ class ModelView extends GetView<ModelController> {
                             color: Theme.of(context).hintColor,
                           ),
                         ),
-                        const SizedBox(width: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
@@ -1116,8 +1120,7 @@ class ModelView extends GetView<ModelController> {
                           child: Text('${all.length}',
                             style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, color: Dt.accent)),
                         ),
-                        if (freeCount > 0) ...[
-                          const SizedBox(width: 6),
+                        if (freeCount > 0)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
@@ -1127,9 +1130,7 @@ class ModelView extends GetView<ModelController> {
                             child: Text('$freeCount free',
                               style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.success)),
                           ),
-                        ],
-                        if (online > 0 || failed > 0) ...[
-                          const SizedBox(width: 6),
+                        if (online > 0 || failed > 0)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
@@ -1145,12 +1146,10 @@ class ModelView extends GetView<ModelController> {
                                       ? AppColors.error
                                       : AppColors.success)),
                           ),
-                        ],
-                        const Spacer(),
                         if (failed > 0)
                           Obx(() => _miniFilterChip(
                             context,
-                            'Auto-hide failed',
+                            'Hide failed',
                             cloudModels.autoHideFailed.value,
                             () => cloudModels.setAutoHideFailed(
                                 !cloudModels.autoHideFailed.value),
