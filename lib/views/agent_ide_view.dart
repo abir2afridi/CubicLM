@@ -12,6 +12,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../controllers/agent_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import '../services/runtime/project_detector.dart';
 import '../services/agent_workspace.dart';
 import '../services/deploy_service.dart';
 import '../services/inference_service.dart';
@@ -37,6 +38,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   final _promptCtrl = TextEditingController();
   final _askCtrl = TextEditingController();
   final _askFocus = FocusNode();
+  final _termCtrl = TextEditingController();
   String _tab = 'preview'; // preview | files | terminal
   String? _openFile;
   String _viewport = 'full'; // full | desktop | tablet | mobile
@@ -63,6 +65,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     _promptCtrl.dispose();
     _askCtrl.dispose();
     _askFocus.dispose();
+    _termCtrl.dispose();
     super.dispose();
   }
 
@@ -924,6 +927,162 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   // ── Preview pane ──
 
+  /// Runtime diagnosis card: what kind of project this is, which
+  /// pipeline steps passed/failed, and specific fix actions.
+  /// Hidden for plain static sites (nothing to explain there).
+  Widget _previewDiagnosisCard(BuildContext context, bool isDark) {
+    return Obx(() {
+      final steps = c.previewSteps.toList();
+      final kind = c.previewKind.value;
+      final blockers =
+          c.previewIssues.where((i) => i.blocksPreview).toList();
+      if (kind == ProjectKind.staticSite || steps.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      final decision = c.previewDecision.value;
+      return Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.04)
+              : Colors.black.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: blockers.isNotEmpty
+                  ? AppColors.error.withValues(alpha: 0.35)
+                  : Dt.accent.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(children: [
+                Icon(
+                    blockers.isNotEmpty
+                        ? LucideIcons.alertTriangle
+                        : LucideIcons.info,
+                    size: 14,
+                    color: blockers.isNotEmpty
+                        ? AppColors.error
+                        : Dt.accent),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                      '${projectKindLabel(kind)} detected',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13, fontWeight: FontWeight.w800)),
+                ),
+                if (c.devServerStarting.value)
+                  const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child:
+                          CircularProgressIndicator(strokeWidth: 2)),
+              ]),
+              const SizedBox(height: 8),
+              for (final s in steps)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Row(children: [
+                    Text(
+                        s.state == 'ok'
+                            ? '✓'
+                            : s.state == 'fail'
+                                ? '✗'
+                                : '…',
+                        style: GoogleFonts.firaCode(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: s.state == 'ok'
+                                ? const Color(0xFF4ADE80)
+                                : s.state == 'fail'
+                                    ? AppColors.error
+                                    : Theme.of(context).hintColor)),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                          s.detail.isEmpty
+                              ? s.label
+                              : '${s.label} — ${s.detail}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11.5,
+                              color: Theme.of(context).hintColor)),
+                    ),
+                  ]),
+                ),
+              if (blockers.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                for (final b in blockers.take(3))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text('• ${b.message}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11.5,
+                            color: AppColors.error,
+                            height: 1.35)),
+                  ),
+              ],
+              if (decision != null && decision.actions.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  for (final a in decision.actions)
+                    _diagnosisAction(context, a),
+                ]),
+              ],
+            ]),
+      );
+    });
+  }
+
+  Widget _diagnosisAction(BuildContext context, String action) {
+    String label;
+    IconData icon;
+    VoidCallback? onTap;
+    switch (action) {
+      case 'start-dev-server':
+        label = c.devServerUrl.value != null
+            ? 'Restart dev server'
+            : 'Start dev server';
+        icon = LucideIcons.play;
+        onTap = c.devServerStarting.value ? null : () => c.startDevServer();
+      case 'recheck-runtime':
+        label = 'Recheck runtime';
+        icon = LucideIcons.rotateCw;
+        onTap = () => c.recheckRuntimeAndServe();
+      case 'use-cloud':
+        label = 'Run in cloud';
+        icon = LucideIcons.cloud;
+        onTap = () => AppSnackbar.showTop(
+              'Cloud runtime',
+              c.cloudRuntime.unavailableReason,
+              logHistory: false,
+            );
+      case 'fix-issues':
+        label = 'Ask AI to Fix';
+        icon = LucideIcons.wand2;
+        onTap = () => c.fixPreviewIssues();
+      case 'open-terminal':
+        label = 'Terminal';
+        icon = LucideIcons.terminal;
+        onTap = () => setState(() => _tab = 'preview');
+      default:
+        return const SizedBox.shrink();
+    }
+    return ActionChip(
+      label: Text(label,
+          style:
+              GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700)),
+      avatar: Icon(icon, size: 14),
+      onPressed: onTap,
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
   Widget _previewPane(BuildContext context, bool isDark, int revision) {
     // While working, the preview area shows LIVE progress (files being
     // written, tool calls) — once the project structure is complete it
@@ -941,6 +1100,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       );
     }
     return Column(children: [
+      _previewDiagnosisCard(context, isDark),
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
         child: Row(children: [
@@ -952,6 +1112,31 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     fontSize: 10.5,
                     color: Theme.of(context).hintColor)),
           ),
+          Obx(() => c.devServerUrl.value != null
+              ? Container(
+                  margin: const EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4ADE80).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF4ADE80))),
+                    const SizedBox(width: 4),
+                    Text('LIVE',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF4ADE80))),
+                  ]),
+                )
+              : const SizedBox.shrink()),
           // Viewport toggle
           Container(
             decoration: BoxDecoration(
@@ -1074,6 +1259,55 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               ),
             );
           }),
+        ),
+        // ── Real shell input: runs in the project dir, streams output ──
+        Container(
+          margin: const EdgeInsets.only(top: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(children: [
+            Text('\$',
+                style: GoogleFonts.firaCode(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Dt.accent)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: TextField(
+                controller: _termCtrl,
+                style: GoogleFonts.firaCode(
+                    fontSize: 11.5, color: const Color(0xFFCDD6F4)),
+                decoration: InputDecoration(
+                  hintText: 'node --version · npm install · ls …',
+                  hintStyle: GoogleFonts.firaCode(
+                      fontSize: 11, color: const Color(0xFF6E6B65)),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 8),
+                ),
+                onSubmitted: (v) {
+                  c.runShellCommand(v);
+                  _termCtrl.clear();
+                },
+              ),
+            ),
+            InkWell(
+              onTap: () {
+                c.runShellCommand(_termCtrl.text);
+                _termCtrl.clear();
+              },
+              borderRadius: BorderRadius.circular(6),
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: Icon(LucideIcons.cornerDownLeft,
+                    size: 14, color: Dt.accent),
+              ),
+            ),
+          ]),
         ),
       ]),
     );

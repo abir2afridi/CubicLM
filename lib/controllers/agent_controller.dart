@@ -14,9 +14,30 @@ import '../services/app_log_service.dart';
 import '../services/cloud_service.dart';
 import '../services/inference_service.dart';
 import '../services/preview_server.dart';
+import '../services/runtime/cloud_runtime.dart';
+import '../services/runtime/dev_server_manager.dart';
+import '../services/runtime/preview_router.dart';
+import '../services/runtime/process_runner.dart';
+import '../services/runtime/project_detector.dart';
+import '../services/runtime/project_validator.dart';
+import '../services/runtime/runtime_manager.dart';
 import '../utils/app_snackbar.dart';
 import '../utils/web_download.dart';
 import '../utils/web_project.dart';
+
+/// One preview-pipeline step for the status checklist UI.
+class PreviewStep {
+  /// Short label, e.g. 'Detect project'.
+  final String label;
+
+  /// 'pending' | 'ok' | 'fail' | 'info'.
+  final String state;
+
+  /// Detail line, e.g. 'Vite project' or 'node v22.1.0'.
+  final String detail;
+
+  const PreviewStep(this.label, this.state, [this.detail = '']);
+}
 
 /// Agent-IDE orchestrator (MVP): prompt → files → local preview →
 /// console-error repair loop (changed files only, max rounds).
@@ -52,6 +73,19 @@ class AgentController extends GetxController {
   final consoleError = RxnString();
   final lastError = RxnString();
   final revision = 0.obs;
+
+  /// Runtime-aware preview routing (see services/runtime/).
+  final previewKind = ProjectKind.staticSite.obs;
+  final previewIssues = <ProjectIssue>[].obs;
+  final previewSteps = <PreviewStep>[].obs;
+  final previewDecision = Rxn<PreviewDecision>();
+
+  /// Live dev-server URL when the pipeline runs one (null otherwise).
+  final devServerUrl = RxnString();
+  final devServerStarting = false.obs;
+
+  /// Cloud fallback provider (unconfigured in this build — honest stub).
+  final CloudRuntimeProvider cloudRuntime = UnconfiguredCloudRuntime();
 
   /// Terminal buffer: timestamped agent activity (builds, fixes, file
   /// ops, console errors). The AI reads the tail in repair prompts, so
@@ -641,22 +675,268 @@ class AgentController extends GetxController {
     _touch();
   }
 
+  /// Read every project file into a path → content map (shared
+  /// workspace: the SAME files the AI wrote, the terminal sees, and
+  /// the preview serves — never a separate copy).
+  Future<Map<String, String>> _projectContents(String projectId) async {
+    final out = <String, String>{};
+    for (final path in await _ws.listFiles(projectId)) {
+      out[path] = await _ws.readFile(projectId, path) ?? '';
+    }
+    return out;
+  }
+
+  /// Route the project to its preview strategy, then serve.
+  ///
+  /// Static sites keep the exact previous behavior. Framework projects
+  /// get a diagnosis + dev-server pipeline instead of being silently
+  /// mis-served as static HTML (JSX never executes statically — that
+  /// was the "unstyled HTML" preview bug).
   Future<void> _serve() async {
     final p = project.value;
     if (p == null) return;
     try {
       final dir = await _ws.dirFor(p.id);
-      previewUrl.value = await _preview.start(p.id, dir.path);
+      final contents = await _projectContents(p.id);
+      final kind = detectProject(contents);
+      previewKind.value = kind;
+      final issues = validateProject(kind, contents);
+      previewIssues.assignAll(issues);
+
+      if (!projectNeedsNode(kind)) {
+        previewSteps.assignAll([
+          PreviewStep('Detect project', 'ok', projectKindLabel(kind)),
+          const PreviewStep('Validate', 'ok', 'entry present'),
+          const PreviewStep('Preview', 'ok', 'static server'),
+        ]);
+        previewDecision.value = routePreview(
+            kind: kind, issues: issues, nodeAvailable: true);
+        previewUrl.value = await _preview.start(p.id, dir.path);
+        devServerUrl.value = null;
+        return;
+      }
+
+      // Framework path: validate first, then runtime.
+      final steps = <PreviewStep>[
+        PreviewStep('Detect project', 'ok', projectKindLabel(kind)),
+      ];
+      final blocking = issues.where((i) => i.blocksPreview).toList();
+      if (blocking.isNotEmpty) {
+        steps.add(PreviewStep(
+            'Validate', 'fail', '${blocking.length} blocker(s)'));
+        steps.add(const PreviewStep('Preview', 'fail', 'blocked'));
+        previewSteps.assignAll(steps);
+        previewDecision.value = routePreview(
+            kind: kind, issues: issues, nodeAvailable: false);
+        term('✗ preview blocked: ${blocking.map((i) => i.code).join(', ')}');
+        _say('assistant',
+            'I generated a ${projectKindLabel(kind)} project, but ${blocking.length} structural problem(s) block preview:\n${blocking.map((i) => '• ${i.message}').join('\n')}\nTap “Ask AI to Fix” in the preview pane and I’ll repair them.');
+        // Keep the static fallback servable for file inspection, but the
+        // UI flags it as non-running (see previewDecision).
+        previewUrl.value = await _preview.start(p.id, dir.path);
+        devServerUrl.value = null;
+        return;
+      }
+      steps.add(const PreviewStep('Validate', 'ok', 'structure clean'));
+
+      final rt = Get.find<RuntimeManager>();
+      final st = await rt.refresh();
+      if (!st.nodeAvailable) {
+        steps.add(const PreviewStep('Runtime', 'fail', 'Node.js missing'));
+        steps.add(const PreviewStep('Preview', 'fail', 'needs runtime'));
+        previewSteps.assignAll(steps);
+        previewDecision.value = routePreview(
+            kind: kind, issues: issues, nodeAvailable: false);
+        term('✗ preview needs Node.js — runtime unavailable (${st.platform})');
+        _say('assistant',
+            'This is a ${projectKindLabel(kind)} project — it needs Node.js (`npm run dev`), which is not available on this device. '
+            'Static serving cannot execute JSX, so the preview would only show unstyled HTML. '
+            'Use “Recheck” after installing a runtime, “Cloud” if configured, or export the ZIP and run it where Node exists.');
+        previewUrl.value = await _preview.start(p.id, dir.path);
+        devServerUrl.value = null;
+        return;
+      }
+      steps.add(PreviewStep(
+          'Runtime', 'ok', 'node ${st.nodeVersion}'.trim()));
+      previewSteps.assignAll(steps);
+      previewDecision.value = routePreview(
+          kind: kind, issues: issues, nodeAvailable: true);
+      // Auto-start the dev server and point preview at the REAL url.
+      await startDevServer();
     } catch (_) {
       previewUrl.value = null;
     }
   }
 
+  /// Start (or reuse) the dev server and point the preview at it.
+  /// Surfaces specific errors — never a generic dead preview.
+  Future<void> startDevServer() async {
+    final p = project.value;
+    if (p == null || devServerStarting.value) return;
+    devServerStarting.value = true;
+    buildStatus.value = 'Starting dev server…';
+    try {
+      final dir = await _ws.dirFor(p.id);
+      final mgr = Get.find<DevServerManager>();
+      final session = await mgr.start(
+        projectId: p.id,
+        workDir: dir.path,
+        kind: previewKind.value,
+        onLog: term,
+      );
+      devServerUrl.value = session.url;
+      previewUrl.value = session.url;
+      _touch();
+      final steps = previewSteps.toList()
+        ..removeWhere((s) => s.label == 'Preview' || s.label == 'Server');
+      steps.add(const PreviewStep('Deps', 'ok', 'node_modules ready'));
+      steps.add(PreviewStep('Server', 'ok', session.url));
+      steps.add(const PreviewStep('Preview', 'ok', 'live dev server'));
+      previewSteps.assignAll(steps);
+      term('✓ preview → live dev server ${session.url}');
+      _say('assistant', 'Dev server is live — the preview now shows the real running app.');
+    } on DevServerException catch (e) {
+      term('✗ dev server: ${e.message}');
+      final steps = previewSteps.toList()
+        ..removeWhere((s) => s.label == 'Preview' || s.label == 'Server');
+      steps.add(PreviewStep('Server', 'fail', e.code));
+      steps.add(const PreviewStep('Preview', 'fail', 'server did not start'));
+      previewSteps.assignAll(steps);
+      lastError.value = e.message;
+      _say('assistant', 'The dev server could not start: ${e.message}');
+    } catch (e) {
+      term('✗ dev server failed: $e');
+      lastError.value = '$e';
+    } finally {
+      devServerStarting.value = false;
+      buildStatus.value = null;
+    }
+  }
+
+  /// Stop this project's dev server (if any). Never throws.
+  Future<void> stopDevServer() async {
+    final p = project.value;
+    try {
+      if (p != null) await Get.find<DevServerManager>().stop(p.id);
+    } catch (_) {}
+    devServerUrl.value = null;
+    term('■ dev server stopped');
+  }
+
+  /// Re-probe the runtime and re-route preview (UI "Recheck" action).
+  Future<void> recheckRuntimeAndServe() async {
+    try {
+      await Get.find<RuntimeManager>().refresh(force: true);
+    } catch (_) {}
+    final st = Get.find<RuntimeManager>().status.value;
+    term(st.nodeAvailable
+        ? '✓ runtime ready — node ${st.nodeVersion}, npm ${st.npmVersion}'
+        : '✗ runtime still unavailable — ${st.lastError ?? 'no Node found'}');
+    await _serve();
+  }
+
+  /// One-tap repair for structural preview blockers: feeds the issues
+  /// back into the normal modify flow so the AI fixes them.
+  Future<void> fixPreviewIssues() async {
+    final blockers =
+        previewIssues.where((i) => i.blocksPreview).toList();
+    if (blockers.isEmpty || generating.value || fixing.value) return;
+    topic.value = 'Fix these preview blockers in the "${project.value?.name}" project:\n'
+        '${blockers.map((i) => '• [${i.path ?? 'project'}] ${i.message}').join('\n')}\n'
+        'Return a files-JSON object with the corrected files (complete new contents).';
+    await modifyProject();
+  }
+
+  /// Run a real shell command in the project dir (or app docs when no
+  /// project). Output streams into the terminal buffer with exit code.
+  /// `node --version`, `npm install`, `ls` etc. produce ACTUAL output.
+  Future<void> runShellCommand(String command) async {
+    final cmd = command.trim();
+    if (cmd.isEmpty) return;
+    if (!ProcessRunner.isSupported) {
+      term('✗ shell unavailable on Web builds.');
+      return;
+    }
+    term('> $cmd');
+    final parts = _splitCommand(cmd);
+    if (parts.isEmpty) return;
+    String workDir;
+    try {
+      final p = project.value;
+      if (p == null) {
+        // No project: run in the app's private docs dir (never a fake
+        // project dir, never outside the sandbox).
+        workDir = (await getApplicationDocumentsDirectory()).path;
+      } else {
+        workDir = (await _ws.dirFor(p.id)).path;
+      }
+    } catch (_) {
+      workDir = '';
+    }
+    try {
+      final exe =
+          await ProcessRunner.resolveExecutable(parts.first) ?? parts.first;
+      final session = await ProcessRunner.startSession(
+        exe,
+        parts.sublist(1),
+        workingDirectory: workDir.isEmpty ? null : workDir,
+        commandLabel: cmd,
+      );
+      final sub1 = session.stdoutLines.listen(term);
+      final sub2 = session.stderrLines.listen(term);
+      final code = await session.exitCode;
+      try {
+        await sub1.cancel();
+      } catch (_) {}
+      try {
+        await sub2.cancel();
+      } catch (_) {}
+      term(code == 0 ? '✓ exit 0' : '✗ exit $code');
+    } catch (e) {
+      term('✗ could not run "$cmd": $e');
+    }
+  }
+
+  /// Minimal shell-like split (handles single/double quotes).
+  List<String> _splitCommand(String cmd) {
+    final out = <String>[];
+    final buf = StringBuffer();
+    String? quote;
+    for (var i = 0; i < cmd.length; i++) {
+      final ch = cmd[i];
+      if (quote != null) {
+        if (ch == quote) {
+          quote = null;
+        } else {
+          buf.write(ch);
+        }
+      } else if (ch == '"' || ch == "'") {
+        quote = ch;
+      } else if (ch == ' ' || ch == '\t') {
+        if (buf.isNotEmpty) {
+          out.add(buf.toString());
+          buf.clear();
+        }
+      } else {
+        buf.write(ch);
+      }
+    }
+    if (buf.isNotEmpty) out.add(buf.toString());
+    return out;
+  }
+
   Future<void> deleteProject(String id) async {
+    try {
+      await Get.find<DevServerManager>().stop(id);
+    } catch (_) {}
     if (project.value?.id == id) {
       project.value = null;
       files.clear();
       previewUrl.value = null;
+      devServerUrl.value = null;
+      previewIssues.clear();
+      previewSteps.clear();
+      previewDecision.value = null;
       await _preview.stop();
     }
     await _ws.deleteProject(id);
@@ -771,6 +1051,9 @@ class AgentController extends GetxController {
   void onClose() {
     try {
       Get.find<PreviewServerService>().stop();
+    } catch (_) {}
+    try {
+      Get.find<DevServerManager>().stopAll();
     } catch (_) {}
     super.onClose();
   }

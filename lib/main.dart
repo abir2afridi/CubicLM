@@ -34,6 +34,8 @@ import 'services/usage_tracker_service.dart';
 import 'services/stats_service.dart';
 import 'services/agent_workspace.dart';
 import 'services/preview_server.dart';
+import 'services/runtime/dev_server_manager.dart';
+import 'services/runtime/runtime_manager.dart';
 import 'services/deploy_service.dart';
 import 'services/update_service.dart';
 import 'core/constants.dart';
@@ -231,6 +233,8 @@ void main() {
       unawaited(
           Get.find<AgentWorkspaceService>().init().then((_) {}, onError: (_) {}));
       Get.put(PreviewServerService());
+      Get.put(RuntimeManager());
+      Get.put(DevServerManager());
       Get.put(DownloadService());
       Get.put(LocalImageService());
       Get.put(ServerController(), permanent: true);

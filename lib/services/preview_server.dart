@@ -65,12 +65,15 @@ class PreviewServerService extends GetxService {
   }
 
   Response _notFoundPage(Request request) {
+    // Neutral 404 for missing ASSET paths only. Framework-vs-static
+    // routing (and its specific error states) lives in the preview
+    // router + diagnosis card — never in this fallback page.
     const html = '''<!DOCTYPE html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Not runnable here</title>
+<title>File not found</title>
 <style>body{font-family:system-ui;background:#14141c;color:#f2f0ea;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0;padding:24px;text-align:center}h1{font-size:20px;margin-bottom:10px}p{color:#9a958c;font-size:14px;line-height:1.6}a{color:#d97757}</style>
-</head><body><div><h1>Nothing browser-runnable at this path</h1>
-<p>Framework projects (Next.js, SSR, anything needing <code>npm run dev</code>) cannot preview on-device — they need Node. Open the Files tab or export the ZIP and run it on a machine with Node.</p></div></body></html>''';
+</head><body><div><h1>File not found in this project</h1>
+<p>The requested path does not exist in the project files. Check the Files tab for the exact path, or see the diagnosis card above the preview for runtime status.</p></div></body></html>''';
     return Response.notFound(html,
         headers: {'content-type': 'text/html; charset=utf-8'});
   }

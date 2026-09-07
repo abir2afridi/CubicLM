@@ -140,13 +140,18 @@ String _frameworkBrief(String framework) {
     case 'React (Vite)':
       return 'Two legal shapes, pick ONE and be consistent: (A) browser-run: '
           'single index.html + htm + esm.sh React (no JSX, no build). (B) '
-          'Vite project (package.json, vite.config.js, src/main.jsx, '
-          'App.jsx) for npm users — note it needs npm run dev, no live '
-          'preview on-device. $esmRule';
+          'Vite project for npm users: package.json (react, react-dom, vite, '
+          'scripts dev/build), vite.config.js, index.html with '
+          '<div id="root"></div> + <script type="module" src="/src/main.jsx">, '
+          'src/main.jsx that createRoots and renders <App/>, src/App.jsx '
+          'returning real JSX (never empty, never truncated — every tag '
+          'closed). Shape B previews via the app\'s Node dev-server '
+          'pipeline when a runtime is available. $esmRule';
     case 'Next.js':
       return 'Next.js App Router: package.json (next, react, react-dom, scripts dev/build/start), app/layout.jsx, app/page.jsx, app/globals.css. '
           'PLAIN JAVASCRIPT (.jsx), never TypeScript. '
-          'Note: needs npm run dev — no on-device live preview; still ship complete code. $esmRule';
+          'Every file complete and syntactically valid — previews via the '
+          'app\'s Node dev-server pipeline when a runtime is available. $esmRule';
     case 'Vue 3':
       return 'Two legal shapes, pick ONE: (A) browser-run: index.html with '
           'an import map {"imports":{"vue":"https://esm.sh/vue@3"}} + '
