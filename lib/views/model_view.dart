@@ -839,11 +839,34 @@ class ModelView extends GetView<ModelController> {
           cloudModels.pinnedProviders.length;
           cloudModels.modelsByProvider.length;
           cloudModels.allProviders.length;
+          final keyed = cloudModels.orderedProviders();
+          final unkeyed = cloudModels.unkeyedProviders;
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ...cloudModels
-                  .orderedProviders()
-                  .map((p) => _buildProviderCard(context, p)),
+              ...keyed.map((p) => _buildProviderCard(context, p)),
+              if (unkeyed.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Text(
+                  'ADD API KEY',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).hintColor,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Set a key to unlock these providers',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: Theme.of(context).hintColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...unkeyed.map((p) => _buildAddKeyCard(context, p, cloudModels)),
+              ],
             ],
           );
         }),
@@ -1416,6 +1439,81 @@ class ModelView extends GetView<ModelController> {
                   }),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Compact card for providers without an API key — just icon, name,
+  /// and an "Add Key" button. No model list or expansion.
+  Widget _buildAddKeyCard(
+      BuildContext context, CloudProviderInfo provider, CloudModelController cloudModels) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = _providerAccent(provider.id);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surface : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: isDark ? AppColors.border : AppColors.borderLightMode),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(provider.icon, color: accent, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  provider.name,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : Colors.black,
+                  ),
+                ),
+                Text(
+                  provider.description,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    color: Theme.of(context).hintColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.tonal(
+            onPressed: () {
+              if (provider.id == 'custom') {
+                _showCustomProviderDialog(context, cloudModels);
+              } else {
+                _showProviderKeyDialog(context, cloudModels, provider,
+                    openModelsAfterSave: true);
+              }
+            },
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+            child: Text(
+              provider.id == 'custom' ? 'Configure' : 'Add Key',
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12, fontWeight: FontWeight.w700),
             ),
           ),
         ],

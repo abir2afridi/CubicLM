@@ -57,13 +57,13 @@ void main() {
       ]);
       s.openaiKey.value = 'k1';
       s.groqKey.value = 'k2';
-      // Both legacy (epoch timestamps) → alpha tiebreak.
+      // Only keyed + custom appear; mistral (unkeyed) is excluded.
       var ids = c.orderedProviders().map((p) => p.id).toList();
-      expect(ids, ['custom', 'groq', 'openai', 'mistral']);
+      expect(ids, ['custom', 'groq', 'openai']);
       // Name mode is pure A–Z among keyed.
       c.providerSortMode.value = 'name';
       ids = c.orderedProviders().map((p) => p.id).toList();
-      expect(ids, ['custom', 'groq', 'openai', 'mistral']);
+      expect(ids, ['custom', 'groq', 'openai']);
     });
 
     test('pinned providers outrank everything except custom', () async {
@@ -121,6 +121,37 @@ void main() {
           c.providerOrderIndex('custom') <
               c.providerOrderIndex('openai'),
           isTrue);
+    });
+
+    test('unkeyedProviders returns only providers without keys', () {
+      final c = makeController();
+      final s = Get.find<SettingsController>();
+      c.allProviders.clear();
+      c.allProviders.assignAll([
+        info('custom', 'Custom API'),
+        info('openai', 'OpenAI'),
+        info('groq', 'Groq'),
+        info('mistral', 'Mistral'),
+      ]);
+      s.openaiKey.value = 'k1';
+      // Only groq and mistral have no key; openai has key, custom excluded.
+      final unkeyed = c.unkeyedProviders.map((p) => p.id).toList();
+      expect(unkeyed, containsAll(['groq', 'mistral']));
+      expect(unkeyed, isNot(contains('openai')));
+      expect(unkeyed, isNot(contains('custom')));
+    });
+
+    test('orderedProviders excludes unkeyed providers', () {
+      final c = makeController();
+      c.allProviders.clear();
+      c.allProviders.assignAll([
+        info('custom', 'Custom API'),
+        info('openai', 'OpenAI'),
+        info('mistral', 'Mistral'),
+      ]);
+      // No keys set → only custom appears.
+      final ids = c.orderedProviders().map((p) => p.id).toList();
+      expect(ids, ['custom']);
     });
   });
 }

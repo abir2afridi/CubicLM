@@ -684,6 +684,8 @@ class CloudModelController extends GetxController {
 
   /// Card display order: Custom API always first, then pinned (pin
   /// order), then key-set (sort mode), then everything else.
+  /// Provider list for Model Hub: Custom first → pinned → keyed (sorted).
+  /// Unkeyed providers are excluded — they appear in [unkeyedProviders].
   List<CloudProviderInfo> orderedProviders() {
     final byId = {for (final p in allProviders) p.id: p};
     final out = <CloudProviderInfo>[];
@@ -692,12 +694,15 @@ class CloudModelController extends GetxController {
       if (p != null) out.add(p);
     }
 
+    // 1) Custom always first.
     take('custom');
+
+    // 2) Pinned keyed providers (in pin order).
     for (final id in pinnedProviders.toList()) {
       if (id != 'custom' && isConfigured(id)) take(id);
     }
-    // NOTE: `where` alone would leave keyed ids in byId and duplicate
-    // cards below — drain them explicitly.
+
+    // 3) Remaining keyed providers — sorted by time or name.
     final keyed = <CloudProviderInfo>[];
     for (final p in byId.values.toList()) {
       if (isConfigured(p.id)) {
@@ -716,8 +721,17 @@ class CloudModelController extends GetxController {
       });
     }
     out.addAll(keyed);
-    out.addAll(byId.values); // registry order for the rest
+
+    // Unkeyed providers are NOT added here — see [unkeyedProviders].
     return out;
+  }
+
+  /// Providers without an API key / custom config — shown in a separate
+  /// "Add API Key" section at the bottom of the Model Hub.
+  List<CloudProviderInfo> get unkeyedProviders {
+    return allProviders
+        .where((p) => p.id != 'custom' && !isConfigured(p.id))
+        .toList();
   }
 
   /// Display rank for shared switcher sorting (lower = higher).

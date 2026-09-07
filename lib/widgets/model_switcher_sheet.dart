@@ -782,14 +782,14 @@ class _CloudModelListState extends State<_CloudModelList> {
       final settings = Get.find<SettingsController>();
 
       // Only providers with a key/config can list models.
-      final providers = cloudModels.providers
+      // Use orderedProviders() which already excludes unkeyed.
+      final providers = cloudModels.orderedProviders()
           .where((p) => cloudModels.canSelectModel(p.id))
           .toList()
         ..sort((a, b) {
           final activeId = cloudModels.activeProvider;
           if (a.id == activeId) return -1;
           if (b.id == activeId) return 1;
-          // Shared Explore ordering: pinned, then key-set sort.
           return cloudModels
               .providerOrderIndex(a.id)
               .compareTo(cloudModels.providerOrderIndex(b.id));
