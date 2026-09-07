@@ -142,7 +142,7 @@ class BattleArenaController extends GetxController {
     final cmc = Get.find<CloudModelController>();
     final cloud = Get.find<CloudService>();
     final out = <String, List<String>>{};
-    for (final p in cmc.providers) {
+    for (final p in cmc.orderedProviders()) {
       if (!cloud.isProviderConfigured(p.id)) continue;
       final models = (cmc.modelsByProvider[p.id] ?? [])
           .where((m) => m.trim().isNotEmpty)

@@ -47,6 +47,9 @@ class CloudModelController extends GetxController {
   static const _autoHideKey = 'cloud_auto_hide_failed';
   static const _syncIntervalKey = 'cloud_sync_interval_hours';
   static const _lastAutoSyncKey = 'cloud_last_auto_sync';
+  static const _keyTimePrefix = 'cloud_key_set_at_';
+  static const _pinnedKey = 'cloud_pinned_providers';
+  static const _sortModeKey = 'cloud_provider_sort';
 
   static const _knownCompanyIcons = <String, IconData>{
     'openai': Icons.auto_awesome,
@@ -153,8 +156,7 @@ class CloudModelController extends GetxController {
       'gemini-2.5-flash',
       'gemini-2.5-pro',
       'gemini-2.0-flash',
-      'gemini-1.5-flash',
-      'gemini-1.5-pro',
+      'gemini-2.0-flash-lite',
       'gemma-3-27b-it',
       'gemma-3-12b-it',
       'gemma-3-4b-it',
@@ -322,6 +324,12 @@ class CloudModelController extends GetxController {
 
   /// Auto-sync cadence in hours (persisted, 1–168, default 24).
   final modelSyncIntervalHours = 24.obs;
+
+  /// Pinned provider ids, pin order (persisted). Keyed providers only.
+  final pinnedProviders = <String>[].obs;
+
+  /// Provider list sort: 'time' (key-set oldest first) or 'name' (A–Z).
+  final providerSortMode = 'time'.obs;
   final customProviderError = ''.obs;
   final providerSearchQuery = ''.obs;
   final _dynamicActiveModel = <String, String>{}.obs;
@@ -340,6 +348,14 @@ class CloudModelController extends GetxController {
         _hive.getSetting<bool>(_autoHideKey) ?? false;
     modelSyncIntervalHours.value =
         _clampInterval(_hive.getSetting<int>(_syncIntervalKey));
+    final sort = _hive.getSetting<String>(_sortModeKey);
+    providerSortMode.value = (sort == 'name') ? 'name' : 'time';
+    try {
+      final pins = _hive.getSetting<List>(_pinnedKey);
+      if (pins != null) {
+        pinnedProviders.assignAll(pins.whereType<String>());
+      }
+    } catch (_) {}
     _initProviders();
     if (!providers.any((provider) => provider.id == activeProvider)) {
       _settings.setCloudProvider('openrouter');
@@ -622,10 +638,99 @@ class CloudModelController extends GetxController {
     return isConfigured(provider) ? 'Connected' : 'Needs Key';
   }
 
+  // ── Provider ordering: custom top, pinned, keyed (time|name), rest ──
+
+  /// When this provider's API key was first set (persisted). Legacy
+  /// keys predate tracking → epoch (oldest-first, alpha tiebreak).
+  DateTime keySetAt(String provider) {
+    try {
+      final raw = _hive.getSetting<String>('$_keyTimePrefix$provider');
+      return DateTime.tryParse(raw ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+    } catch (_) {
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
+  }
+
+  Future<void> setProviderSortMode(String mode) async {
+    providerSortMode.value = (mode == 'name') ? 'name' : 'time';
+    try {
+      await _hive.setSetting(_sortModeKey, providerSortMode.value);
+    } catch (_) {}
+  }
+
+  bool isPinned(String provider) => pinnedProviders.contains(provider);
+
+  /// Pin/unpin a KEYED provider (Custom API is always top — pin N/A).
+  Future<void> togglePin(String provider) async {
+    if (provider == 'custom' || !isConfigured(provider)) return;
+    if (pinnedProviders.contains(provider)) {
+      pinnedProviders.remove(provider);
+    } else {
+      pinnedProviders.add(provider);
+    }
+    try {
+      await _hive.setSetting(_pinnedKey, pinnedProviders.toList());
+    } catch (_) {}
+  }
+
+  void _unpin(String provider) {
+    if (pinnedProviders.remove(provider)) {
+      try {
+        _hive.setSetting(_pinnedKey, pinnedProviders.toList());
+      } catch (_) {}
+    }
+  }
+
+  /// Card display order: Custom API always first, then pinned (pin
+  /// order), then key-set (sort mode), then everything else.
+  List<CloudProviderInfo> orderedProviders() {
+    final byId = {for (final p in allProviders) p.id: p};
+    final out = <CloudProviderInfo>[];
+    void take(String id) {
+      final p = byId.remove(id);
+      if (p != null) out.add(p);
+    }
+
+    take('custom');
+    for (final id in pinnedProviders.toList()) {
+      if (id != 'custom' && isConfigured(id)) take(id);
+    }
+    // NOTE: `where` alone would leave keyed ids in byId and duplicate
+    // cards below — drain them explicitly.
+    final keyed = <CloudProviderInfo>[];
+    for (final p in byId.values.toList()) {
+      if (isConfigured(p.id)) {
+        keyed.add(p);
+        byId.remove(p.id);
+      }
+    }
+    if (providerSortMode.value == 'name') {
+      keyed.sort((a, b) =>
+          a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    } else {
+      keyed.sort((a, b) {
+        final c = keySetAt(a.id).compareTo(keySetAt(b.id));
+        if (c != 0) return c;
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+    }
+    out.addAll(keyed);
+    out.addAll(byId.values); // registry order for the rest
+    return out;
+  }
+
+  /// Display rank for shared switcher sorting (lower = higher).
+  int providerOrderIndex(String id) {
+    final order = orderedProviders();
+    final i = order.indexWhere((p) => p.id == id);
+    return i < 0 ? order.length : i;
+  }
+
   List<CloudProviderInfo> get filteredProviders {
     final query = providerSearchQuery.value.toLowerCase().trim();
-    if (query.isEmpty) return providers;
-    return providers.where((p) {
+    if (query.isEmpty) return orderedProviders();
+    return orderedProviders().where((p) {
       if (p.name.toLowerCase().contains(query)) return true;
       if (p.id.toLowerCase().contains(query)) return true;
       if (p.description.toLowerCase().contains(query)) return true;
@@ -748,15 +853,33 @@ class CloudModelController extends GetxController {
   Future<void> saveApiKey(String provider, String value) async {
     await _settings.setApiKey(provider, value);
     if (value.isNotEmpty) {
+      final hint = keyFormatHint(provider, value);
+      if (hint != null) {
+        AppSnackbar.showTop('Key looks unusual', hint,
+            logHistory: false);
+      }
       modelsByProvider.remove(provider);
       modelTagsByProvider.remove(provider);
       fetchedAtByProvider.remove(provider);
+      // First-set timestamp drives time-sort (kept, not overwritten).
+      try {
+        if ((_hive.getSetting<String>('$_keyTimePrefix$provider') ?? '')
+            .isEmpty) {
+          await _hive.setSetting(
+              '$_keyTimePrefix$provider',
+              DateTime.now().toIso8601String());
+        }
+      } catch (_) {}
       Future.microtask(() => refreshModels(provider));
     }
   }
 
   Future<void> removeApiKey(String provider) async {
     await _settings.removeApiKey(provider);
+    _unpin(provider);
+    try {
+      await _hive.deleteSetting('$_keyTimePrefix$provider');
+    } catch (_) {}
     modelsByProvider.remove(provider);
     modelTagsByProvider.remove(provider);
     fetchedAtByProvider.remove(provider);

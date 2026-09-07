@@ -93,6 +93,13 @@ String summarizeModelError(Object e) {
       lower.contains('incorrect api key')) {
     return 'Invalid API key (401)';
   }
+  // Zero allowance beats generic rate-limit: the key/project has NO
+  // quota at all (wrong key type, billing off, free tier exhausted).
+  // Must run before the credit/quota branch below ("quota exceeded"
+  // appears in both payload shapes).
+  if (RegExp(r'"quota_limit_value"\s*:\s*"0"').hasMatch(raw)) {
+    return 'Quota is zero — this key/project has no allowance. Wrong key type, billing disabled, or free tier exhausted.';
+  }
   if (lower.contains('402') ||
       lower.contains('payment required') ||
       lower.contains('insufficient') ||
@@ -146,4 +153,36 @@ bool shouldAutoSync({
 List<String> findNewModels(List<String> before, List<String> after) {
   final known = before.toSet();
   return after.where((m) => !known.contains(m)).toList();
+}
+
+/// Non-blocking key-shape hint ("does this look like provider X's
+/// key?"). Returns null when fine or provider unknown — formats can
+/// change, so this never blocks saving.
+String? keyFormatHint(String providerId, String key) {
+  final k = key.trim();
+  if (k.isEmpty) return null;
+  switch (providerId) {
+    case 'google':
+      if (!k.startsWith('AIza')) {
+        return 'This doesn\'t look like a Google AI Studio key (they start with "AIza"). Grab a free one at aistudio.google.com — or check for a typo.';
+      }
+      return null;
+    case 'openrouter':
+      if (!k.startsWith('sk-or-')) {
+        return 'OpenRouter keys usually start with "sk-or-". Double-check you pasted the right key.';
+      }
+      return null;
+    case 'anthropic':
+      if (!k.startsWith('sk-ant-')) {
+        return 'Anthropic keys usually start with "sk-ant-". Double-check you pasted the right key.';
+      }
+      return null;
+    case 'openai':
+      if (!k.startsWith('sk-')) {
+        return 'OpenAI keys usually start with "sk-". Double-check you pasted the right key.';
+      }
+      return null;
+    default:
+      return null;
+  }
 }

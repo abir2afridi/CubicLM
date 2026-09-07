@@ -33,6 +33,16 @@ void main() {
           'Network unreachable');
     });
 
+    test('zero quota beats generic rate-limit', () {
+      const payload =
+          '{"code":429,"message":"Quota exceeded","quota_limit_value": "0",'
+          '"reason":"RATE_LIMIT_EXCEEDED"}';
+      expect(summarizeModelError(payload), contains('Quota is zero'));
+      // Plain 429 without the zero marker stays a rate limit.
+      expect(summarizeModelError('429 too many requests'),
+          'Rate limited (429)');
+    });
+
     test('long unknown errors are trimmed to one line', () {
       final e = Exception('weird\nmultiline   error ${'x' * 200}');
       final s = summarizeModelError(e);
@@ -103,6 +113,22 @@ void main() {
 
     test('nothing new → empty', () {
       expect(findNewModels(['a'], ['a']), isEmpty);
+    });
+  });
+
+  group('keyFormatHint', () {
+    test('google expects AIza prefix', () {
+      expect(keyFormatHint('google', 'AIzaSyABC123'), isNull);
+      expect(keyFormatHint('google', 'AQ.Ab8xyz'), isNotNull);
+      expect(keyFormatHint('google', ''), isNull);
+    });
+
+    test('known prefixes per provider', () {
+      expect(keyFormatHint('openrouter', 'sk-or-abc'), isNull);
+      expect(keyFormatHint('openrouter', 'sk-abc'), isNotNull);
+      expect(keyFormatHint('anthropic', 'sk-ant-abc'), isNull);
+      expect(keyFormatHint('openai', 'sk-proj-abc'), isNull);
+      expect(keyFormatHint('groq', 'anything'), isNull);
     });
   });
 

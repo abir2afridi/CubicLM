@@ -810,19 +810,43 @@ class ModelView extends GetView<ModelController> {
       children: [
         _usageCard(context),
         const SizedBox(height: 16),
-        Text(
-          'model_cloud_providers'.tr,
-          style: GoogleFonts.plusJakartaSans(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: Theme.of(context).hintColor,
-            letterSpacing: 1.2,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'model_cloud_providers'.tr,
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).hintColor,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+            Obx(() => Row(mainAxisSize: MainAxisSize.min, children: [
+                  _sortChip(context, cloudModels, 'Time', 'time'),
+                  const SizedBox(width: 6),
+                  _sortChip(context, cloudModels, 'Name', 'name'),
+                ])),
+          ],
         ),
         const SizedBox(height: 8),
         _buildSyncRow(context, cloudModels),
         const SizedBox(height: 12),
-        ...cloudModels.providers.map((p) => _buildProviderCard(context, p)),
+        Obx(() {
+          // Track ordering inputs so pin/sort/key changes rebuild order.
+          cloudModels.providerSortMode.value;
+          cloudModels.pinnedProviders.length;
+          cloudModels.modelsByProvider.length;
+          cloudModels.allProviders.length;
+          return Column(
+            children: [
+              ...cloudModels
+                  .orderedProviders()
+                  .map((p) => _buildProviderCard(context, p)),
+            ],
+          );
+        }),
       ],
     );
   }
@@ -933,6 +957,40 @@ class ModelView extends GetView<ModelController> {
             onPressed: () => Get.back(), child: const Text('Close')),
       ],
     ));
+  }
+
+  /// Time|Name sort chip for the provider list order.
+  Widget _sortChip(BuildContext context, CloudModelController cloudModels,
+      String label, String mode) {
+    final selected = cloudModels.providerSortMode.value == mode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return InkWell(
+      onTap: () => cloudModels.setProviderSortMode(mode),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected
+              ? Dt.accent.withValues(alpha: 0.15)
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.06)
+                  : Colors.black.withValues(alpha: 0.05)),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+              color: selected
+                  ? Dt.accent.withValues(alpha: 0.4)
+                  : Colors.transparent),
+        ),
+        child: Text(label,
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: selected
+                    ? Dt.accent
+                    : Theme.of(context).hintColor)),
+      ),
+    );
   }
 
   Widget _buildSkillsTab(BuildContext context) {
@@ -1238,6 +1296,38 @@ class ModelView extends GetView<ModelController> {
                         ),
                         if (configured) ...[
                           const SizedBox(width: 8),
+                          if (provider.id != 'custom')
+                            Obx(() {
+                              final pinned =
+                                  cloudModels.isPinned(provider.id);
+                              return IconButton(
+                                onPressed: () => cloudModels
+                                    .togglePin(provider.id),
+                                icon: Icon(
+                                    pinned
+                                        ? Icons.push_pin
+                                        : Icons.push_pin_outlined,
+                                    size: 20,
+                                    color: pinned
+                                        ? Dt.accent
+                                        : Theme.of(context).hintColor),
+                                tooltip: pinned
+                                    ? 'Unpin (remove from top)'
+                                    : 'Pin to top',
+                                style: IconButton.styleFrom(
+                                  backgroundColor: pinned
+                                      ? Dt.accent
+                                          .withValues(alpha: 0.12)
+                                      : (isDark
+                                          ? Colors.white.withValues(
+                                              alpha: 0.05)
+                                          : Dt.pillMuted),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(12)),
+                                ),
+                              );
+                            }),
                           IconButton(
                             onPressed: () => _showProviderKeyDialog(context, cloudModels, provider),
                             icon: const Icon(LucideIcons.keyRound, size: 20),

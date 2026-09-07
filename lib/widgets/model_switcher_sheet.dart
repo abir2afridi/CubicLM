@@ -789,7 +789,10 @@ class _CloudModelListState extends State<_CloudModelList> {
           final activeId = cloudModels.activeProvider;
           if (a.id == activeId) return -1;
           if (b.id == activeId) return 1;
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+          // Shared Explore ordering: pinned, then key-set sort.
+          return cloudModels
+              .providerOrderIndex(a.id)
+              .compareTo(cloudModels.providerOrderIndex(b.id));
         });
 
       if (providers.isEmpty) {
