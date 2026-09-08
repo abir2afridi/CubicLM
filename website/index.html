@@ -206,19 +206,19 @@
   <div class="download-title">Download CubicLM</div>
   <div class="download-grid">
     <a 
-href="https://github.com/abir2afridi/CubicLM/releases/download/v1.10.0/cubiclm-v1.10.0-windows-x64.zip" download class="download-card">
+href="https://github.com/abir2afridi/CubicLM/releases/download/v1.10.1/cubiclm-v1.10.1-windows-x64.zip" download class="download-card">
       <div class="download-card-icon"><img src="https://img.icons8.com/?size=96&id=gXoJoyTtYXFg&format=png" alt="Windows" width="40" height="40" style="object-fit:contain;border-radius:4px"></div>
       <div class="download-card-title">Windows</div>
       <div class="download-card-desc">Full desktop app: chat, 20+ cloud providers, backup & restore, App Lock, and Model Hub with keyboard shortcuts.</div>
-      <div class="download-card-size">ZIP · v1.10.0 · Windows 10+ · 17 MB</div>
+      <div class="download-card-size">ZIP · v1.10.1 · Windows 10+ · 17 MB</div>
       <div class="download-card-btn"><i class="ri-download-line"></i> Download for Windows</div>
     </a>
     <a 
-href="https://github.com/abir2afridi/CubicLM/releases/download/v1.10.0/cubiclm-v1.10.0-arm64-v8a.apk" download class="download-card">
+href="https://github.com/abir2afridi/CubicLM/releases/download/v1.10.1/cubiclm-v1.10.1-arm64-v8a.apk" download class="download-card">
       <div class="download-card-icon"><img src="https://img.icons8.com/?size=96&id=P2AnGyiJxMpp&format=png" alt="Android" width="40" height="40" style="object-fit:contain;border-radius:4px"></div>
       <div class="download-card-title">Android</div>
       <div class="download-card-desc">On-device inference with LiteRT-LM and llama.cpp. Run GGUF models directly on your phone — no cloud needed.</div>
-      <div class="download-card-size">APK · v1.10.0 · Android 9+ · arm64 · ~62 MB</div>
+      <div class="download-card-size">APK · v1.10.1 · Android 9+ · arm64 · ~62 MB</div>
       <div class="download-card-btn"><i class="ri-download-line"></i> Download for Android</div>
     </a>
   </div>
@@ -789,7 +789,8 @@ href="https://github.com/abir2afridi/CubicLM/releases/download/v1.10.0/cubiclm-v
   <div class="changelog-title">Changelog</div>
   <div class="changelog-box">
     <div class="changelog-tabs" id="changelog-tabs">
-      <button class="changelog-tab active" data-version="v1.10.0+16">v1.10.0+16 <span class="tab-date">2026-09-08</span></button>
+      <button class="changelog-tab active" data-version="v1.10.1+17">v1.10.1+17 <span class="tab-date">2026-09-08</span></button>
+      <button class="changelog-tab" data-version="v1.10.0+16">v1.10.0+16 <span class="tab-date">2026-09-08</span></button>
       <button class="changelog-tab" data-version="v1.9.0+15">v1.9.0+15 <span class="tab-date">2026-09-07</span></button>
       <button class="changelog-tab" data-version="v1.8.1+14">v1.8.1+14 <span class="tab-date">2026-09-05</span></button>
       <button class="changelog-tab" data-version="v1.8.0+13">v1.8.0+13 <span class="tab-date">2026-09-05</span></button>
@@ -805,7 +806,15 @@ href="https://github.com/abir2afridi/CubicLM/releases/download/v1.10.0/cubiclm-v
       <button class="changelog-tab" data-version="v1.0.0">v1.0.0 <span class="tab-date">2026-08-01</span></button>
     </div>
     <div class="changelog-panel">
-      <div class="changelog-detail" id="changelog-v1.10.0+16">
+      <div class="changelog-detail" id="changelog-v1.10.1+17">
+        <h3>v1.10.1+17 <span class="changelog-date">2026-09-08</span></h3>
+        <h4>Fixed</h4>
+        <ul>
+          <li><strong>Model Load instant-close</strong> — corrupt GGUF files now show a re-download prompt instead of killing the app; low-RAM loads blocked with the exact shortfall.</li>
+          <li><strong>Log .txt export on MIUI</strong> — share failure falls back to saved file + clipboard.</li>
+        </ul>
+      </div>
+      <div class="changelog-detail" id="changelog-v1.10.0+16" style="display:none">
         <h3>v1.10.0+16 <span class="changelog-date">2026-09-08</span></h3>
         <h4>Added</h4>
         <ul>

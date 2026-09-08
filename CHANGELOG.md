@@ -5,6 +5,13 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.1+17] - 2026-09-08
+
+### Fixed
+- **Model Load instant-close** — corrupt/truncated GGUF files aborted the native loader with no catch possible; Dart now validates the GGUF header (magic/version/tensors/size) before the FFI boundary and shows a re-download prompt instead of dying.
+- **RAM hard-block** — loading when free RAM < file + KV cache + 1GB headroom silently crashed; now blocked outright with the exact shortfall. Pre-native evidence log added so any future abort is debuggable.
+- **Log .txt export on MIUI** — share-sheet failure fell into "Export failed"; now falls back to app-files copy + clipboard with the saved path.
+
 ## [1.10.0+16] - 2026-09-08
 
 ### Added

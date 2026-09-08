@@ -2,13 +2,13 @@
 ; Requires: Inno Setup (https://jrsoftware.org/isdl.php)
 ; Build the app first, then run from the repo root:
 ;   flutter build windows --release
-;   iscc /DAppVersion=1.10.0 windows\installer\cubiclm.iss
+;   iscc /DAppVersion=1.10.1 windows\installer\cubiclm.iss
 ; Output: windows\installer\Output\CubicLM-Setup-<version>.exe
 ; NOTE: unsigned build (no prod cert committed). For a signed installer,
 ; add your PFX path + password to SignTool and uncomment below.
 
 #ifndef AppVersion
-  #define AppVersion "1.10.0"
+  #define AppVersion "1.10.1"
 #endif
 
 [Setup]
