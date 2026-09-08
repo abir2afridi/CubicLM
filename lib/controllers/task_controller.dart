@@ -1,14 +1,11 @@
-import 'dart:io';
-
 import 'package:get/get.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 import '../core/constants.dart';
 import '../models/task_model.dart';
 import '../services/hive_service.dart';
 import '../services/inference_service.dart';
 import '../services/cloud_service.dart';
+import '../utils/export_file.dart';
 
 class TaskController extends GetxController {
   final HiveService _hive = Get.find<HiveService>();
@@ -142,14 +139,15 @@ Steps:''';
             snackPosition: SnackPosition.BOTTOM);
         return;
       }
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/cubiclm_task_$taskIdShort.sh');
-      await file.writeAsString(buf.toString(), flush: true);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/x-sh')],
-        text: 'CubicLM ADB plan ($count steps): ${task.goal}',
-        subject: 'CubicLM ADB plan',
+      final saved = await ExportFile.saveText(
+        text: buf.toString(),
+        fileName: 'cubiclm_task_$taskIdShort.sh',
+        dialogTitle: 'Save ADB plan (.sh)',
+        mimeType: 'application/x-sh',
       );
+      if (saved == null) return; // user cancelled
+      Get.snackbar('Plan saved', saved,
+          snackPosition: SnackPosition.BOTTOM);
       final updatedTask = task.copyWith(status: 'exported');
       _updateTask(updatedTask);
     } catch (e) {

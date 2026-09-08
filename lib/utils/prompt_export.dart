@@ -1,21 +1,18 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:get/get.dart';
 import 'package:image/image.dart' as img;
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
-import 'web_download.dart';
+import 'export_file.dart';
 
 /// Claude-style prompt exports.
 ///
 /// The prompt text is written to a `.md` file or rendered into a PDF and
-/// shared through the system share sheet (Save to Files / Drive / send via
-/// any app). PDF pages are rasterized with Flutter's own text engine
+/// saved straight to the device via the system Save dialog (no share
+/// sheet, so exports work even with no receiver apps installed).
+/// PDF pages are rasterized with Flutter's own text engine
 /// (ui.Paragraph), so every script the device fonts cover — Bangla, Arabic,
 /// CJK, emoji — renders correctly without shipping/embedding font files.
 class PromptExport {
@@ -38,46 +35,45 @@ class PromptExport {
       .trim()
       .replaceAll(RegExp(r'\s+'), '_');
 
-  /// Writes the prompt as a `.md` file and opens the share sheet.
-  /// On web the file downloads directly (Web Share file support is spotty).
-  /// Shows a snackbar instead of throwing, so icon-button callers stay lean.
+  /// Writes the prompt as a `.md` file straight to the device (system
+  /// Save dialog — no share sheet). Shows a snackbar instead of throwing,
+  /// so icon-button callers stay lean.
   static Future<void> shareAsMarkdown(String text, {String? baseName}) async {
     try {
       final name = buildMarkdownFileName(baseName ?? 'prompt');
-      final bytes = utf8.encode(text);
-      try {
-        if (await downloadWebFile(bytes, name, 'text/markdown')) return;
-      } catch (_) {}
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$name');
-      await file.writeAsString(text, flush: true);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'text/markdown')],
-        subject: 'Prompt (Markdown)',
+      final saved = await ExportFile.saveText(
+        text: text,
+        fileName: name,
+        dialogTitle: 'Save Markdown',
+        mimeType: 'text/markdown',
       );
+      if (saved != null) {
+        Get.snackbar('Export saved', saved,
+            snackPosition: SnackPosition.BOTTOM);
+      }
     } catch (e) {
       Get.snackbar('prompt_export_failed'.tr, '$e',
           snackPosition: SnackPosition.BOTTOM);
     }
   }
 
-  /// Renders the prompt into a paginated PDF and opens the share sheet.
-  /// On web the file downloads directly.
+  /// Renders the prompt into a paginated PDF and saves it straight to the
+  /// device (system Save dialog — no share sheet).
   /// Shows a snackbar instead of throwing, so icon-button callers stay lean.
   static Future<void> shareAsPdf(String text, {String? baseName}) async {
     try {
       final bytes = await buildPdfBytes(text);
       final name = buildPdfFileName(baseName ?? 'prompt');
-      try {
-        if (await downloadWebFile(bytes, name, 'application/pdf')) return;
-      } catch (_) {}
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$name');
-      await file.writeAsBytes(bytes, flush: true);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/pdf')],
-        subject: 'Prompt (PDF)',
+      final saved = await ExportFile.saveBytes(
+        bytes: bytes,
+        fileName: name,
+        dialogTitle: 'Save PDF',
+        mimeType: 'application/pdf',
       );
+      if (saved != null) {
+        Get.snackbar('Export saved', saved,
+            snackPosition: SnackPosition.BOTTOM);
+      }
     } catch (e) {
       Get.snackbar('prompt_export_failed'.tr, '$e',
           snackPosition: SnackPosition.BOTTOM);

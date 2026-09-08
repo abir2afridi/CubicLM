@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +9,6 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../controllers/chat_controller.dart';
 import '../models/chat_message.dart';
@@ -24,6 +22,7 @@ import '../services/local_image_service.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import '../utils/thought_parser.dart';
 import '../utils/prompt_export.dart';
+import '../utils/export_file.dart';
 import '../utils/web_download.dart';
 import '../widgets/attachment_preview.dart';
 import '../widgets/app_ui.dart';
@@ -450,7 +449,8 @@ class ChatView extends GetView<ChatController> {
 
       if (asPdf) {
         // Whole-chat PDF via the same raster builder as per-message export
-        // (device fonts → Bangla/emoji-safe). Falls back to text share.
+        // (device fonts → Bangla/emoji-safe). Saves straight to the
+        // device; falls back to text share on failure.
         try {
           final bytes = await PromptExport.buildPdfBytes(
               _buildMarkdownForSession(session, msgs));
@@ -465,14 +465,15 @@ class ChatView extends GetView<ChatController> {
                 subject: session.title);
             return;
           }
-          final dir = await getTemporaryDirectory();
-          final file = File('${dir.path}/$baseName.pdf');
-          await file.writeAsBytes(bytes, flush: true);
-          await Share.shareXFiles(
-            [XFile(file.path, mimeType: 'application/pdf')],
-            text: session.title,
-            subject: session.title,
+          final saved = await ExportFile.saveBytes(
+            bytes: bytes,
+            fileName: '$baseName.pdf',
+            dialogTitle: 'Save chat (.pdf)',
+            mimeType: 'application/pdf',
           );
+          if (saved == null) return; // user cancelled
+          Get.snackbar('Chat saved', saved,
+              snackPosition: SnackPosition.BOTTOM);
         } catch (_) {
           await Share.share(_buildMarkdownForSession(session, msgs),
               subject: session.title);
@@ -506,14 +507,15 @@ class ChatView extends GetView<ChatController> {
         return;
       }
       try {
-        final dir = await getTemporaryDirectory();
-        final file = File('${dir.path}/$fileName');
-        await file.writeAsString(body);
-        await Share.shareXFiles(
-          [XFile(file.path, mimeType: mimeType)],
-          text: session.title,
-          subject: session.title,
+        final saved = await ExportFile.saveText(
+          text: body,
+          fileName: fileName,
+          dialogTitle: 'Save chat (.${asTxt ? 'txt' : 'md'})',
+          mimeType: mimeType,
         );
+        if (saved == null) return; // user cancelled
+        Get.snackbar('Chat saved', saved,
+            snackPosition: SnackPosition.BOTTOM);
       } catch (_) {
         await Share.share(body, subject: session.title);
       }

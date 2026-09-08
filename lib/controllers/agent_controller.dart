@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../controllers/settings_controller.dart';
 import '../services/agent_workspace.dart';
@@ -28,7 +28,7 @@ import '../services/runtime/project_detector.dart';
 import '../services/runtime/project_validator.dart';
 import '../services/runtime/runtime_manager.dart';
 import '../utils/app_snackbar.dart';
-import '../utils/web_download.dart';
+import '../utils/export_file.dart';
 import '../utils/web_project.dart';
 
 /// One preview-pipeline step for the status checklist UI.
@@ -1776,18 +1776,15 @@ class AgentController extends GetxController {
       if (out.isEmpty) throw Exception('ZIP encoder returned nothing.');
       final stamp = DateTime.now().millisecondsSinceEpoch;
       final name = 'cubicagent_$stamp.zip';
-      if (kIsWeb) {
-        try {
-          if (await downloadWebFile(out, name, 'application/zip')) return;
-        } catch (_) {}
-      }
-      final tmp = await getTemporaryDirectory();
-      final file = File('${tmp.path}/$name');
-      await file.writeAsBytes(out, flush: true);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/zip')],
-        subject: p.name,
+      final saved = await ExportFile.saveBytes(
+        bytes: Uint8List.fromList(out),
+        fileName: name,
+        dialogTitle: 'Save project (.zip)',
+        mimeType: 'application/zip',
       );
+      if (saved != null) {
+        AppSnackbar.showTop('Project saved', saved, logHistory: false);
+      }
     } catch (e) {
       AppSnackbar.showTop('prompt_export_failed'.tr, '$e');
     }

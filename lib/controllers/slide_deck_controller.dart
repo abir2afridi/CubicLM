@@ -1,9 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:get/get.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../controllers/settings_controller.dart';
 import '../services/app_log_service.dart';
@@ -11,6 +11,7 @@ import '../services/cloud_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../utils/app_snackbar.dart';
+import '../utils/export_file.dart';
 import '../utils/prompt_export.dart';
 import '../utils/slide_deck.dart';
 import '../utils/slide_pptx.dart';
@@ -370,14 +371,16 @@ class SlideDeckController extends GetxController {
     if (slides.isEmpty) return;
     try {
       final html = deckToHtml(_deckTitle, slides.toList());
-      final dir = await getTemporaryDirectory();
       final stamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${dir.path}/cubiclm_slides_$stamp.html');
-      await file.writeAsString(html, flush: true);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'text/html')],
-        subject: _deckTitle,
+      final saved = await ExportFile.saveText(
+        text: html,
+        fileName: 'cubiclm_slides_$stamp.html',
+        dialogTitle: 'Save slides (.html)',
+        mimeType: 'text/html',
       );
+      if (saved != null) {
+        AppSnackbar.showTop('Slides saved', saved, logHistory: false);
+      }
     } catch (e) {
       AppSnackbar.showTop('prompt_export_failed'.tr, '$e');
     }
@@ -409,18 +412,17 @@ class SlideDeckController extends GetxController {
     if (slides.isEmpty) return;
     try {
       final bytes = await deckToPptx(_deckTitle, slides.toList());
-      final dir = await getTemporaryDirectory();
       final stamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${dir.path}/cubiclm_slides_$stamp.pptx');
-      await file.writeAsBytes(bytes, flush: true);
-      await Share.shareXFiles(
-        [
-          XFile(file.path,
-              mimeType:
-                  'application/vnd.openxmlformats-officedocument.presentationml.presentation')
-        ],
-        subject: _deckTitle,
+      final saved = await ExportFile.saveBytes(
+        bytes: Uint8List.fromList(bytes),
+        fileName: 'cubiclm_slides_$stamp.pptx',
+        dialogTitle: 'Save slides (.pptx)',
+        mimeType:
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       );
+      if (saved != null) {
+        AppSnackbar.showTop('Slides saved', saved, logHistory: false);
+      }
     } catch (e) {
       AppSnackbar.showTop('prompt_export_failed'.tr, '$e');
     }

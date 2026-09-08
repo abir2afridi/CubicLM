@@ -1,19 +1,16 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:ui';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
 import '../theme/design_tokens.dart';
 import '../services/app_log_service.dart';
 import '../utils/app_snackbar.dart';
+import '../utils/export_file.dart';
 import '../utils/web_download.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -783,49 +780,19 @@ class LogView extends StatelessWidget {
       );
       return;
     }
-    if (Platform.isWindows ||
-        Platform.isLinux ||
-        Platform.isMacOS) {
-      final outPath = await FilePicker.saveFile(
-        dialogTitle: 'Save CubicLM logs',
-        fileName: fileName,
-        type: FileType.custom,
-        allowedExtensions: ['txt'],
-        bytes: Uint8List.fromList(utf8.encode(text)),
-      );
-      if (outPath == null) return; // dismissed
-      AppSnackbar.showTop('Logs saved', outPath,
-          icon: LucideIcons.checkCircle2,
-          type: 'success',
-          iconName: 'check',
-          duration: const Duration(seconds: 5),
-          logHistory: false);
-      return;
-    }
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$fileName');
-    await file.writeAsString(text, flush: true);
-    try {
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'text/plain')],
-        subject: 'CubicLM logs',
-      );
-    } catch (_) {
-      // Share sheet can fail on some OEM ROMs (MIUI FileProvider quirks).
-      // Fall back: keep a copy in app files + clipboard so nothing is lost.
-      final docs = await getApplicationDocumentsDirectory();
-      final fb = File('${docs.path}/$fileName');
-      await fb.writeAsString(text, flush: true);
-      await Clipboard.setData(ClipboardData(text: text));
-      if (context.mounted) {
-        AppSnackbar.showTop('Share failed — saved instead', fb.path,
-            icon: LucideIcons.checkCircle2,
-            type: 'success',
-            iconName: 'check',
-            duration: const Duration(seconds: 5),
-            logHistory: false);
-      }
-    }
+    final saved = await ExportFile.saveText(
+      text: text,
+      fileName: fileName,
+      dialogTitle: 'Save CubicLM logs',
+      mimeType: 'text/plain',
+    );
+    if (saved == null) return; // dismissed / unavailable
+    AppSnackbar.showTop('Logs saved', saved,
+        icon: LucideIcons.checkCircle2,
+        type: 'success',
+        iconName: 'check',
+        duration: const Duration(seconds: 5),
+        logHistory: false);
   }
 
   Widget _catChip(BuildContext context, bool isDark,

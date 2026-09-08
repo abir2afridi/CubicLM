@@ -11,7 +11,6 @@ import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:uuid/uuid.dart';
 import '../controllers/settings_controller.dart';
@@ -35,6 +34,7 @@ import '../services/skills/skill_injector.dart';
 import '../models/web_source.dart';
 import '../utils/thought_parser.dart';
 import '../utils/history_budget.dart';
+import '../utils/export_file.dart';
 import '../services/stats_service.dart';
 
 const int _visionImageMaxSide = 768;
@@ -951,9 +951,10 @@ class ChatController extends GetxController {
     return jsonEncode(payload);
   }
 
-  /// Export every session + message to a single JSON backup file and open
-  /// the system share sheet. Desktop has no share sheet — a native save
-  /// dialog is shown instead so the user picks the destination directly.
+  /// Export every session + message to a single JSON backup file, saved
+  /// straight to the device via the system Save dialog (no share sheet).
+  /// Desktop has no share sheet — a native save dialog is shown instead
+  /// so the user picks the destination directly.
   Future<String?> exportAllChats({
     bool includeImages = false,
     String? passphrase,
@@ -968,16 +969,14 @@ class ChatController extends GetxController {
         return await _exportChatsDesktop(jsonStr);
       }
 
-      final dir = await getTemporaryDirectory();
       final stamp = DateTime.now().toIso8601String().split('T').first;
-      final file = File('${dir.path}/cubiclm_chat_backup_$stamp.json');
-      await file.writeAsString(jsonStr, flush: true);
-
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/json')],
-        subject: 'CubicLM chat backup',
+      final saved = await ExportFile.saveText(
+        text: jsonStr,
+        fileName: 'cubiclm_chat_backup_$stamp.json',
+        dialogTitle: 'Save CubicLM chat backup',
+        mimeType: 'application/json',
       );
-      return null;
+      return saved == null ? 'cancelled' : null;
     } catch (e) {
       Get.find<AppLogService>().error('Backup export failed',
           details: e, category: LogCategory.chat);
@@ -1121,27 +1120,15 @@ class ChatController extends GetxController {
       final jsonStr = jsonEncode(payload);
       final stamp = DateTime.now().toIso8601String().split('T').first;
       final fileName = 'cubiclm_settings_$stamp.json';
-      if (!kIsWeb &&
-          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-        final outPath = await FilePicker.saveFile(
-          dialogTitle: 'Save CubicLM settings',
-          fileName: fileName,
-          type: FileType.custom,
-          allowedExtensions: ['json'],
-          bytes: Uint8List.fromList(utf8.encode(jsonStr)),
-        );
-        if (outPath == null) return 'cancelled';
-        Get.find<AppLogService>().info('Settings exported',
-            details: outPath, category: LogCategory.chat);
-        return null;
-      }
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$fileName');
-      await file.writeAsString(jsonStr, flush: true);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'application/json')],
-        subject: 'CubicLM settings',
+      final outPath = await ExportFile.saveText(
+        text: jsonStr,
+        fileName: fileName,
+        dialogTitle: 'Save CubicLM settings',
+        mimeType: 'application/json',
       );
+      if (outPath == null) return 'cancelled';
+      Get.find<AppLogService>().info('Settings exported',
+          details: outPath, category: LogCategory.chat);
       return null;
     } catch (e) {
       Get.find<AppLogService>().error('Settings export failed',
