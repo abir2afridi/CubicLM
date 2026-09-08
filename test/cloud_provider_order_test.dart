@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import 'package:cubiclm/controllers/cloud_model_controller.dart';
 import 'package:cubiclm/controllers/settings_controller.dart';
+import 'package:cubiclm/services/cloud/cloud_provider_registry.dart';
 import 'package:cubiclm/services/hive_service.dart';
 import 'package:cubiclm/services/secure_key_store.dart';
 
@@ -209,6 +210,35 @@ void main() {
       final err = await c.verifyApiKey('openai', '   ');
       expect(err, isNotNull);
       expect(s.openaiKey.value, isEmpty);
+    });
+
+    test('new gateways registered with correct endpoints', () {
+      final agent = CloudProviderRegistry.getById('agentrouter')!;
+      final orca = CloudProviderRegistry.getById('orcarouter')!;
+      final apinex = CloudProviderRegistry.getById('apinex')!;
+      expect(agent.endpoint, contains('agentrouter.org/v1'));
+      expect(orca.endpoint, contains('api.orcarouter.ai/v1'));
+      expect(apinex.endpoint, contains('apinex.bond/v1'));
+      for (final p in [agent, orca, apinex]) {
+        expect(p.supportsStreaming, isTrue);
+        expect(
+            p.getModelListCandidates('k').first, contains('/v1/models'));
+      }
+    });
+
+    test('new gateways start unkeyed with isolated keys', () {
+      final c = makeController();
+      final s = Get.find<SettingsController>();
+      for (final id in ['agentrouter', 'orcarouter', 'apinex']) {
+        expect(c.apiKeyFor(id), isEmpty);
+        expect(c.isConfigured(id), isFalse);
+      }
+      // Setting one gateway key touches no other provider.
+      s.orcarouterKey.value = 'sk-orca-test';
+      expect(c.isConfigured('orcarouter'), isTrue);
+      expect(c.isConfigured('agentrouter'), isFalse);
+      expect(c.isConfigured('apinex'), isFalse);
+      expect(c.isConfigured('openrouter'), isFalse);
     });
 
     test('orderedProviders excludes unkeyed providers', () {

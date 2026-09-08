@@ -35,6 +35,9 @@ class AppConstants {
   static const String keyHuggingFaceKey = 'huggingface_api_key';
   static const String keyXkiroKey = 'xkiro_api_key';
   static const String keyTokenRouterKey = 'tokenrouter_api_key';
+  static const String keyAgentRouterKey = 'agentrouter_api_key';
+  static const String keyOrcaRouterKey = 'orcarouter_api_key';
+  static const String keyApinexKey = 'apinex_api_key';
   static const String keyCustomCloudName = 'custom_cloud_name';
   static const String keyCustomCloudBaseUrl = 'custom_cloud_base_url';
   static const String keyCustomCloudKey = 'custom_cloud_api_key';
@@ -60,6 +63,9 @@ class AppConstants {
   static const String keyHuggingFaceModel = 'huggingface_model';
   static const String keyXkiroModel = 'xkiro_model';
   static const String keyTokenRouterModel = 'tokenrouter_model';
+  static const String keyAgentRouterModel = 'agentrouter_model';
+  static const String keyOrcaRouterModel = 'orcarouter_model';
+  static const String keyApinexModel = 'apinex_model';
   static const String keyCustomCloudModel = 'custom_cloud_model';
   static const String keyGlobalSystemPrompt = 'global_system_prompt';
   static const String keyAutoTuneParams = 'auto_tune_params';

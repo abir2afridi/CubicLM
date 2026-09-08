@@ -19,6 +19,9 @@ import 'providers/cohere_provider.dart';
 import 'providers/huggingface_provider.dart';
 import 'providers/xkiro_provider.dart';
 import 'providers/tokenrouter_provider.dart';
+import 'providers/agentrouter_provider.dart';
+import 'providers/orcarouter_provider.dart';
+import 'providers/apinex_provider.dart';
 
 /// Registry of all cloud AI providers.
 ///
@@ -47,6 +50,9 @@ class CloudProviderRegistry {
     'huggingface': HuggingFaceProvider(),
     'xkiro': XkiroProvider(),
     'tokenrouter': TokenRouterProvider(),
+    'agentrouter': AgentRouterProvider(),
+    'orcarouter': OrcaRouterProvider(),
+    'apinex': ApinexProvider(),
   };
 
   /// Get a provider by its ID.

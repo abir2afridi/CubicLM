@@ -274,6 +274,15 @@ class CloudService extends GetxService {
       case 'tokenrouter':
         key = AppConstants.keyTokenRouterKey;
         break;
+      case 'agentrouter':
+        key = AppConstants.keyAgentRouterKey;
+        break;
+      case 'orcarouter':
+        key = AppConstants.keyOrcaRouterKey;
+        break;
+      case 'apinex':
+        key = AppConstants.keyApinexKey;
+        break;
       case 'openai':
         key = AppConstants.keyOpenaiKey;
         break;
@@ -342,7 +351,16 @@ class CloudService extends GetxService {
         return _hive.getSetting(AppConstants.keyXkiroModel) ?? 'openai/gpt-5.2';
       case 'tokenrouter':
         return _hive.getSetting(AppConstants.keyTokenRouterModel) ??
-            'openai/gpt-5.2';      case 'custom':
+            'openai/gpt-5.2';
+      case 'agentrouter':
+        return _hive.getSetting(AppConstants.keyAgentRouterModel) ??
+            'claude-opus-4-8';
+      case 'orcarouter':
+        return _hive.getSetting(AppConstants.keyOrcaRouterModel) ??
+            'orcarouter/auto';
+      case 'apinex':
+        return _hive.getSetting(AppConstants.keyApinexModel) ?? 'gpt-4o';
+      case 'custom':
         return _hive.getSetting(AppConstants.keyCustomCloudModel) ?? '';
       default:
         return _hive.getSetting(AppConstants.keyOpenaiModel) ?? 'gpt-5.2';

@@ -49,6 +49,9 @@ class SettingsController extends GetxController {
     AppConstants.keyHuggingFaceKey,
     AppConstants.keyXkiroKey,
     AppConstants.keyTokenRouterKey,
+    AppConstants.keyAgentRouterKey,
+    AppConstants.keyOrcaRouterKey,
+    AppConstants.keyApinexKey,
     AppConstants.keyCustomCloudKey,
     AppConstants.keyServerApiKey,
   ];
@@ -77,6 +80,9 @@ class SettingsController extends GetxController {
   final huggingfaceKey = ''.obs;
   final xkiroKey = ''.obs;
   final tokenrouterKey = ''.obs;
+  final agentrouterKey = ''.obs;
+  final orcarouterKey = ''.obs;
+  final apinexKey = ''.obs;
   final customCloudName = 'Custom API'.obs;
   final customCloudBaseUrl = ''.obs;
   final customCloudKey = ''.obs;
@@ -103,6 +109,9 @@ class SettingsController extends GetxController {
   final huggingfaceModel = 'meta-llama/Llama-3.3-70B-Instruct'.obs;
   final xkiroModel = 'openai/gpt-5.2'.obs;
   final tokenrouterModel = 'openai/gpt-5.2'.obs;
+  final agentrouterModel = 'claude-opus-4-8'.obs;
+  final orcarouterModel = 'orcarouter/auto'.obs;
+  final apinexModel = 'gpt-4o'.obs;
   final customCloudModel = ''.obs;
   final globalSystemPrompt = AppConstants.systemPrompt.obs;
   final nvidiaModels = <String>[].obs;
@@ -193,6 +202,9 @@ class SettingsController extends GetxController {
   final huggingfaceKeyController = TextEditingController();
   final xkiroKeyController = TextEditingController();
   final tokenrouterKeyController = TextEditingController();
+  final agentrouterKeyController = TextEditingController();
+  final orcarouterKeyController = TextEditingController();
+  final apinexKeyController = TextEditingController();
   final customCloudNameController = TextEditingController();
   final customCloudBaseUrlController = TextEditingController();
   final customCloudKeyController = TextEditingController();
@@ -219,6 +231,9 @@ class SettingsController extends GetxController {
   final huggingfaceModelController = TextEditingController();
   final xkiroModelController = TextEditingController();
   final tokenrouterModelController = TextEditingController();
+  final agentrouterModelController = TextEditingController();
+  final orcarouterModelController = TextEditingController();
+  final apinexModelController = TextEditingController();
   final customCloudModelController = TextEditingController();
 
   Timer? _apiKeyDebounceTimer;
@@ -302,6 +317,9 @@ class SettingsController extends GetxController {
     huggingfaceKey.value = _keys.read(AppConstants.keyHuggingFaceKey);
     xkiroKey.value = _keys.read(AppConstants.keyXkiroKey);
     tokenrouterKey.value = _keys.read(AppConstants.keyTokenRouterKey);
+    agentrouterKey.value = _keys.read(AppConstants.keyAgentRouterKey);
+    orcarouterKey.value = _keys.read(AppConstants.keyOrcaRouterKey);
+    apinexKey.value = _keys.read(AppConstants.keyApinexKey);
     customCloudName.value = _hive.getSetting(AppConstants.keyCustomCloudName,
             defaultValue: 'Custom API') ??
         'Custom API';
@@ -508,6 +526,9 @@ class SettingsController extends GetxController {
     huggingfaceKeyController.text = huggingfaceKey.value;
     xkiroKeyController.text = xkiroKey.value;
     tokenrouterKeyController.text = tokenrouterKey.value;
+    agentrouterKeyController.text = agentrouterKey.value;
+    orcarouterKeyController.text = orcarouterKey.value;
+    apinexKeyController.text = apinexKey.value;
     customCloudNameController.text = customCloudName.value;
     customCloudBaseUrlController.text = customCloudBaseUrl.value;
     customCloudKeyController.text = customCloudKey.value;
@@ -534,6 +555,9 @@ class SettingsController extends GetxController {
     huggingfaceModelController.text = huggingfaceModel.value;
     xkiroModelController.text = xkiroModel.value;
     tokenrouterModelController.text = tokenrouterModel.value;
+    agentrouterModelController.text = agentrouterModel.value;
+    orcarouterModelController.text = orcarouterModel.value;
+    apinexModelController.text = apinexModel.value;
     customCloudModelController.text = customCloudModel.value;
   }
 
@@ -577,6 +601,12 @@ class SettingsController extends GetxController {
         return xkiroKeyController;
       case 'tokenrouter':
         return tokenrouterKeyController;
+      case 'agentrouter':
+        return agentrouterKeyController;
+      case 'orcarouter':
+        return orcarouterKeyController;
+      case 'apinex':
+        return apinexKeyController;
       case 'custom':
         return customCloudKeyController;
       default:
@@ -624,6 +654,12 @@ class SettingsController extends GetxController {
         return xkiroModelController;
       case 'tokenrouter':
         return tokenrouterModelController;
+      case 'agentrouter':
+        return agentrouterModelController;
+      case 'orcarouter':
+        return orcarouterModelController;
+      case 'apinex':
+        return apinexModelController;
       case 'custom':
         return customCloudModelController;
       default:
@@ -671,6 +707,12 @@ class SettingsController extends GetxController {
         return xkiroModel.value;
       case 'tokenrouter':
         return tokenrouterModel.value;
+      case 'agentrouter':
+        return agentrouterModel.value;
+      case 'orcarouter':
+        return orcarouterModel.value;
+      case 'apinex':
+        return apinexModel.value;
       case 'custom':
         return customCloudModel.value;
       default:
@@ -821,7 +863,23 @@ class SettingsController extends GetxController {
         tokenrouterKey.value = trimmed;
         tokenrouterKeyController.text = trimmed;
         await _keys.write(AppConstants.keyTokenRouterKey, trimmed);
-        break;      case 'custom':
+        break;
+      case 'agentrouter':
+        agentrouterKey.value = trimmed;
+        agentrouterKeyController.text = trimmed;
+        await _keys.write(AppConstants.keyAgentRouterKey, trimmed);
+        break;
+      case 'orcarouter':
+        orcarouterKey.value = trimmed;
+        orcarouterKeyController.text = trimmed;
+        await _keys.write(AppConstants.keyOrcaRouterKey, trimmed);
+        break;
+      case 'apinex':
+        apinexKey.value = trimmed;
+        apinexKeyController.text = trimmed;
+        await _keys.write(AppConstants.keyApinexKey, trimmed);
+        break;
+      case 'custom':
         customCloudKey.value = trimmed;
         customCloudKeyController.text = trimmed;
         await _keys.write(AppConstants.keyCustomCloudKey, trimmed);
@@ -945,7 +1003,23 @@ class SettingsController extends GetxController {
         tokenrouterModel.value = model;
         tokenrouterModelController.text = model;
         await _hive.setSetting(AppConstants.keyTokenRouterModel, model);
-        break;      case 'custom':
+        break;
+      case 'agentrouter':
+        agentrouterModel.value = model;
+        agentrouterModelController.text = model;
+        await _hive.setSetting(AppConstants.keyAgentRouterModel, model);
+        break;
+      case 'orcarouter':
+        orcarouterModel.value = model;
+        orcarouterModelController.text = model;
+        await _hive.setSetting(AppConstants.keyOrcaRouterModel, model);
+        break;
+      case 'apinex':
+        apinexModel.value = model;
+        apinexModelController.text = model;
+        await _hive.setSetting(AppConstants.keyApinexModel, model);
+        break;
+      case 'custom':
         customCloudModel.value = model;
         customCloudModelController.text = model;
         await _hive.setSetting(AppConstants.keyCustomCloudModel, model);

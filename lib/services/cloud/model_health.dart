@@ -192,6 +192,11 @@ String? keyFormatHint(String providerId, String key) {
         return 'OpenRouter keys usually start with "sk-or-". Double-check you pasted the right key.';
       }
       return null;
+    case 'orcarouter':
+      if (!k.startsWith('sk-orca-')) {
+        return 'OrcaRouter keys usually start with "sk-orca-". Double-check you pasted the right key.';
+      }
+      return null;
     case 'anthropic':
       if (!k.startsWith('sk-ant-')) {
         return 'Anthropic keys usually start with "sk-ant-". Double-check you pasted the right key.';

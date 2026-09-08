@@ -60,7 +60,7 @@
 
 - **Warm native splash** — `launch_background` is `#F8F4ED` (same as `Dt.canvas`), no white flash on cold start; `NormalTheme` matches
 - **Animated CubicLM** — 44–48sp PlusJakartaSans w900, shimmer `LinearGradient` isolated in `RepaintBoundary` + `760ms` fade-in/out, `1380ms` dwell → onboarding/home — no jank after `runApp()` was moved to critical path
-- **First-run onboarding (new)** — `onboarding_view.dart` 3-page `PageView`: *Private by Default* (shield) → *Or Use Any Cloud* (20+ providers) → *Pick Your First Model* (recommended chip) with dots + `Skip/Next/Start Chatting` (Hive `onboarding_done_v1`, i18n `onboarding_*` EN+BN, fallback for 13 langs)
+- **First-run onboarding (new)** — `onboarding_view.dart` 3-page `PageView`: *Private by Default* (shield) → *Or Use Any Cloud* (23+ providers) → *Pick Your First Model* (recommended chip) with dots + `Skip/Next/Start Chatting` (Hive `onboarding_done_v1`, i18n `onboarding_*` EN+BN, fallback for 13 langs)
 - **Deferred heavy init** — `NotificationHistory/Skill/MCP/DeviceInfo/CrashReporting/ImageNotifications` start `2200ms` after `runApp()` (after splash), plus `Hive` per-box `3s` timeout with `_MemoryBox` fallback — native `launch_background` never hangs
 - **Auto-load last model** — `App Settings → STARTUP` switch (`AppConstants.keyAutoLoadLastModel`). **ON**: after chat UI is idle (splash gone + `DeviceInfo` ready + `1200ms`), checks `isModelLoaded` resident, `90s` crash-loop guard, `80%` RAM guard, then `loadModel().timeout(90s)` off the UI frame. **OFF** (default): shows `Resume Session?` dialog after `520ms`. Prevents `mmap 2-7GB` during splash which previously froze 2nd open
 
@@ -87,6 +87,9 @@ The chat page can fetch live web content on its own — no external services or 
 - **Hugging Face** (Inference Providers router — dozens of upstream vendors)
 - **xKiro** (smart-routing gateway, free tier, all vendors)
 - **TokenRouter** (unified hub — 100+ vendor models)
+- **AgentRouter** (non-profit OpenAI gateway — Claude/GPT/Gemini/GLM)
+- **OrcaRouter** (cost-price gateway — `vendor/model` IDs, `orcarouter/auto`)
+- **APInex** (one-key gateway — OpenAI/Anthropic/Gemini/DeepSeek/Kimi/Zhipu/xAI)
 - **OpenAI** (GPT-5.2, GPT-4o, etc.)
 - **Anthropic** (Claude Sonnet 4)
 - **Google Gemini** (Gemini 2.5 Flash)
@@ -471,7 +474,7 @@ Or set `CUBICLM_ALLOW_DEBUG_RELEASE_SIGNING=true` to skip keystore validation du
 
 ### 🔑 Cloud API Keys
 
-Tap **Add API Key** on any provider card in the **Explore** tab — the key is verified and the live model list loads automatically on save. Refresh any time with the ↻ button on a provider card.
+Tap **Add API Key** on any provider card in the **Explore** tab — paste the key, hit **Verify** (live endpoint check, nothing saved), then **Save Key** unlocks once it shows *Verified — N models found*. Keyed providers sort to the top (Custom always first, then pinned, then by key-set time or A–Z); keyless ones sit in an *Add API Key* section below and never appear in the chat model switcher. Refresh any time with the ↻ button on a provider card, or probe every model with the activity (Test all) button.
 
 ### 💾 Local Models
 

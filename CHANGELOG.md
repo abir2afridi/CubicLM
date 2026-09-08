@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **New cloud providers** — AgentRouter (non-profit OpenAI gateway), OrcaRouter (cost-price gateway, `sk-orca-` keys, `vendor/model` IDs + `orcarouter/auto`), APInex (one-key gateway across 7 vendors). 23 providers total.
+- **Verify-before-save keys** — key dialog checks the live endpoint first (nothing saved), shows *Verified — N models found*, then unlocks Save; editing invalidates; clear (X) + paste moved above the field.
+- **Honest model probes** — connection-fast testing (first chunk = online, 15s window), one retry for transient 429/5xx, 250ms stagger, fail-closed key lookup.
+
+### Fixed
+- **Ghost-key bug** — unlisted provider IDs borrowed the OpenAI key and showed as configured; unknown IDs now fail closed in UI + send path.
+- **Provider ordering** — Custom always top, keyed (pinned → time/name) above, keyless in a separate Add-Key section, switcher shows keyed only; removed dead auto-detected vendor cards.
+- **Zero-quota + wrong-key messages** — quota-0 and non-`AIza` Gemini keys now explain themselves.
+
 ## [1.9.0+15] - 2026-09-07
 
 ### Added

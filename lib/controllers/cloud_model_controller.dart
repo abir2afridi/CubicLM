@@ -295,6 +295,25 @@ class CloudModelController extends GetxController {
       'moonshotai/kimi-k2.6',
       'minimax/minimax-m2.7',
     ],
+    'agentrouter': [
+      'claude-opus-4-8',
+      'deepseek-r1',
+      'glm-4.5-air',
+      'gpt-4o',
+    ],
+    'orcarouter': [
+      'orcarouter/auto',
+      'openai/gpt-4o-mini',
+      'anthropic/claude-sonnet-4.6',
+      'google/gemini-2.5-pro',
+      'kimi/kimi-k2.6',
+    ],
+    'apinex': [
+      'gpt-4o',
+      'claude-sonnet-4-6',
+      'gemini-2.5-flash',
+      'deepseek-chat',
+    ],
   };
 
   final allProviders = <CloudProviderInfo>[].obs;
@@ -517,7 +536,14 @@ class CloudModelController extends GetxController {
       case 'xkiro':
         return _settings.xkiroModel.value;
       case 'tokenrouter':
-        return _settings.tokenrouterModel.value;      case 'custom':
+        return _settings.tokenrouterModel.value;
+      case 'agentrouter':
+        return _settings.agentrouterModel.value;
+      case 'orcarouter':
+        return _settings.orcarouterModel.value;
+      case 'apinex':
+        return _settings.apinexModel.value;
+      case 'custom':
         return _settings.customCloudModel.value;
       default:
         return _settings.openaiModel.value;
@@ -566,6 +592,12 @@ class CloudModelController extends GetxController {
         return _settings.xkiroKey.value;
       case 'tokenrouter':
         return _settings.tokenrouterKey.value;
+      case 'agentrouter':
+        return _settings.agentrouterKey.value;
+      case 'orcarouter':
+        return _settings.orcarouterKey.value;
+      case 'apinex':
+        return _settings.apinexKey.value;
       case 'stability':
         return _settings.stabilityKey.value;
       case 'custom':
