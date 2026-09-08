@@ -13,23 +13,33 @@ import '../services/local_image_service.dart';
 import '../utils/app_snackbar.dart';
 import '../utils/prompt_export.dart';
 import '../utils/slide_deck.dart';
+import '../utils/slide_pptx.dart';
 
 /// Slide Maker: AI generates a structured deck from a topic.
 /// Same engine rules as chat (local resident model or active cloud
 /// setup). Image-capable setups can render per-slide visuals; otherwise
 /// every visual slide keeps a proper placeholder box with its prompt.
+///
+/// Supports 8 presentation styles, 8 slide layout types, pre-built
+/// templates, smart single-slide regeneration, and export to Markdown,
+/// PDF, HTML, and PowerPoint (.pptx).
 class SlideDeckController extends GetxController {
   static const styles = [
     'Professional',
     'Playful',
     'Minimal',
     'Story-like',
+    'Academic',
+    'Creative',
+    'Data-driven',
+    'Pitch Deck',
   ];
   static const minSlides = 3;
-  static const maxSlides = 12;
+  static const maxSlides = 20;
 
   final topic = ''.obs;
   final style = 'Professional'.obs;
+  final audience = ''.obs;
   final slideCount = 6.obs;
   final slides = <Slide>[].obs;
   final generating = false.obs;
@@ -53,7 +63,9 @@ class SlideDeckController extends GetxController {
       final raw = await _ask(
         prompt: 'Create a ${slideCount.value}-slide presentation about: $t',
         system: slideSystemPrompt(
-            count: slideCount.value, style: style.value),
+            count: slideCount.value,
+            style: style.value,
+            audience: audience.value),
       );
       final parsed = parseSlides(raw);
       slides.assignAll(parsed);
@@ -72,6 +84,7 @@ class SlideDeckController extends GetxController {
   }
 
   /// Regenerate one slide in place (keeps the rest of the deck).
+  /// Passes adjacent slide context so the replacement fits the flow.
   Future<void> regenerateSlide(int index) async {
     if (generating.value ||
         index < 0 ||
@@ -88,9 +101,13 @@ class SlideDeckController extends GetxController {
           topic: topic.value.trim(),
           index: index + 1,
           current: slides[index],
+          prevTitle: index > 0 ? slides[index - 1].title : null,
+          nextTitle: index < slides.length - 1 ? slides[index + 1].title : null,
         ),
         system: slideSystemPrompt(
-            count: slides.length, style: style.value),
+            count: slides.length,
+            style: style.value,
+            audience: audience.value),
       );
       final parsed = parseSlides(raw);
       if (parsed.isNotEmpty) {
@@ -108,10 +125,98 @@ class SlideDeckController extends GetxController {
     }
   }
 
+  /// AI-powered slide refinement: user describes a change, AI rewrites
+  /// that single slide to match the request while keeping deck context.
+  Future<void> refineSlide(int index, String instruction) async {
+    if (generating.value ||
+        index < 0 ||
+        index >= slides.length ||
+        instruction.trim().isEmpty) {
+      return;
+    }
+    generating.value = true;
+    regenIndex.value = index;
+    lastError.value = null;
+    try {
+      final raw = await _ask(
+        prompt: 'Rewrite slide ${index + 1} of the "$topic" deck based on this instruction:\n'
+            '"${instruction.trim()}"\n\n'
+            'Keep the same JSON schema inside one ```slides fence.\n'
+            'Current slide:\n'
+            'Title: ${slides[index].title}\n'
+            'Layout: ${slides[index].layout}\n'
+            'Points: ${slides[index].points.join("; ")}\n'
+            'Image: ${slides[index].imagePrompt}\n'
+            'Notes: ${slides[index].notes}',
+        system: slideSystemPrompt(
+            count: slides.length,
+            style: style.value,
+            audience: audience.value),
+      );
+      final parsed = parseSlides(raw);
+      if (parsed.isNotEmpty) {
+        final keepImages = slides[index].imageBytes;
+        final next = parsed.first;
+        next.imageBytes = keepImages;
+        slides[index] = next;
+      }
+    } catch (e) {
+      lastError.value = '$e';
+      _log('Slide refine failed', e);
+    } finally {
+      generating.value = false;
+      regenIndex.value = -1;
+    }
+  }
+
+  /// One-click restyle: regenerate all slides with a new [newStyle] while
+  /// keeping the same topic and slide count. Content is rewritten to match
+  /// the new tone; layouts may change for better fit.
+  Future<void> restyleDeck(String newStyle) async {
+    if (generating.value || topic.value.trim().isEmpty || slides.isEmpty) return;
+    generating.value = true;
+    regenIndex.value = -1;
+    lastError.value = null;
+    final oldStyle = style.value;
+    style.value = newStyle;
+    try {
+      final raw = await _ask(
+        prompt: 'Restyle this ${slides.length}-slide presentation about: ${topic.value.trim()}\n\n'
+            'Keep the same number of slides and similar content structure, '
+            'but rewrite everything to match a "$newStyle" tone.\n'
+            'You may change layouts if they fit the new style better.',
+        system: slideSystemPrompt(
+            count: slides.length,
+            style: newStyle,
+            audience: audience.value),
+      );
+      final parsed = parseSlides(raw);
+      if (parsed.length == slides.length) {
+        // Preserve images from the old deck
+        for (var i = 0; i < parsed.length; i++) {
+          parsed[i].imageBytes = slides[i].imageBytes;
+        }
+        slides.assignAll(parsed);
+      } else {
+        lastError.value =
+            'Restyle returned ${parsed.length} slides (expected ${slides.length}). Keeping original.';
+        style.value = oldStyle;
+      }
+    } catch (e) {
+      lastError.value = '$e';
+      style.value = oldStyle;
+      _log('Deck restyle failed', e);
+    } finally {
+      generating.value = false;
+    }
+  }
+
   // ── Manual editing ──
 
   void applyEdit(int index,
       {required String title,
+      String subtitle = '',
+      String quoteAuthor = '',
       required String pointsText,
       required String imagePrompt,
       required String notes,
@@ -119,6 +224,8 @@ class SlideDeckController extends GetxController {
     if (index < 0 || index >= slides.length) return;
     final s = slides[index];
     s.title = title.trim().isEmpty ? 'Untitled' : title.trim();
+    s.subtitle = subtitle.trim();
+    s.quoteAuthor = quoteAuthor.trim();
     s.points = pointsText
         .split('\n')
         .map((e) => e.trim().replaceFirst(RegExp(r'^[-*•]\s+'), ''))
@@ -260,12 +367,133 @@ class SlideDeckController extends GetxController {
       await file.writeAsString(html, flush: true);
       final result = await OpenFile.open(file.path);
       if (result.type != ResultType.done) {
-        AppSnackbar.showTop(
-            'Cannot open', result.message.isNotEmpty ? result.message : 'No browser found.');
+        AppSnackbar.showTop('Cannot open',
+            result.message.isNotEmpty ? result.message : 'No browser found.');
       }
     } catch (e) {
       AppSnackbar.showTop('prompt_export_failed'.tr, '$e');
     }
+  }
+
+  /// Export as PowerPoint (.pptx) — builds an OpenXML zip archive.
+  Future<void> exportPptx() async {
+    if (slides.isEmpty) return;
+    try {
+      final bytes = await deckToPptx(_deckTitle, slides.toList());
+      final dir = await getTemporaryDirectory();
+      final stamp = DateTime.now().millisecondsSinceEpoch;
+      final file = File('${dir.path}/cubiclm_slides_$stamp.pptx');
+      await file.writeAsBytes(bytes, flush: true);
+      await Share.shareXFiles(
+        [
+          XFile(file.path,
+              mimeType:
+                  'application/vnd.openxmlformats-officedocument.presentationml.presentation')
+        ],
+        subject: _deckTitle,
+      );
+    } catch (e) {
+      AppSnackbar.showTop('prompt_export_failed'.tr, '$e');
+    }
+  }
+
+  // ── Slide Templates ──
+
+  /// Pre-built deck skeletons the user can pick before AI generation.
+  /// Each template defines the skeleton slides (title + layout) that
+  /// the AI then fills with content for the user's topic.
+  static const templates = <String, List<Map<String, String>>>{
+    '📚 Lesson Plan': [
+      {'title': 'Topic & Objectives', 'layout': 'title'},
+      {'title': 'Learning Objectives', 'layout': 'bullets'},
+      {'title': 'Key Concepts', 'layout': 'bullets'},
+      {'title': 'Visual Explanation', 'layout': 'image'},
+      {'title': 'Activity / Practice', 'layout': 'bullets'},
+      {'title': 'Key Takeaways', 'layout': 'summary'},
+    ],
+    '💼 Business Pitch': [
+      {'title': 'Company & Vision', 'layout': 'title'},
+      {'title': 'The Problem', 'layout': 'bullets'},
+      {'title': 'Our Solution', 'layout': 'image'},
+      {'title': 'Market Opportunity', 'layout': 'stats'},
+      {'title': 'Before vs After', 'layout': 'comparison'},
+      {'title': 'Traction & Milestones', 'layout': 'timeline'},
+      {'title': 'The Ask', 'layout': 'summary'},
+    ],
+    '🔬 Research Report': [
+      {'title': 'Research Title', 'layout': 'title'},
+      {'title': 'Background & Motivation', 'layout': 'bullets'},
+      {'title': 'Methodology', 'layout': 'bullets'},
+      {'title': 'Key Findings', 'layout': 'stats'},
+      {'title': 'Visual Results', 'layout': 'image'},
+      {'title': 'Discussion', 'layout': 'bullets'},
+      {'title': 'Conclusion', 'layout': 'summary'},
+    ],
+    '📊 Project Update': [
+      {'title': 'Project Status', 'layout': 'title'},
+      {'title': 'Progress Overview', 'layout': 'stats'},
+      {'title': 'Completed Milestones', 'layout': 'timeline'},
+      {'title': 'Blockers & Risks', 'layout': 'comparison'},
+      {'title': 'Next Steps', 'layout': 'summary'},
+    ],
+    '📖 Story / Narrative': [
+      {'title': 'Once Upon a Time…', 'layout': 'title'},
+      {'title': 'The Setting', 'layout': 'image'},
+      {'title': 'The Challenge', 'layout': 'bullets'},
+      {'title': 'The Key Insight', 'layout': 'quote'},
+      {'title': 'The Resolution', 'layout': 'bullets'},
+      {'title': 'Moral / Takeaway', 'layout': 'summary'},
+    ],
+  };
+
+  /// Generate a deck from a pre-built template. The template defines
+  /// slide structure; AI fills content for the user's topic.
+  Future<void> generateFromTemplate(String templateName) async {
+    final skeleton = templates[templateName];
+    if (skeleton == null) return;
+    final t = topic.value.trim();
+    if (t.isEmpty || generating.value) return;
+    generating.value = true;
+    regenIndex.value = -1;
+    lastError.value = null;
+    slideCount.value = skeleton.length;
+    try {
+      final structureHint = skeleton
+          .asMap()
+          .entries
+          .map((e) =>
+              'Slide ${e.key + 1}: "${e.value['title']}" (layout: ${e.value['layout']})')
+          .join('\n');
+      final raw = await _ask(
+        prompt: 'Create a ${skeleton.length}-slide presentation about: $t\n\n'
+            'Follow this exact slide structure:\n$structureHint',
+        system: slideSystemPrompt(
+            count: skeleton.length,
+            style: style.value,
+            audience: audience.value),
+      );
+      final parsed = parseSlides(raw);
+      slides.assignAll(parsed);
+      if (parsed.length == 1 &&
+          parsed.first.title == 'Untitled' &&
+          raw.trim().isNotEmpty) {
+        lastError.value =
+            'The model did not follow the slide format — showing raw text as one slide. Try Regenerate.';
+      }
+    } catch (e) {
+      lastError.value = '$e';
+      _log('Template generation failed', e);
+    } finally {
+      generating.value = false;
+    }
+  }
+
+  /// Quick-action: change a slide's layout and optionally regenerate
+  /// its content to fit the new layout.
+  Future<void> changeSlideLayout(int index, String newLayout) async {
+    if (index < 0 || index >= slides.length) return;
+    slides[index].layout = newLayout;
+    slides.refresh();
   }
 
   // ── Engine (same rules as chat) ──
@@ -281,9 +509,8 @@ class SlideDeckController extends GetxController {
           {'role': 'user', 'content': prompt},
         ],
         temperature: settings.temperature.value,
-        maxTokens: settings.autoTuneParams.value
-            ? null
-            : settings.maxTokens.value,
+        maxTokens:
+            settings.autoTuneParams.value ? null : settings.maxTokens.value,
       )) {
         buf.write(chunk);
       }

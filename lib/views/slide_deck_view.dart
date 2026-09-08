@@ -71,13 +71,15 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                     if (v == 'md') c.exportMarkdown();
                     if (v == 'pdf') c.exportPdf();
                     if (v == 'html') c.exportHtml();
+                    if (v == 'pptx') c.exportPptx();
                     if (v == 'preview') c.previewInBrowser();
                   },
                   itemBuilder: (_) => [
                     _exportItem('preview', 'Preview in browser'),
-                    _exportItem('md', 'Markdown (.md)'),
+                    _exportItem('pptx', 'PowerPoint (.pptx)'),
                     _exportItem('pdf', 'PDF document'),
                     _exportItem('html', 'Web slides (.html)'),
+                    _exportItem('md', 'Markdown (.md)'),
                   ],
                 )
               : const SizedBox.shrink()),
@@ -123,6 +125,40 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                       height: 1.5,
                       color: Theme.of(context).hintColor),
                 ),
+              ),
+              const SizedBox(height: 20),
+              Center(
+                child: Text(
+                  'Or start with a structured template:',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).hintColor),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final tName in SlideDeckController.templates.keys)
+                    ActionChip(
+                      backgroundColor: isDark ? AppColors.surface : Dt.pillMuted,
+                      side: BorderSide(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : Dt.hairline),
+                      label: Text(
+                        tName,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : Dt.textPrimary),
+                      ),
+                      onPressed: () => _pickTemplate(tName),
+                    ),
+                ],
               ),
             ],
                 ],
@@ -238,6 +274,8 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               Obx(() => _stylePill(context, isDark)),
               const SizedBox(width: 6),
               Obx(() => _countStepper(context, isDark)),
+              const Spacer(),
+              Obx(() => _audiencePill(context, isDark)),
             ],
           ),
         ],
@@ -362,6 +400,82 @@ class _SlideDeckViewState extends State<SlideDeckView> {
     );
   }
 
+  /// Compact audience-targeting pill with common presets.
+  static const _audiences = [
+    'General',
+    'Investors',
+    'Students',
+    'Executives',
+    'Engineers',
+    'Marketing',
+    'Clients',
+    'Team',
+  ];
+
+  Widget _audiencePill(BuildContext context, bool isDark) {
+    final current = c.audience.value;
+    final label = current.isEmpty ? 'Audience' : current;
+    return PopupMenuButton<String>(
+      enabled: !c.generating.value,
+      tooltip: 'Target audience',
+      initialValue: current.isEmpty ? null : current,
+      onSelected: (v) =>
+          c.audience.value = v == 'General' ? '' : v,
+      itemBuilder: (_) => [
+        for (final a in _audiences)
+          PopupMenuItem(
+            value: a,
+            child: Text(a,
+                style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+          ),
+      ],
+      child: Container(
+        height: Dt.pillHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: current.isNotEmpty
+              ? Dt.accent.withValues(alpha: 0.12)
+              : Dt.pillMuted,
+          borderRadius: BorderRadius.circular(Dt.pillHeight),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.users,
+                size: 13,
+                color: current.isNotEmpty ? Dt.accent : Dt.textSecondary),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: current.isNotEmpty ? Dt.accent : Dt.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickTemplate(String templateName) async {
+    if (_topicCtrl.text.trim().isEmpty) {
+      _topicCtrl.text =
+          templateName.replaceFirst(RegExp(r'^[^\w\s]+\s*'), '').trim();
+      c.topic.value = _topicCtrl.text;
+    }
+    await c.generateFromTemplate(templateName);
+    _page = 0;
+    if (_pageCtrl.hasClients) {
+      _pageCtrl.jumpToPage(0);
+    }
+  }
+
   Widget _errorBox(BuildContext context, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -385,6 +499,37 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               fontWeight: FontWeight.w800,
               color: Theme.of(context).hintColor)),
       const Spacer(),
+      // One-click restyle button
+      PopupMenuButton<String>(
+        tooltip: 'Restyle deck',
+        enabled: !c.generating.value,
+        onSelected: (v) => c.restyleDeck(v),
+        itemBuilder: (_) => [
+          for (final s in SlideDeckController.styles)
+            PopupMenuItem(
+              value: s,
+              child: Text(s,
+                  style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+            ),
+        ],
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: Dt.accent.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(LucideIcons.palette, size: 14, color: Dt.accent),
+            const SizedBox(width: 4),
+            Text('Restyle',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: Dt.accent)),
+          ]),
+        ),
+      ),
+      const SizedBox(width: 6),
       IconButton(
         tooltip: 'Add blank slide',
         icon: const Icon(LucideIcons.plus, size: 18),
@@ -436,6 +581,61 @@ class _SlideDeckViewState extends State<SlideDeckView> {
         ),
       ),
       const SizedBox(height: 10),
+      // Thumbnail strip for quick navigation
+      if (c.slides.length > 1)
+        SizedBox(
+          height: 48,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: c.slides.length,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            itemBuilder: (_, i) {
+              final ts = c.slides[i];
+              final active = i == _page;
+              return GestureDetector(
+                onTap: () {
+                  setState(() => _page = i);
+                  _pageCtrl.jumpToPage(i);
+                },
+                child: Container(
+                  width: 64,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.surface : Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: active
+                          ? Dt.accent
+                          : (isDark
+                              ? Colors.white.withValues(alpha: 0.08)
+                              : Dt.hairline),
+                      width: active ? 2 : 1,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('${i + 1}',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: active
+                                  ? Dt.accent
+                                  : Dt.textSecondary)),
+                      const SizedBox(height: 2),
+                      Text(ts.layout.substring(0, 4),
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 8,
+                              color: Dt.textPlaceholder)),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      const SizedBox(height: 8),
       SizedBox(
         height: _viewMode == 'ppt' ? 470 : 560,
         child: PageView.builder(
@@ -498,6 +698,8 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                 color: s.freeLayout ? Dt.accent : null),
             _miniBtn(context, LucideIcons.refreshCw, 'Regenerate this slide',
                 () => c.regenerateSlide(index)),
+            _miniBtn(context, LucideIcons.sparkles, 'AI refine',
+                () => _showRefineDialog(context, isDark, index)),
             _miniBtn(context, LucideIcons.arrowUp, 'Move up',
                 index == 0 ? null : () => c.moveSlide(index, -1)),
             _miniBtn(context, LucideIcons.arrowDown, 'Move down',
@@ -619,69 +821,653 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-                  child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          s.title.isEmpty ? 'Untitled' : s.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              height: 1.2,
-                              color: Colors.white),
-                        ),
-                        const SizedBox(height: 6),
-                        for (final p in showPoints)
-                          Padding(
-                            padding:
-                                const EdgeInsets.only(bottom: 3),
-                            child: Row(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  const Text('▸ ',
-                                      style: TextStyle(
-                                          color: Dt.accent,
-                                          fontWeight:
-                                              FontWeight.w800,
-                                          fontSize: 11)),
-                                  Expanded(
-                                    child: Text(p,
-                                        maxLines: 2,
-                                        overflow:
-                                            TextOverflow.ellipsis,
-                                        style: GoogleFonts
-                                            .plusJakartaSans(
-                                                fontSize: 11.5,
-                                                height: 1.35,
-                                                color: const Color(
-                                                    0xFFD8D5CF))),
-                                  ),
-                                ]),
-                          ),
-                        if (hidden > 0)
-                          Text('+$hidden more',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF8E8B85))),
-                        const Spacer(),
-                        Align(
-                          alignment: Alignment.bottomRight,
-                          child: Text('${index + 1}',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF6E6B65))),
-                        ),
-                      ]),
+                  child: Stack(
+                    children: [
+                      _pptContentByLayout(s, index, showPoints, hidden),
+                      Align(
+                        alignment: Alignment.bottomRight,
+                        child: Text('${index + 1}',
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF6E6B65))),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ]),
       ),
+    );
+  }
+
+  Widget _pptContentByLayout(
+      Slide s, int index, List<String> showPoints, int hidden) {
+    switch (s.layout) {
+      case 'title':
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                s.title.isEmpty ? 'Untitled' : s.title,
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    height: 1.25,
+                    color: Colors.white),
+              ),
+              if (s.subtitle.isNotEmpty || showPoints.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Container(
+                    width: 36,
+                    height: 2.5,
+                    decoration: BoxDecoration(
+                        color: Dt.accent,
+                        borderRadius: BorderRadius.circular(2))),
+                const SizedBox(height: 8),
+                Text(
+                  s.subtitle.isNotEmpty ? s.subtitle : showPoints.first,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: const Color(0xFFD8D5CF)),
+                ),
+              ],
+            ],
+          ),
+        );
+
+      case 'quote':
+        final quoteText = s.points.isNotEmpty ? s.points.first : s.title;
+        final author = s.quoteAuthor.isNotEmpty
+            ? s.quoteAuthor
+            : (s.points.length > 1 ? s.points[1] : '');
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Icon(LucideIcons.quote, size: 24, color: Dt.accent),
+              const SizedBox(height: 8),
+              Text(
+                '"$quoteText"',
+                textAlign: TextAlign.center,
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14.5,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                    color: Colors.white),
+              ),
+              if (author.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  '— $author',
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: Dt.accent),
+                ),
+              ],
+            ],
+          ),
+        );
+
+      case 'stats':
+        final statsItems = s.stats.isNotEmpty
+            ? s.stats
+            : s.points.take(3).map((p) {
+                final match =
+                    RegExp(r'^([\d%+\$\.\s\w]+)[:\-–]\s*(.+)$').firstMatch(p);
+                if (match != null) {
+                  return {
+                    'value': match.group(1)!.trim(),
+                    'label': match.group(2)!.trim()
+                  };
+                }
+                return {'value': '•', 'label': p};
+              }).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              s.title.isEmpty ? 'Key Statistics' : s.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: Row(
+                children: [
+                  for (final item in statsItems.take(3))
+                    Expanded(
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 2.5),
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: Dt.accent.withValues(alpha: 0.3)),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              item['value'] ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w900,
+                                  color: Dt.accent),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              item['label'] ?? '',
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9.5,
+                                  color: const Color(0xFFD8D5CF)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+
+      case 'comparison':
+        final col1 = s.columns.isNotEmpty
+            ? s.columns[0]
+            : s.points.take((s.points.length / 2).ceil()).toList();
+        final col2 = s.columns.length > 1
+            ? s.columns[1]
+            : s.points.skip((s.points.length / 2).ceil()).toList();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              s.title.isEmpty ? 'Comparison' : s.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white),
+            ),
+            const SizedBox(height: 6),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.03),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (final p in col1.take(3))
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 3),
+                              child: Text('• $p',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      color: const Color(0xFFD8D5CF))),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Dt.accent.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: Dt.accent.withValues(alpha: 0.25)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (final p in col2.take(3))
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 3),
+                              child: Text('✓ $p',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 10,
+                                      color: const Color(0xFFE8B4A0))),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+
+      case 'timeline':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              s.title.isEmpty ? 'Timeline' : s.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white),
+            ),
+            const SizedBox(height: 6),
+            for (var i = 0; i < showPoints.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 16,
+                      height: 16,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: Dt.accent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${i + 1}',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        showPoints[i],
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            color: const Color(0xFFD8D5CF)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (hidden > 0)
+              Text('+$hidden more steps',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF8E8B85))),
+          ],
+        );
+
+      case 'summary':
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(LucideIcons.checkCircle2,
+                    size: 15, color: Dt.accent),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    s.title.isEmpty ? 'Key Takeaways' : s.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            for (final p in showPoints)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('✓ ',
+                        style: TextStyle(
+                            color: Dt.accent,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 10.5)),
+                    Expanded(
+                      child: Text(p,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              height: 1.35,
+                              color: const Color(0xFFD8D5CF))),
+                    ),
+                  ],
+                ),
+              ),
+            if (hidden > 0)
+              Text('+$hidden more',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF8E8B85))),
+          ],
+        );
+
+      case 'chart':
+        return _chartContent(s);
+
+      default:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              s.title.isEmpty ? 'Untitled' : s.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16.5,
+                  fontWeight: FontWeight.w800,
+                  height: 1.2,
+                  color: Colors.white),
+            ),
+            const SizedBox(height: 6),
+            for (final p in showPoints)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('▸ ',
+                        style: TextStyle(
+                            color: Dt.accent,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 11)),
+                    Expanded(
+                      child: Text(p,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 11,
+                              height: 1.35,
+                              color: const Color(0xFFD8D5CF))),
+                    ),
+                  ],
+                ),
+              ),
+            if (hidden > 0)
+              Text('+$hidden more',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF8E8B85))),
+          ],
+        );
+    }
+  }
+
+  /// Pure-Flutter chart renderer: bar, donut, or line from chartData.
+  Widget _chartContent(Slide s) {
+    final data = s.chartData;
+    if (data.isEmpty) {
+      // Fallback to bullets if chartData missing
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(s.title.isEmpty ? 'Chart' : s.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+          const SizedBox(height: 6),
+          for (final p in s.points.take(4))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 3),
+              child: Text('▸ $p',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10.5, color: const Color(0xFFD8D5CF))),
+            ),
+        ],
+      );
+    }
+    final chartType = (data['type'] ?? 'bar').toString();
+    final items = <Map<String, String>>[];
+    if (data['items'] is List) {
+      for (final e in (data['items'] as List)) {
+        if (e is Map) {
+          items.add({
+            'label': (e['label'] ?? '').toString(),
+            'value': (e['value'] ?? '0').toString(),
+          });
+        }
+      }
+    }
+    if (items.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(s.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+        ],
+      );
+    }
+
+    // Parse numeric values for bar/line charts
+    final nums = items.map((e) {
+      final raw = e['value']?.replaceAll(RegExp(r'[^0-9.\-]'), '') ?? '0';
+      return double.tryParse(raw) ?? 0;
+    }).toList();
+    final maxVal = nums.isEmpty ? 1.0 : nums.reduce((a, b) => a > b ? a : b);
+
+    if (chartType == 'donut') {
+      return _donutChart(s.title, items, nums);
+    }
+    if (chartType == 'line') {
+      return _lineChart(s.title, items, nums, maxVal);
+    }
+    // Default: bar chart
+    return _barChart(s.title, items, nums, maxVal);
+  }
+
+  Widget _barChart(String title, List<Map<String, String>> items,
+      List<double> nums, double maxVal) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.isEmpty ? 'Chart' : title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+        const SizedBox(height: 10),
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (var i = 0; i < items.length && i < 6; i++)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(items[i]['value'] ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 9, fontWeight: FontWeight.w700, color: Dt.accent)),
+                        const SizedBox(height: 3),
+                        Container(
+                          height: maxVal > 0 ? (nums[i] / maxVal) * 120 : 4,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [Dt.accent, Dt.accent.withValues(alpha: 0.5)]),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(items[i]['label'] ?? '',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 8.5, color: const Color(0xFFB0ADA6))),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _donutChart(
+      String title, List<Map<String, String>> items, List<double> nums) {
+    final total = nums.isEmpty ? 1.0 : nums.fold(0.0, (a, b) => a + b);
+    final colors = [
+      Dt.accent,
+      const Color(0xFF4ADE80),
+      const Color(0xFF60A5FA),
+      const Color(0xFFFBBF24),
+      const Color(0xFFF87171),
+      const Color(0xFFA78BFA),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.isEmpty ? 'Chart' : title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+        const SizedBox(height: 8),
+        Expanded(
+          child: Row(
+            children: [
+              // Legend
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var i = 0; i < items.length && i < 6; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(children: [
+                          Container(
+                              width: 10,
+                              height: 10,
+                              decoration: BoxDecoration(
+                                  color: colors[i % colors.length],
+                                  borderRadius: BorderRadius.circular(2))),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${items[i]['label']}  ${items[i]['value']}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10, color: const Color(0xFFD8D5CF)),
+                            ),
+                          ),
+                        ]),
+                      ),
+                  ],
+                ),
+              ),
+              // Donut circle
+              SizedBox(
+                width: 90,
+                height: 90,
+                child: CustomPaint(
+                  painter: _DonutPainter(nums, total, colors),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _lineChart(String title, List<Map<String, String>> items,
+      List<double> nums, double maxVal) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title.isEmpty ? 'Chart' : title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+        const SizedBox(height: 10),
+        Expanded(
+          child: LayoutBuilder(builder: (_, cons) {
+            final w = cons.maxWidth;
+            final h = cons.maxHeight;
+            final pts = <Offset>[];
+            for (var i = 0; i < nums.length && i < 8; i++) {
+              final x = nums.length > 1 ? (i / (nums.length - 1)) * w : w / 2;
+              final y = maxVal > 0 ? h - (nums[i] / maxVal) * (h - 20) : h / 2;
+              pts.add(Offset(x, y));
+            }
+            return Stack(children: [
+              CustomPaint(
+                size: Size(w, h),
+                painter: _LineChartPainter(pts, items, nums),
+              ),
+            ]);
+          }),
+        ),
+      ],
     );
   }
 
@@ -1186,6 +1972,8 @@ class _SlideDeckViewState extends State<SlideDeckView> {
   void _showEditDialog(
       BuildContext context, bool isDark, int index, Slide s) {
     final titleCtrl = TextEditingController(text: s.title);
+    final subtitleCtrl = TextEditingController(text: s.subtitle);
+    final authorCtrl = TextEditingController(text: s.quoteAuthor);
     final pointsCtrl =
         TextEditingController(text: s.points.map((p) => '- $p').join('\n'));
     final imgCtrl = TextEditingController(text: s.imagePrompt);
@@ -1210,26 +1998,67 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                     labelText: 'Title', isDense: true),
               ),
               const SizedBox(height: 10),
+              if (layout == 'title') ...[
+                TextField(
+                  controller: subtitleCtrl,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: const InputDecoration(
+                      labelText: 'Subtitle', isDense: true),
+                ),
+                const SizedBox(height: 10),
+              ],
+              if (layout == 'quote') ...[
+                TextField(
+                  controller: authorCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Quote Author / Source', isDense: true),
+                ),
+                const SizedBox(height: 10),
+              ],
               TextField(
                 controller: pointsCtrl,
                 maxLines: 5,
-                decoration: const InputDecoration(
-                    labelText: 'Points (one per line, - optional)',
+                decoration: InputDecoration(
+                    labelText: layout == 'comparison'
+                        ? 'Points (first half vs second half)'
+                        : 'Points (one per line, - optional)',
                     alignLabelWithHint: true,
                     isDense: true),
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                initialValue: ['title', 'bullets', 'image'].contains(layout)
+                initialValue: [
+                  'title',
+                  'bullets',
+                  'image',
+                  'quote',
+                  'comparison',
+                  'stats',
+                  'timeline',
+                  'summary',
+                  'chart'
+                ].contains(layout)
                     ? layout
                     : 'bullets',
                 items: const [
                   DropdownMenuItem(
-                      value: 'title', child: Text('Title')),
+                      value: 'title', child: Text('Title & Subtitle')),
                   DropdownMenuItem(
-                      value: 'bullets', child: Text('Bullets')),
+                      value: 'bullets', child: Text('Bullet Points')),
                   DropdownMenuItem(
-                      value: 'image', child: Text('Image + text')),
+                      value: 'image', child: Text('Image + Text')),
+                  DropdownMenuItem(
+                      value: 'quote', child: Text('Quote / Key Insight')),
+                  DropdownMenuItem(
+                      value: 'comparison', child: Text('Comparison (2 Columns)')),
+                  DropdownMenuItem(
+                      value: 'stats', child: Text('Key Statistics')),
+                  DropdownMenuItem(
+                      value: 'timeline', child: Text('Timeline / Steps')),
+                  DropdownMenuItem(
+                      value: 'summary', child: Text('Summary / Takeaways')),
+                  DropdownMenuItem(
+                      value: 'chart', child: Text('Chart (Bar / Donut / Line)')),
                 ],
                 onChanged: (v) {
                   if (v != null) setDlg(() => layout = v);
@@ -1266,6 +2095,8 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               onPressed: () {
                 c.applyEdit(index,
                     title: titleCtrl.text,
+                    subtitle: subtitleCtrl.text,
+                    quoteAuthor: authorCtrl.text,
                     pointsText: pointsCtrl.text,
                     imagePrompt: imgCtrl.text,
                     notes: notesCtrl.text,
@@ -1276,6 +2107,53 @@ class _SlideDeckViewState extends State<SlideDeckView> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// AI refine dialog: user types a natural-language instruction, AI
+  /// rewrites that single slide to match while keeping deck context.
+  void _showRefineDialog(BuildContext context, bool isDark, int index) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (dlgCtx) => AlertDialog(
+        backgroundColor: isDark ? AppColors.surface : Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Refine slide ${index + 1}',
+            style:
+                GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 3,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: InputDecoration(
+            hintText:
+                'e.g. "make it more data-driven" or "add a comparison chart"',
+            hintStyle: GoogleFonts.plusJakartaSans(
+                fontSize: 13, color: Dt.textPlaceholder),
+            isDense: true,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dlgCtx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            icon: const Icon(LucideIcons.sparkles, size: 16),
+            label: const Text('Refine'),
+            style: FilledButton.styleFrom(backgroundColor: Dt.accent),
+            onPressed: () {
+              final instruction = ctrl.text.trim();
+              if (instruction.isEmpty) return;
+              Navigator.pop(dlgCtx);
+              c.refineSlide(index, instruction);
+            },
+          ),
+        ],
       ),
     );
   }
@@ -1404,4 +2282,91 @@ class _FreeBoxState extends State<_FreeBox> {
       ),
     );
   }
+}
+
+/// Draws a donut chart for the chart layout.
+class _DonutPainter extends CustomPainter {
+  final List<double> values;
+  final double total;
+  final List<Color> colors;
+  _DonutPainter(this.values, this.total, this.colors);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 4;
+    final paint = Paint()..style = PaintingStyle.stroke..strokeWidth = 14;
+    double start = -3.14159 / 2;
+    for (var i = 0; i < values.length && i < 6; i++) {
+      final sweep = total > 0 ? (values[i] / total) * 3.14159 * 2 : 0.0;
+      paint.color = colors[i % colors.length];
+      canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
+          start, sweep.toDouble(), false, paint);
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Draws a line chart with dots and area fill for the chart layout.
+class _LineChartPainter extends CustomPainter {
+  final List<Offset> points;
+  final List<Map<String, String>> items;
+  final List<double> nums;
+  _LineChartPainter(this.points, this.items, this.nums);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (points.isEmpty) return;
+    final linePaint = Paint()
+      ..color = Dt.accent
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final dotPaint = Paint()..color = Dt.accent..style = PaintingStyle.fill;
+    final areaPaint = Paint()
+      ..color = Dt.accent.withValues(alpha: 0.15)
+      ..style = PaintingStyle.fill;
+
+    // Draw area fill
+    final areaPath = Path()..moveTo(points.first.dx, size.height);
+    for (final p in points) {
+      areaPath.lineTo(p.dx, p.dy);
+    }
+    areaPath.lineTo(points.last.dx, size.height);
+    areaPath.close();
+    canvas.drawPath(areaPath, areaPaint);
+
+    // Draw line
+    final linePath = Path()..moveTo(points.first.dx, points.first.dy);
+    for (var i = 1; i < points.length; i++) {
+      linePath.lineTo(points[i].dx, points[i].dy);
+    }
+    canvas.drawPath(linePath, linePaint);
+
+    // Draw dots + labels
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    for (var i = 0; i < points.length; i++) {
+      canvas.drawCircle(points[i], 4, dotPaint);
+      // Value above dot
+      tp.text = TextSpan(
+          text: items[i]['value'] ?? '',
+          style: const TextStyle(
+              fontSize: 9, fontWeight: FontWeight.w700, color: Dt.accent));
+      tp.layout();
+      tp.paint(canvas, Offset(points[i].dx - tp.width / 2, points[i].dy - 16));
+      // Label below x-axis
+      tp.text = TextSpan(
+          text: items[i]['label'] ?? '',
+          style: const TextStyle(fontSize: 8.5, color: Color(0xFFB0ADA6)));
+      tp.layout();
+      tp.paint(
+          canvas, Offset(points[i].dx - tp.width / 2, size.height - 12));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
