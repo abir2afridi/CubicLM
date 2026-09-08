@@ -222,6 +222,45 @@ class AgentController extends GetxController {
     } catch (_) {}
   }
 
+  /// Live build timeline (v0-style): thinking → files → errors → fixes.
+  /// Rendered as an activity card in the chat pane. Cleared per task,
+  /// kept across auto-fix rounds of the same task.
+  final buildSteps = <Map<String, String>>[].obs;
+  final _announcedPaths = <String>{};
+
+  /// Append one timeline step. Kinds: thinking | file | error | fix | done.
+  void step(String kind, String text) {
+    try {
+      buildSteps.add({
+        'kind': kind,
+        'text':
+            text.length > 140 ? '${text.substring(0, 140)}…' : text,
+        'ms': DateTime.now().millisecondsSinceEpoch.toString(),
+      });
+      while (buildSteps.length > 100) {
+        buildSteps.removeAt(0);
+      }
+    } catch (_) {}
+  }
+
+  void _beginSteps() {
+    try {
+      buildSteps.clear();
+    } catch (_) {}
+    _announcedPaths.clear();
+  }
+
+  /// Rich completion summary: action line + changed-file list.
+  String _doneSummary(String action, List<String> files) {
+    final buf = StringBuffer(
+        '$action — ${files.length} file${files.length == 1 ? '' : 's'} changed, preview reloaded.');
+    for (final f in files.take(6)) {
+      buf.write('\n• $f');
+    }
+    if (files.length > 6) buf.write('\n• …and ${files.length - 6} more');
+    return buf.toString();
+  }
+
   void term(String line) {
     try {
       final now = DateTime.now();
@@ -295,6 +334,7 @@ class AgentController extends GetxController {
       if (streamingFiles[f.path] != f.content) {
         streamingFiles[f.path] = f.content;
         changed = true;
+        if (_announcedPaths.add(f.path)) step('file', 'Writing ${f.path}…');
       }
     }
     if (!changed) return;
@@ -555,6 +595,8 @@ class AgentController extends GetxController {
     _say('user', t);
     buildStatus.value = 'Designing project…';
     term('> build "${t.length > 60 ? '${t.substring(0, 60)}…' : t}" (${framework.value})');
+    _beginSteps();
+    step('thinking', 'Planning ${framework.value} project…');
     String? createdCp;
     try {
       final name = t.length > 40 ? '${t.substring(0, 40)}…' : t;
@@ -610,8 +652,10 @@ class AgentController extends GetxController {
       }
       _touch();
       buildStatus.value = null;
+      final builtPaths = [for (final f in parsed) f.path];
+      step('done', 'Built ${builtPaths.length} files — preview live.');
       final summary =
-          'Built ${parsed.length} files — preview is live. Tap a file to edit, or ask for changes below.';
+          '${_doneSummary('Built', builtPaths)}\nTap a file to edit, or ask for changes below.';
       _say('assistant', summary);
       term('✓ build done — ${files.length} files, preview live');
     } catch (e) {
@@ -632,6 +676,7 @@ class AgentController extends GetxController {
       }
       lastError.value = '$e';
       term('✗ build failed: $e');
+      step('error', 'Build failed — rolled back.');
       _log('Project build failed', e);
     } finally {
       _clearStreaming();
@@ -654,6 +699,8 @@ class AgentController extends GetxController {
     _say('user', t);
     buildStatus.value = 'Applying change…';
     term('> modify: "${t.length > 80 ? '${t.substring(0, 80)}…' : t}"');
+    _beginSteps();
+    step('thinking', 'Planning the change…');
     String? beforeCp;
     try {
       beforeCp = await _ws.saveCheckpoint(p.id, label: 'Before modify');
@@ -748,8 +795,13 @@ class AgentController extends GetxController {
       _touch();
       buildStatus.value = null;
       term('✓ modify applied ($applied files)');
-      _say('assistant',
-          'Done — $applied file${applied == 1 ? '' : 's'} changed, preview reloaded.');
+      final changedPaths = [
+        for (final e in lastDiffs.entries)
+          e.key + ((e.value['old'] ?? '').isEmpty ? ' (new)' : '')
+      ];
+      step('done',
+          'Updated $applied file${applied == 1 ? '' : 's'} — preview reloaded.');
+      _say('assistant', _doneSummary('Done', changedPaths));
       AppSnackbar.showTop(
         'Updated',
         '$applied file${applied == 1 ? '' : 's'} changed — preview reloaded.',
@@ -772,6 +824,7 @@ class AgentController extends GetxController {
       }
       lastError.value = '$e';
       term('✗ modify failed: $e');
+      step('error', 'Change failed — rolled back.');
       _log('Project modify failed', e);
     } finally {
       _clearStreaming();
@@ -960,6 +1013,13 @@ class AgentController extends GetxController {
     if (p == null || fixing.value || generating.value) return;
     if (!autoFix.value || _autoRounds >= maxRepairRounds) return;
     _autoRounds++;
+    try {
+      final short = message.length > 120
+          ? '${message.substring(0, 120)}…'
+          : message;
+      step('error', short);
+      step('fix', 'Auto-fix round $_autoRounds/$maxRepairRounds — diagnosing…');
+    } catch (_) {}
     await repairFromError();
   }
 
@@ -1022,6 +1082,8 @@ class AgentController extends GetxController {
       _touch();
       buildStatus.value = null;
       term('✓ auto-fix applied ($applied files)');
+      step('fix',
+          'Fixed $applied file${applied == 1 ? '' : 's'} — preview reloaded.');
       _say('assistant',
           'Fixed — $applied file${applied == 1 ? '' : 's'} rewritten, preview reloaded.');
       AppSnackbar.showTop(

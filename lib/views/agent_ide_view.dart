@@ -656,6 +656,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     c.files.clear();
     c.previewUrl.value = null;
     c.transcript.clear();
+    c.buildSteps.clear();
     _promptCtrl.clear();
   }
 
@@ -1826,11 +1827,116 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   int _reloadNonce = 0;
 
   /// Conversation with the builder AI (prompts + summaries).
+  IconData _stepIcon(String? kind) {
+    switch (kind) {
+      case 'thinking':
+        return LucideIcons.brain;
+      case 'file':
+        return LucideIcons.fileCode2;
+      case 'error':
+        return LucideIcons.alertTriangle;
+      case 'fix':
+        return LucideIcons.wrench;
+      case 'done':
+        return LucideIcons.checkCircle2;
+      default:
+        return LucideIcons.info;
+    }
+  }
+
+  Color _stepColor(String? kind, BuildContext context) {
+    switch (kind) {
+      case 'error':
+        return AppColors.error;
+      case 'fix':
+        return Dt.accent;
+      case 'done':
+        return AppColors.success;
+      case 'file':
+        return AppColors.info;
+      default:
+        return Theme.of(context).hintColor;
+    }
+  }
+
+  /// Live build activity timeline (v0-style): thinking → files → fixes.
+  Widget _activityCard(BuildContext context, bool isDark) {
+    final steps = c.buildSteps.toList();
+    final shown =
+        steps.length > 12 ? steps.sublist(steps.length - 12) : steps;
+    final live = c.generating.value || c.fixing.value;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surface : const Color(0xFFF1EFE9),
+        borderRadius: BorderRadius.circular(14),
+        border:
+            Border.all(color: Dt.accent.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            if (live) ...[
+              const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text('BUILD ACTIVITY',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.0,
+                    color: Theme.of(context).hintColor)),
+            const Spacer(),
+            if (steps.length > 12)
+              Text('+${steps.length - 12} earlier',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      color: Theme.of(context).hintColor)),
+          ]),
+          const SizedBox(height: 6),
+          for (final s in shown)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Icon(_stepIcon(s['kind']),
+                        size: 13,
+                        color: _stepColor(s['kind'], context)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(s['text'] ?? '',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: isDark
+                                ? AppColors.textPrimary
+                                : Dt.textPrimary)),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _chatPane(BuildContext context, bool isDark) {
     return Obx(() {
       final planPending = c.pendingPlan.value != null;
       final hasDiffs = c.lastDiffs.isNotEmpty;
-      final extraItems = (planPending ? 1 : 0) + (hasDiffs ? 1 : 0);
+      final showSteps = c.buildSteps.isNotEmpty;
+      final extraItems =
+          (planPending ? 1 : 0) + (hasDiffs ? 1 : 0) + (showSteps ? 1 : 0);
       final itemCount = c.transcript.length + extraItems;
       if (itemCount == 0) {
         final hasProject = c.project.value != null;
@@ -1854,15 +1960,21 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         itemCount: itemCount,
         itemBuilder: (_, i) {
+          var idx = i;
+          // Live build activity — always first.
+          if (showSteps) {
+            if (idx == 0) return _activityCard(context, isDark);
+            idx -= 1;
+          }
           // Diff card — after all transcript + plan
-          if (hasDiffs && i == c.transcript.length + (planPending ? 1 : 0)) {
+          if (hasDiffs && idx == c.transcript.length + (planPending ? 1 : 0)) {
             return _diffCard(context, isDark);
           }
           // Plan card — after transcript
-          if (planPending && i == c.transcript.length) {
+          if (planPending && idx == c.transcript.length) {
             return _planCard(context, isDark);
           }
-          final m = c.transcript[i];
+          final m = c.transcript[idx];
           final user = m['role'] == 'user';
           return Align(
             alignment:
