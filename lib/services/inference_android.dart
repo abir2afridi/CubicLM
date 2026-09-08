@@ -403,6 +403,11 @@ class InferenceEngine {
       final messages = _buildChatMessages(
           prompt, conversationHistory, systemPrompt,
           imagePath: imagePath);
+      // The native session keeps KV cache across calls but Dart re-sends
+      // the FULL history every time. Without a reset the cache grows until
+      // llama_decode fails ("Failed to decode prompt") and NEVER recovers.
+      // Pre-empt: clear the native session when this call would overflow.
+      await _ensureContextRoom(messages, maxTokens);
       stream = _controller!.generateChat(
         messages: messages,
         template: null,
@@ -458,7 +463,19 @@ class InferenceEngine {
       },
       onError: (error) {
         print('[Inference] Stream error: $error');
-        finish('ERROR: Generation failed — $error');
+        final msg = error.toString();
+        if (msg.contains('decode prompt') || msg.contains('decode')) {
+          // Native KV overflowed despite the pre-check (race between
+          // calls). Self-heal so the NEXT call works, and say so honestly
+          // instead of "The model returned nothing".
+          try {
+            _controller?.clearContext();
+          } catch (_) {}
+          finish(
+              'ERROR: Conversation grew past the model\'s context. I cleared it — send again (older turns may be trimmed).');
+        } else {
+          finish('ERROR: Generation failed — $error');
+        }
       },
     );
 
@@ -724,6 +741,51 @@ class InferenceEngine {
       return await _controller?.getContextInfo();
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Pure decision for [_ensureContextRoom]: clear when the upcoming call
+  /// would push native KV past 90% of capacity. Public for unit tests.
+  static bool needsContextClear({
+    required int tokensUsed,
+    required int contextSize,
+    required int promptChars,
+    required int maxTokens,
+  }) {
+    if (contextSize <= 0) return false;
+    final estimate = promptChars ~/ 4 + 32;
+    return tokensUsed + estimate + maxTokens > contextSize * 0.9;
+  }
+
+  /// Clears the native KV session when the upcoming call would overflow
+  /// it. Dart re-sends the full history on every call, so dropping native
+  /// state loses nothing — the prefill recomputes from the messages above.
+  /// Without this, `llama_decode` fails with "Failed to decode prompt"
+  /// once cumulative tokens pass the context size, and every later call
+  /// fails the same way (no recovery).
+  Future<void> _ensureContextRoom(
+      List<ChatMessage> messages, int maxTokens) async {
+    try {
+      final info = await _controller?.getContextInfo();
+      if (info == null) return;
+      final ctxSize = info.contextSize;
+      if (ctxSize <= 0) return;
+      var chars = 0;
+      for (final m in messages) {
+        chars += m.content.length;
+      }
+      if (needsContextClear(
+        tokensUsed: info.tokensUsed,
+        contextSize: ctxSize,
+        promptChars: chars,
+        maxTokens: maxTokens,
+      )) {
+        print(
+            '[Inference] Context near-full (used=${info.tokensUsed}/$ctxSize) — clearing native session.');
+        await _controller?.clearContext();
+      }
+    } catch (_) {
+      // Best effort only — a failed probe must never block generation.
     }
   }
 
