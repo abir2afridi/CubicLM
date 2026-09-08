@@ -64,4 +64,60 @@ void main() {
           isTrue);
     });
   });
+
+  group('trimHistoryToFit', () {
+    List<Map<String, String>> hist(int n, [int chars = 400]) => [
+          for (var i = 0; i < n; i++)
+            {'role': i.isEven ? 'user' : 'assistant', 'content': 'x' * chars}
+        ];
+
+    test('keeps history when it fits', () {
+      final h = hist(4);
+      expect(
+          InferenceEngine.trimHistoryToFit(
+            history: h,
+            fixedChars: 500,
+            maxPromptChars: 6000,
+          ),
+          same(h));
+    });
+
+    test('drops oldest turns until it fits', () {
+      final trimmed = InferenceEngine.trimHistoryToFit(
+        history: hist(10),
+        fixedChars: 500,
+        maxPromptChars: 2000,
+      )!;
+      expect(trimmed.length, lessThan(10));
+      expect(trimmed.length, greaterThanOrEqualTo(2));
+      // Newest turns survive (last content marker differs by construction)
+      expect(trimmed.last['content'], 'x' * 400);
+    });
+
+    test('never drops below 2 turns', () {
+      final trimmed = InferenceEngine.trimHistoryToFit(
+        history: hist(6, 2000),
+        fixedChars: 500,
+        maxPromptChars: 100,
+      )!;
+      expect(trimmed.length, 2);
+    });
+
+    test('null/empty passes through', () {
+      expect(
+          InferenceEngine.trimHistoryToFit(
+            history: null,
+            fixedChars: 1,
+            maxPromptChars: 1,
+          ),
+          isNull);
+      expect(
+          InferenceEngine.trimHistoryToFit(
+            history: [],
+            fixedChars: 1,
+            maxPromptChars: 1,
+          ),
+          isEmpty);
+    });
+  });
 }

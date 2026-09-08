@@ -36,6 +36,13 @@ class InferenceEngine {
   void Function()? _onStop;
   bool _isLiteRt = false;
   bool _disposed = false;
+  // Last successful GGUF load — used for hard-reset recovery.
+  String? _lastModelPath;
+  int _lastContextSize = 2048;
+  String _lastDeviceTier = 'mid';
+  bool _lastIsTensor = false;
+  // Consecutive native decode failures across calls. Reset on success.
+  int _decodeFailStreak = 0;
   String? _liteConversationSystemPrompt;
   double? _liteConversationTemperature;
   double? _liteConversationTopP;
@@ -196,6 +203,12 @@ class InferenceEngine {
       contextSize: contextSize,
       gpuLayers: gpuLayers,
     );
+    // Remember for hard-reset recovery (repeated native decode failures).
+    _lastModelPath = modelPath;
+    _lastContextSize = contextSize;
+    _lastDeviceTier = deviceTier;
+    _lastIsTensor = isTensorSoC;
+    _decodeFailStreak = 0;
 
     final accel = gpuLayers > 0
         ? 'GPU ($gpuLayers layers, $gpuNameStr)'
@@ -382,10 +395,12 @@ class InferenceEngine {
     final completer = Completer<String>();
     final buffer = StringBuffer();
     bool completed = false;
+    bool retried = false;
 
     void finish(String result) {
       if (!completed && !_disposed) {
         completed = true;
+        if (!result.startsWith('ERROR')) _decodeFailStreak = 0;
         _idleTimer?.cancel();
         _subscription?.cancel();
         _onStop = null;
@@ -400,8 +415,27 @@ class InferenceEngine {
     // ── Use generateChat() for native template handling ──
     Stream<String>? stream;
     try {
+      // Cap the prompt: a single prompt bigger than the context can NEVER
+      // fit (no sliding window saves it) — trim oldest history first.
+      var history = conversationHistory;
+      try {
+        final probe = await _controller?.getContextInfo();
+        final ctx = probe?.contextSize ?? 0;
+        if (ctx > 0) {
+          final trimmed = trimHistoryToFit(
+            history: history,
+            fixedChars: systemPrompt.length + prompt.length,
+            maxPromptChars: (ctx * 0.75 * 4).toInt(),
+          );
+          if (!identical(trimmed, history)) {
+            print(
+                '[Inference] Prompt too big for ctx=$ctx — trimmed history ${(history?.length ?? 0)} → ${trimmed?.length ?? 0} turns.');
+          }
+          history = trimmed;
+        }
+      } catch (_) {}
       final messages = _buildChatMessages(
-          prompt, conversationHistory, systemPrompt,
+          prompt, history, systemPrompt,
           imagePath: imagePath);
       // The native session keeps KV cache across calls but Dart re-sends
       // the FULL history every time. Without a reset the cache grows until
@@ -461,16 +495,41 @@ class InferenceEngine {
         print('[Inference] Stream onDone — $tokenCount tokens total');
         finish(buffer.toString());
       },
-      onError: (error) {
+      onError: (error) async {
         print('[Inference] Stream error: $error');
         final msg = error.toString();
-        if (msg.contains('decode prompt') || msg.contains('decode')) {
+        final isDecode = msg.contains('decode prompt') || msg.contains('decode');
+        if (isDecode) {
+          _decodeFailStreak++;
           // Native KV overflowed despite the pre-check (race between
-          // calls). Self-heal so the NEXT call works, and say so honestly
-          // instead of "The model returned nothing".
+          // calls). Self-heal so the NEXT call works.
           try {
-            _controller?.clearContext();
+            await _controller?.clearContext();
           } catch (_) {}
+          // Twice in a row = native state is corrupt beyond a soft
+          // clear (bad shift, partial-write). Nuke it: free + reload
+          // the model, then retry this exact call once.
+          if (!retried && _decodeFailStreak >= 2 && _lastModelPath != null) {
+            retried = true;
+            _decodeFailStreak = 0;
+            if (await _hardReloadGguf()) {
+              finish(await generate(
+                prompt: prompt,
+                conversationHistory: conversationHistory,
+                systemPrompt: systemPrompt,
+                modelName: modelName,
+                maxTokens: maxTokens,
+                temperature: temperature,
+                topP: p,
+                topK: k,
+                repeatPenalty: r,
+                imagePath: imagePath,
+                audioPath: audioPath,
+                onToken: onToken,
+              ));
+              return;
+            }
+          }
           finish(
               'ERROR: Conversation grew past the model\'s context. I cleared it — send again (older turns may be trimmed).');
         } else {
@@ -755,6 +814,52 @@ class InferenceEngine {
     if (contextSize <= 0) return false;
     final estimate = promptChars ~/ 4 + 32;
     return tokensUsed + estimate + maxTokens > contextSize * 0.9;
+  }
+
+  /// Drops oldest history turns until the prompt fits [maxPromptChars]
+  /// (keeps at least the 2 most recent). A prompt that alone exceeds the
+  /// context can never decode — no sliding window saves it. Pure logic,
+  /// public for unit tests.
+  static List<Map<String, String>>? trimHistoryToFit({
+    required List<Map<String, String>>? history,
+    required int fixedChars,
+    required int maxPromptChars,
+  }) {
+    if (history == null || history.isEmpty) return history;
+    var total = (fixedChars * 1.1).toInt() +
+        history.fold<int>(0, (a, m) => a + (m['content']?.length ?? 0));
+    if (total <= maxPromptChars) return history;
+    final trimmed = List<Map<String, String>>.of(history);
+    while (trimmed.length > 2 && total > maxPromptChars) {
+      total -= (trimmed.removeAt(0)['content']?.length ?? 0);
+    }
+    return trimmed;
+  }
+
+  /// Frees the native slot and reloads the last GGUF model from scratch —
+  /// guaranteed-clean KV. Used once per call after repeated decode
+  /// failures (soft clearContext wasn't enough).
+  Future<bool> _hardReloadGguf() async {
+    final path = _lastModelPath;
+    final ctl = _controller;
+    if (path == null || ctl == null) return false;
+    try {
+      print(
+          '[Inference] Hard reset: freeing + reloading model after repeated decode failures.');
+      try {
+        await ctl.freeByPath(path);
+      } catch (_) {}
+      final r = await loadModel(
+        modelPath: path,
+        contextSize: _lastContextSize,
+        deviceTier: _lastDeviceTier,
+        isTensorSoC: _lastIsTensor,
+      );
+      return r.success;
+    } catch (e) {
+      print('[Inference] Hard reset failed: $e');
+      return false;
+    }
   }
 
   /// Clears the native KV session when the upcoming call would overflow
