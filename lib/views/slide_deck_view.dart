@@ -85,14 +85,16 @@ class _SlideDeckViewState extends State<SlideDeckView> {
         ],
       ),
       body: Obx(() {
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+        return Column(
           children: [
-            _composerCard(context, isDark),
-            if (c.lastError.value != null) ...[
-              const SizedBox(height: 10),
-              _errorBox(context, isDark),
-            ],
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                children: [
+                  if (c.lastError.value != null) ...[
+                    _errorBox(context, isDark),
+                    const SizedBox(height: 10),
+                  ],
             if (c.hasDeck) ...[
               const SizedBox(height: 12),
               _deckBar(context, isDark),
@@ -112,7 +114,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               const SizedBox(height: 24),
               Center(
                 child: Text(
-                  'Describe a topic above — the AI designs every slide.\n'
+                  'Describe a topic below — the AI designs every slide.\n'
                   'Visual slides always reserve an image box, even when '
                   'the model can only write text.',
                   textAlign: TextAlign.center,
@@ -123,6 +125,15 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                 ),
               ),
             ],
+                ],
+              ),
+            ),
+            // ── Composer pinned at the bottom (chat-style) ──
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  16, 4, 16, 16 + MediaQuery.of(context).padding.bottom),
+              child: _composerCard(context, isDark),
+            ),
           ],
         );
       }),
