@@ -212,6 +212,23 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     ? () => c.autoFix.value = !c.autoFix.value
                     : null,
               ),
+              IconButton(
+                tooltip: hasP
+                    ? (c.elementPickMode.value
+                        ? 'Pick mode on — long-press an element in preview'
+                        : 'Pick an element in preview to edit')
+                    : 'Pick element (needs a project)',
+                icon: Icon(
+                    LucideIcons.crosshair,
+                    size: 20,
+                    color: !hasP
+                        ? dim
+                        : (c.elementPickMode.value
+                            ? Dt.accent
+                            : Theme.of(context).hintColor)),
+                onPressed:
+                    hasP ? () => c.toggleElementPick() : null,
+              ),
             ]);
           }),
           IconButton(
@@ -313,6 +330,12 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   value: 'rename',
                   enabled: hasP,
                   child: const Text('Rename project',
+                      style: TextStyle(fontSize: 14)),
+                ),
+                PopupMenuItem(
+                  value: 'fork',
+                  enabled: hasP,
+                  child: const Text('Fork project',
                       style: TextStyle(fontSize: 14)),
                 ),
                 PopupMenuItem(
@@ -669,6 +692,22 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     return raw;
   }
 
+  /// Short label for the picked-element chip ("button · Buy now").
+  String _pickedLabel(String info) {
+    try {
+      final m = jsonDecode(info) as Map<String, dynamic>;
+      var tag = (m['tag'] ?? '').toString();
+      var text = (m['text'] ?? '').toString().replaceAll('\n', ' ').trim();
+      if (text.length > 24) text = '${text.substring(0, 24)}…';
+      if (tag.isEmpty && text.isEmpty) return 'Element picked';
+      if (tag.isEmpty) return text;
+      if (text.isEmpty) return '<$tag> picked';
+      return '<$tag> · $text';
+    } catch (_) {
+      return 'Element picked';
+    }
+  }
+
   /// Slim pane label for the wide IDE split (chat left, preview right).
   Widget _paneHeader(
       BuildContext context, bool isDark, String label, Widget? trailing) {
@@ -890,6 +929,39 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                             const SizedBox(width: 6),
                             GestureDetector(
                               onTap: () => c.clearAttachment(),
+                              child: const Icon(LucideIcons.x,
+                                  size: 12, color: Dt.accent),
+                            ),
+                          ]),
+                        )
+                      : const SizedBox.shrink()),
+                  // Picked-element chip (visual edit context)
+                  Obx(() => c.pickedElement.value != null
+                      ? Container(
+                          margin: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Dt.accent.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: Dt.accent.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            const Icon(LucideIcons.crosshair,
+                                size: 13, color: Dt.accent),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                _pickedLabel(c.pickedElement.value!),
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 11, color: Dt.accent),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            GestureDetector(
+                              onTap: () => c.clearPickedElement(),
                               child: const Icon(LucideIcons.x,
                                   size: 12, color: Dt.accent),
                             ),
@@ -1347,6 +1419,17 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   Icon(LucideIcons.externalLink, size: 15),
             ),
           ),
+          InkWell(
+            onTap: () => c.capturePreviewShot(),
+            borderRadius: BorderRadius.circular(6),
+            child: const Padding(
+              padding: EdgeInsets.all(5),
+              child: Tooltip(
+                message: 'Capture screenshot as AI context',
+                child: Icon(LucideIcons.camera, size: 15),
+              ),
+            ),
+          ),
         ]),
       ),
       Expanded(
@@ -1358,11 +1441,14 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _AgentPreview(
-                key: ValueKey('agent-$revision-$url-$_reloadNonce-$_viewport'),
-                url: url,
-                onConsoleError: (msg) => c.onConsoleError(msg),
-              ),
+              child: Obx(() => _AgentPreview(
+                    key: ValueKey(
+                        'agent-$revision-$url-$_reloadNonce-$_viewport'),
+                    url: url,
+                    onConsoleError: (msg) => c.onConsoleError(msg),
+                    pickMode: c.elementPickMode.value,
+                    onElementPicked: (info) => c.onElementPicked(info),
+                  )),
             ),
           ),
         ),
@@ -2364,6 +2450,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       if (next != null && next.isNotEmpty) {
         await c.renameProject(next);
       }
+    } else if (v == 'fork') {
+      await c.forkProject();
     } else if (v == 'delete') {
       final p = c.project.value;
       if (p == null) return;
@@ -3318,8 +3406,14 @@ class _Template {
 class _AgentPreview extends StatefulWidget {
   final String url;
   final void Function(String) onConsoleError;
+  final bool pickMode;
+  final void Function(String) onElementPicked;
   const _AgentPreview(
-      {super.key, required this.url, required this.onConsoleError});
+      {super.key,
+      required this.url,
+      required this.onConsoleError,
+      this.pickMode = false,
+      required this.onElementPicked});
 
   @override
   State<_AgentPreview> createState() => _AgentPreviewState();
@@ -3333,6 +3427,68 @@ class _AgentPreviewState extends State<_AgentPreview> {
   /// while AI is writing or the dev server is (re)starting — a reload
   /// racing a restart must not trigger pointless file rewrites.
   bool _forwardedLoadError = false;
+  InAppWebViewController? _webCtrl;
+
+  /// Long-press (touch) / click (mouse, pick mode only) element picker.
+  /// Armed via `window.__cubicPickArmed`; reports JSON to `cubicOnElement`.
+  static const _pickerJs = '''
+(function(){
+  if (window.__cubicPickInstalled) return;
+  window.__cubicPickInstalled = true;
+  window.__cubicPickArmed = false;
+  var t = null, target = null;
+  function info(el){
+    try {
+      var r = el.getBoundingClientRect();
+      return JSON.stringify({tag: (el.tagName||'').toLowerCase(),
+        id: el.id||'', cls: String(el.className||'').slice(0,120),
+        text: (el.innerText||'').slice(0,300),
+        html: el.outerHTML.slice(0,800),
+        x: Math.round(r.x), y: Math.round(r.y)});
+    } catch(e){ return '{}'; }
+  }
+  function send(el){
+    try { window.flutter_inappwebview.callHandler('cubicOnElement', info(el)); } catch(e){}
+    window.__cubicPickArmed = false;
+  }
+  document.addEventListener('touchstart', function(e){
+    if (!window.__cubicPickArmed) return;
+    var touch = e.touches[0];
+    target = document.elementFromPoint(touch.clientX, touch.clientY);
+    t = setTimeout(function(){
+      if (target && target.tagName) {
+        try { target.style.outline = '2px solid #D97757'; } catch(e){}
+        setTimeout(function(){ send(target); }, 150);
+      }
+    }, 550);
+  }, {passive:true});
+  document.addEventListener('touchend', function(){ clearTimeout(t); }, {passive:true});
+  document.addEventListener('mousedown', function(e){
+    if (!window.__cubicPickArmed) return;
+    var el = e.target;
+    if (el && el.tagName) {
+      try { el.style.outline = '2px solid #D97757'; } catch(err){}
+      e.preventDefault();
+      setTimeout(function(){ send(el); }, 150);
+    }
+  });
+})();
+''';
+
+  @override
+  void didUpdateWidget(covariant _AgentPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pickMode != widget.pickMode) {
+      _armPicker(widget.pickMode);
+    }
+  }
+
+  Future<void> _armPicker(bool armed) async {
+    try {
+      await _webCtrl?.evaluateJavascript(
+          source: 'window.__cubicPickArmed = ${armed ? 'true' : 'false'};');
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3349,6 +3505,24 @@ class _AgentPreviewState extends State<_AgentPreview> {
               supportZoom: true,
               transparentBackground: false,
             ),
+            onWebViewCreated: (ctrl) {
+              _webCtrl = ctrl;
+              try {
+                Get.find<AgentController>().previewWebController = ctrl;
+              } catch (_) {}
+              try {
+                ctrl.addJavaScriptHandler(
+                  handlerName: 'cubicOnElement',
+                  callback: (args) {
+                    final info =
+                        args.isNotEmpty ? '${args.first}' : '';
+                    if (info.isNotEmpty && info != '{}') {
+                      widget.onElementPicked(info);
+                    }
+                  },
+                );
+              } catch (_) {}
+            },
             onLoadStop: (_, __) {
               if (mounted) {
                 setState(() {
@@ -3356,6 +3530,10 @@ class _AgentPreviewState extends State<_AgentPreview> {
                   _error = null;
                 });
               }
+              try {
+                _webCtrl?.evaluateJavascript(source: _pickerJs);
+              } catch (_) {}
+              _armPicker(widget.pickMode);
             },
             onReceivedError: (_, __, err) {
               if (mounted) {
@@ -3396,6 +3574,27 @@ class _AgentPreviewState extends State<_AgentPreview> {
               left: 0,
               right: 0,
               child: LinearProgressIndicator(minHeight: 2),
+            ),
+          if (widget.pickMode && !_loading)
+            Positioned(
+              top: 8,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Dt.accent,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text('Long-press an element to edit it',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white)),
+                ),
+              ),
             ),
           if (_error != null && !_loading)
             Positioned(

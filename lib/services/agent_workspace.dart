@@ -177,6 +177,24 @@ class AgentWorkspaceService extends GetxService {
     await _save();
   }
 
+  /// Fork: copy all files (except checkpoints) into a brand-new project.
+  /// Returns the fork, or null when the source is gone.
+  Future<AgentProject?> forkProject(String projectId) async {
+    final i = projects.indexWhere((p) => p.id == projectId);
+    if (i < 0) return null;
+    final src = projects[i];
+    final np = await createProject('${src.name} (fork)', src.framework);
+    try {
+      for (final f in await listFiles(projectId)) {
+        if (f.startsWith('.checkpoints/')) continue;
+        final content = await readFile(projectId, f);
+        if (content != null) await writeFile(np.id, f, content);
+      }
+      await saveCheckpoint(np.id, label: 'Forked from ${src.name}');
+    } catch (_) {}
+    return np;
+  }
+
   /// Write (create/overwrite) one file. Returns error string or null.
   Future<String?> writeFile(
       String projectId, String path, String content) async {

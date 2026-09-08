@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -490,6 +491,46 @@ class AgentController extends GetxController {
     project.refresh();
   }
 
+  /// Fork the current project into a copy and open it.
+  Future<void> forkProject() async {
+    final p = project.value;
+    if (p == null || generating.value || fixing.value) return;
+    try {
+      buildStatus.value = 'Forking project…';
+      final np = await _ws.forkProject(p.id);
+      if (np == null) return;
+      await openProject(np);
+      AppSnackbar.showTop('Project forked', np.name, logHistory: false);
+    } catch (e) {
+      AppSnackbar.showTop('Fork failed', '$e', logHistory: false);
+    } finally {
+      if (buildStatus.value == 'Forking project…') buildStatus.value = null;
+    }
+  }
+
+  /// Latest preview WebView controller (set by the view). Used for
+  /// element picking arming + screenshot capture.
+  InAppWebViewController? previewWebController;
+
+  /// Capture the live preview as PNG and attach it as vision context.
+  Future<void> capturePreviewShot() async {
+    final w = previewWebController;
+    if (w == null || project.value == null) return;
+    try {
+      final bytes = await w.takeScreenshot();
+      if (bytes == null || bytes.isEmpty) return;
+      attachedImage.value = base64Encode(bytes);
+      term('preview screenshot attached (${(bytes.length / 1024).round()} KB)');
+      AppSnackbar.showTop(
+        'Screenshot attached',
+        'Describe what to change in the screenshot.',
+        logHistory: false,
+      );
+    } catch (e) {
+      AppSnackbar.showTop('Capture failed', '$e', logHistory: false);
+    }
+  }
+
   Future<String?> readFile(String path) async {
     final p = project.value;
     if (p == null) return null;
@@ -629,9 +670,15 @@ class AgentController extends GetxController {
         if (total > 1000000) before = {};
       } catch (_) {}
       final projContext = await _projectContext(p.id);
+      // One-shot visual context: user long-pressed an element in preview.
+      final picked = pickedElement.value;
+      pickedElement.value = null;
+      final pickedCtx = (picked != null && picked.trim().isNotEmpty)
+          ? 'SELECTED ELEMENT (user picked this in the live preview — focus the change here):\n$picked\n\n'
+          : '';
       final raw = await _ask(
         prompt: 'Modify the "${p.name}" ${p.framework} project: $t\n\n'
-            'CURRENT FILES:\n$projContext\n\n'
+            '${pickedCtx}CURRENT FILES:\n$projContext\n\n'
             '${_cwDiagnosticsForAi()}'
             'LOCAL DEV CLIs (on-device): ${_cliContextLine()}\n\n'
             'Return a files-JSON object with ONLY new or fully-rewritten changed files.',
