@@ -1306,6 +1306,8 @@ class CloudModelController extends GetxController {
           if (_testCancel[provider] == true) return;
           final i = cursor++;
           if (i >= models.length) return;
+          // Gentle stagger so 3 workers don't burst-fire (fewer 429s).
+          if (i > 0) await Future.delayed(const Duration(milliseconds: 250));
           final model = models[i];
           _setOneHealth(
               provider,
