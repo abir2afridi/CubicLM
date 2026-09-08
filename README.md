@@ -17,7 +17,7 @@
 | --- | --- | ---: | --- |
 | Android (arm64) | `cubiclm-v1.10.0-arm64-v8a.apk` | 62 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.10.0/cubiclm-v1.10.0-arm64-v8a.apk) |
 | Android (arm32) | `cubiclm-v1.10.0-armeabi-v7a.apk` | 16 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.10.0/cubiclm-v1.10.0-armeabi-v7a.apk) |
-| Android (x86_64) | `cubiclm-v1.10.0-x86_64.apk` | 27 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.10.0/cubiclm-v1.10.0-x86_64.apk) |
+| Android (x86_64) | `cubiclm-v1.10.0-x86_64.apk` | 28 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.10.0/cubiclm-v1.10.0-x86_64.apk) |
 | Windows (x64) | `cubiclm-v1.10.0-windows-x64.zip` | 17 MB | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.10.0/cubiclm-v1.10.0-windows-x64.zip) — unzip & run `cubiclm.exe` (WebView2 required) |
 | Checksums | `checksums.sha256` | — | [GitHub Release](https://github.com/abir2afridi/CubicLM/releases/download/v1.10.0/checksums.sha256) |
 
