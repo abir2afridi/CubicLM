@@ -1227,6 +1227,22 @@ class ModelController extends GetxController {
     final isCriticallyLow = hasMeasuredMemory &&
         (availableBytes < estimatedNeed || _isLowMemoryBytes(availableBytes));
 
+    // Hard block: not enough RAM for file + KV cache + 1GB OS headroom.
+    // The native loader mmaps the whole file and aborts (instant app
+    // death, no catch possible) — offering "Load anyway" here is a crash
+    // button, so refuse outright.
+    const headroomBytes = 1024 * 1024 * 1024;
+    if (hasMeasuredMemory && availableBytes < estimatedNeed + headroomBytes) {
+      final needLabel = DownloadService.formatWholeMb(estimatedNeed);
+      final ramLabel = DownloadService.formatWholeMb(availableBytes);
+      Get.snackbar(
+        'Not enough free RAM',
+        '$filename needs ~$needLabel + 1GB headroom, but only $ramLabel is free. Close other apps or pick a smaller model.',
+        duration: const Duration(seconds: 6),
+      );
+      return _ModelLoadAction.cancel;
+    }
+
     // Enough headroom (or nothing measurable to warn about) — load straight
     // away. Any resident model is freed by InferenceService.loadModel.
     if (!isCriticallyLow) return _ModelLoadAction.continueLoad;

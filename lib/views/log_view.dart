@@ -805,10 +805,27 @@ class LogView extends StatelessWidget {
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/$fileName');
     await file.writeAsString(text, flush: true);
-    await Share.shareXFiles(
-      [XFile(file.path, mimeType: 'text/plain')],
-      subject: 'CubicLM logs',
-    );
+    try {
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'text/plain')],
+        subject: 'CubicLM logs',
+      );
+    } catch (_) {
+      // Share sheet can fail on some OEM ROMs (MIUI FileProvider quirks).
+      // Fall back: keep a copy in app files + clipboard so nothing is lost.
+      final docs = await getApplicationDocumentsDirectory();
+      final fb = File('${docs.path}/$fileName');
+      await fb.writeAsString(text, flush: true);
+      await Clipboard.setData(ClipboardData(text: text));
+      if (context.mounted) {
+        AppSnackbar.showTop('Share failed — saved instead', fb.path,
+            icon: LucideIcons.checkCircle2,
+            type: 'success',
+            iconName: 'check',
+            duration: const Duration(seconds: 5),
+            logHistory: false);
+      }
+    }
   }
 
   Widget _catChip(BuildContext context, bool isDark,

@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'dart:io' show File;
+import 'dart:io' show File, FileMode;
+import 'dart:typed_data';
 import 'package:get/get.dart';
 import 'hive_service.dart';
 import '../core/constants.dart';
@@ -73,6 +74,42 @@ class InferenceService extends GetxService {
         _sessionNativeRuntime != normalized;
   }
 
+  /// Reads the 32-byte GGUF header. Returns a reason string when the file
+  /// cannot be a valid model, null when it looks sane. Native llama.cpp
+  /// aborts (SIGABRT, instant app death) on malformed headers — Dart must
+  /// reject these before the FFI boundary.
+  /// Public for unit tests.
+  static String? validateGgufHeader(File f) {
+    try {
+      final len = f.lengthSync();
+      if (len < 1024 * 1024) return 'file too small (${len}B)';
+      final raf = f.openSync(mode: FileMode.read);
+      try {
+        final head = raf.readSync(32);
+        if (head.length < 32) return 'cannot read header';
+        final bd = head.buffer.asByteData(head.offsetInBytes);
+        if (bd.getUint8(0) != 0x47 || // G
+            bd.getUint8(1) != 0x47 || // G
+            bd.getUint8(2) != 0x55 || // U
+            bd.getUint8(3) != 0x46) {
+          // F
+          return 'bad magic';
+        }
+        final version = bd.getUint32(4, Endian.little);
+        if (version != 2 && version != 3) return 'unknown version $version';
+        final tensors = bd.getUint64(8, Endian.little);
+        if (tensors == 0 || tensors > 100000) {
+          return 'implausible tensor count $tensors';
+        }
+        return null;
+      } finally {
+        raf.closeSync();
+      }
+    } catch (e) {
+      return 'unreadable ($e)';
+    }
+  }
+
   Future<String> loadModel(
     String modelPath, {
     String? modelName,
@@ -115,6 +152,20 @@ class InferenceService extends GetxService {
       );
       return
           'ERROR: "${modelName ?? modelPath.split('/').last}" is not on this device. Open the Models tab and download it first.';
+    }
+
+    // GGUF header sanity: a valid magic with garbage metadata segfaults
+    // the native loader (no catch possible from Dart). Reject early.
+    if (modelPath.toLowerCase().endsWith('.gguf')) {
+      final headerError = validateGgufHeader(modelFile);
+      if (headerError != null) {
+        Get.find<AppLogService>().error(
+          'Model file failed header check',
+          details: 'path=$modelPath, reason=$headerError',
+          category: LogCategory.model,
+        );
+        return 'ERROR: "${modelName ?? modelPath.split('/').last}" looks corrupted ($headerError). Re-download it from the Models tab.';
+      }
     }
 
     try {
@@ -222,6 +273,16 @@ class InferenceService extends GetxService {
 
       final requestedModelName = modelName ?? modelPath.split('/').last;
       final activeModelName = requestedModelName;
+      // Evidence row BEFORE the native call: a JNI-time abort kills the
+      // process with no Dart exception, so without this the log shows
+      // nothing and the next crash is undebuggable.
+      try {
+        final sizeMb = modelFile.lengthSync() ~/ (1024 * 1024);
+        Get.find<AppLogService>().info(
+          'Loading local model: $requestedModelName (${sizeMb}MB, ctx=$finalContextSize, tier=$deviceTier)',
+          category: LogCategory.model,
+        );
+      } catch (_) {}
       final result = await _loadModelOnEngine(
         modelPath: modelPath,
         modelRuntime: modelRuntime,
@@ -579,7 +640,7 @@ class InferenceService extends GetxService {
       if (markLiteRtGpuPending && liteRtPerformanceMode == 'auto_fast') {
         await _hive.setSetting(AppConstants.keyLiteRtGpuLoadPending, false);
         await _hive.setSetting(AppConstants.keyLiteRtGpuCrashDetected, true);
-        try {
+    try {
           modelLoadProgress.value = 0.0;
           return await _engine!.loadModel(
             modelPath: modelPath,
