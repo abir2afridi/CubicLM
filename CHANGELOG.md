@@ -5,17 +5,22 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.10.0+16] - 2026-09-08
 
 ### Added
 - **New cloud providers** — AgentRouter (non-profit OpenAI gateway), OrcaRouter (cost-price gateway, `sk-orca-` keys, `vendor/model` IDs + `orcarouter/auto`), APInex (one-key gateway across 7 vendors). 23 providers total.
 - **Verify-before-save keys** — key dialog checks the live endpoint first (nothing saved), shows *Verified — N models found*, then unlocks Save; editing invalidates; clear (X) + paste moved above the field.
 - **Honest model probes** — connection-fast testing (first chunk = online, 15s window), one retry for transient 429/5xx, 250ms stagger, fail-closed key lookup.
+- **Slide Maker chart layout** — bar/donut/line charts (Flutter CustomPainter in-app, CSS/SVG in HTML, visual bars in PPTX); AI refine per slide, one-click restyle, audience targeting, thumbnail strip, duplicate slide, 20-slide max.
+- **CubicWeb Builder IDE split** — wide screens show chat (left) + live preview/files (right) side by side with pane headers; narrow keeps tabs.
 
 ### Fixed
 - **Ghost-key bug** — unlisted provider IDs borrowed the OpenAI key and showed as configured; unknown IDs now fail closed in UI + send path.
 - **Provider ordering** — Custom always top, keyed (pinned → time/name) above, keyless in a separate Add-Key section, switcher shows keyed only; removed dead auto-detected vendor cards.
 - **Zero-quota + wrong-key messages** — quota-0 and non-`AIza` Gemini keys now explain themselves.
+- **Slide HTML export** — comparison/timeline lists render; free-layout notes included; touch/swipe navigation on mobile.
+- **Image save on Windows** — gallery plugin is Android/iOS only; desktop now saves via native file dialog.
+- **Edit dialog data loss** — comparison columns + chart data preserved and editable.
 
 ## [1.9.0+15] - 2026-09-07
 

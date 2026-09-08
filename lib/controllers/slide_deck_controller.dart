@@ -180,11 +180,19 @@ class SlideDeckController extends GetxController {
     final oldStyle = style.value;
     style.value = newStyle;
     try {
+      // Build a compact summary of current content for the AI to preserve
+      final contentSummary = StringBuffer();
+      for (var i = 0; i < slides.length; i++) {
+        final s = slides[i];
+        contentSummary.writeln(
+            'Slide ${i + 1} [${s.layout}]: ${s.title} — ${s.points.take(3).join(", ")}');
+      }
       final raw = await _ask(
         prompt: 'Restyle this ${slides.length}-slide presentation about: ${topic.value.trim()}\n\n'
-            'Keep the same number of slides and similar content structure, '
-            'but rewrite everything to match a "$newStyle" tone.\n'
-            'You may change layouts if they fit the new style better.',
+            'Current content:\n${contentSummary.toString()}\n'
+            'Keep the same number of slides and preserve the same information. '
+            'Rewrite tone, wording, and layout choices to match "$newStyle" style.\n'
+            'Do NOT change the facts or data — only change the voice, style, and layout.',
         system: slideSystemPrompt(
             count: slides.length,
             style: newStyle,
@@ -220,17 +228,26 @@ class SlideDeckController extends GetxController {
       required String pointsText,
       required String imagePrompt,
       required String notes,
-      required String layout}) {
+      required String layout,
+      Map<String, dynamic>? chartData}) {
     if (index < 0 || index >= slides.length) return;
     final s = slides[index];
     s.title = title.trim().isEmpty ? 'Untitled' : title.trim();
     s.subtitle = subtitle.trim();
     s.quoteAuthor = quoteAuthor.trim();
-    s.points = pointsText
+    final pts = pointsText
         .split('\n')
         .map((e) => e.trim().replaceFirst(RegExp(r'^[-*•]\s+'), ''))
         .where((e) => e.isNotEmpty)
         .toList();
+    s.points = pts;
+    if (layout == 'comparison') {
+      final mid = pts.length ~/ 2;
+      s.columns = [pts.sublist(0, mid), pts.sublist(mid)];
+    }
+    if (layout == 'chart' && chartData != null) {
+      s.chartData = chartData;
+    }
     s.imagePrompt = imagePrompt.trim();
     s.notes = notes.trim();
     s.layout = layout;
@@ -244,6 +261,18 @@ class SlideDeckController extends GetxController {
   void deleteSlide(int index) {
     if (index < 0 || index >= slides.length) return;
     slides.removeAt(index);
+  }
+
+  void duplicateSlide(int index) {
+    if (index < 0 || index >= slides.length) return;
+    if (slides.length >= maxSlides) {
+      lastError.value = 'Max $maxSlides slides reached.';
+      return;
+    }
+    final src = slides[index];
+    final copy = Slide.fromMap(src.toMap());
+    copy.imageBytes = src.imageBytes;
+    slides.insert(index + 1, copy);
   }
 
   void moveSlide(int index, int dir) {

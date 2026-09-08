@@ -271,11 +271,11 @@ class _SlideDeckViewState extends State<SlideDeckView> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Obx(() => _stylePill(context, isDark)),
+              Flexible(child: Obx(() => _stylePill(context, isDark))),
               const SizedBox(width: 6),
-              Obx(() => _countStepper(context, isDark)),
+              Flexible(child: Obx(() => _countStepper(context, isDark))),
               const Spacer(),
-              Obx(() => _audiencePill(context, isDark)),
+              Flexible(child: Obx(() => _audiencePill(context, isDark))),
             ],
           ),
         ],
@@ -700,6 +700,10 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                 () => c.regenerateSlide(index)),
             _miniBtn(context, LucideIcons.sparkles, 'AI refine',
                 () => _showRefineDialog(context, isDark, index)),
+            _miniBtn(context, LucideIcons.copy, 'Duplicate slide',
+                c.slides.length >= SlideDeckController.maxSlides
+                    ? null
+                    : () => c.duplicateSlide(index)),
             _miniBtn(context, LucideIcons.arrowUp, 'Move up',
                 index == 0 ? null : () => c.moveSlide(index, -1)),
             _miniBtn(context, LucideIcons.arrowDown, 'Move down',
@@ -1471,9 +1475,184 @@ class _SlideDeckViewState extends State<SlideDeckView> {
     );
   }
 
+  /// Returns layout-aware body widgets for Docs and PDF canvases.
+  List<Widget> _layoutBodyWidgets(Slide s, bool showImage, {double fontSize = 13, Color bulletColor = Dt.accent, Color textColor = const Color(0xFF2A2A2A)}) {
+    final List<Widget> widgets = [];
+    final hasImage = s.imageBytes != null && s.imageBytes!.isNotEmpty;
+
+    if (s.layout == 'quote') {
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          '"${s.points.join(" ")}"',
+          style: GoogleFonts.plusJakartaSans(
+              fontSize: fontSize + 1,
+              fontStyle: FontStyle.italic,
+              height: 1.6,
+              color: textColor),
+        ),
+      ));
+      if (s.quoteAuthor.isNotEmpty) {
+        widgets.add(Text(
+          '— ${s.quoteAuthor}',
+          style: GoogleFonts.plusJakartaSans(
+              fontSize: fontSize - 1,
+              fontWeight: FontWeight.w700,
+              color: bulletColor),
+        ));
+      }
+    } else if (s.layout == 'comparison' && s.columns.length >= 2) {
+      final c1 = s.columns[0];
+      final c2 = s.columns[1];
+      final maxLen = c1.length > c2.length ? c1.length : c2.length;
+      for (var j = 0; j < maxLen; j++) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Row(
+            children: [
+              Expanded(child: Text(
+                j < c1.length ? '• ${c1[j]}' : '',
+                style: GoogleFonts.plusJakartaSans(fontSize: fontSize - 1, height: 1.4, color: textColor),
+              )),
+              const SizedBox(width: 12),
+              Expanded(child: Text(
+                j < c2.length ? '• ${c2[j]}' : '',
+                style: GoogleFonts.plusJakartaSans(fontSize: fontSize - 1, height: 1.4, color: textColor),
+              )),
+            ],
+          ),
+        ));
+      }
+    } else if (s.layout == 'stats' && s.stats.isNotEmpty) {
+      for (final st in s.stats) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            children: [
+              Text('${st['value'] ?? ''}  ',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: fontSize + 1,
+                      fontWeight: FontWeight.w900,
+                      color: bulletColor)),
+              Expanded(child: Text(st['label'] ?? '',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: fontSize - 1,
+                      color: textColor))),
+            ],
+          ),
+        ));
+      }
+    } else if (s.layout == 'timeline' && s.points.isNotEmpty) {
+      for (var i = 0; i < s.points.length; i++) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: fontSize + 2,
+                height: fontSize + 2,
+                margin: const EdgeInsets.only(top: 2, right: 8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: bulletColor,
+                ),
+                alignment: Alignment.center,
+                child: Text('${i + 1}',
+                    style: TextStyle(fontSize: fontSize - 3, color: Colors.white, fontWeight: FontWeight.w800)),
+              ),
+              Expanded(child: Text(s.points[i],
+                  style: GoogleFonts.plusJakartaSans(fontSize: fontSize - 1, height: 1.4, color: textColor))),
+            ],
+          ),
+        ));
+      }
+    } else if (s.layout == 'chart' && s.chartData.isNotEmpty) {
+      final data = s.chartData;
+      final type = data['type'] ?? 'bar';
+      final items = data['items'] is List ? data['items'] as List : [];
+      if (items.isNotEmpty) {
+        widgets.add(Text(
+          'Chart (${type.toString().toUpperCase()})',
+          style: GoogleFonts.plusJakartaSans(
+              fontSize: fontSize - 1,
+              fontWeight: FontWeight.w800,
+              color: bulletColor),
+        ));
+        widgets.add(const SizedBox(height: 6));
+        for (final e in items) {
+          final label = e['label']?.toString() ?? '';
+          final value = e['value']?.toString() ?? '';
+          widgets.add(Padding(
+            padding: const EdgeInsets.only(bottom: 3),
+            child: Text('• $label: $value',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: fontSize - 1, color: textColor)),
+          ));
+        }
+      }
+    } else if (s.layout == 'summary') {
+      for (final p in s.points) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(bottom: 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('✓  ',
+                  style: TextStyle(
+                      color: Color(0xFF2ECC71),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13)),
+              Expanded(child: Text(p,
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: fontSize - 1, height: 1.4, color: textColor))),
+            ],
+          ),
+        ));
+      }
+    } else {
+      // Default: title, bullets, image
+      for (final p in s.points) {
+        widgets.add(Padding(
+          padding: const EdgeInsets.only(bottom: 7),
+          child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('•  ',
+                    style: TextStyle(
+                        color: bulletColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: fontSize)),
+                Expanded(
+                  child: Text(p,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: fontSize,
+                          height: 1.5,
+                          color: textColor)),
+                ),
+              ]),
+        ));
+      }
+    }
+
+    if (showImage && hasImage) {
+      widgets.add(const SizedBox(height: 10));
+      widgets.add(ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.memory(
+          Uint8List.fromList(s.imageBytes!),
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        ),
+      ));
+    }
+
+    return widgets;
+  }
+
   /// Docs mode: light paper, continuous flow (all content visible).
   Widget _docsCanvas(BuildContext context, int index, Slide s) {
-    final hasImage = s.imageBytes != null && s.imageBytes!.isNotEmpty;
     return AspectRatio(
       aspectRatio: 3 / 4,
       child: Container(
@@ -1509,63 +1688,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                     decoration: BoxDecoration(
                         color: Dt.accent,
                         borderRadius: BorderRadius.circular(2))),
-                for (final p in s.points)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 7),
-                    child: Row(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                        children: [
-                          const Text('•  ',
-                              style: TextStyle(
-                                  color: Dt.accent,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 13)),
-                          Expanded(
-                            child: Text(p,
-                                style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13,
-                                    height: 1.5,
-                                    color: const Color(0xFF2A2A2A))),
-                          ),
-                        ]),
-                  ),
-                if (hasImage) ...[
-                  const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.memory(
-                      Uint8List.fromList(s.imageBytes!),
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          const SizedBox.shrink(),
-                    ),
-                  ),
-                ] else if (s.wantsImage) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF6F1EA),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color:
-                              Dt.accent.withValues(alpha: 0.5)),
-                    ),
-                    child: Text(
-                      s.imagePrompt.trim().isEmpty
-                          ? '[ image ]'
-                          : '[ image: ${s.imagePrompt.trim()} ]',
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontStyle: FontStyle.italic,
-                          color: const Color(0xFF8A7F72)),
-                    ),
-                  ),
-                ],
+                ..._layoutBodyWidgets(s, s.wantsImage),
                 if (s.notes.trim().isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Text(s.notes.trim(),
@@ -1582,7 +1705,6 @@ class _SlideDeckViewState extends State<SlideDeckView> {
 
   /// PDF mode: light A4 portrait page with margins + page number.
   Widget _pdfCanvas(BuildContext context, int index, Slide s) {
-    final hasImage = s.imageBytes != null && s.imageBytes!.isNotEmpty;
     final total = c.slides.length;
     return AspectRatio(
       aspectRatio: 1 / 1.4142,
@@ -1642,69 +1764,10 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                         crossAxisAlignment:
                             CrossAxisAlignment.start,
                         children: [
-                          for (final p in s.points)
-                            Padding(
-                              padding:
-                                  const EdgeInsets.only(bottom: 6),
-                              child: Row(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    const Text('– ',
-                                        style: TextStyle(
-                                            fontSize: 12,
-                                            color:
-                                                Color(0xFF555555))),
-                                    Expanded(
-                                      child: Text(p,
-                                          style: GoogleFonts
-                                              .plusJakartaSans(
-                                                  fontSize: 12,
-                                                  height: 1.5,
-                                                  color: const Color(
-                                                      0xFF222222))),
-                                    ),
-                                  ]),
-                            ),
-                          if (hasImage) ...[
-                            const SizedBox(height: 8),
-                            ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(6),
-                              child: Image.memory(
-                                Uint8List.fromList(
-                                    s.imageBytes!),
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) =>
-                                    const SizedBox.shrink(),
-                              ),
-                            ),
-                          ] else if (s.wantsImage) ...[
-                            const SizedBox(height: 8),
-                            Container(
-                              width: double.infinity,
-                              padding:
-                                  const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                    color: const Color(0xFFCCCCCC)),
-                                borderRadius:
-                                    BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                s.imagePrompt.trim().isEmpty
-                                    ? '[ image ]'
-                                    : '[ image: ${s.imagePrompt.trim()} ]',
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 11,
-                                    fontStyle: FontStyle.italic,
-                                    color:
-                                        const Color(0xFF999999)),
-                              ),
-                            ),
-                          ],
+                          ..._layoutBodyWidgets(s, s.wantsImage,
+                              fontSize: 12,
+                              bulletColor: const Color(0xFF555555),
+                              textColor: const Color(0xFF222222)),
                         ]),
                   ),
                 ),
@@ -1979,6 +2042,13 @@ class _SlideDeckViewState extends State<SlideDeckView> {
     final imgCtrl = TextEditingController(text: s.imagePrompt);
     final notesCtrl = TextEditingController(text: s.notes);
     var layout = s.layout;
+    var chartType = s.chartData['type']?.toString() ?? 'bar';
+    final chartItemsCtrl = TextEditingController(
+        text: s.chartData['items'] is List
+            ? (s.chartData['items'] as List)
+                .map((e) => '${e['label']}: ${e['value']}')
+                .join('\n')
+            : '');
     showDialog(
       context: context,
       builder: (dlgCtx) => StatefulBuilder(
@@ -2066,6 +2136,35 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                 decoration: const InputDecoration(
                     labelText: 'Layout', isDense: true),
               ),
+              if (layout == 'chart') ...[
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: ['bar', 'donut', 'line'].contains(chartType)
+                      ? chartType
+                      : 'bar',
+                  items: const [
+                    DropdownMenuItem(value: 'bar', child: Text('Bar Chart')),
+                    DropdownMenuItem(
+                        value: 'donut', child: Text('Donut Chart')),
+                    DropdownMenuItem(value: 'line', child: Text('Line Chart')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setDlg(() => chartType = v);
+                  },
+                  decoration: const InputDecoration(
+                      labelText: 'Chart type', isDense: true),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: chartItemsCtrl,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                      labelText: 'Data (one per line: Label: Value)',
+                      hintText: 'Revenue: 12\nProfit: 5\nCost: 3',
+                      alignLabelWithHint: true,
+                      isDense: true),
+                ),
+              ],
               const SizedBox(height: 10),
               TextField(
                 controller: imgCtrl,
@@ -2093,6 +2192,22 @@ class _SlideDeckViewState extends State<SlideDeckView> {
             ),
             FilledButton(
               onPressed: () {
+                Map<String, dynamic>? cd;
+                if (layout == 'chart' && chartItemsCtrl.text.isNotEmpty) {
+                  cd = {
+                    'type': chartType,
+                    'items': chartItemsCtrl.text
+                        .split('\n')
+                        .where((l) => l.contains(':'))
+                        .map((l) {
+                      final parts = l.split(':');
+                      return {
+                        'label': parts[0].trim(),
+                        'value': parts.sublist(1).join(':').trim(),
+                      };
+                    }).toList(),
+                  };
+                }
                 c.applyEdit(index,
                     title: titleCtrl.text,
                     subtitle: subtitleCtrl.text,
@@ -2100,7 +2215,8 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                     pointsText: pointsCtrl.text,
                     imagePrompt: imgCtrl.text,
                     notes: notesCtrl.text,
-                    layout: layout);
+                    layout: layout,
+                    chartData: cd);
                 Navigator.pop(dlgCtx);
               },
               child: const Text('Save'),
@@ -2115,45 +2231,66 @@ class _SlideDeckViewState extends State<SlideDeckView> {
   /// rewrites that single slide to match while keeping deck context.
   void _showRefineDialog(BuildContext context, bool isDark, int index) {
     final ctrl = TextEditingController();
+    final isLoading = ValueNotifier<bool>(false);
     showDialog(
       context: context,
-      builder: (dlgCtx) => AlertDialog(
-        backgroundColor: isDark ? AppColors.surface : Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Refine slide ${index + 1}',
-            style:
-                GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
-        content: TextField(
-          controller: ctrl,
-          maxLines: 3,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: InputDecoration(
-            hintText:
-                'e.g. "make it more data-driven" or "add a comparison chart"',
-            hintStyle: GoogleFonts.plusJakartaSans(
-                fontSize: 13, color: Dt.textPlaceholder),
-            isDense: true,
+      builder: (dlgCtx) => ValueListenableBuilder<bool>(
+        valueListenable: isLoading,
+        builder: (ctx, loading, _) => AlertDialog(
+            backgroundColor: isDark ? AppColors.surface : Colors.white,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text('Refine slide ${index + 1}',
+                style:
+                    GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+            content: loading
+                ? const SizedBox(
+                    height: 48,
+                    child: Center(child: CircularProgressIndicator()))
+                : TextField(
+                    controller: ctrl,
+                    maxLines: 3,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText:
+                          'e.g. "make it more data-driven" or "add a comparison chart"',
+                      hintStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 13, color: Dt.textPlaceholder),
+                      isDense: true,
+                    ),
+                  ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dlgCtx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton.icon(
+                icon: loading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(LucideIcons.sparkles, size: 16),
+                label: const Text('Refine'),
+                style:
+                    FilledButton.styleFrom(backgroundColor: Dt.accent),
+                onPressed: loading
+                    ? null
+                    : () {
+                        final instruction = ctrl.text.trim();
+                        if (instruction.isEmpty) return;
+                        isLoading.value = true;
+                        final nav = Navigator.of(dlgCtx);
+                        c.refineSlide(index, instruction)
+                            .whenComplete(() {
+                          if (nav.mounted) nav.pop();
+                        });
+                      },
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dlgCtx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.icon(
-            icon: const Icon(LucideIcons.sparkles, size: 16),
-            label: const Text('Refine'),
-            style: FilledButton.styleFrom(backgroundColor: Dt.accent),
-            onPressed: () {
-              final instruction = ctrl.text.trim();
-              if (instruction.isEmpty) return;
-              Navigator.pop(dlgCtx);
-              c.refineSlide(index, instruction);
-            },
-          ),
-        ],
       ),
     );
   }

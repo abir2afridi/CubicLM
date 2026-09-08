@@ -304,6 +304,28 @@ String _bulletList(int id, List<String> items, int x, int y, int cx, int cy, {in
   return buffer.toString();
 }
 
+String _solidRect(int id, String fillColor, int x, int y, int cx, int cy, {String? lineColor}) {
+  final ln = lineColor == null
+      ? '<a:ln><a:noFill/></a:ln>'
+      : '<a:ln><a:solidFill><a:srgbClr val="$lineColor"/></a:solidFill></a:ln>';
+  return '''
+<p:sp>
+  <p:nvSpPr><p:cNvPr id="$id" name="Rect"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+  <p:spPr>
+    <a:xfrm><a:off x="$x" y="$y"/><a:ext cx="$cx" cy="$cy"/></a:xfrm>
+    <a:prstGeom prst="rect"><a:avLst/></a:prstGeom>
+    <a:solidFill><a:srgbClr val="$fillColor"/></a:solidFill>
+    $ln
+  </p:spPr>
+  <p:txBody>
+    <a:bodyPr wrap="none"><a:spAutoFit/></a:bodyPr>
+    <a:lstStyle/>
+    <a:p><a:endParaRPr lang="en-US"/></a:p>
+  </p:txBody>
+</p:sp>
+''';
+}
+
 String _imageRect(int id, int imageRId, int x, int y, int cx, int cy) {
   return '''
 <p:pic>
@@ -354,7 +376,18 @@ List<int> _buildSlide(Slide slide, int? imageId) {
     case 'timeline':
     case 'summary': // Can share standard layout structure
       buffer.write(_textBox(spId++, slide.title, margin, margin, cxW - margin*2, 1000000, fontSize: 4400, bold: true, color: "D97757"));
-      buffer.write(_bulletList(spId++, slide.points, margin, margin + 1200000, cxW - margin*2, cyH - margin*2 - 1200000, fontSize: 2800));
+      var bodyY = margin + 1200000;
+      if (slide.subtitle.isNotEmpty) {
+        buffer.write(_textBox(spId++, slide.subtitle, margin, bodyY, cxW - margin*2, 600000, fontSize: 2400, color: "B8B2A6"));
+        bodyY += 700000;
+      }
+      var bodyPts = slide.points;
+      if (slide.layout == 'timeline') {
+        bodyPts = [for (var i = 0; i < slide.points.length; i++) '${i + 1}. ${slide.points[i]}'];
+      } else if (slide.layout == 'summary') {
+        bodyPts = slide.points.map((p) => '✓ $p').toList();
+      }
+      buffer.write(_bulletList(spId++, bodyPts, margin, bodyY, cxW - margin*2, cyH - bodyY - margin, fontSize: 2800));
       break;
 
     case 'image':
@@ -403,16 +436,37 @@ List<int> _buildSlide(Slide slide, int? imageId) {
 
     case 'chart':
       buffer.write(_textBox(spId++, slide.title, margin, margin, cxW - margin*2, 1000000, fontSize: 4400, bold: true, color: "D97757"));
-      // Render chart data as a formatted text table (PPTX doesn't support
-      // pure-CSS charts — export as structured data for the user)
       final chartData = slide.chartData;
       if (chartData.isNotEmpty && chartData['items'] is List) {
-        final items = chartData['items'] as List;
-        final type = chartData['type'] ?? 'bar';
-        buffer.write(_textBox(spId++, '[$type chart]', margin, 1500000, cxW - margin*2, 500000, fontSize: 2000, align: "ctr", color: "8E8B85"));
-        int idx = 0;
-        for (final item in items) {
-          if (item is Map) {
+        final items = (chartData['items'] as List).whereType<Map>().take(8).toList();
+        final type = (chartData['type'] ?? 'bar').toString();
+        // Parse numeric values for scaling
+        final vals = items.map((e) {
+          final raw = (e['value'] ?? '0').toString().replaceAll(RegExp(r'[^0-9.\-]'), '');
+          return double.tryParse(raw) ?? 0.0;
+        }).toList();
+        final maxV = vals.fold<double>(0, (a, b) => b > a ? b : a);
+        if (type == 'bar' && items.isNotEmpty && maxV > 0) {
+          // Visual horizontal bars: label | bar | value
+          const barAreaX = 3200000;
+          const barAreaW = cxW - margin - barAreaX;
+          const rowH = 550000;
+          const gap = 150000;
+          int y0 = 2000000;
+          for (int i = 0; i < items.length; i++) {
+            final label = (items[i]['label'] ?? '').toString();
+            final value = (items[i]['value'] ?? '').toString();
+            final w = ((vals[i] / maxV) * barAreaW).toInt().clamp(200000, barAreaW);
+            final y = y0 + i * (rowH + gap);
+            buffer.write(_textBox(spId++, label, margin, y, barAreaX - margin - 200000, rowH, fontSize: 2200));
+            buffer.write(_solidRect(spId++, 'D97757', barAreaX, y + 80000, w, rowH - 160000));
+            buffer.write(_textBox(spId++, value, barAreaX + w + 200000, y, cxW - margin - barAreaX - w - 200000, rowH, fontSize: 2200, bold: true, color: "D97757"));
+          }
+        } else {
+          // Donut/line or non-numeric: structured labeled list
+          buffer.write(_textBox(spId++, '[$type chart]', margin, 1500000, cxW - margin*2, 500000, fontSize: 2000, align: "ctr", color: "8E8B85"));
+          int idx = 0;
+          for (final item in items) {
             final label = (item['label'] ?? '').toString();
             final value = (item['value'] ?? '').toString();
             buffer.write(_textBox(spId++, '$label: $value', margin, 2200000 + idx * 600000, cxW - margin*2, 500000, fontSize: 2600, align: "ctr"));

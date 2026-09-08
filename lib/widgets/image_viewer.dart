@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
@@ -44,6 +45,29 @@ class _ImageViewerState extends State<ImageViewer> {
   Future<void> _download() async {
     setState(() => _isSaving = true);
     try {
+      // Desktop has no gallery plugin (gal is Android/iOS only) —
+      // save via native file dialog instead (parity with log/backup export).
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        final outPath = await FilePicker.saveFile(
+          dialogTitle: 'Save image',
+          fileName:
+              'cubiclm-${DateTime.now().millisecondsSinceEpoch}.png',
+          type: FileType.custom,
+          allowedExtensions: ['png'],
+          bytes: _bytes,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(outPath == null
+                  ? 'Save cancelled'
+                  : 'Image saved'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
       // Request permission if needed
       final hasAccess = await Gal.hasAccess();
       if (!hasAccess) {

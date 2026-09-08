@@ -334,7 +334,7 @@ Rules — follow ALL of these:
 5. Use "quote" for key insights or inspirational moments (fill "quoteAuthor").
 6. Use "comparison" when contrasting ideas (fill "columns" with exactly 2 lists).
 7. Use "stats" when presenting 2-4 key numbers (fill "stats" with {"value": "...", "label": "..."}).
-8. Use "chart" for data trends (fill "chartData" with {"type": "bar|donut|line", "items": [{"label": "...", "value": "42"}]}).
+8. Use "chart" for data trends (fill "chartData" with {"type": "bar|donut|line", "items": [{"label": "...", "value": "42"}]}). Max 6 items per chart. Values MUST be numeric-parseable (e.g. "42", "12B", "\$5M" — never "twelve" or "a lot").
 9. Use "timeline" for chronological or step-by-step content.
 10. EVERY content slide MUST include "imagePrompt" (one vivid sentence for AI image generation).
 11. Bullet points: max 15 words each. Use SPECIFIC numbers, percentages, and real-world data — never vague claims.
@@ -639,6 +639,9 @@ ul li::before { content: '▸'; position: absolute; left: 0; color: var(--accent
 
     if (s.freeLayout) {
       buf.writeln(_freeSlideHtml(s));
+      if (s.notes.trim().isNotEmpty) {
+        buf.writeln('<div class="notes">${esc(s.notes.trim())}</div>');
+      }
       buf.writeln('</section>');
       continue;
     }
@@ -721,8 +724,25 @@ ul li::before { content: '▸'; position: absolute; left: 0; color: var(--accent
         s.classList.add('active');
       } else {
         s.classList.remove('active');
-      }
-    });
+    }
+  });
+
+  // Touch / swipe support for mobile
+  let touchStartX = 0;
+  let touchStartY = 0;
+  document.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+      if (dx < 0) showSlide(currentSlide + 1);
+      else showSlide(currentSlide - 1);
+    }
+  }, { passive: true });
+
     
     progressBar.style.width = ((currentSlide + 1) / totalSlides * 100) + '%';
     counter.innerText = (currentSlide + 1) + ' / ' + totalSlides;

@@ -350,6 +350,73 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         // ONE page, chat-style: the ask bar IS the input (prompt +
         // framework + send). No separate composer gate.
         final hasProject = c.project.value != null;
+        // Wide screens (desktop/tablet landscape): IDE split — chat LEFT,
+        // preview/files RIGHT side by side. Narrow keeps the tab switcher.
+        final wide =
+            MediaQuery.of(context).size.width >= 900 && hasProject;
+        if (wide) {
+          return Column(children: [
+            Expanded(
+              child: Row(children: [
+                Expanded(
+                  flex: 2,
+                  child: Column(children: [
+                    _paneHeader(context, isDark, 'CHAT', null),
+                    Expanded(child: _chatPane(context, isDark)),
+                  ]),
+                ),
+                Container(
+                  width: 1,
+                  color: isDark
+                      ? Colors.white.withValues(alpha: 0.07)
+                      : Dt.hairline,
+                ),
+                Expanded(
+                  flex: 3,
+                  child: Column(children: [
+                    _paneHeader(context, isDark,
+                        _tab == 'files' ? 'FILES' : 'LIVE PREVIEW',
+                        SegmentedButton<String>(
+                          style: const ButtonStyle(
+                              visualDensity: VisualDensity.compact,
+                              tapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap),
+                          segments: const [
+                            ButtonSegment(
+                                value: 'preview',
+                                icon: Icon(LucideIcons.eye, size: 14)),
+                            ButtonSegment(
+                                value: 'files',
+                                icon: Icon(LucideIcons.folderOpen, size: 14)),
+                          ],
+                          selected: {
+                            _tab == 'files' ? 'files' : 'preview'
+                          },
+                          onSelectionChanged: (s) =>
+                              setState(() => _tab = s.first),
+                        )),
+                    Expanded(
+                      child: _tab == 'files'
+                          ? _filesPane(context, isDark)
+                          : _previewPane(
+                              context, isDark, c.revision.value),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            if (c.lastError.value != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                child: Text(_friendlyError(c.lastError.value!),
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12.5,
+                        color: AppColors.error,
+                        height: 1.4)),
+              ),
+            _askBar(context, isDark),
+          ]);
+        }
         return Column(children: [
           _tabSwitch(),
           Expanded(
@@ -600,6 +667,47 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       return 'Out of credits — check your API provider balance.';
     }
     return raw;
+  }
+
+  /// Slim pane label for the wide IDE split (chat left, preview right).
+  Widget _paneHeader(
+      BuildContext context, bool isDark, String label, Widget? trailing) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.07)
+                : Dt.hairline,
+          ),
+        ),
+      ),
+      child: Row(children: [
+        if (label == 'LIVE PREVIEW')
+          Obx(() => Container(
+                width: 7,
+                height: 7,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: c.livePreviewReady.value
+                      ? AppColors.success
+                      : Dt.accent,
+                ),
+              )),
+        Text(label,
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.1,
+                color: Theme.of(context).hintColor)),
+        if (trailing != null) ...[
+          const Spacer(),
+          trailing,
+        ],
+      ]),
+    );
   }
 
   double _viewportWidth() {

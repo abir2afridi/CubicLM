@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:archive/archive.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -161,6 +163,58 @@ Here is your deck:
       expect(html.contains('layout-summary'), isTrue);
       expect(html.contains('layout-chart'), isTrue);
     });
+
+    test('chart HTML renders bar/donut/line visual elements', () {
+      final barSlide = Slide(
+          title: 'Revenue', layout: 'chart',
+          chartData: {
+            'type': 'bar',
+            'items': [
+              {'label': '2024', 'value': '12'},
+              {'label': '2025', 'value': '18'},
+            ]
+          });
+      final donutSlide = Slide(
+          title: 'Split', layout: 'chart',
+          chartData: {
+            'type': 'donut',
+            'items': [
+              {'label': 'A', 'value': '30'},
+              {'label': 'B', 'value': '70'},
+            ]
+          });
+      final lineSlide = Slide(
+          title: 'Trend', layout: 'chart',
+          chartData: {
+            'type': 'line',
+            'items': [
+              {'label': 'Q1', 'value': '10'},
+              {'label': 'Q2', 'value': '25'},
+            ]
+          });
+
+      final html = deckToHtml('Chart Test', [barSlide, donutSlide, lineSlide]);
+      // bar chart uses flexbox bars
+      expect(html.contains('flex:1'), isTrue);
+      // donut chart uses conic-gradient
+      expect(html.contains('conic-gradient'), isTrue);
+      // line chart uses SVG
+      expect(html.contains('<svg'), isTrue);
+      expect(html.contains('<polyline'), isTrue);
+    });
+
+    test('HTML export includes speaker notes', () {
+      final s = Slide(title: 'X', points: ['A'], notes: 'Remember to pause');
+      final html = deckToHtml('Notes', [s]);
+      expect(html.contains('Remember to pause'), isTrue);
+    });
+
+    test('HTML export includes notes for free-layout slides', () {
+      final s = Slide(title: 'Free', points: ['A'], notes: 'Free note',
+          freeLayout: true, tDx: 0.1, tDy: 0.1, tS: 0.8);
+      final html = deckToHtml('FreeNotes', [s]);
+      expect(html.contains('Free note'), isTrue);
+    });
   });
 
   group('PPTX export', () {
@@ -186,6 +240,46 @@ Here is your deck:
       expect(files.contains('ppt/slides/slide1.xml'), isTrue);
       expect(files.contains('ppt/slides/slide2.xml'), isTrue);
       expect(files.contains('ppt/theme/theme1.xml'), isTrue);
+    });
+
+    test('bar chart renders solid rects, timeline numbers, summary checks',
+        () async {
+      final slides = [
+        Slide(
+            title: 'Revenue', layout: 'chart',
+            chartData: {
+              'type': 'bar',
+              'items': [
+                {'label': '2024', 'value': '12'},
+                {'label': '2025', 'value': '24'},
+              ]
+            }),
+        Slide(title: 'Steps', layout: 'timeline', points: ['A', 'B']),
+        Slide(title: 'Done', layout: 'summary', points: ['X']),
+        Slide(
+            title: 'Bullets',
+            subtitle: 'My subtitle',
+            points: ['P1']),
+      ];
+      final bytes = await deckToPptx('Visual Test', slides);
+      final archive = ZipDecoder().decodeBytes(bytes);
+      String xml(String name) => utf8.decode(
+          archive.firstWhere((f) => f.name == name).content as List<int>);
+
+      // Bar chart slide has solid-fill rect + labels + values
+      final chartXml = xml('ppt/slides/slide1.xml');
+      expect(chartXml.contains('D97757'), isTrue);
+      expect(chartXml.contains('2024'), isTrue);
+      expect(chartXml.contains('solidFill'), isTrue);
+
+      // Timeline slide prefixes numbers
+      expect(xml('ppt/slides/slide2.xml').contains('1. A'), isTrue);
+
+      // Summary slide prefixes checkmarks
+      expect(xml('ppt/slides/slide3.xml').contains('✓ X'), isTrue);
+
+      // Subtitle renders on non-title layouts
+      expect(xml('ppt/slides/slide4.xml').contains('My subtitle'), isTrue);
     });
   });
 }
