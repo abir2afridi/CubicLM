@@ -200,6 +200,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
             ),
           ),
           const SizedBox(height: 4),
+          // Row 1: model pill … generate CTA (always fits 360dp).
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -210,10 +211,6 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                       onTap: () => showModelSwitcherSheet(context),
                     )),
               ),
-              const SizedBox(width: 6),
-              Obx(() => _stylePill(context, isDark)),
-              const SizedBox(width: 6),
-              Obx(() => _countStepper(context, isDark)),
               const Spacer(),
               AppCtaButton(
                 icon: c.generating.value
@@ -231,6 +228,16 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                         }
                       },
               ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          // Row 2: style + slide count.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Obx(() => _stylePill(context, isDark)),
+              const SizedBox(width: 6),
+              Obx(() => _countStepper(context, isDark)),
             ],
           ),
         ],
@@ -464,7 +471,11 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                 ? Colors.white.withValues(alpha: 0.07)
                 : Dt.hairline),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Scrollable: notes + image controls can exceed the fixed
+      // PageView viewport on small screens — scroll instead of overflow.
+      child: SingleChildScrollView(
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Text('SLIDE ${index + 1}',
               style: GoogleFonts.plusJakartaSans(
@@ -513,7 +524,8 @@ class _SlideDeckViewState extends State<SlideDeckView> {
         ],
         const SizedBox(height: 8),
         _imageControls(context, index, s),
-      ]),
+        ]),
+      ),
     );
   }
 
