@@ -1258,12 +1258,13 @@ class CloudModelController extends GetxController {
   bool isTesting(String provider) =>
       testingByProvider[provider] == true;
 
-  /// Ping every listed model with one tiny chat call (concurrency 3,
-  /// 60s each — thinking models need time for the first token).
-  /// Transient failures (429/5xx/timeout) get ONE retry after 8s so
-  /// burst probing doesn't mass-mark working models as failed. A probe
-  /// counts when the stream yields any chunk or completes cleanly
-  /// (empty first chunks are normal for reasoning models).
+  /// Ping every listed model with one tiny chat call (concurrency 3).
+  /// A probe checks the CONNECTION, not the full reply: instant error
+  /// = failed fast; first stream chunk (even an empty/thought opener
+  /// from a reasoning model) = online immediately, no waiting for the
+  /// final text. First-chunk window is 15s; transient failures
+  /// (429/5xx/timeout) get ONE retry after 5s so burst probing doesn't
+  /// mass-mark working models as failed.
   /// Records online/failed + latency per model. Cancel via
   /// [cancelTesting]. Skipped entirely without an API key.
   Future<void> testAllModels(String provider) async {
@@ -1369,20 +1370,21 @@ class CloudModelController extends GetxController {
     _testCancel[provider] = true;
   }
 
-  /// One model probe: streams 'Reply with: ok' and succeeds on any
-  /// chunk or clean completion (reasoning models often open with
-  /// empty/thought chunks and need tens of seconds). Transient
-  /// errors get a single retry after 8s backoff.
+  /// One model probe: streams 'Reply with: ok' and succeeds on the
+  /// FIRST chunk — even an empty one (reasoning openers, role deltas).
+  /// A chunk means key accepted + model serving; waiting for the full
+  /// text would only waste time. Transient errors get a single retry
+  /// after 5s backoff.
   Future<void> _probeModel(
       CloudService cloud, String provider, String model) async {
     Object? lastError;
     for (var attempt = 0; attempt < 2; attempt++) {
       if (attempt > 0) {
-        await Future.delayed(const Duration(seconds: 8));
+        await Future.delayed(const Duration(seconds: 5));
       }
       try {
         var gotChunk = false;
-        await for (final chunk in cloud
+        await for (final _ in cloud
             .streamMessageAs(
               providerId: provider,
               model: model,
@@ -1390,9 +1392,9 @@ class CloudModelController extends GetxController {
                 {'role': 'user', 'content': 'Reply with: ok'}
               ],
             )
-            .timeout(const Duration(seconds: 60))) {
+            .timeout(const Duration(seconds: 15))) {
           gotChunk = true;
-          if (chunk.trim().isNotEmpty) break;
+          break;
         }
         if (!gotChunk) throw Exception('Empty response stream');
         return;
