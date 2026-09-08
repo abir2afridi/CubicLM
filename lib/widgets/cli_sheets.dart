@@ -62,6 +62,11 @@ void showCliManagerSheet(BuildContext context) {
               onClose: () => Navigator.pop(sheetCtx)),
           Flexible(
             child: Obx(() {
+              // Tracked reads: rows show live install status, so the
+              // scope must observe something (empty Obx throws).
+              mgr.liveStatus.length;
+              mgr.installed.length;
+              mgr.versions.length;
               const items = kCliCatalog;
               return ListView.separated(
                 shrinkWrap: true,
@@ -238,6 +243,10 @@ void showCliCatalogSheet(BuildContext context) {
               onClose: () => Navigator.pop(sheetCtx)),
           Flexible(
             child: Obx(() {
+              // Tracked reads: catalog rows reflect install state
+              // (empty Obx throws "improper use of GetX").
+              mgr.liveStatus.length;
+              mgr.installed.length;
               final groups = <String, List<CliManifest>>{};
               for (final m in kCliCatalog) {
                 if (m.provider != CliProviderKind.npm) continue;
