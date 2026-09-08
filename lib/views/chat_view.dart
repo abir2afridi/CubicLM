@@ -1094,6 +1094,20 @@ class ChatView extends GetView<ChatController> {
   }
 
   Widget _notificationBell(BuildContext context, bool isDark) {
+    // Never throw if DI isn't ready yet (cold-start race) — bell just
+    // shows no badge until the service lands.
+    if (!Get.isRegistered<NotificationHistoryService>()) {
+      return IconButton(
+        tooltip: 'Notifications',
+        icon: Icon(LucideIcons.bell,
+            size: Dt.iconSize - 2,
+            color: isDark ? AppColors.textPrimary : Dt.iconDefault),
+        onPressed: () => Get.to(() => const NotificationHistoryView(),
+            transition: Transition.rightToLeft,
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeOutCubic),
+      );
+    }
     final svc = Get.find<NotificationHistoryService>();
     return Obx(() {
       final unread = svc.unreadCount;

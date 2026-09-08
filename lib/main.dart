@@ -251,6 +251,12 @@ void main() {
       Get.put(TtsService());
       unawaited(Get.find<TtsService>().init().then((_) {}, onError: (_) {}));
       Get.put(DeployService());
+      // Notification bell builds at t≈0 (Chat is the default tab) — must
+      // exist before runApp. (Deferred safePut becomes a no-op guard.)
+      Get.put(NotificationHistoryService());
+      unawaited(Get.find<NotificationHistoryService>()
+          .init()
+          .then((_) {}, onError: (_) {}));
     } catch (e, s) {
       appLog.error('Sync service put failed',
           details: '$e\n$s', category: LogCategory.system);
