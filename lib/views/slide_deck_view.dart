@@ -6,9 +6,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../controllers/slide_deck_controller.dart';
+import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
+import '../services/inference_service.dart';
+import '../services/local_image_service.dart';
 import '../theme/design_tokens.dart';
 import '../utils/slide_deck.dart';
+import '../widgets/app_ui.dart';
+import '../widgets/model_switcher_sheet.dart';
 
 /// Slide Maker (chat ⋮ menu): AI builds a structured deck from a topic.
 /// Text-only models reserve proper image boxes; image-capable setups can
@@ -134,100 +139,209 @@ class _SlideDeckViewState extends State<SlideDeckView> {
 
   // ── Composer ──
 
+  /// Chat-style composer: borderless field on top, controls row below
+  /// (model pill → style → slide count … generate CTA).
   Widget _composerCard(BuildContext context, bool isDark) {
-    return _card(isDark, [
-      TextField(
-        controller: _topicCtrl,
-        enabled: !c.generating.value,
-        maxLines: 3,
-        minLines: 1,
-        onChanged: (v) => c.topic.value = v,
-        style: GoogleFonts.plusJakartaSans(fontSize: 14, height: 1.45),
-        decoration: InputDecoration(
-          hintText: 'e.g. How photosynthesis works (class 8)',
-          border:
-              OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          contentPadding: const EdgeInsets.all(12),
-        ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surface : Dt.card,
+        borderRadius: BorderRadius.circular(Dt.rComposer),
+        border: isDark
+            ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+            : null,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          )
+        ],
       ),
-      const SizedBox(height: 10),
-      Row(children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            initialValue: c.style.value,
-            items: [
-              for (final s in SlideDeckController.styles)
-                DropdownMenuItem(value: s, child: Text(s)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+            child: TextField(
+              controller: _topicCtrl,
+              enabled: !c.generating.value,
+              maxLines: 4,
+              minLines: 1,
+              onChanged: (v) => c.topic.value = v,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16,
+                  height: 1.35,
+                  fontWeight: FontWeight.w500),
+              decoration: InputDecoration(
+                hintText: 'e.g. How photosynthesis works (class 8)',
+                hintStyle: GoogleFonts.plusJakartaSans(
+                    fontSize: 16, color: Dt.textPlaceholder),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                isDense: true,
+                fillColor: Colors.transparent,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 125,
+                child: Obx(() => AppModelPill(
+                      label: _engineLabel(),
+                      onTap: () => showModelSwitcherSheet(context),
+                    )),
+              ),
+              const SizedBox(width: 6),
+              Obx(() => _stylePill(context, isDark)),
+              const SizedBox(width: 6),
+              Obx(() => _countStepper(context, isDark)),
+              const Spacer(),
+              AppCtaButton(
+                icon: c.generating.value
+                    ? Icons.hourglass_top_rounded
+                    : LucideIcons.presentation,
+                onTap: c.generating.value ||
+                        _topicCtrl.text.trim().isEmpty
+                    ? null
+                    : () async {
+                        c.topic.value = _topicCtrl.text;
+                        await c.generate();
+                        _page = 0;
+                        if (_pageCtrl.hasClients) {
+                          _pageCtrl.jumpToPage(0);
+                        }
+                      },
+              ),
             ],
-            onChanged: c.generating.value
-                ? null
-                : (v) {
-                    if (v != null) c.style.value = v;
-                  },
-            decoration: InputDecoration(
-              labelText: 'Style',
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 10),
-              isDense: true,
-            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Engine label for the model pill (same rules as chat).
+  String _engineLabel() {
+    final s = Get.find<SettingsController>();
+    if (s.inferenceMode.value == 'cloud') {
+      final m = s.selectedCloudModelName;
+      if (m.isEmpty) return 'Cloud';
+      final short = m.contains('/') ? m.split('/').last : m;
+      return short.length > 14 ? '${short.substring(0, 14)}…' : short;
+    }
+    String name = '';
+    try {
+      final inf = Get.find<InferenceService>();
+      if (inf.isModelLoaded.value) name = inf.loadedModelName.value;
+    } catch (_) {}
+    if (name.isEmpty) {
+      try {
+        final img = Get.find<LocalImageService>();
+        if (img.isModelLoaded.value) name = img.loadedModelName.value;
+      } catch (_) {}
+    }
+    if (name.isEmpty) return 'Local';
+    final stripped = name.replaceAll(
+        RegExp(r'\.(gguf|litertlm|safetensors)$', caseSensitive: false), '');
+    return stripped.length > 14 ? '${stripped.substring(0, 14)}…' : stripped;
+  }
+
+  /// Compact style picker pill.
+  Widget _stylePill(BuildContext context, bool isDark) {
+    return PopupMenuButton<String>(
+      enabled: !c.generating.value,
+      tooltip: 'Slide style',
+      initialValue: c.style.value,
+      onSelected: (v) => c.style.value = v,
+      itemBuilder: (_) => [
+        for (final s in SlideDeckController.styles)
+          PopupMenuItem(
+            value: s,
+            child: Text(s,
+                style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+          ),
+      ],
+      child: Container(
+        height: Dt.pillHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: Dt.pillMuted,
+          borderRadius: BorderRadius.circular(Dt.pillHeight),
         ),
-        const SizedBox(width: 10),
-        Container(
-          decoration: BoxDecoration(
-            border: Border.all(
-                color: Theme.of(context).dividerColor),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            IconButton(
-              tooltip: 'Fewer slides',
-              icon: const Icon(Icons.remove, size: 18),
-              onPressed: c.generating.value
-                  ? null
-                  : () => c.setCount(c.slideCount.value - 1),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                c.style.value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: Dt.textPrimary,
+                ),
+              ),
             ),
-            Text('${c.slideCount.value}',
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15, fontWeight: FontWeight.w800)),
-            IconButton(
-              tooltip: 'More slides',
-              icon: const Icon(Icons.add, size: 18),
-              onPressed: c.generating.value
-                  ? null
-                  : () => c.setCount(c.slideCount.value + 1),
-            ),
-          ]),
-        ),
-      ]),
-      const SizedBox(height: 12),
-      SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
-          onPressed: c.generating.value ||
-                  _topicCtrl.text.trim().isEmpty
-              ? null
-              : () async {
-                  c.topic.value = _topicCtrl.text;
-                  await c.generate();
-                  _page = 0;
-                  if (_pageCtrl.hasClients) {
-                    _pageCtrl.jumpToPage(0);
-                  }
-                },
-          icon: const Icon(LucideIcons.presentation, size: 18),
-          label: Text(c.hasDeck ? 'Regenerate deck' : 'Make slides'),
-          style: FilledButton.styleFrom(
-            backgroundColor: Dt.accent,
-            padding: const EdgeInsets.symmetric(vertical: 13),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
-          ),
+            const SizedBox(width: 2),
+            const Icon(Icons.expand_more_rounded,
+                size: 16, color: Dt.textSecondary),
+          ],
         ),
       ),
-    ]);
+    );
+  }
+
+  /// Compact slide-count stepper.
+  Widget _countStepper(BuildContext context, bool isDark) {
+    final disabled = c.generating.value;
+    return Container(
+      height: Dt.pillHeight,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: Dt.pillMuted,
+        borderRadius: BorderRadius.circular(Dt.pillHeight),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: disabled ? null : () => c.setCount(c.slideCount.value - 1),
+            customBorder: const CircleBorder(),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(Icons.remove,
+                  size: 15,
+                  color: disabled
+                      ? Dt.textPlaceholder
+                      : Dt.textPrimary),
+            ),
+          ),
+          Text('${c.slideCount.value}',
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5, fontWeight: FontWeight.w800)),
+          InkWell(
+            onTap: disabled ? null : () => c.setCount(c.slideCount.value + 1),
+            customBorder: const CircleBorder(),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Icon(Icons.add,
+                  size: 15,
+                  color: disabled
+                      ? Dt.textPlaceholder
+                      : Dt.textPrimary),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _errorBox(BuildContext context, bool isDark) {
@@ -1143,22 +1257,6 @@ class _SlideDeckViewState extends State<SlideDeckView> {
     );
   }
 
-  Widget _card(bool isDark, List<Widget> children) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surface : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.06)
-                : Dt.hairline),
-      ),
-      child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: children),
-    );
-  }
 }
 
 /// Draggable + scalable overlay box for freehand slide layout.
