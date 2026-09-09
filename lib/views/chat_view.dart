@@ -1,14 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:ui';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../controllers/chat_controller.dart';
 import '../models/chat_message.dart';
@@ -21,13 +18,12 @@ import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import '../utils/thought_parser.dart';
-import '../utils/prompt_export.dart';
-import '../utils/export_file.dart';
-import '../utils/web_download.dart';
 import '../widgets/attachment_preview.dart';
 import '../widgets/app_ui.dart';
 import '../theme/design_tokens.dart';
 import '../widgets/chat_bubble.dart';
+import 'chat/chat_dialogs.dart';
+import 'chat/chat_format.dart';
 import 'chat/chat_widgets.dart';
 import '../widgets/model_switcher_sheet.dart';
 import '../widgets/thinking_orb.dart';
@@ -98,9 +94,9 @@ class ChatView extends GetView<ChatController> {
                       // Date header: show when first message or different day than previous
                       Widget? dateHeader;
                       if (i == 0 ||
-                          !_isSameDay(controller.messages[i - 1].timestamp,
+                          !isSameDay(controller.messages[i - 1].timestamp,
                               msg.timestamp)) {
-                        dateHeader = _dateChip(msg.timestamp, isDark);
+                        dateHeader = dateChip(msg.timestamp, isDark);
                       }
                       final hasRevisions =
                           msg.revisions != null && msg.revisions!.isNotEmpty;
@@ -112,10 +108,10 @@ class ChatView extends GetView<ChatController> {
                         onRetry: () => controller.regenerateFromMessage(msg),
                         onBranch: () => controller.branchNewChat(msg),
                         onEdit: msg.role == 'user'
-                            ? () => _showEditDialog(context, msg)
+                            ? () => showEditDialog(context, msg)
                             : null,
                         onDelete: () =>
-                            _confirmDeleteMessage(context, msg, isDark),
+                            confirmDeleteMessage(context, msg, isDark),
                         onPrevRevision: hasRevisions && msg.revisionIndex > 0
                             ? () => controller.navigateRevision(msg, -1)
                             : null,
@@ -138,8 +134,7 @@ class ChatView extends GetView<ChatController> {
                       }
                       return RepaintBoundary(
                           key: controller.findKeyFor(msg.id),
-                          child:
-                              _selectableRow(context, msg, bubble, isDark));
+                          child: _selectableRow(context, msg, bubble, isDark));
                     },
                   ),
                 ),
@@ -232,22 +227,21 @@ class ChatView extends GetView<ChatController> {
                 icon: const Icon(LucideIcons.copy, size: 20),
                 onPressed: n == 0
                     ? null
-                    : () => Clipboard.setData(ClipboardData(
-                        text: controller.selectedAsMarkdown())),
+                    : () => Clipboard.setData(
+                        ClipboardData(text: controller.selectedAsMarkdown())),
               ),
               IconButton(
                 tooltip: 'Share selected',
                 icon: const Icon(LucideIcons.share2, size: 20),
-                onPressed:
-                    n == 0 ? null : () => Share.share(controller.selectedAsMarkdown()),
+                onPressed: n == 0
+                    ? null
+                    : () => Share.share(controller.selectedAsMarkdown()),
               ),
               IconButton(
                 tooltip: 'Delete selected',
                 icon: const Icon(LucideIcons.trash2,
                     size: 20, color: AppColors.error),
-                onPressed: n == 0
-                    ? null
-                    : () => controller.deleteSelected(),
+                onPressed: n == 0 ? null : () => controller.deleteSelected(),
               ),
               IconButton(
                 tooltip: 'Done',
@@ -261,580 +255,6 @@ class ChatView extends GetView<ChatController> {
     );
   }
 
-  // ── Date separators ──
-  bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
-
-  String _dayLabel(DateTime d) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final day = DateTime(d.year, d.month, d.day);
-    if (day == today) return 'chat_today'.tr;
-    if (day == today.subtract(const Duration(days: 1))) return 'chat_yesterday'.tr;
-    if (now.difference(day).inDays < 7 && now.isAfter(day)) {
-      return _weekday(d.weekday);
-    }
-    try {
-      final locale = Get.locale?.languageCode ?? 'en';
-      return DateFormat('yMMMd', locale).format(d);
-    } catch (_) {
-      return '${_month(d.month)} ${d.day}, ${d.year}';
-    }
-  }
-
-  String _weekday(int w) {
-    try {
-      final locale = Get.locale?.languageCode ?? 'en';
-      // 2024-01-01 is Monday, so offset w-1
-      return DateFormat('EEE', locale).format(DateTime(2024, 1, w));
-    } catch (_) {
-      return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][w - 1];
-    }
-  }
-
-  String _month(int m) {
-    try {
-      final locale = Get.locale?.languageCode ?? 'en';
-      return DateFormat('MMM', locale).format(DateTime(2024, m, 1));
-    } catch (_) {
-      return ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1];
-    }
-  }
-
-  Widget _dateChip(DateTime date, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 10),
-      child: Center(
-        child: Text(_dayLabel(date),
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.3,
-                color: isDark ? AppColors.textMuted : Dt.textMuted)),
-      ),
-    );
-  }
-
-  // ── Message deletion ──
-  void _confirmDeleteMessage(
-      BuildContext context, ChatMessage msg, bool isDark) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? Dt.cardDark : Dt.card,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('chat_delete_title'.tr,
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-        content: Text('chat_delete_desc'.tr,
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                color: isDark ? AppColors.textSecondary : Dt.textSecondary)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('common_cancel'.tr,
-                style: GoogleFonts.plusJakartaSans(
-                    color: isDark ? AppColors.textMuted : Dt.textMuted)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () {
-              Navigator.pop(ctx);
-              controller.deleteMessage(msg);
-            },
-            child: Text('common_delete'.tr,
-                style: GoogleFonts.plusJakartaSans(
-                    fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditDialog(BuildContext context, ChatMessage msg) {
-    // Safety: Clear main input when starting an edit to prevent duplicate triggers
-    controller.textController.clear();
-    controller.inputText.value = '';
-
-    final editController = TextEditingController(text: msg.content);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    void submit() {
-      final newContent = editController.text.trim();
-      if (newContent.isNotEmpty && newContent != msg.content) {
-        controller.editMessage(msg, newContent);
-      }
-      Navigator.pop(context);
-    }
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: isDark ? AppColors.surface : Colors.white,
-        title: Text('chat_edit_title'.tr,
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-        content: TextField(
-          controller: editController,
-          maxLines: null,
-          minLines: 3,
-          autofocus: true,
-          style: GoogleFonts.plusJakartaSans(fontSize: 15),
-          decoration: InputDecoration(
-            hintText: 'chat_edit_hint'.tr,
-            hintStyle: GoogleFonts.plusJakartaSans(color: AppColors.textMuted),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primary),
-            ),
-          ),
-          onSubmitted: (_) => submit(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('common_cancel'.tr,
-                style: GoogleFonts.plusJakartaSans(color: AppColors.textMuted)),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Dt.accent),
-            onPressed: submit,
-            child: Text('Send',
-                style:
-                    GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Export helpers ──
-  String _buildMarkdownForSession(ChatSession session, List<ChatMessage> msgs) {
-    final buf = StringBuffer();
-    buf.writeln('# ${session.title}');
-    buf.writeln();
-    for (final m in msgs) {
-      final role = m.role == 'user'
-          ? 'User'
-          : m.role == 'assistant'
-              ? 'Assistant'
-              : m.role;
-      buf.writeln('$role: ${m.content}');
-      buf.writeln();
-    }
-    return buf.toString();
-  }
-
-  Future<void> _exportSession(BuildContext context, ChatSession session,
-      {bool asTxt = false, bool asPdf = false}) async {
-    try {
-      final hive = Get.find<HiveService>();
-      final raw = hive.getMessagesForChat(session.id);
-      final msgs = raw.map((m) => ChatMessage.fromMap(m)).toList()
-        ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      if (msgs.isEmpty) {
-        Get.snackbar('Nothing to export', 'This chat has no messages.',
-            snackPosition: SnackPosition.BOTTOM);
-        return;
-      }
-      final safeTitle = session.title
-          .replaceAll(RegExp(r'[^\w\s-]'), '')
-          .replaceAll(RegExp(r'\s+'), '_');
-      final truncated = (safeTitle.isEmpty ? 'chat' : safeTitle)
-          .substring(0, safeTitle.length > 40 ? 40 : safeTitle.length);
-      final baseName = '${truncated}_${DateTime.now().millisecondsSinceEpoch}';
-
-      if (asPdf) {
-        // Whole-chat PDF via the same raster builder as per-message export
-        // (device fonts → Bangla/emoji-safe). Saves straight to the
-        // device; falls back to text share on failure.
-        try {
-          final bytes = await PromptExport.buildPdfBytes(
-              _buildMarkdownForSession(session, msgs));
-          if (kIsWeb) {
-            try {
-              if (await downloadWebFile(
-                  bytes, '$baseName.pdf', 'application/pdf')) {
-                return;
-              }
-            } catch (_) {}
-            await Share.share(_buildMarkdownForSession(session, msgs),
-                subject: session.title);
-            return;
-          }
-          final saved = await ExportFile.saveBytes(
-            bytes: bytes,
-            fileName: '$baseName.pdf',
-            dialogTitle: 'Save chat (.pdf)',
-            mimeType: 'application/pdf',
-          );
-          if (saved == null) return; // user cancelled
-          Get.snackbar('Chat saved', saved,
-              snackPosition: SnackPosition.BOTTOM);
-        } catch (_) {
-          await Share.share(_buildMarkdownForSession(session, msgs),
-              subject: session.title);
-        }
-        return;
-      }
-
-      final String body;
-      final String fileName;
-      final String mimeType;
-      if (asTxt) {
-        body = _buildPlainTextForSession(session, msgs);
-        fileName = '$baseName.txt';
-        mimeType = 'text/plain';
-      } else {
-        body = _buildMarkdownForSession(session, msgs);
-        fileName = '$baseName.md';
-        mimeType = 'text/markdown';
-      }
-
-      if (kIsWeb) {
-        try {
-          // Note: the PDF branch returns earlier; this path handles .md/.txt.
-          final name = asTxt ? '$baseName.txt' : '$baseName.md';
-          if (await downloadWebFile(utf8.encode(body), name,
-              asTxt ? 'text/plain' : 'text/markdown')) {
-            return;
-          }
-        } catch (_) {}
-        await Share.share(body, subject: session.title);
-        return;
-      }
-      try {
-        final saved = await ExportFile.saveText(
-          text: body,
-          fileName: fileName,
-          dialogTitle: 'Save chat (.${asTxt ? 'txt' : 'md'})',
-          mimeType: mimeType,
-        );
-        if (saved == null) return; // user cancelled
-        Get.snackbar('Chat saved', saved,
-            snackPosition: SnackPosition.BOTTOM);
-      } catch (_) {
-        await Share.share(body, subject: session.title);
-      }
-    } catch (e) {
-      Get.snackbar('Export failed', '$e',
-          snackPosition: SnackPosition.BOTTOM);
-    }
-  }
-
-  /// Plain-text twin of [_buildMarkdownForSession] (no markup).
-  String _buildPlainTextForSession(
-      ChatSession session, List<ChatMessage> msgs) {
-    final buf = StringBuffer();
-    buf.writeln(session.title);
-    buf.writeln('=' * session.title.length);
-    buf.writeln();
-    for (final m in msgs) {
-      final role = m.role == 'user' ? 'User' : 'Assistant';
-      buf.writeln('$role:');
-      buf.writeln(m.content);
-      buf.writeln();
-    }
-    return buf.toString();
-  }
-
-  Future<void> _exportCurrentSession(BuildContext context) async {
-    final sid = controller.currentSessionId.value;
-    if (sid.isEmpty) return;
-    final session =
-        controller.sessions.firstWhereOrNull((s) => s.id == sid);
-    if (session == null) return;
-    await _exportSession(context, session);
-  }
-
-  void _showChatActionsSheet(
-      BuildContext context, ChatSession session, bool isDark) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: isDark ? AppColors.surface : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              width: 36,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 16, top: 4),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.surfaceLight : Dt.hairline,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            ListTile(
-              leading: Icon(LucideIcons.share2,
-                  size: 22,
-                  color: isDark ? AppColors.textPrimary : Dt.textPrimary),
-              title: Text('Export as Markdown',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
-              onTap: () {
-                Navigator.pop(context);
-                _exportSession(context, session);
-              },
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-            ),
-            ListTile(
-              leading: Icon(LucideIcons.fileText,
-                  size: 22,
-                  color: isDark ? AppColors.textPrimary : Dt.textPrimary),
-              title: Text('Export as Text (.txt)',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
-              onTap: () {
-                Navigator.pop(context);
-                _exportSession(context, session, asTxt: true);
-              },
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-            ),
-            ListTile(
-              leading: Icon(LucideIcons.fileDown,
-                  size: 22,
-                  color: isDark ? AppColors.textPrimary : Dt.textPrimary),
-              title: Text('Export as PDF',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
-              onTap: () {
-                Navigator.pop(context);
-                _exportSession(context, session, asPdf: true);
-              },
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.push_pin_outlined,
-                size: 22,
-                color: session.pinned
-                    ? AppColors.primary
-                    : (isDark ? AppColors.textPrimary : Dt.textPrimary),
-              ),
-              title: Text(
-                  session.pinned ? 'Unpin chat' : 'Pin to top',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
-              onTap: () {
-                Navigator.pop(context);
-                controller.togglePin(session.id);
-              },
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-            ),
-            ListTile(
-              leading: Icon(LucideIcons.userCog,
-                  size: 22,
-                  color: session.persona.isNotEmpty
-                      ? AppColors.primary
-                      : (isDark ? AppColors.textPrimary : Dt.textPrimary)),
-              title: Text(
-                  session.persona.isNotEmpty
-                      ? 'Edit persona'
-                      : 'Set persona…',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
-              subtitle: session.persona.isNotEmpty
-                  ? Text(session.persona,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12, color: AppColors.textMuted))
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                _showPersonaDialog(context, session, isDark);
-              },
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-            ),
-            ListTile(
-              leading: Icon(
-                session.archived
-                    ? Icons.unarchive_outlined
-                    : Icons.archive_outlined,
-                size: 22,
-                color: isDark ? AppColors.textPrimary : Dt.textPrimary,
-              ),
-              title: Text(
-                  session.archived ? 'Unarchive chat' : 'Archive chat',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
-              onTap: () {
-                Navigator.pop(context);
-                controller.toggleArchive(session.id);
-              },
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-            ),
-            ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
-                  size: 22,
-                  color: isDark ? AppColors.textPrimary : Dt.textPrimary),
-              title: Text('Delete chat',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 15, fontWeight: FontWeight.w600)),
-              onTap: () {
-                Navigator.pop(context);
-                controller.deleteChat(session.id);
-              },
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-            ),
-            const SizedBox(height: 4),
-          ]),
-        ),
-      ),
-    );
-  }
-
-  // ── Per-chat persona ──
-  void _showLabelDialog(
-      BuildContext context, ChatSession session, bool isDark) {
-    final c = TextEditingController(text: session.label);
-    final existing = controller.chatLabels
-        .where((l) => l != session.label)
-        .toList();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? AppColors.surface : Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Chat label',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: c,
-              autofocus: true,
-              textCapitalization: TextCapitalization.words,
-              style: GoogleFonts.plusJakartaSans(fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'e.g. work, study…',
-                hintStyle: GoogleFonts.plusJakartaSans(
-                    fontSize: 13, color: AppColors.textMuted),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.all(12),
-              ),
-            ),
-            if (existing.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (final l in existing)
-                    ActionChip(
-                      label: Text(l,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 12)),
-                      onPressed: () {
-                        controller.setLabel(session.id, l);
-                        Navigator.pop(ctx);
-                      },
-                    ),
-                ],
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              controller.setLabel(session.id, '');
-              Navigator.pop(ctx);
-            },
-            child: Text('Clear',
-                style: GoogleFonts.plusJakartaSans(
-                    color: AppColors.textMuted)),
-          ),
-          FilledButton(
-            onPressed: () {
-              controller.setLabel(session.id, c.text);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showPersonaDialog(
-      BuildContext context, ChatSession session, bool isDark) {
-    final c = TextEditingController(text: session.persona);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? AppColors.surface : Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Chat persona',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Extra instructions for this chat only. Empty = global prompt.',
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13, color: AppColors.textMuted),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: c,
-              autofocus: true,
-              maxLines: 4,
-              minLines: 2,
-              style: GoogleFonts.plusJakartaSans(fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'e.g. Reply like a strict Bengali teacher…',
-                hintStyle: GoogleFonts.plusJakartaSans(
-                    fontSize: 13, color: AppColors.textMuted),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.all(12),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              controller.setPersona(session.id, '');
-              Navigator.pop(ctx);
-            },
-            child: Text('Clear',
-                style: GoogleFonts.plusJakartaSans(
-                    color: AppColors.textMuted)),
-          ),
-          FilledButton(
-            onPressed: () {
-              controller.setPersona(session.id, c.text);
-              Navigator.pop(ctx);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    ).then((_) => c.dispose());
-  }
-
-  // ── AppBar ──
   PreferredSizeWidget _appBar(BuildContext context, bool isDark) {
     return AppBar(
       backgroundColor:
@@ -917,7 +337,8 @@ class ChatView extends GetView<ChatController> {
                       color: statusColor)),
               const SizedBox(width: 6),
               Expanded(
-                  child: Text('$model · ${isLocal ? 'chat_local'.tr : 'chat_cloud'.tr}',
+                  child: Text(
+                      '$model · ${isLocal ? 'chat_local'.tr : 'chat_cloud'.tr}',
                       maxLines: 1,
                       softWrap: false,
                       overflow: TextOverflow.ellipsis,
@@ -945,8 +366,7 @@ class ChatView extends GetView<ChatController> {
           // hiding the whole menu (users couldn't find anything).
           final hasSession = controller.currentSessionId.value.isNotEmpty;
           final selecting = controller.selectionMode.value;
-          final iconColor =
-              isDark ? AppColors.textPrimary : Dt.iconDefault;
+          final iconColor = isDark ? AppColors.textPrimary : Dt.iconDefault;
           final muted = Theme.of(context).hintColor;
           return PopupMenuButton<String>(
             tooltip: 'More options',
@@ -962,26 +382,24 @@ class ChatView extends GetView<ChatController> {
                 value: 'find',
                 enabled: hasSession,
                 child: Row(children: [
-                  Icon(LucideIcons.search, size: 16,
-                      color: hasSession ? null : muted),
+                  Icon(LucideIcons.search,
+                      size: 16, color: hasSession ? null : muted),
                   const SizedBox(width: 10),
                   Text('Find in chat',
                       style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color: hasSession ? null : muted)),
+                          fontSize: 14, color: hasSession ? null : muted)),
                 ]),
               ),
               PopupMenuItem(
                 value: 'export',
                 enabled: hasSession,
                 child: Row(children: [
-                  Icon(LucideIcons.share2, size: 16,
-                      color: hasSession ? null : muted),
+                  Icon(LucideIcons.share2,
+                      size: 16, color: hasSession ? null : muted),
                   const SizedBox(width: 10),
                   Text('Export chat',
                       style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color: hasSession ? null : muted)),
+                          fontSize: 14, color: hasSession ? null : muted)),
                 ]),
               ),
               PopupMenuItem(
@@ -993,14 +411,12 @@ class ChatView extends GetView<ChatController> {
                           ? LucideIcons.checkSquare
                           : LucideIcons.listChecks,
                       size: 16,
-                      color: selecting
-                          ? Dt.accent
-                          : (hasSession ? null : muted)),
+                      color:
+                          selecting ? Dt.accent : (hasSession ? null : muted)),
                   const SizedBox(width: 10),
                   Text(selecting ? 'Done selecting' : 'Select messages',
                       style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color: hasSession ? null : muted)),
+                          fontSize: 14, color: hasSession ? null : muted)),
                 ]),
               ),
             ],
@@ -1019,7 +435,14 @@ class ChatView extends GetView<ChatController> {
     );
   }
 
-  // ── Find in open chat ──
+  Future<void> _exportCurrentSession(BuildContext context) async {
+    final sid = controller.currentSessionId.value;
+    if (sid.isEmpty) return;
+    final session = controller.sessions.firstWhereOrNull((s) => s.id == sid);
+    if (session == null) return;
+    await exportSession(context, session);
+  }
+
   Widget _findBar(BuildContext context, bool isDark) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -1036,8 +459,7 @@ class ChatView extends GetView<ChatController> {
       child: Row(
         children: [
           Icon(LucideIcons.search,
-              size: 18,
-              color: isDark ? AppColors.textPrimary : Dt.iconDefault),
+              size: 18, color: isDark ? AppColors.textPrimary : Dt.iconDefault),
           const SizedBox(width: 8),
           Expanded(
             child: TextField(
@@ -1295,7 +717,7 @@ class ChatView extends GetView<ChatController> {
                             color: Theme.of(context).hintColor,
                             fontWeight: FontWeight.w700,
                             letterSpacing: 0.2)),
-                    Text('${_fmtK(used)} / ${_fmtK(total)} ${'chat_tokens'.tr}',
+                    Text('${fmtK(used)} / ${fmtK(total)} ${'chat_tokens'.tr}',
                         style: GoogleFonts.plusJakartaSans(
                             fontSize: 10,
                             color: accent,
@@ -1392,8 +814,7 @@ class ChatView extends GetView<ChatController> {
                         fontWeight: FontWeight.w700,
                         color: isDark ? Colors.white : Colors.black)),
                 const SizedBox(height: 10),
-                Text(
-                    'chat_no_local_models_desc'.tr,
+                Text('chat_no_local_models_desc'.tr,
                     textAlign: TextAlign.center,
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 14,
@@ -1501,10 +922,10 @@ class ChatView extends GetView<ChatController> {
   Widget _streamBubble(BuildContext context, String text, bool isDark) {
     final attType = controller.streamingAttachmentType.value;
     final isImageGen = controller.imageGenTotal.value > 0;
-    final clean = _cleanStream(text).trimLeft();
+    final clean = cleanStream(text).trimLeft();
     final parts = splitThoughtTags(clean);
     final answer = parts.answer.trimLeft();
-    final hasText = parts.hasThought || _hasPrintable(answer);
+    final hasText = parts.hasThought || hasPrintable(answer);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -1528,7 +949,7 @@ class ChatView extends GetView<ChatController> {
                     thought: parts.thought,
                     isThinking: parts.isThinking,
                     styleSheet: _thoughtMdCached(context, isDark)),
-              if (_hasPrintable(answer))
+              if (hasPrintable(answer))
                 Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                   Expanded(
                       // Perf: full MarkdownBody (selectable spans + gesture
@@ -1644,504 +1065,493 @@ class ChatView extends GetView<ChatController> {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
         color: Colors.transparent,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-            // Attachment preview
-            Obx(() {
-              final name = controller.selectedFileName.value;
-              if (name == null) return const SizedBox.shrink();
-              return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: AttachmentPreview(
-                    fileName: name,
-                    fileType: controller.selectedFileType.value,
-                    fileSize: controller.selectedFileSize.value > 0
-                        ? controller.selectedFileSize.value
-                        : null,
-                    imagePath: controller.selectedImagePath.value,
-                    imageBase64: controller.selectedImageBase64.value,
-                    onRemove: () {
-                      controller.clearImage();
-                      controller.clearFile();
-                    },
-                  ));
-            }),
-            // Web URL preview pills — shows chips for https:// links in input
-            Obx(() {
-              final text = controller.inputText.value;
-              final urlRegExp = RegExp(r'https?://[^\s]+');
-              final urls = urlRegExp
-                  .allMatches(text)
-                  .map((m) => m.group(0)!)
-                  .toSet()
-                  .toList();
-              if (urls.isEmpty) return const SizedBox.shrink();
-              return Padding(
+          // Attachment preview
+          Obx(() {
+            final name = controller.selectedFileName.value;
+            if (name == null) return const SizedBox.shrink();
+            return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: urls.map((url) {
-                    String domain;
-                    try {
-                      final cleanUrl =
-                          url.replaceAll(RegExp(r'[.,;:!?\)\]]+$'), '');
-                      domain =
-                          Uri.parse(cleanUrl).host.replaceFirst('www.', '');
-                      if (domain.isEmpty) domain = cleanUrl;
-                    } catch (_) {
-                      domain = url;
-                    }
-                    final displayDomain = domain.length > 28
-                        ? '${domain.substring(0, 28)}…'
-                        : domain;
-                    final faviconUrl =
-                        'https://www.google.com/s2/favicons?domain=$domain&sz=32';
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
+                child: AttachmentPreview(
+                  fileName: name,
+                  fileType: controller.selectedFileType.value,
+                  fileSize: controller.selectedFileSize.value > 0
+                      ? controller.selectedFileSize.value
+                      : null,
+                  imagePath: controller.selectedImagePath.value,
+                  imageBase64: controller.selectedImageBase64.value,
+                  onRemove: () {
+                    controller.clearImage();
+                    controller.clearFile();
+                  },
+                ));
+          }),
+          // Web URL preview pills — shows chips for https:// links in input
+          Obx(() {
+            final text = controller.inputText.value;
+            final urlRegExp = RegExp(r'https?://[^\s]+');
+            final urls = urlRegExp
+                .allMatches(text)
+                .map((m) => m.group(0)!)
+                .toSet()
+                .toList();
+            if (urls.isEmpty) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: urls.map((url) {
+                  String domain;
+                  try {
+                    final cleanUrl =
+                        url.replaceAll(RegExp(r'[.,;:!?\)\]]+$'), '');
+                    domain = Uri.parse(cleanUrl).host.replaceFirst('www.', '');
+                    if (domain.isEmpty) domain = cleanUrl;
+                  } catch (_) {
+                    domain = url;
+                  }
+                  final displayDomain = domain.length > 28
+                      ? '${domain.substring(0, 28)}…'
+                      : domain;
+                  final faviconUrl =
+                      'https://www.google.com/s2/favicons?domain=$domain&sz=32';
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
                         color: isDark
                             ? Colors.white.withValues(alpha: 0.08)
-                            : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.08)
-                              : Colors.black.withValues(alpha: 0.06),
-                        ),
+                            : Colors.black.withValues(alpha: 0.06),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: Image.network(
-                              faviconUrl,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.network(
+                            faviconUrl,
+                            width: 16,
+                            height: 16,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
                               width: 16,
                               height: 16,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                width: 16,
-                                height: 16,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF3B82F6)
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                                child: const Icon(LucideIcons.globe,
-                                    size: 10, color: Color(0xFF3B82F6)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              displayDomain,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: isDark
-                                    ? AppColors.textPrimary
-                                    : Dt.textPrimary,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          GestureDetector(
-                            onTap: () {
-                              final current =
-                                  controller.textController.text;
-                              final updated = current
-                                  .replaceAll(url, '')
-                                  .replaceAll(RegExp(r'\s{2,}'), ' ')
-                                  .trim();
-                              controller.textController.text = updated;
-                              controller.textController.selection =
-                                  TextSelection.collapsed(
-                                      offset: updated.length);
-                              controller.inputText.value = updated;
-                            },
-                            child: Container(
-                              width: 18,
-                              height: 18,
                               decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.white.withValues(alpha: 0.08)
-                                    : Colors.black.withValues(alpha: 0.06),
-                                shape: BoxShape.circle,
+                                color: const Color(0xFF3B82F6)
+                                    .withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(3),
                               ),
-                              child: Icon(
-                                LucideIcons.x,
-                                size: 10,
-                                color: isDark
-                                    ? AppColors.textSecondary
-                                    : Dt.textSecondary,
-                              ),
+                              child: const Icon(LucideIcons.globe,
+                                  size: 10, color: Color(0xFF3B82F6)),
                             ),
                           ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              );
-            }),
-            // STT listening indicator
-            Obx(() {
-              if (!controller.isListening.value) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: AppColors.error.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const PulsingDot(),
-                    const SizedBox(width: 10),
-                    Text('chat_listening_hint'.tr,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            color: AppColors.error,
-                            fontWeight: FontWeight.w700)),
-                  ]),
-                ),
-              );
-            }),
-            // Image Gen Settings
-            Obx(() {
-              final settings = Get.find<SettingsController>();
-              final localImage = Get.find<LocalImageService>();
-              if (settings.inferenceMode.value != 'local' ||
-                  !localImage.isModelLoaded.value) {
-                return const SizedBox.shrink();
-              }
-              final steps = settings.imageSteps.value;
-              final size = settings.imageGenSize.value;
-              final sizeLabel = size == 0 ? 'Auto' : '${size}px';
-              final backend = localImage.currentBackend.value;
-              final backendLabel = backend == Backend.cpu
-                  ? 'CPU'
-                  : backend.displayName.split(' ').first.toUpperCase();
-              final accent = backend == Backend.cpu
-                  ? AppColors.warning
-                  : AppColors.success;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: accent.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(16),
-                          border:
-                              Border.all(color: accent.withValues(alpha: 0.2)),
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.auto_awesome_rounded,
-                                size: 14, color: accent),
-                            const SizedBox(width: 8),
-                            Flexible(
-                              child: Text(
-                                'Generation Mode · $steps steps · $sizeLabel · $backendLabel',
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11,
-                                  color: accent,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Container(
-                      height: 34,
-                      decoration: BoxDecoration(
-                        color: isDark ? AppColors.surface : Colors.white,
-                        borderRadius: BorderRadius.circular(17),
-                        border: Border.all(
-                            color: isDark
-                                ? AppColors.border
-                                : AppColors.borderLightMode),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          StepButton(
-                            icon: Icons.remove_rounded,
-                            enabled: steps > 1,
-                            onTap: () => settings.setImageSteps(steps - 1),
-                          ),
-                          Text(
-                            steps.toString(),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            displayDomain,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.plusJakartaSans(
                               fontSize: 12,
-                              color: isDark ? Colors.white : Colors.black,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          StepButton(
-                            icon: Icons.add_rounded,
-                            enabled: steps < 20,
-                            onTap: () => settings.setImageSteps(steps + 1),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.surface : Dt.card,
-                borderRadius: BorderRadius.circular(Dt.rComposer),
-                border: isDark
-                    ? Border.all(color: Colors.white.withValues(alpha: 0.08))
-                    : null,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  )
-                ],
-              ),
-              child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── Dismissible upsell pill (inside card, per reference) ──
-                    Obx(() {
-                      final s = Get.find<SettingsController>();
-                      if (s.composerUpsellDismissed.value) {
-                        return const SizedBox.shrink();
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-                        child: Container(
-                          height: 32,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.06)
-                                : Dt.pillMuted,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(children: [
-                            Expanded(
-                              child: Text('chat_unlock_models'.tr,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark
-                                          ? AppColors.textSecondary
-                                          : Dt.textSecondary)),
-                            ),
-                            GestureDetector(
-                              onTap: () {
-                                Get.find<HomeController>().changeTab(1);
-                              },
-                              child: Text('chat_add_api_keys'.tr,
-                                  style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 12.5,
-                                      fontWeight: FontWeight.w700,
-                                      color: Dt.link)),
-                            ),
-                            const SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: s.dismissComposerUpsell,
-                              child: const Icon(LucideIcons.x,
-                                  size: 14, color: Dt.textSecondary),
-                            ),
-                          ]),
-                        ),
-                      );
-                    }),
-                    // ── Text field: full-width, ABOVE the controls row (cursor starts here) ──
-                    // Enter = send, Shift+Enter = newline
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-                      child: KeyboardListener(
-                        focusNode: controller.composerKeyboardFocusNode,
-                        onKeyEvent: (event) {
-                          if (event is KeyDownEvent &&
-                              event.logicalKey == LogicalKeyboardKey.enter &&
-                              !HardwareKeyboard.instance.isShiftPressed) {
-                            // Prevent the newline from being inserted
-                            final text = controller.textController.text.trim();
-                            if (text.isNotEmpty ||
-                                controller.selectedFileName.value != null) {
-                              // Remove trailing newline that may have been inserted
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                final current = controller.textController.text;
-                                if (current.endsWith('\n')) {
-                                  controller.textController.text =
-                                      current.trimRight();
-                                  controller.inputText.value =
-                                      controller.textController.text;
-                                }
-                                controller.sendMessage();
-                              });
-                            }
-                          }
-                        },
-                        child: TextField(
-                          focusNode: controller.composerFocusNode,
-                          controller: controller.textController,
-                          onChanged: (v) => controller.inputText.value = v,
-                          maxLines: 6,
-                          minLines: 1,
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 16,
-                              height: 1.35,
+                              fontWeight: FontWeight.w600,
                               color: isDark
                                   ? AppColors.textPrimary
                                   : Dt.textPrimary,
-                              fontWeight: FontWeight.w500),
-                          decoration: InputDecoration(
-                            hintText: 'chat_composer_hint'.tr,
-                            hintStyle: GoogleFonts.plusJakartaSans(
-                                fontSize: 16,
-                                color: Dt.textPlaceholder,
-                                fontWeight: FontWeight.w500),
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 10),
-                            isDense: true,
-                            fillColor: Colors.transparent,
+                            ),
                           ),
+                        ),
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () {
+                            final current = controller.textController.text;
+                            final updated = current
+                                .replaceAll(url, '')
+                                .replaceAll(RegExp(r'\s{2,}'), ' ')
+                                .trim();
+                            controller.textController.text = updated;
+                            controller.textController.selection =
+                                TextSelection.collapsed(offset: updated.length);
+                            controller.inputText.value = updated;
+                          },
+                          child: Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.08)
+                                  : Colors.black.withValues(alpha: 0.06),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              LucideIcons.x,
+                              size: 10,
+                              color: isDark
+                                  ? AppColors.textSecondary
+                                  : Dt.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            );
+          }),
+          // STT listening indicator
+          Obx(() {
+            if (!controller.isListening.value) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border:
+                      Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const PulsingDot(),
+                  const SizedBox(width: 10),
+                  Text('chat_listening_hint'.tr,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          color: AppColors.error,
+                          fontWeight: FontWeight.w700)),
+                ]),
+              ),
+            );
+          }),
+          // Image Gen Settings
+          Obx(() {
+            final settings = Get.find<SettingsController>();
+            final localImage = Get.find<LocalImageService>();
+            if (settings.inferenceMode.value != 'local' ||
+                !localImage.isModelLoaded.value) {
+              return const SizedBox.shrink();
+            }
+            final steps = settings.imageSteps.value;
+            final size = settings.imageGenSize.value;
+            final sizeLabel = size == 0 ? 'Auto' : '${size}px';
+            final backend = localImage.currentBackend.value;
+            final backendLabel = backend == Backend.cpu
+                ? 'CPU'
+                : backend.displayName.split(' ').first.toUpperCase();
+            final accent =
+                backend == Backend.cpu ? AppColors.warning : AppColors.success;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border:
+                            Border.all(color: accent.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.auto_awesome_rounded,
+                              size: 14, color: accent),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'Generation Mode · $steps steps · $sizeLabel · $backendLabel',
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                fontSize: 11,
+                                color: accent,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.surface : Colors.white,
+                      borderRadius: BorderRadius.circular(17),
+                      border: Border.all(
+                          color: isDark
+                              ? AppColors.border
+                              : AppColors.borderLightMode),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        StepButton(
+                          icon: Icons.remove_rounded,
+                          enabled: steps > 1,
+                          onTap: () => settings.setImageSteps(steps - 1),
+                        ),
+                        Text(
+                          steps.toString(),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 12,
+                            color: isDark ? Colors.white : Colors.black,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        StepButton(
+                          icon: Icons.add_rounded,
+                          enabled: steps < 20,
+                          onTap: () => settings.setImageSteps(steps + 1),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.surface : Dt.card,
+              borderRadius: BorderRadius.circular(Dt.rComposer),
+              border: isDark
+                  ? Border.all(color: Colors.white.withValues(alpha: 0.08))
+                  : null,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                )
+              ],
+            ),
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Dismissible upsell pill (inside card, per reference) ──
+                  Obx(() {
+                    final s = Get.find<SettingsController>();
+                    if (s.composerUpsellDismissed.value) {
+                      return const SizedBox.shrink();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                      child: Container(
+                        height: 32,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : Dt.pillMuted,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Row(children: [
+                          Expanded(
+                            child: Text('chat_unlock_models'.tr,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark
+                                        ? AppColors.textSecondary
+                                        : Dt.textSecondary)),
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              Get.find<HomeController>().changeTab(1);
+                            },
+                            child: Text('chat_add_api_keys'.tr,
+                                style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Dt.link)),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: s.dismissComposerUpsell,
+                            child: const Icon(LucideIcons.x,
+                                size: 14, color: Dt.textSecondary),
+                          ),
+                        ]),
+                      ),
+                    );
+                  }),
+                  // ── Text field: full-width, ABOVE the controls row (cursor starts here) ──
+                  // Enter = send, Shift+Enter = newline
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+                    child: KeyboardListener(
+                      focusNode: controller.composerKeyboardFocusNode,
+                      onKeyEvent: (event) {
+                        if (event is KeyDownEvent &&
+                            event.logicalKey == LogicalKeyboardKey.enter &&
+                            !HardwareKeyboard.instance.isShiftPressed) {
+                          // Prevent the newline from being inserted
+                          final text = controller.textController.text.trim();
+                          if (text.isNotEmpty ||
+                              controller.selectedFileName.value != null) {
+                            // Remove trailing newline that may have been inserted
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              final current = controller.textController.text;
+                              if (current.endsWith('\n')) {
+                                controller.textController.text =
+                                    current.trimRight();
+                                controller.inputText.value =
+                                    controller.textController.text;
+                              }
+                              controller.sendMessage();
+                            });
+                          }
+                        }
+                      },
+                      child: TextField(
+                        focusNode: controller.composerFocusNode,
+                        controller: controller.textController,
+                        onChanged: (v) => controller.inputText.value = v,
+                        maxLines: 6,
+                        minLines: 1,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 16,
+                            height: 1.35,
+                            color:
+                                isDark ? AppColors.textPrimary : Dt.textPrimary,
+                            fontWeight: FontWeight.w500),
+                        decoration: InputDecoration(
+                          hintText: 'chat_composer_hint'.tr,
+                          hintStyle: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              color: Dt.textPlaceholder,
+                              fontWeight: FontWeight.w500),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 10),
+                          isDense: true,
+                          fillColor: Colors.transparent,
                         ),
                       ),
                     ),
-                    // ── Controls row: + / model pill … mic / send ──
-                    Row(
+                  ),
+                  // ── Controls row: + / model pill … mic / send ──
+                  Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    // "+" opens the Add-to-Chat sheet (attachments, web access)
+                    AppCircleButton(
+                      icon: LucideIcons.plus,
+                      tooltip: 'chat_add_to_chat'.tr,
+                      onTap: () => _showAddToChatSheet(
+                        context,
+                        isDark: isDark,
+                        onCamera: controller.takePhoto,
+                        onImage: controller.pickImage,
+                        onFile: controller.pickFile,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Model selector pill — fixed width so label change
+                    // (Local → loaded model name) doesn't shift the
+                    // right cluster. 125dp fits 14 chars at 12.5sp + chevron.
+                    SizedBox(
+                      width: 125,
+                      child: Obx(() => AppModelPill(
+                            label: _composerModelLabel(),
+                            onTap: () => showModelSwitcherSheet(context),
+                          )),
+                    ),
+                    const SizedBox(width: 6),
+                    Obx(() {
+                      final enabled =
+                          Get.find<SettingsController>().webFetchEnabled.value;
+                      return AppCircleButton(
+                        icon: LucideIcons.globe,
+                        tooltip: 'chat_web_access'.tr,
+                        iconColor: enabled ? Dt.accent : null,
+                        onTap: () => Get.find<SettingsController>()
+                            .setWebFetchEnabled(!enabled),
+                      );
+                    }),
+                    const SizedBox(width: 6),
+                    AppCircleButton(
+                      icon: LucideIcons.layoutTemplate,
+                      tooltip: 'Prompt templates',
+                      onTap: () => _showTemplateSheet(context, isDark),
+                    ),
+                    const Spacer(),
+                    // Right cluster: mic (muted circle) + primary CTA (solid dark)
+                    // Spacer pushes this cluster to the far right corner,
+                    // and inner Row keeps mic + send at the same vertical level.
+                    Obx(() {
+                      final loading = controller.isLoading.value;
+                      final listening = controller.isListening.value;
+                      final hasContent =
+                          controller.inputText.value.isNotEmpty ||
+                              controller.selectedFileName.value != null ||
+                              controller.selectedImagePath.value != null;
+                      // Hide the mic when speech recognition is
+                      // unavailable (e.g. permission denied, or a
+                      // platform without an STT engine) instead of
+                      // showing a dead button.
+                      final micAvailable = controller.sttAvailable.value;
+                      final voiceMode = controller.voiceMode.value;
+
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // "+" opens the Add-to-Chat sheet (attachments, web access)
-                          AppCircleButton(
-                            icon: LucideIcons.plus,
-                            tooltip: 'chat_add_to_chat'.tr,
-                            onTap: () => _showAddToChatSheet(
-                              context,
-                              isDark: isDark,
-                              onCamera: controller.takePhoto,
-                              onImage: controller.pickImage,
-                              onFile: controller.pickFile,
+                          // Single voice button (like ChatGPT/Gemini):
+                          // tap = push-to-talk, hold = hands-free mode.
+                          if (!loading && !hasContent && micAvailable)
+                            AppCircleButton(
+                              icon: LucideIcons.mic,
+                              tooltip: voiceMode
+                                  ? 'Hands-free ON — tap to stop'
+                                  : 'Voice input (hold for hands-free)',
+                              iconColor: voiceMode
+                                  ? Dt.accent
+                                  : (listening ? AppColors.error : null),
+                              onTap: () {
+                                if (controller.voiceMode.value) {
+                                  controller.setVoiceMode(false);
+                                } else {
+                                  controller.toggleListening();
+                                }
+                              },
+                              onLongPress: () {
+                                if (!controller.voiceMode.value) {
+                                  controller.setVoiceMode(true);
+                                }
+                              },
                             ),
+                          if (!loading && !hasContent && micAvailable)
+                            const SizedBox(width: 8),
+                          AppCtaButton(
+                            icon: loading
+                                ? LucideIcons.square
+                                : LucideIcons.arrowUp,
+                            onTap: loading
+                                ? controller.stopGenerating
+                                : (hasContent ? controller.sendMessage : null),
                           ),
-                          const SizedBox(width: 8),
-                          // Model selector pill — fixed width so label change
-                          // (Local → loaded model name) doesn't shift the
-                          // right cluster. 125dp fits 14 chars at 12.5sp + chevron.
-                          SizedBox(
-                            width: 125,
-                            child: Obx(() => AppModelPill(
-                                  label: _composerModelLabel(),
-                                  onTap: () => showModelSwitcherSheet(context),
-                                )),
-                          ),
-                          const SizedBox(width: 6),
-                          Obx(() {
-                            final enabled = Get.find<SettingsController>().webFetchEnabled.value;
-                            return AppCircleButton(
-                              icon: LucideIcons.globe,
-                              tooltip: 'chat_web_access'.tr,
-                              iconColor: enabled ? Dt.accent : null,
-                              onTap: () => Get.find<SettingsController>()
-                                  .setWebFetchEnabled(!enabled),
-                            );
-                          }),
-                          const SizedBox(width: 6),
-                          AppCircleButton(
-                            icon: LucideIcons.layoutTemplate,
-                            tooltip: 'Prompt templates',
-                            onTap: () => _showTemplateSheet(context, isDark),
-                          ),
-                          const Spacer(),
-                          // Right cluster: mic (muted circle) + primary CTA (solid dark)
-                          // Spacer pushes this cluster to the far right corner,
-                          // and inner Row keeps mic + send at the same vertical level.
-                          Obx(() {
-                            final loading = controller.isLoading.value;
-                            final listening = controller.isListening.value;
-                            final hasContent =
-                                controller.inputText.value.isNotEmpty ||
-                                    controller.selectedFileName.value != null ||
-                                    controller.selectedImagePath.value != null;
-                            // Hide the mic when speech recognition is
-                            // unavailable (e.g. permission denied, or a
-                            // platform without an STT engine) instead of
-                            // showing a dead button.
-                            final micAvailable =
-                                controller.sttAvailable.value;
-                            final voiceMode = controller.voiceMode.value;
-
-                            return Row(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                // Single voice button (like ChatGPT/Gemini):
-                                // tap = push-to-talk, hold = hands-free mode.
-                                if (!loading && !hasContent && micAvailable)
-                                  AppCircleButton(
-                                    icon: LucideIcons.mic,
-                                    tooltip: voiceMode
-                                        ? 'Hands-free ON — tap to stop'
-                                        : 'Voice input (hold for hands-free)',
-                                    iconColor: voiceMode
-                                        ? Dt.accent
-                                        : (listening
-                                            ? AppColors.error
-                                            : null),
-                                    onTap: () {
-                                      if (controller.voiceMode.value) {
-                                        controller.setVoiceMode(false);
-                                      } else {
-                                        controller.toggleListening();
-                                      }
-                                    },
-                                    onLongPress: () {
-                                      if (!controller.voiceMode.value) {
-                                        controller.setVoiceMode(true);
-                                      }
-                                    },
-                                  ),
-                                if (!loading && !hasContent && micAvailable)
-                                  const SizedBox(width: 8),
-                                AppCtaButton(
-                                  icon: loading
-                                      ? LucideIcons.square
-                                      : LucideIcons.arrowUp,
-                                  onTap: loading
-                                      ? controller.stopGenerating
-                                      : (hasContent
-                                          ? controller.sendMessage
-                                          : null),
-                                ),
-                              ],
-                            );
-                          }),
-                        ]),
-                   ]),
-            ),
+                        ],
+                      );
+                    }),
+                  ]),
+                ]),
+          ),
         ]),
       ),
     );
@@ -2200,8 +1610,7 @@ class ChatView extends GetView<ChatController> {
                   child: Obx(() => ListView.separated(
                         shrinkWrap: true,
                         itemCount: controller.promptTemplates.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 6),
+                        separatorBuilder: (_, __) => const SizedBox(height: 6),
                         itemBuilder: (_, i) {
                           final t = controller.promptTemplates[i];
                           final builtin = (t['builtin'] ?? '').isNotEmpty;
@@ -2222,9 +1631,8 @@ class ChatView extends GetView<ChatController> {
                                     icon: const Icon(Icons.delete_outline,
                                         size: 18),
                                     tooltip: 'Delete template',
-                                    onPressed: () =>
-                                        controller.deletePromptTemplate(
-                                            t['id'] ?? ''),
+                                    onPressed: () => controller
+                                        .deletePromptTemplate(t['id'] ?? ''),
                                   ),
                             onTap: () {
                               Navigator.pop(sheetCtx);
@@ -2465,13 +1873,14 @@ class ChatView extends GetView<ChatController> {
                 _searchHits.clear();
                 return;
               }
-              _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
+              _searchDebounce =
+                  Timer(const Duration(milliseconds: 300), () async {
                 // Guard against stale flights: only apply hits for the
                 // query that is still current when the isolate returns.
                 final snapshot = trimmed;
                 try {
-                  final hits = await Get.find<HiveService>()
-                      .searchMessages(snapshot);
+                  final hits =
+                      await Get.find<HiveService>().searchMessages(snapshot);
                   if (snapshot == _sidebarQuery.value) {
                     _searchHits.assignAll(hits);
                   }
@@ -2546,8 +1955,7 @@ class ChatView extends GetView<ChatController> {
             child: Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: () =>
-                    controller.showArchived.value = !showing,
+                onPressed: () => controller.showArchived.value = !showing,
                 icon: Icon(
                   showing
                       ? Icons.visibility_off_outlined
@@ -2627,8 +2035,7 @@ class ChatView extends GetView<ChatController> {
                     child: ChoiceChip(
                       label: const Text('All'),
                       selected: false,
-                      onSelected: (_) =>
-                          controller.labelFilter.value = '',
+                      onSelected: (_) => controller.labelFilter.value = '',
                     ),
                   ),
                 for (final l in labels)
@@ -2640,8 +2047,8 @@ class ChatView extends GetView<ChatController> {
                               fontSize: 12, fontWeight: FontWeight.w700)),
                       selected: active == l,
                       selectedColor: Dt.accent.withValues(alpha: 0.2),
-                      onSelected: (_) => controller.labelFilter.value =
-                          active == l ? '' : l,
+                      onSelected: (_) =>
+                          controller.labelFilter.value = active == l ? '' : l,
                     ),
                   ),
               ],
@@ -2807,7 +2214,7 @@ class ChatView extends GetView<ChatController> {
             controller.openChat(s.id);
             Navigator.pop(context);
           },
-          onLongPress: () => _showChatActionsSheet(context, s, isDark),
+          onLongPress: () => showChatActionsSheet(context, s, isDark),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(children: [
@@ -2848,7 +2255,7 @@ class ChatView extends GetView<ChatController> {
                                 ? AppColors.textPrimary
                                 : Dt.textPrimary)),
                     const SizedBox(height: 2),
-                    Text(_fmtDate(s.updatedAt),
+                    Text(fmtDate(s.updatedAt),
                         style: GoogleFonts.plusJakartaSans(
                             fontSize: 11,
                             fontWeight: FontWeight.w500,
@@ -2859,16 +2266,17 @@ class ChatView extends GetView<ChatController> {
               PopupMenuButton<String>(
                 padding: EdgeInsets.zero,
                 icon: Icon(Icons.more_horiz_rounded,
-                    size: 18, color: AppColors.textMuted.withValues(alpha: 0.7)),
+                    size: 18,
+                    color: AppColors.textMuted.withValues(alpha: 0.7)),
                 tooltip: 'More',
                 onSelected: (v) {
-                  if (v == 'export') _exportSession(context, s);
+                  if (v == 'export') exportSession(context, s);
                   if (v == 'pin') controller.togglePin(s.id);
-                  if (v == 'persona') _showPersonaDialog(context, s, isDark);
+                  if (v == 'persona') showPersonaDialog(context, s, isDark);
                   if (v == 'archive') controller.toggleArchive(s.id);
                   if (v == 'hide') controller.toggleHidden(s.id);
                   if (v == 'lock') controller.toggleLocked(s.id);
-                  if (v == 'label') _showLabelDialog(context, s, isDark);
+                  if (v == 'label') showLabelDialog(context, s, isDark);
                   if (v == 'delete') controller.deleteChat(s.id);
                 },
                 itemBuilder: (_) => [
@@ -2893,8 +2301,8 @@ class ChatView extends GetView<ChatController> {
                       const Icon(LucideIcons.share2, size: 16),
                       const SizedBox(width: 10),
                       Text('Export',
-                          style:
-                              GoogleFonts.plusJakartaSans(fontSize: 13, fontWeight: FontWeight.w600)),
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
                     ]),
                   ),
                   PopupMenuItem(
@@ -2902,12 +2310,13 @@ class ChatView extends GetView<ChatController> {
                     child: Row(children: [
                       Icon(LucideIcons.userCog,
                           size: 16,
-                          color: s.persona.isNotEmpty
-                              ? AppColors.primary
-                              : null),
+                          color:
+                              s.persona.isNotEmpty ? AppColors.primary : null),
                       const SizedBox(width: 10),
                       Text(
-                          s.persona.isNotEmpty ? 'Edit persona' : 'Set persona…',
+                          s.persona.isNotEmpty
+                              ? 'Edit persona'
+                              : 'Set persona…',
                           style: GoogleFonts.plusJakartaSans(fontSize: 14)),
                     ]),
                   ),
@@ -2942,10 +2351,7 @@ class ChatView extends GetView<ChatController> {
                     child: Row(children: [
                       const Icon(LucideIcons.tag, size: 16),
                       const SizedBox(width: 10),
-                      Text(
-                          s.label.isEmpty
-                              ? 'Set label…'
-                              : 'Label: ${s.label}',
+                      Text(s.label.isEmpty ? 'Set label…' : 'Label: ${s.label}',
                           style: GoogleFonts.plusJakartaSans(fontSize: 14)),
                     ]),
                   ),
@@ -3000,7 +2406,8 @@ class ChatView extends GetView<ChatController> {
     return _thoughtMdCache.putIfAbsent(key, () => _thoughtMd(c, isDark));
   }
 
-  MarkdownStyleSheet _streamMd(BuildContext c, bool isDark) {    final clr = isDark ? AppColors.textPrimary : Dt.textPrimary;
+  MarkdownStyleSheet _streamMd(BuildContext c, bool isDark) {
+    final clr = isDark ? AppColors.textPrimary : Dt.textPrimary;
     final muted = isDark ? AppColors.textSecondary : Dt.textSecondary;
     // Same serif voice as the finished message — no font swap on completion.
     final base =
@@ -3049,43 +2456,4 @@ class ChatView extends GetView<ChatController> {
   }
 
   // ── Helpers ──
-  String _cleanStream(String t) => t
-      .replaceAll(
-          RegExp(r'[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]'), '')
-      .replaceAll(RegExp(r'[\u200B-\u200D\uFEFF]'), '')
-      .replaceAll('\uFFFD', '')
-      .replaceAll('<|endoftext|>', '')
-      .replaceAll('<|im_end|>', '')
-      .replaceAll('<|end|>', '');
-
-  bool _hasPrintable(String t) {
-    for (final r in t.runes) {
-      if (r > 32 &&
-          r != 0x7F &&
-          r != 0x200B &&
-          r != 0x200C &&
-          r != 0x200D &&
-          r != 0xFEFF &&
-          r != 0xFFFD) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  String _fmtDate(DateTime d) {
-    final diff = DateTime.now().difference(d);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${d.day}/${d.month}/${d.year}';
-  }
-
-  String _fmtK(int v) => v >= 1000000
-      ? '${(v / 1000000).toStringAsFixed(1)}M'
-      : v >= 1000
-          ? '${(v / 1000).toStringAsFixed(1)}K'
-          : v.toString();
 }
-
