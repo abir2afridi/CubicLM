@@ -74,6 +74,7 @@ class _AgentPreviewState extends State<AgentPreview> {
       lastEl = el;
       el.__cubicOldOutline = el.style.outline;
       el.style.outline = '2px solid #3B82F6'; // Blue highlight
+      el.style.cursor = 'crosshair';
       window.flutter_inappwebview.callHandler('cubicOnHover', el.tagName.toLowerCase());
     }
   });
@@ -87,6 +88,9 @@ class _AgentPreviewState extends State<AgentPreview> {
       window.flutter_inappwebview.callHandler('cubicOnElement', info(el));
       clearLast();
       window.__cubicPickArmed = false;
+      // Visual feedback for selection
+      el.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+      setTimeout(() => el.style.backgroundColor = '', 1000);
     }
   }, true);
 

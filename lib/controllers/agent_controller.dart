@@ -63,6 +63,16 @@ class AgentController extends GetxController {
   final planMode = false.obs;
   final extendedThinking = false.obs;
   final webSearch = false.obs;
+  
+  /// New Builder Settings
+  final liveFlushThrottle = 1500.obs; // ms
+  final enableLivePreview = true.obs;
+  final selectedLibrary = 'Auto'.obs; // Auto | shadcn | Tailwind | Lucide
+  final selectedDesignSystem = 'Modern'.obs; // Modern | Retro | Enterprise
+  
+  /// Stats for the current change
+  final lastInsertions = 0.obs;
+  final lastDeletions = 0.obs;
 
   /// Pending plan awaiting user approval (null when no plan pending).
   final pendingPlan = RxnString();
@@ -145,6 +155,14 @@ class AgentController extends GetxController {
       await _ws.touch(p.id);
       await refreshFiles();
       _touch();
+      
+      // Save checkpoint after successful apply with stats
+      await _ws.saveCheckpoint(p.id, 
+        label: 'Applied changes', 
+        insertions: lastInsertions.value, 
+        deletions: lastDeletions.value
+      );
+
       pendingChanges.clear();
       AppSnackbar.showTop('Success', 'Changes applied successfully');
       
@@ -180,6 +198,37 @@ class AgentController extends GetxController {
         return '';
       }
     }
+  }
+
+  /// Initialize a project with a pre-built skeleton based on the prompt.
+  Future<void> initializeSkeleton(String projectId, String topic) async {
+    String? template;
+    final t = topic.toLowerCase();
+    if (t.contains('landing')) template = 'Landing Page';
+    if (t.contains('dashboard')) template = 'Dashboard';
+    
+    if (template != null && projectSkeletons.containsKey(template)) {
+      term('🪄 initializing $template skeleton...');
+      final skeleton = projectSkeletons[template]!;
+      await _ws.importFiles(projectId, skeleton);
+      await refreshFiles();
+      _touch();
+    }
+  }
+
+  /// Helper to calculate diff stats (+/-) for UI display.
+  void _calculateDiffStats(String oldContent, String newContent) {
+    if (oldContent.isEmpty) {
+      lastInsertions.value += newContent.split('\n').length;
+      return;
+    }
+    final oldLines = oldContent.split('\n');
+    final newLines = newContent.split('\n');
+    
+    // Simple line-based diff counting
+    final oldSet = oldLines.toSet();
+    lastInsertions.value += newLines.where((l) => !oldSet.contains(l)).length;
+    lastDeletions.value += oldLines.where((l) => !newLines.contains(l)).length;
   }
 
   /// Recent system diagnostics for AI prompts (§16/17). Empty when
@@ -572,9 +621,25 @@ class AgentController extends GetxController {
   /// Append one timeline step. Kinds: thinking | file | error | fix | done.
   void step(String kind, String text) {
     try {
+      // Dynamic thinking messages for a more "lovable" experience
+      String message = text;
+      if (kind == 'thinking') {
+        final messages = [
+          'Analyzing requirements...',
+          'Designing system architecture...',
+          'Styling components with ${selectedLibrary.value}...',
+          'Optimizing for ${selectedDesignSystem.value} style...',
+          'Ensuring mobile responsiveness...',
+          'Validating accessibility rules...',
+        ];
+        // Cycle through or pick based on context if we had more info
+        if (text.toLowerCase().contains('planning')) message = messages[0];
+        if (text.toLowerCase().contains('designing')) message = messages[1];
+      }
+
       buildSteps.add({
         'kind': kind,
-        'text': text.length > 140 ? '${text.substring(0, 140)}…' : text,
+        'text': message.length > 140 ? '${message.substring(0, 140)}…' : message,
         'ms': DateTime.now().millisecondsSinceEpoch.toString(),
       });
       while (buildSteps.length > 100) {
@@ -682,7 +747,7 @@ class AgentController extends GetxController {
       final p = f.path.toLowerCase();
       return p == 'package.json' || p.endsWith('/package.json');
     });
-    if (!hasPackageJson && now - _lastLiveWriteMs >= 1500) {
+    if (!hasPackageJson && enableLivePreview.value && now - _lastLiveWriteMs >= liveFlushThrottle.value) {
       _lastLiveWriteMs = now;
       try {
         var wrote = false;
@@ -997,9 +1062,18 @@ class AgentController extends GetxController {
       final p = await _ws.createProject(name, buildFramework);
       project.value = p;
       createdCp = await _ws.saveCheckpoint(p.id, label: 'Project created');
+      
+      // Smart Skeleton Initialization
+      await initializeSkeleton(p.id, t);
+
       final raw = await _ask(
         prompt: 'Build this website with $buildFramework: $t',
-        system: webSystemPrompt(framework: buildFramework, brandIdentity: brandIdentity),
+        system: webSystemPrompt(
+          framework: buildFramework, 
+          brandIdentity: brandIdentity,
+          library: selectedLibrary.value,
+          designSystem: selectedDesignSystem.value,
+        ),
         onProgress: (n) => _streamStatus('Writing project', n),
         onPartial: (buf) => unawaited(_flushPartial(buf, p.id)),
       );
@@ -1131,7 +1205,12 @@ class AgentController extends GetxController {
             'LOCAL DEV CLIs (on-device): ${_cliContextLine()}\n\n'
             'Return a files-JSON object with ONLY new or fully-rewritten changed files.',
         system:
-            '${webSystemPrompt(framework: p.framework, brandIdentity: brandIdentity)}\nSTRICT: output only files that change (plus any brand-new files).',
+            '${webSystemPrompt(
+              framework: p.framework, 
+              brandIdentity: brandIdentity,
+              library: selectedLibrary.value,
+              designSystem: selectedDesignSystem.value,
+            )}\nSTRICT: output only files that change (plus any brand-new files).',
         onProgress: (n) => _streamStatus('Writing change', n),
         onPartial: (buf) => unawaited(_flushPartial(buf, p.id)),
       );
@@ -1146,12 +1225,15 @@ class AgentController extends GetxController {
         term('■ modify cancelled by user — rolled back');
         return;
       }
+      lastInsertions.value = 0;
+      lastDeletions.value = 0;
       final truncated = <String>[];
       final parsed = _parseChecked(raw, truncated);
       
       pendingChanges.clear();
       for (final f in parsed) {
         final old = before[f.path] ?? await _ws.readFile(p.id, f.path);
+        _calculateDiffStats(old ?? '', f.content);
         pendingChanges[f.path] = {'old': old ?? '', 'new': f.content};
       }
       
@@ -1282,7 +1364,12 @@ class AgentController extends GetxController {
             'Output EXACTLY one ```files fenced block with ALL the code. '
             'Every file listed in the plan MUST be included with complete, '
             'working code. No placeholders.',
-        system: webSystemPrompt(framework: framework.value, brandIdentity: brandIdentity),
+        system: webSystemPrompt(
+          framework: framework.value, 
+          brandIdentity: brandIdentity,
+          library: selectedLibrary.value,
+          designSystem: selectedDesignSystem.value,
+        ),
         onProgress: (n) => _streamStatus('Writing project', n),
       );
       if (_cancelled) return;
@@ -1446,7 +1533,12 @@ class AgentController extends GetxController {
             'Return a files-JSON object with ONLY the corrected files '
             '(complete new contents).',
         system:
-            '${webSystemPrompt(framework: p.framework, brandIdentity: brandIdentity)}\nSTRICT: output only files that change.',
+            '${webSystemPrompt(
+              framework: p.framework, 
+              brandIdentity: brandIdentity,
+              library: selectedLibrary.value,
+              designSystem: selectedDesignSystem.value,
+            )}\nSTRICT: output only files that change.',
         onProgress: (n) => _streamStatus('Writing fix', n),
       );
       final truncated = <String>[];

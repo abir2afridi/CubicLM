@@ -301,7 +301,26 @@ String _frameworkBrief(String framework) {
   }
 }
 
-String webSystemPrompt({required String framework, Map<String, String>? brandIdentity}) {
+/// Pre-built skeletons for common project types to reduce AI latency and token usage.
+const Map<String, Map<String, String>> projectSkeletons = {
+  'Landing Page': {
+    'index.html': '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>Landing Page</title>\n  <link rel="stylesheet" href="styles.css">\n</head>\n<body>\n  <div id="root"></div>\n  <script src="app.js"></script>\n</body>\n</html>',
+    'styles.css': '/* Base styles */\nbody { font-family: sans-serif; margin: 0; padding: 0; }',
+    'app.js': '// Initialize Landing Page\nconsole.log("Landing Page initialized");'
+  },
+  'Dashboard': {
+    'index.html': '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>Dashboard</title>\n  <link rel="stylesheet" href="styles.css">\n</head>\n<body>\n  <div id="app" style="display: flex;">\n    <aside id="sidebar" style="width: 250px;"></aside>\n    <main id="content" style="flex: 1;"></main>\n  </div>\n  <script src="app.js"></script>\n</body>\n</html>',
+    'styles.css': '/* Dashboard layout */\nbody { font-family: sans-serif; margin: 0; }',
+    'app.js': '// Initialize Dashboard\nconsole.log("Dashboard initialized");'
+  },
+};
+
+String webSystemPrompt({
+  required String framework, 
+  Map<String, String>? brandIdentity,
+  String? library,
+  String? designSystem,
+}) {
   String brandSection = '';
   if (brandIdentity != null && brandIdentity.isNotEmpty) {
     brandSection = '\n[BRAND_GUIDELINES]\n'
@@ -311,8 +330,11 @@ String webSystemPrompt({required String framework, Map<String, String>? brandIde
         'Logo: ${brandIdentity['logo'] ?? 'default'}\n'
         'STRICT: Always use these brand styles for components and layouts.';
   }
+  
+  String libSection = library != null && library != 'Auto' ? '\n[LIBRARY]\nUse $library for components and icons.' : '';
+  String dsSection = designSystem != null ? '\n[DESIGN_SYSTEM]\nStyle: $designSystem. Ensure the UI feels $designSystem.' : '';
 
-  return '''You are an expert web developer shipping complete, runnable projects. $brandSection Output EXACTLY one fenced block and nothing else:
+  return '''You are an expert web developer shipping complete, runnable projects. $brandSection$libSection$dsSection Output EXACTLY one fenced block and nothing else:
 
 ```files
 {"files":[{"path":"index.html","content":"..."}]}

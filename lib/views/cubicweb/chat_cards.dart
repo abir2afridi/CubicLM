@@ -80,6 +80,12 @@ Widget activityCard(BuildContext context, bool isDark,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
                   color: live ? Dt.accent : Theme.of(context).hintColor)),
+          if (!live && (c.lastInsertions.value > 0 || c.lastDeletions.value > 0)) ...[
+            const SizedBox(width: 12),
+            Text('+${c.lastInsertions.value}', style: GoogleFonts.plusJakartaSans(fontSize: 10, color: const Color(0xFF4ADE80), fontWeight: FontWeight.w900)),
+            const SizedBox(width: 6),
+            Text('-${c.lastDeletions.value}', style: GoogleFonts.plusJakartaSans(fontSize: 10, color: AppColors.error, fontWeight: FontWeight.w900)),
+          ],
           const Spacer(),
           if (activeSteps.length > 12)
             Text('+${activeSteps.length - 12} earlier',

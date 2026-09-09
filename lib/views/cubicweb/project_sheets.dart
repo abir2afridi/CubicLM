@@ -911,3 +911,132 @@ void showFrameworkSheet(BuildContext context) {
     ),
   );
 }
+
+void showLibrarySheet(BuildContext context) {
+  final libraries = ['Auto', 'shadcn/ui', 'Tailwind CSS', 'Lucide Icons', 'Material UI'];
+  showModalBottomSheet(
+    context: context,
+    builder: (_) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Component Library',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16, fontWeight: FontWeight.w800)),
+            ),
+          ),
+          Obx(() => Column(
+                children: [
+                  for (final lib in libraries)
+                    RadioListTile<String>(
+                      dense: true,
+                      title: Text(lib,
+                          style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                      value: lib,
+                      groupValue: _c.selectedLibrary.value,
+                      onChanged: (v) {
+                        if (v != null) _c.selectedLibrary.value = v;
+                        Navigator.pop(context);
+                      },
+                      activeColor: Dt.accent,
+                    ),
+                ],
+              )),
+          const SizedBox(height: 12),
+        ],
+      ),
+    ),
+  );
+}
+
+void showDesignSystemSheet(BuildContext context) {
+  final systems = ['Modern', 'Retro', 'Enterprise', 'Minimalist', 'Playful'];
+  showModalBottomSheet(
+    context: context,
+    builder: (_) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Design System',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 16, fontWeight: FontWeight.w800)),
+            ),
+          ),
+          Obx(() => Column(
+                children: [
+                  for (final ds in systems)
+                    RadioListTile<String>(
+                      dense: true,
+                      title: Text(ds,
+                          style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                      value: ds,
+                      groupValue: _c.selectedDesignSystem.value,
+                      onChanged: (v) {
+                        if (v != null) _c.selectedDesignSystem.value = v;
+                        Navigator.pop(context);
+                      },
+                      activeColor: Dt.accent,
+                    ),
+                ],
+              )),
+          const SizedBox(height: 12),
+        ],
+      ),
+    ),
+  );
+}
+
+void showBuilderSettingsSheet(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    builder: (_) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Builder Settings',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 16),
+            Obx(() => SwitchListTile(
+                  title: const Text('Live Preview Update'),
+                  subtitle: const Text('Reload preview as AI writes'),
+                  value: _c.enableLivePreview.value,
+                  onChanged: (v) => _c.enableLivePreview.value = v,
+                )),
+            Obx(() => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text('Live Update Throttle: ${_c.liveFlushThrottle.value}ms',
+                          style: const TextStyle(fontSize: 13)),
+                    ),
+                    Slider(
+                      value: _c.liveFlushThrottle.value.toDouble(),
+                      min: 150,
+                      max: 5000,
+                      divisions: 20,
+                      onChanged: _c.enableLivePreview.value
+                          ? (v) => _c.liveFlushThrottle.value = v.toInt()
+                          : null,
+                    ),
+                  ],
+                )),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    ),
+  );
+}

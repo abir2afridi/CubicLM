@@ -48,12 +48,16 @@ class ProjectCheckpoint {
   final String label;
   final int timestampMs;
   final int fileCount;
+  final int insertions;
+  final int deletions;
 
   ProjectCheckpoint({
     required this.id,
     required this.label,
     required this.timestampMs,
     required this.fileCount,
+    this.insertions = 0,
+    this.deletions = 0,
   });
 
   factory ProjectCheckpoint.fromMap(Map m) => ProjectCheckpoint(
@@ -65,6 +69,8 @@ class ProjectCheckpoint {
         fileCount: m['fileCount'] is int
             ? m['fileCount'] as int
             : int.tryParse(m['fileCount'].toString()) ?? 0,
+        insertions: m['insertions'] ?? 0,
+        deletions: m['deletions'] ?? 0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -72,6 +78,8 @@ class ProjectCheckpoint {
         'label': label,
         'timestampMs': timestampMs,
         'fileCount': fileCount,
+        'insertions': insertions,
+        'deletions': deletions,
       };
 }
 
@@ -401,7 +409,8 @@ class AgentWorkspaceService extends GetxService {
   }
 
   /// Save a snapshot of all project files. Returns the checkpoint ID.
-  Future<String> saveCheckpoint(String projectId, {String? label}) async {
+  Future<String> saveCheckpoint(String projectId,
+      {String? label, int insertions = 0, int deletions = 0}) async {
     final cpId = DateTime.now().millisecondsSinceEpoch.toString();
     final cpDir = await _checkpointDir(projectId);
     final targetDir = Directory('${cpDir.path}/$cpId');
@@ -423,12 +432,16 @@ class AgentWorkspaceService extends GetxService {
     // Save metadata.
     final meta = _allCheckpointMeta();
     final list = meta[projectId] ?? [];
-    list.insert(0, ProjectCheckpoint(
-      id: cpId,
-      label: label ?? 'Auto-save',
-      timestampMs: DateTime.now().millisecondsSinceEpoch,
-      fileCount: fileCount,
-    ).toMap());
+    list.insert(
+        0,
+        ProjectCheckpoint(
+          id: cpId,
+          label: label ?? 'Auto-save',
+          timestampMs: DateTime.now().millisecondsSinceEpoch,
+          fileCount: fileCount,
+          insertions: insertions,
+          deletions: deletions,
+        ).toMap());
     // Prune old checkpoints (keep maxCheckpoints).
     while (list.length > maxCheckpoints) {
       final oldest = list.removeLast();

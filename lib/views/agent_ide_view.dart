@@ -427,6 +427,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               onPressed: () => _showBrandIdentitySheet(context),
             ),
             IconButton(
+              tooltip: 'Builder Settings',
+              icon: const Icon(LucideIcons.settings2, size: 20, color: Dt.accent),
+              onPressed: () => showBuilderSettingsSheet(context),
+            ),
+            IconButton(
               tooltip: 'New project',
               icon: const Icon(LucideIcons.plus, size: 20, color: Dt.accent),
               onPressed: _newProjectReset,
@@ -1083,6 +1088,48 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                                 ),
                               ),
                             ),
+                          if (!hasProject)
+                            const SizedBox(width: 6),
+                          if (!hasProject)
+                            Obx(() => GestureDetector(
+                              onTap: () => showLibrarySheet(context),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: Colors.blueAccent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+                                ),
+                                child: Text(
+                                  c.selectedLibrary.value,
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.blueAccent),
+                                ),
+                              ),
+                            )),
+                          if (!hasProject)
+                            const SizedBox(width: 6),
+                          if (!hasProject)
+                            Obx(() => GestureDetector(
+                              onTap: () => showDesignSystemSheet(context),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: Colors.purpleAccent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.3)),
+                                ),
+                                child: Text(
+                                  c.selectedDesignSystem.value,
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.purpleAccent),
+                                ),
+                              ),
+                            )),
                           if (!hasProject && c.planMode.value)
                             const SizedBox(width: 6),
                           if (!hasProject && c.planMode.value)
