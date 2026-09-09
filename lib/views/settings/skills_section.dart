@@ -782,7 +782,8 @@ void confirmDeleteSkill(BuildContext context, bool isDark, SkillModel skill) {
 class GithubBrowseSheet extends StatefulWidget {
   final GithubSkillSource source;
   final bool isDark;
-  const GithubBrowseSheet({required this.source, required this.isDark});
+  const GithubBrowseSheet(
+      {super.key, required this.source, required this.isDark});
 
   @override
   State<GithubBrowseSheet> createState() => GithubBrowseSheetState();
