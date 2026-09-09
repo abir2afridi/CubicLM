@@ -12,9 +12,7 @@ import '../theme/design_tokens.dart';
 import '../core/constants.dart';
 import '../services/inference_service.dart';
 import '../services/hive_service.dart';
-import '../services/local_image_service.dart';
 import '../services/device_info_service.dart';
-import '../services/soc_family.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import '../services/skills/skill_registry_service.dart';
 import '../services/skills/github_skill_source.dart';
@@ -25,6 +23,8 @@ import '../services/mcp/mcp_connection.dart';
 import '../models/skill_model.dart';
 import 'package:file_picker/file_picker.dart';
 import 'log_view.dart';
+import 'settings/apple_widgets.dart';
+import 'settings/device_card.dart';
 
 class SettingsView extends GetView<SettingsController> {
   /// When true, renders just the scrollable config sections without its
@@ -39,7 +39,8 @@ class SettingsView extends GetView<SettingsController> {
     return Scaffold(
       backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       appBar: AppBar(
-        backgroundColor: (isDark ? Dt.canvasDark : Dt.canvas).withValues(alpha: 0.8),
+        backgroundColor:
+            (isDark ? Dt.canvasDark : Dt.canvas).withValues(alpha: 0.8),
         flexibleSpace: ClipRRect(
           child: BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -47,8 +48,8 @@ class SettingsView extends GetView<SettingsController> {
           ),
         ),
         title: Text('nodes_config'.tr,
-            style:
-                GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -1)),
+            style: GoogleFonts.plusJakartaSans(
+                fontWeight: FontWeight.w800, fontSize: 28, letterSpacing: -1)),
         toolbarHeight: 70,
         centerTitle: false,
       ),
@@ -59,436 +60,113 @@ class SettingsView extends GetView<SettingsController> {
   Widget _configBody(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Obx(() => ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            children: [
-              const SizedBox(height: 16),
-              _sectionLabel(context, 'settings_section_diagnostics'.tr),
-              _appleGroupedCard(context, isDark, children: [
-                _appleListTile(
-                  context,
-                  isDark,
-                  leading:
-                      _iconBox(AppColors.info, LucideIcons.terminal),
-                  title: 'settings_system_logs'.tr,
-                  subtitle: 'settings_system_logs_desc'.tr,
-                  trailing: const Icon(LucideIcons.chevronRight, size: 20),
-                  showDivider: false,
-                  onTap: () => Get.to(() => const LogView()),
-                ),
-              ]),
-              const SizedBox(height: 28),
-              _sectionLabel(context, 'settings_section_hardware'.tr),
-              _buildDeviceCard(context, isDark),
-              const SizedBox(height: 28),
-              _sectionLabel(context, 'settings_section_inference'.tr),
-              _appleGroupedCard(context, isDark, children: [
-                _appleListTile(
-                  context,
-                  isDark,
-                  leading:
-                      _iconBox(AppColors.success, LucideIcons.zap),
-                  title: 'settings_local_privacy'.tr,
-                  subtitle: _localSubtitle(),
-                  trailing: controller.inferenceMode.value == 'local'
-                      ? const Icon(LucideIcons.check,
-                          size: 20,
-                          color: Dt.accent)
-                      : null,
-                  showDivider: true,
-                  onTap: () => controller.setInferenceMode('local'),
-                ),
-                _appleListTile(
-                  context,
-                  isDark,
-                  leading: _iconBox(Dt.accent, LucideIcons.cloud),
-                  title: 'settings_cloud_assistant'.tr,
-                  subtitle: controller.cloudProvider.value.toUpperCase(),
-                  trailing: controller.inferenceMode.value == 'cloud'
-                      ? const Icon(LucideIcons.check,
-                          size: 20,
-                          color: Dt.accent)
-                      : null,
-                  showDivider: false,
-                  onTap: () => controller.setInferenceMode('cloud'),
-                ),
-              ]),
-              const SizedBox(height: 28),
-              _sectionLabel(context, 'settings_section_system_prompt'.tr),
-              _appleGroupedCard(context, isDark, children: [
-                Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('settings_prompt_desc'.tr,
-                            style: GoogleFonts.plusJakartaSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: Theme.of(context).hintColor)),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: controller.globalSystemPromptController,
-                          minLines: 3,
-                          maxLines: 8,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w500),
-                          decoration: InputDecoration(
-                            hintText: AppConstants.systemPrompt,
-                            contentPadding: const EdgeInsets.all(16),
-                            suffixIcon: IconButton(
-                                icon: const Icon(LucideIcons.save,
-                                    size: 22),
-                                onPressed: () {
-                                  controller.setGlobalSystemPrompt(controller.globalSystemPromptController.text);
-                                  Get.snackbar('Saved', 'System prompt updated successfully',
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          children: [
+            const SizedBox(height: 16),
+            sectionLabel(context, 'settings_section_diagnostics'.tr),
+            appleGroupedCard(context, isDark, children: [
+              appleListTile(
+                context,
+                isDark,
+                leading: iconBox(AppColors.info, LucideIcons.terminal),
+                title: 'settings_system_logs'.tr,
+                subtitle: 'settings_system_logs_desc'.tr,
+                trailing: const Icon(LucideIcons.chevronRight, size: 20),
+                showDivider: false,
+                onTap: () => Get.to(() => const LogView()),
+              ),
+            ]),
+            const SizedBox(height: 28),
+            sectionLabel(context, 'settings_section_hardware'.tr),
+            buildDeviceCard(context, isDark),
+            const SizedBox(height: 28),
+            sectionLabel(context, 'settings_section_inference'.tr),
+            appleGroupedCard(context, isDark, children: [
+              appleListTile(
+                context,
+                isDark,
+                leading: iconBox(AppColors.success, LucideIcons.zap),
+                title: 'settings_local_privacy'.tr,
+                subtitle: localSubtitle(),
+                trailing: controller.inferenceMode.value == 'local'
+                    ? const Icon(LucideIcons.check, size: 20, color: Dt.accent)
+                    : null,
+                showDivider: true,
+                onTap: () => controller.setInferenceMode('local'),
+              ),
+              appleListTile(
+                context,
+                isDark,
+                leading: iconBox(Dt.accent, LucideIcons.cloud),
+                title: 'settings_cloud_assistant'.tr,
+                subtitle: controller.cloudProvider.value.toUpperCase(),
+                trailing: controller.inferenceMode.value == 'cloud'
+                    ? const Icon(LucideIcons.check, size: 20, color: Dt.accent)
+                    : null,
+                showDivider: false,
+                onTap: () => controller.setInferenceMode('cloud'),
+              ),
+            ]),
+            const SizedBox(height: 28),
+            sectionLabel(context, 'settings_section_system_prompt'.tr),
+            appleGroupedCard(context, isDark, children: [
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('settings_prompt_desc'.tr,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).hintColor)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: controller.globalSystemPromptController,
+                        minLines: 3,
+                        maxLines: 8,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14, fontWeight: FontWeight.w500),
+                        decoration: InputDecoration(
+                          hintText: AppConstants.systemPrompt,
+                          contentPadding: const EdgeInsets.all(16),
+                          suffixIcon: IconButton(
+                              icon: const Icon(LucideIcons.save, size: 22),
+                              onPressed: () {
+                                controller.setGlobalSystemPrompt(controller
+                                    .globalSystemPromptController.text);
+                                Get.snackbar('Saved',
+                                    'System prompt updated successfully',
                                     snackPosition: SnackPosition.BOTTOM,
                                     backgroundColor: AppColors.success,
                                     colorText: Colors.white);
-                                }),
-                          ),
-                          onSubmitted: (v) =>
-                              controller.setGlobalSystemPrompt(v),
+                              }),
                         ),
-                      ]),
-                ),
-              ]),
-              const SizedBox(height: 28),
-              _sectionLabel(context, 'settings_section_skills'.tr),
-              _buildSkillsSection(context, isDark),
-              const SizedBox(height: 28),
-              _sectionLabel(context, 'settings_section_mcp'.tr),
-              const _McpSection(),
-              const SizedBox(height: 28),
-              _sectionLabel(context, 'settings_section_local_params'.tr),
-              _buildLiteRtCard(context, isDark),
-              const SizedBox(height: 12),
-              _buildModelParametersCard(context, isDark),
-              const SizedBox(height: 28),
-              _sectionLabel(context, 'settings_section_image_params'.tr),
-              _buildImageGenerationCard(context, isDark),
-              const SizedBox(height: 50),
-            ],
-          ));
+                        onSubmitted: (v) => controller.setGlobalSystemPrompt(v),
+                      ),
+                    ]),
+              ),
+            ]),
+            const SizedBox(height: 28),
+            sectionLabel(context, 'settings_section_skills'.tr),
+            _buildSkillsSection(context, isDark),
+            const SizedBox(height: 28),
+            sectionLabel(context, 'settings_section_mcp'.tr),
+            const _McpSection(),
+            const SizedBox(height: 28),
+            sectionLabel(context, 'settings_section_local_params'.tr),
+            _buildLiteRtCard(context, isDark),
+            const SizedBox(height: 12),
+            _buildModelParametersCard(context, isDark),
+            const SizedBox(height: 28),
+            sectionLabel(context, 'settings_section_image_params'.tr),
+            _buildImageGenerationCard(context, isDark),
+            const SizedBox(height: 50),
+          ],
+        ));
   }
 
   // ── Apple grouped card container ──
-  Widget _appleGroupedCard(BuildContext context, bool isDark,
-      {required List<Widget> children}) {
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: isDark ? Dt.cardDark : Dt.card,
-        border: Border.all(color: isDark ? Colors.white.withValues(alpha: 0.07) : Dt.hairline),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(mainAxisSize: MainAxisSize.min, children: children),
-    );
-  }
-
-  // ── Apple-style list tile ──
-  Widget _appleListTile(
-    BuildContext context,
-    bool isDark, {
-    Widget? leading,
-    required String title,
-    String? subtitle,
-    Widget? trailing,
-    bool showDivider = true,
-    VoidCallback? onTap,
-  }) {
-    return Column(children: [
-      InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          child: Row(children: [
-            if (leading != null) ...[leading, const SizedBox(width: 16)],
-            Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                  Text(title,
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: isDark ? AppColors.textPrimary : Dt.textPrimary)),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 3),
-                    Text(subtitle,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12, fontWeight: FontWeight.w500, color: Theme.of(context).hintColor))
-                  ],
-                ])),
-            if (trailing != null) trailing,
-          ]),
-        ),
-      ),
-      if (showDivider)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Divider(
-              height: 1,
-              color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03)),
-        ),
-    ]);
-  }
-
-  Widget _iconBox(Color color, IconData icon) {
-    return Container(
-        width: 32,
-        height: 32,
-        decoration:
-            BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, size: 18, color: color));
-  }
-
-  Widget _sectionLabel(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 20, bottom: 8),
-      child: Text(title,
-          style: GoogleFonts.plusJakartaSans(
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
-              color: Theme.of(context).hintColor)),
-    );
-  }
-
-  String _localSubtitle() {
-    final inf = Get.find<InferenceService>();
-    final localImage = Get.find<LocalImageService>();
-    if (inf.isModelLoaded.value) {
-      return 'Active: ${inf.loadedModelName.value.split('/').last}';
-    } else if (localImage.isModelLoaded.value) {
-      return 'Active: ${localImage.loadedModelName.value.split('/').last}';
-    }
-    return 'Optimized for local latency';
-  }
-
-  Widget _buildDeviceCard(BuildContext context, bool isDark) {
-    return Obx(() {
-      final device = Get.find<DeviceInfoService>();
-      Color tierColor;
-      IconData tierIcon;
-      switch (device.deviceTier.value) {
-        case 'low':
-          tierColor = AppColors.error;
-          tierIcon = LucideIcons.batteryLow;
-          break;
-        case 'mid':
-          tierColor = AppColors.warning;
-          tierIcon = LucideIcons.smartphone;
-          break;
-        case 'high':
-          tierColor = AppColors.success;
-          tierIcon = LucideIcons.smartphone;
-          break;
-        case 'ultra':
-          tierColor = Dt.accent;
-          tierIcon = LucideIcons.rocket;
-          break;
-        default:
-          tierColor = Theme.of(context).hintColor;
-          tierIcon = LucideIcons.helpCircle;
-      }
-
-      final soc = device.socFamily.value;
-      final quantWarning = soc.quantWarning;
-
-      return _appleGroupedCard(context, isDark, children: [
-        Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(children: [
-              _iconBox(tierColor, tierIcon),
-              const SizedBox(width: 16),
-              Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text(device.tierDescription,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 16, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Text(
-                        '${device.availableRamGB.value.toStringAsFixed(1)}GB RAM · Context ${device.recommendedContextSize}',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 13, fontWeight: FontWeight.w500, color: Theme.of(context).hintColor)),
-                  ])),
-            ])),
-        Divider(height: 1, indent: 20, endIndent: 20, color: isDark ? AppColors.border : AppColors.borderLightMode),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Row(children: [
-            _iconBox(AppColors.secondary, LucideIcons.cpu),
-            const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                        device.processorName.value.isNotEmpty
-                            ? device.processorName.value
-                            : soc.displayName,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15, fontWeight: FontWeight.w700)),
-                    if (device.gpuName.value.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Row(children: [
-                        Icon(LucideIcons.gamepad2,
-                            size: 13,
-                            color: Theme.of(context).hintColor),
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Text(device.gpuName.value,
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: Theme.of(context).hintColor)),
-                        ),
-                      ]),
-                    ],
-                    if (device.socHardware.value.isNotEmpty &&
-                        device.socHardware.value !=
-                            device.processorName.value) ...[
-                      const SizedBox(height: 2),
-                      Text(device.socHardware.value,
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 12, fontWeight: FontWeight.w500,
-                              color: Theme.of(context).hintColor)),
-                    ],
-                    const SizedBox(height: 4),
-                    Text('Recommendation: ${soc.recommendedQuant}',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: quantWarning != null
-                                ? AppColors.warning
-                                : Theme.of(context).hintColor)),
-                  ],
-                ),
-              ),
-          ]),
-        ),
-        if (quantWarning != null) ...[
-          Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.warning.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.warning.withValues(alpha: 0.2)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(LucideIcons.info,
-                    size: 18, color: AppColors.warning),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(quantWarning,
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        color: AppColors.warning,
-                        fontWeight: FontWeight.w600,
-                      )),
-                ),
-              ],
-            ),
-          ),
-        ],
-        // ── Specification rows ──
-        Divider(height: 1, indent: 20, endIndent: 20, color: isDark ? AppColors.border : AppColors.borderLightMode),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 6),
-          child: Row(children: [
-            Text('SPECIFICATION',
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                    color: Theme.of(context).hintColor)),
-            const Spacer(),
-            InkWell(
-              onTap: () => Get.find<DeviceInfoService>().refresh(),
-              borderRadius: BorderRadius.circular(8),
-              child: const Padding(
-                padding: EdgeInsets.all(4),
-                child: Icon(LucideIcons.refreshCw, size: 14),
-              ),
-            ),
-          ]),
-        ),
-        if (device.deviceLabel.value.isNotEmpty)
-          _specRow(context, isDark, LucideIcons.smartphone, 'Device',
-              device.deviceLabel.value),
-        if (device.osVersion.value.isNotEmpty)
-          _specRow(context, isDark, LucideIcons.layers, 'OS',
-              device.osVersion.value),
-        if (device.cpuInfo.value.isNotEmpty)
-          _specRow(context, isDark, LucideIcons.cpu, 'CPU',
-              device.cpuInfo.value),
-        _specRow(context, isDark, LucideIcons.memoryStick, 'RAM',
-            '${device.totalRamGB.value.toStringAsFixed(1)} GB total · '
-            '${device.availableRamGB.value.toStringAsFixed(1)} GB free'),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(52, 6, 20, 4),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              minHeight: 5,
-              value: device.totalRamGB.value > 0
-                  ? (device.availableRamGB.value /
-                          device.totalRamGB.value)
-                      .clamp(0.0, 1.0)
-                  : 0,
-              backgroundColor: (isDark ? Colors.white : Colors.black)
-                  .withValues(alpha: 0.08),
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(Dt.accent),
-            ),
-          ),
-        ),
-        _specRow(context, isDark, LucideIcons.monitorSmartphone, 'Display',
-            _displaySpec(context)),
-        const SizedBox(height: 12),
-      ]);
-      });
-  }
-
-  String _displaySpec(BuildContext context) {
-    try {
-      final s = MediaQuery.of(context).size;
-      return '${s.width.toStringAsFixed(0)}×${s.height.toStringAsFixed(0)} dp';
-    } catch (_) {
-      return '';
-    }
-  }
-
-  Widget _specRow(BuildContext context, bool isDark, IconData icon,
-      String label, String value) {
-    if (value.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 14, color: Theme.of(context).hintColor),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 64,
-          child: Text(label,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).hintColor)),
-        ),
-        Expanded(
-          child: Text(value,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12.5, fontWeight: FontWeight.w700)),
-        ),
-      ]),
-    );
-  }
-
   Widget _buildLiteRtCard(BuildContext context, bool isDark) {
     final modes = [
       (
@@ -510,18 +188,16 @@ class SettingsView extends GetView<SettingsController> {
         icon: LucideIcons.shield
       ),
     ];
-    return _appleGroupedCard(context, isDark, children: [
+    return appleGroupedCard(context, isDark, children: [
       for (var i = 0; i < modes.length; i++)
-        _appleListTile(
+        appleListTile(
           context,
           isDark,
-          leading: _iconBox(Dt.accent, modes[i].icon),
+          leading: iconBox(Dt.accent, modes[i].icon),
           title: modes[i].title,
           subtitle: modes[i].subtitle,
           trailing: controller.liteRtPerformanceMode.value == modes[i].value
-              ? const Icon(LucideIcons.checkCircle,
-                  size: 20,
-                  color: Dt.accent)
+              ? const Icon(LucideIcons.checkCircle, size: 20, color: Dt.accent)
               : null,
           showDivider: i < modes.length - 1,
           onTap: () => controller.setLiteRtPerformanceMode(modes[i].value),
@@ -530,7 +206,7 @@ class SettingsView extends GetView<SettingsController> {
   }
 
   Widget _buildModelParametersCard(BuildContext context, bool isDark) {
-    return _appleGroupedCard(context, isDark, children: [
+    return appleGroupedCard(context, isDark, children: [
       _modelParameterSlider(
         context,
         isDark,
@@ -542,7 +218,8 @@ class SettingsView extends GetView<SettingsController> {
         safeMax: 1.0,
         onChanged: (v) => controller.setTemperature(v),
         icon: LucideIcons.thermometer,
-        warning: 'High temperature may result in creative but halluncinated output.',
+        warning:
+            'High temperature may result in creative but halluncinated output.',
       ),
       _parameterDivider(isDark),
       _modelParameterSlider(
@@ -585,7 +262,8 @@ class SettingsView extends GetView<SettingsController> {
         safeMax: 1.3,
         onChanged: (v) => controller.setRepeatPenalty(v),
         icon: LucideIcons.repeat,
-        warning: 'High repeat penalty can make output stiff or repetitive in the other direction.',
+        warning:
+            'High repeat penalty can make output stiff or repetitive in the other direction.',
       ),
       _parameterDivider(isDark),
       // ── Auto Tune (recommended) ──
@@ -633,14 +311,14 @@ class SettingsView extends GetView<SettingsController> {
             subtitle: Padding(
               padding: const EdgeInsets.only(top: 3),
               child: Text(
-                auto
-                    ? 'Context ${_fmtTokens(controller.effectiveContextSize)} · '
-                        'Output ${_fmtTokens(controller.effectiveMaxTokens)} · tuned to RAM'
-                    : 'Manual limits — extended ranges up to 1M context',
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).hintColor)),
+                  auto
+                      ? 'Context ${_fmtTokens(controller.effectiveContextSize)} · '
+                          'Output ${_fmtTokens(controller.effectiveMaxTokens)} · tuned to RAM'
+                      : 'Manual limits — extended ranges up to 1M context',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Theme.of(context).hintColor)),
             ),
             trailing: Switch(
                 value: auto,
@@ -666,8 +344,7 @@ class SettingsView extends GetView<SettingsController> {
               label: 'settings_context_window'.tr,
               ladder: _contextLadder(),
               value: controller.contextSize.value,
-              safeMax:
-                  Get.find<DeviceInfoService>().maxSafeContextSize,
+              safeMax: Get.find<DeviceInfoService>().maxSafeContextSize,
               onChanged: (v) => controller.setContextSize(v),
               icon: LucideIcons.history,
               extraWarning: 'Big windows increase memory pressure a lot.',
@@ -679,13 +356,38 @@ class SettingsView extends GetView<SettingsController> {
   }
 
   static const List<int> _tokLadder = [
-    256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072,
+    256,
+    512,
+    1024,
+    2048,
+    4096,
+    8192,
+    16384,
+    32768,
+    65536,
+    131072,
   ];
 
   static List<int> _contextLadder() {
     const full = [
-      1024, 2048, 4096, 8192, 12288, 16384, 24576, 32768, 49152, 65536,
-      98304, 131072, 196608, 262144, 393216, 524288, 786432, 1048576,
+      1024,
+      2048,
+      4096,
+      8192,
+      12288,
+      16384,
+      24576,
+      32768,
+      49152,
+      65536,
+      98304,
+      131072,
+      196608,
+      262144,
+      393216,
+      524288,
+      786432,
+      1048576,
     ];
     // LiteRT runtime is hardware-limited to 4K context.
     final inference = Get.find<InferenceService>();
@@ -700,15 +402,15 @@ class SettingsView extends GetView<SettingsController> {
     return full.where((v) => v <= 4096).toList();
   }
 
-  static String _fmtTokens(int v) =>
-      v >= 1024 ? '${(v / 1024).toStringAsFixed(v % 1024 == 0 ? 0 : 1)}K' : '$v';
+  static String _fmtTokens(int v) => v >= 1024
+      ? '${(v / 1024).toStringAsFixed(v % 1024 == 0 ? 0 : 1)}K'
+      : '$v';
 
   void _showAutoTuneInfoDialog(BuildContext context, bool isDark) {
     Get.dialog(
       AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: Row(children: [
           const Icon(LucideIcons.sparkles, color: Dt.accent),
           const SizedBox(width: 10),
@@ -720,14 +422,22 @@ class SettingsView extends GetView<SettingsController> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _infoPoint('📱', 'Sets the context window and output budget to '
-                  'the highest your phone\'s RAM can safely run — no guesswork.'),
-              _infoPoint('🚀', 'Cloud models are sent WITHOUT an output cap, so '
-                  'big models write full detailed answers instead of stopping early.'),
-              _infoPoint('📚', 'Works with large-context models — when you switch '
-                  'to manual you can push context up to 1M tokens for models that support it.'),
-              _infoPoint('🛡️', 'Prevents truncated replies and chat freezes caused '
-                  'by too-small limits.'),
+              _infoPoint(
+                  '📱',
+                  'Sets the context window and output budget to '
+                      'the highest your phone\'s RAM can safely run — no guesswork.'),
+              _infoPoint(
+                  '🚀',
+                  'Cloud models are sent WITHOUT an output cap, so '
+                      'big models write full detailed answers instead of stopping early.'),
+              _infoPoint(
+                  '📚',
+                  'Works with large-context models — when you switch '
+                      'to manual you can push context up to 1M tokens for models that support it.'),
+              _infoPoint(
+                  '🛡️',
+                  'Prevents truncated replies and chat freezes caused '
+                      'by too-small limits.'),
               const SizedBox(height: 4),
               Text(
                 'Turn it off only if you want manual control of every limit.',
@@ -821,8 +531,7 @@ class SettingsView extends GetView<SettingsController> {
         if (isOver)
           Container(
               margin: const EdgeInsets.only(top: 4),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                   color: accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12)),
@@ -851,7 +560,7 @@ class SettingsView extends GetView<SettingsController> {
     final gpuBackend = controller.recommendedImageGpuBackend();
     final gpuAvailable = gpuBackend != Backend.cpu;
 
-    return _appleGroupedCard(context, isDark, children: [
+    return appleGroupedCard(context, isDark, children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -908,9 +617,7 @@ class SettingsView extends GetView<SettingsController> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Icon(LucideIcons.image,
-                size: 16,
-                color: Dt.accent),
+            const Icon(LucideIcons.image, size: 16, color: Dt.accent),
             const SizedBox(width: 10),
             Text('settings_synthesis_resolution'.tr,
                 style: GoogleFonts.plusJakartaSans(
@@ -955,10 +662,12 @@ class SettingsView extends GetView<SettingsController> {
                         : Theme.of(context).hintColor,
                   ),
                   selectedColor: Dt.accent,
-                  backgroundColor: isDark ? AppColors.surfaceLight : Dt.pillMuted,
+                  backgroundColor:
+                      isDark ? AppColors.surfaceLight : Dt.pillMuted,
                   side: BorderSide.none,
                   showCheckmark: false,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
             ],
           ),
@@ -977,20 +686,20 @@ class SettingsView extends GetView<SettingsController> {
           ]),
           const SizedBox(height: 12),
           TextField(
-                controller: controller.imageGenNegativeController,
-                onSubmitted: (v) => controller.setImageGenNegative(v),
-                onEditingComplete: () => controller.setImageGenNegative(
-                    controller.imageGenNegativeController.text),
-                style: GoogleFonts.plusJakartaSans(fontSize: 14),
-                decoration: InputDecoration(
-                  hintText: 'blurry, watermark, extra fingers… (empty = none)',
-                  hintStyle: GoogleFonts.plusJakartaSans(
-                      fontSize: 13, color: Theme.of(context).hintColor),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  contentPadding: const EdgeInsets.all(12),
-                ),
-              ),
+            controller: controller.imageGenNegativeController,
+            onSubmitted: (v) => controller.setImageGenNegative(v),
+            onEditingComplete: () => controller.setImageGenNegative(
+                controller.imageGenNegativeController.text),
+            style: GoogleFonts.plusJakartaSans(fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'blurry, watermark, extra fingers… (empty = none)',
+              hintStyle: GoogleFonts.plusJakartaSans(
+                  fontSize: 13, color: Theme.of(context).hintColor),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              contentPadding: const EdgeInsets.all(12),
+            ),
+          ),
         ]),
       ),
       _parameterDivider(isDark),
@@ -1005,8 +714,7 @@ class SettingsView extends GetView<SettingsController> {
                     fontSize: 15, fontWeight: FontWeight.w700)),
             const Spacer(),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                   color: Dt.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8)),
@@ -1025,8 +733,8 @@ class SettingsView extends GetView<SettingsController> {
               max: 15,
               divisions: 28,
               activeColor: Dt.accent,
-              onChanged: (v) => controller.setImageGenCfg(
-                  (v * 2).roundToDouble() / 2))),
+              onChanged: (v) =>
+                  controller.setImageGenCfg((v * 2).roundToDouble() / 2))),
         ]),
       ),
       _parameterDivider(isDark),
@@ -1072,7 +780,11 @@ class SettingsView extends GetView<SettingsController> {
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            _iconBox(Dt.accent, selectedBackend == Backend.cpu ? LucideIcons.cpu : LucideIcons.zap),
+            iconBox(
+                Dt.accent,
+                selectedBackend == Backend.cpu
+                    ? LucideIcons.cpu
+                    : LucideIcons.zap),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -1084,7 +796,9 @@ class SettingsView extends GetView<SettingsController> {
                     const SizedBox(height: 2),
                     Text(controller.imageGpuLabel(),
                         style: GoogleFonts.plusJakartaSans(
-                            fontSize: 12, fontWeight: FontWeight.w600, color: Theme.of(context).hintColor)),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).hintColor)),
                   ]),
             ),
           ]),
@@ -1125,7 +839,9 @@ class SettingsView extends GetView<SettingsController> {
       height: 1,
       indent: 20,
       endIndent: 20,
-      color: isDark ? AppColors.border.withValues(alpha: 0.5) : AppColors.borderLightMode.withValues(alpha: 0.5),
+      color: isDark
+          ? AppColors.border.withValues(alpha: 0.5)
+          : AppColors.borderLightMode.withValues(alpha: 0.5),
     );
   }
 
@@ -1158,8 +874,8 @@ class SettingsView extends GetView<SettingsController> {
           Icon(icon, size: 16, color: accent),
           const SizedBox(width: 10),
           Text(label,
-              style:
-                  GoogleFonts.plusJakartaSans(fontSize: 15, fontWeight: FontWeight.w700)),
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 15, fontWeight: FontWeight.w700)),
           const Spacer(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -1219,11 +935,11 @@ class SettingsView extends GetView<SettingsController> {
     return Obx(() {
       final all = registry.skills.toList();
       final enabledCount = all.where((s) => s.enabled).length;
-      return _appleGroupedCard(context, isDark, children: [
+      return appleGroupedCard(context, isDark, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
           child: Row(children: [
-            _iconBox(Dt.accent, LucideIcons.sparkles),
+            iconBox(Dt.accent, LucideIcons.sparkles),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -1346,9 +1062,7 @@ class SettingsView extends GetView<SettingsController> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Theme.of(context)
-                          .hintColor
-                          .withValues(alpha: 0.1),
+                      color: Theme.of(context).hintColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(skill.source,
@@ -1371,8 +1085,9 @@ class SettingsView extends GetView<SettingsController> {
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color:
-                            Theme.of(context).hintColor.withValues(alpha: 0.8))),
+                        color: Theme.of(context)
+                            .hintColor
+                            .withValues(alpha: 0.8))),
               ],
             ),
           ),
@@ -1430,15 +1145,15 @@ class SettingsView extends GetView<SettingsController> {
         return;
       }
       // Derive name from filename.
-      String name = file.name.replaceAll(RegExp(r'\.(md|markdown|txt)$', caseSensitive: false), '');
+      String name = file.name.replaceAll(
+          RegExp(r'\.(md|markdown|txt)$', caseSensitive: false), '');
       name = name.replaceAll(RegExp(r'[-_]+'), ' ').trim();
       if (name.isEmpty) name = 'Imported Skill';
       // Show preview/confirm dialog before saving.
       if (!context.mounted) return;
       await _showImportPreview(context, content, initialName: name);
     } catch (e) {
-      Get.snackbar('Import failed', '$e',
-          snackPosition: SnackPosition.BOTTOM);
+      Get.snackbar('Import failed', '$e', snackPosition: SnackPosition.BOTTOM);
     }
   }
 
@@ -1533,7 +1248,7 @@ class SettingsView extends GetView<SettingsController> {
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Row(children: [
-            _iconBox(Dt.accent, icon),
+            iconBox(Dt.accent, icon),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -1600,8 +1315,8 @@ class SettingsView extends GetView<SettingsController> {
               keyboardType: TextInputType.url,
               decoration: InputDecoration(
                 hintText: 'https://raw.githubusercontent.com/.../SKILL.md',
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 isDense: true,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -1652,8 +1367,11 @@ class SettingsView extends GetView<SettingsController> {
       final fm = UrlSkillSource.parseFrontmatter(content);
       final name = fm['name']?.isNotEmpty == true
           ? fm['name']!
-          : Uri.tryParse(url)?.pathSegments.last
-                  .replaceAll(RegExp(r'\.(md|markdown)$', caseSensitive: false), '')
+          : Uri.tryParse(url)
+                  ?.pathSegments
+                  .last
+                  .replaceAll(
+                      RegExp(r'\.(md|markdown)$', caseSensitive: false), '')
                   .replaceAll(RegExp(r'[-_]+'), ' ')
                   .trim() ??
               'Imported Skill';
@@ -1745,7 +1463,8 @@ class SettingsView extends GetView<SettingsController> {
                     content.length > 4000
                         ? '${content.substring(0, 4000)}\n…(truncated)'
                         : content,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 12, height: 1.4),
+                    style:
+                        GoogleFonts.plusJakartaSans(fontSize: 12, height: 1.4),
                   ),
                 ),
               ),
@@ -1785,8 +1504,7 @@ class SettingsView extends GetView<SettingsController> {
           backgroundColor: AppColors.success,
           colorText: Colors.white);
     } catch (e) {
-      Get.snackbar('Import failed', '$e',
-          snackPosition: SnackPosition.BOTTOM);
+      Get.snackbar('Import failed', '$e', snackPosition: SnackPosition.BOTTOM);
     } finally {
       nameCtrl.dispose();
       descCtrl.dispose();
@@ -1865,7 +1583,8 @@ class SettingsView extends GetView<SettingsController> {
                     content.length > 4000
                         ? '${content.substring(0, 4000)}\n…(truncated)'
                         : content,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 12, height: 1.4),
+                    style:
+                        GoogleFonts.plusJakartaSans(fontSize: 12, height: 1.4),
                   ),
                 ),
               ),
@@ -1900,8 +1619,7 @@ class SettingsView extends GetView<SettingsController> {
           backgroundColor: AppColors.success,
           colorText: Colors.white);
     } catch (e) {
-      Get.snackbar('Import failed', '$e',
-          snackPosition: SnackPosition.BOTTOM);
+      Get.snackbar('Import failed', '$e', snackPosition: SnackPosition.BOTTOM);
     } finally {
       nameCtrl.dispose();
       descCtrl.dispose();
@@ -1909,8 +1627,7 @@ class SettingsView extends GetView<SettingsController> {
     }
   }
 
-  void _showSkillPreview(
-      BuildContext context, bool isDark, SkillModel skill) {
+  void _showSkillPreview(BuildContext context, bool isDark, SkillModel skill) {
     Get.dialog(
       AlertDialog(
         backgroundColor: isDark ? Dt.cardDark : Dt.card,
@@ -1943,8 +1660,8 @@ class SettingsView extends GetView<SettingsController> {
                 ),
                 child: SingleChildScrollView(
                   child: Text(skill.content,
-                      style:
-                          GoogleFonts.plusJakartaSans(fontSize: 12, height: 1.4)),
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12, height: 1.4)),
                 ),
               ),
             ],
@@ -1968,7 +1685,8 @@ class SettingsView extends GetView<SettingsController> {
         content: Text('Delete "${skill.name}"? This cannot be undone.',
             style: GoogleFonts.plusJakartaSans(fontSize: 13)),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: Text('common_cancel'.tr)),
+          TextButton(
+              onPressed: () => Get.back(), child: Text('common_cancel'.tr)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.error),
             onPressed: () {
@@ -2039,13 +1757,18 @@ class _GithubBrowseSheetState extends State<_GithubBrowseSheet> {
       Get.back();
       // Show preview using same dialog as file import but with github source.
       final fm = UrlSkillSource.parseFrontmatter(content);
-      final name = entry.name.isNotEmpty ? entry.name : fm['name'] ?? entry.path.split('/').last;
-      final desc = entry.description.isNotEmpty ? entry.description : fm['description'] ?? '';
+      final name = entry.name.isNotEmpty
+          ? entry.name
+          : fm['name'] ?? entry.path.split('/').last;
+      final desc = entry.description.isNotEmpty
+          ? entry.description
+          : fm['description'] ?? '';
       // Reuse the preview dialog from SettingsView by delegating to registry directly.
       final previewOk = await Get.dialog<bool>(
         AlertDialog(
           backgroundColor: widget.isDark ? Dt.cardDark : Dt.card,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text('Import Skill',
               style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
           content: SingleChildScrollView(
@@ -2083,8 +1806,8 @@ class _GithubBrowseSheetState extends State<_GithubBrowseSheet> {
                       content.length > 4000
                           ? '${content.substring(0, 4000)}\n…(truncated)'
                           : content,
-                      style:
-                          GoogleFonts.plusJakartaSans(fontSize: 12, height: 1.4),
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12, height: 1.4),
                     ),
                   ),
                 ),
@@ -2219,8 +1942,8 @@ class _GithubBrowseSheetState extends State<_GithubBrowseSheet> {
                       FilledButton(
                         onPressed: () =>
                             setState(() => _future = _load(force: true)),
-                        style: FilledButton.styleFrom(
-                            backgroundColor: Dt.accent),
+                        style:
+                            FilledButton.styleFrom(backgroundColor: Dt.accent),
                         child: const Text('Retry'),
                       ),
                       if (_error != null)
@@ -2292,13 +2015,11 @@ class _GithubBrowseSheetState extends State<_GithubBrowseSheet> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 6),
                               minimumSize: const Size(0, 32),
-                              tapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                             child: Text('Import',
                                 style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700)),
+                                    fontSize: 12, fontWeight: FontWeight.w700)),
                           ),
                   );
                 },
@@ -2359,9 +2080,8 @@ class _McpSectionState extends State<_McpSection> {
         decoration: BoxDecoration(
           color: isDark ? Dt.cardDark : Dt.card,
           border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.07)
-                  : Dt.hairline),
+              color:
+                  isDark ? Colors.white.withValues(alpha: 0.07) : Dt.hairline),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -2389,8 +2109,7 @@ class _McpSectionState extends State<_McpSection> {
                         children: [
                           Text('MCP Servers',
                               style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700)),
+                                  fontSize: 15, fontWeight: FontWeight.w700)),
                           const SizedBox(height: 2),
                           Text(
                             servers.isEmpty
@@ -2423,8 +2142,7 @@ class _McpSectionState extends State<_McpSection> {
                 child: Text(
                   'No servers yet. Add one to give the model tools.',
                   style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      color: Theme.of(context).hintColor),
+                      fontSize: 13, color: Theme.of(context).hintColor),
                 ),
               ),
             for (final s in servers)
@@ -2442,17 +2160,14 @@ class _McpSectionState extends State<_McpSection> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.plusJakartaSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700),
+                              fontSize: 14, fontWeight: FontWeight.w700),
                         ),
                         Text(
                           s.url,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              color:
-                                  Theme.of(context).hintColor),
+                              fontSize: 11, color: Theme.of(context).hintColor),
                         ),
                       ],
                     ),
@@ -2460,8 +2175,7 @@ class _McpSectionState extends State<_McpSection> {
                   Switch(
                     value: s.enabled,
                     activeThumbColor: Dt.accent,
-                    onChanged: (v) =>
-                        _toggleEnable(context, isDark, s, v),
+                    onChanged: (v) => _toggleEnable(context, isDark, s, v),
                   ),
                 ]),
               ),
@@ -2473,16 +2187,12 @@ class _McpSectionState extends State<_McpSection> {
                   onPressed: _openManager,
                   icon: const Icon(LucideIcons.settings2, size: 16),
                   label: Text(
-                      servers.isEmpty
-                          ? 'Add MCP server'
-                          : 'Manage servers',
+                      servers.isEmpty ? 'Add MCP server' : 'Manage servers',
                       style: GoogleFonts.plusJakartaSans(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700)),
+                          fontSize: 13, fontWeight: FontWeight.w700)),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Dt.accent,
-                    side: BorderSide(
-                        color: Dt.accent.withValues(alpha: 0.3)),
+                    side: BorderSide(color: Dt.accent.withValues(alpha: 0.3)),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -2520,8 +2230,7 @@ class _McpSectionState extends State<_McpSection> {
                                 width: 28,
                                 height: 28,
                                 decoration: BoxDecoration(
-                                  color:
-                                      Dt.accent.withValues(alpha: 0.12),
+                                  color: Dt.accent.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: const Icon(LucideIcons.wrench,
@@ -2532,11 +2241,9 @@ class _McpSectionState extends State<_McpSection> {
                                 child: Text(t.name,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style:
-                                        GoogleFonts.plusJakartaSans(
-                                            fontSize: 13,
-                                            fontWeight:
-                                                FontWeight.w700)),
+                                    style: GoogleFonts.plusJakartaSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700)),
                               ),
                             ],
                           ),
@@ -2570,10 +2277,7 @@ class _McpSectionState extends State<_McpSection> {
         color: color,
         shape: BoxShape.circle,
         boxShadow: s == McpStatus.connected
-            ? [
-                BoxShadow(
-                    color: color.withValues(alpha: 0.4), blurRadius: 6)
-              ]
+            ? [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 6)]
             : null,
       ),
     );
@@ -2582,8 +2286,9 @@ class _McpSectionState extends State<_McpSection> {
   Widget _statusBanner(
       McpStatus status, String error, List<McpTool> tools, bool isDark) {
     final text = switch (status) {
-      McpStatus.connected =>
-        tools.isEmpty ? 'Connected — no tools exposed' : 'Connected — ${tools.length} tool(s) ready',
+      McpStatus.connected => tools.isEmpty
+          ? 'Connected — no tools exposed'
+          : 'Connected — ${tools.length} tool(s) ready',
       McpStatus.connecting => 'Connecting…',
       McpStatus.error => error.isNotEmpty ? error : 'Connection error',
       McpStatus.disconnected => 'Not connected — save and test your server',
@@ -2616,9 +2321,7 @@ class _McpSectionState extends State<_McpSection> {
         Expanded(
           child: Text(text,
               style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: color)),
+                  fontSize: 12, fontWeight: FontWeight.w600, color: color)),
         ),
       ]),
     );
@@ -2658,8 +2361,7 @@ class _McpSectionState extends State<_McpSection> {
                           children: [
                             Text(t.name,
                                 style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700)),
+                                    fontSize: 13, fontWeight: FontWeight.w700)),
                             if (t.description.isNotEmpty)
                               Text(t.description,
                                   style: GoogleFonts.plusJakartaSans(
