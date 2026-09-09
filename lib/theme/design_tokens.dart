@@ -57,7 +57,7 @@ abstract class Dt {
   static const Color scrim = Color(0x73000000); // black @ 45%
 
   // ── Radii ──
-  static const double rComposer = 18; // composer card corner
+  static const double rComposer = 24; // composer card corner
   static const double rSheet = 17; // bottom-sheet top corners (16–18 range)
   static const double rRowCard = 12; // stacked row cards inside sheets
   static const double rDrawerEdge = 24;

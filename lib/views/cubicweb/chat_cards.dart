@@ -41,18 +41,24 @@ Color stepColor(String? kind, BuildContext context) {
 }
 
 /// Live build activity timeline (v0-style): thinking → files → fixes.
-Widget activityCard(BuildContext context, bool isDark) {
+Widget activityCard(BuildContext context, bool isDark,
+    {List<Map<String, String>>? steps}) {
   final c = Get.find<AgentController>();
-  final steps = c.buildSteps.toList();
-  final shown = steps.length > 12 ? steps.sublist(steps.length - 12) : steps;
-  final live = c.generating.value || c.fixing.value;
+  final activeSteps = steps ?? c.buildSteps.toList();
+  final shown =
+      activeSteps.length > 12 ? activeSteps.sublist(activeSteps.length - 12) : activeSteps;
+  final live = steps == null && (c.generating.value || c.fixing.value);
+
   return Container(
-    margin: const EdgeInsets.only(bottom: 10),
-    padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
     decoration: BoxDecoration(
-      color: isDark ? AppColors.surface : const Color(0xFFF1EFE9),
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: Dt.accent.withValues(alpha: 0.25)),
+      color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Dt.hairline),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,24 +70,26 @@ Widget activityCard(BuildContext context, bool isDark) {
               height: 12,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
-            const SizedBox(width: 6),
-          ],
-          Text('BUILD ACTIVITY',
+            const SizedBox(width: 8),
+          ] else
+            const Icon(LucideIcons.terminal, size: 14, color: Dt.accent),
+          const SizedBox(width: 6),
+          Text(live ? 'BUILDING...' : 'BUILD ACTIVITY',
               style: GoogleFonts.plusJakartaSans(
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 1.0,
-                  color: Theme.of(context).hintColor)),
+                  letterSpacing: 0.8,
+                  color: live ? Dt.accent : Theme.of(context).hintColor)),
           const Spacer(),
-          if (steps.length > 12)
-            Text('+${steps.length - 12} earlier',
+          if (activeSteps.length > 12)
+            Text('+${activeSteps.length - 12} earlier',
                 style: GoogleFonts.plusJakartaSans(
                     fontSize: 10, color: Theme.of(context).hintColor)),
         ]),
-        const SizedBox(height: 6),
+        const SizedBox(height: 10),
         for (final s in shown)
           Padding(
-            padding: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.only(bottom: 6),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -90,14 +98,15 @@ Widget activityCard(BuildContext context, bool isDark) {
                   child: Icon(stepIcon(s['kind']),
                       size: 13, color: stepColor(s['kind'], context)),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(s['text'] ?? '',
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 12,
                           height: 1.4,
-                          color:
-                              isDark ? AppColors.textPrimary : Dt.textPrimary)),
+                          color: isDark
+                              ? AppColors.textPrimary.withValues(alpha: 0.85)
+                              : Dt.textPrimary.withValues(alpha: 0.85))),
                 ),
               ],
             ),

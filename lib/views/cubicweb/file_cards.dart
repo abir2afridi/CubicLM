@@ -7,10 +7,10 @@ import '../../controllers/agent_controller.dart';
 import '../../core/colors.dart';
 import '../../services/agent_workspace.dart';
 import '../../theme/design_tokens.dart';
+import '../../utils/app_snackbar.dart';
 import '../../utils/syntax_highlight.dart';
 
 /// File cards + template/component models for the Files pane.
-/// Extracted from views/agent_ide_view.dart.
 class WebComponent {
   final String name;
   final IconData icon;
@@ -19,13 +19,11 @@ class WebComponent {
 }
 
 /// Live streaming file card: read-only highlighted view of the code
-/// AS the AI writes it. Auto-scrolls while open; replaced by the real
-/// editor once the file lands on disk.
+/// AS the AI writes it.
 class StreamingFileCard extends StatefulWidget {
   final String path;
   final bool isDark;
-  const StreamingFileCard(
-      {super.key, required this.path, required this.isDark});
+  const StreamingFileCard({super.key, required this.path, required this.isDark});
 
   @override
   State<StreamingFileCard> createState() => StreamingFileCardState();
@@ -49,19 +47,17 @@ class StreamingFileCardState extends State<StreamingFileCard> {
       if (content.length != _shown) {
         _shown = content.length;
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scroll.hasClients) {
-            try {
-              _scroll.jumpTo(_scroll.position.maxScrollExtent);
-            } catch (_) {}
+          if (_scroll.hasClients && _scroll.position.maxScrollExtent > 0) {
+            _scroll.jumpTo(_scroll.position.maxScrollExtent);
           }
         });
       }
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: const Color(0xFF101014),
+          color: const Color(0xFF0D0D10),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Dt.accent.withValues(alpha: 0.35)),
+          border: Border.all(color: Dt.accent.withValues(alpha: 0.4)),
         ),
         child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -69,11 +65,11 @@ class StreamingFileCardState extends State<StreamingFileCard> {
             children: [
               Row(children: [
                 Container(
-                    width: 7,
-                    height: 7,
+                    width: 8,
+                    height: 8,
                     decoration: const BoxDecoration(
                         shape: BoxShape.circle, color: Dt.accent)),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(widget.path,
                       maxLines: 1,
@@ -81,27 +77,44 @@ class StreamingFileCardState extends State<StreamingFileCard> {
                       style: GoogleFonts.firaCode(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          color: const Color(0xFFCDD6F4))),
+                          color: const Color(0xFFE0E0E6))),
                 ),
-                Text('${(content.length / 1024).toStringAsFixed(1)}k',
+                Text('${(content.length / 1024).toStringAsFixed(1)} KB',
                     style: GoogleFonts.firaCode(
-                        fontSize: 10, color: const Color(0xFF6E6B65))),
+                        fontSize: 10, color: const Color(0xFF707076))),
               ]),
-              const SizedBox(height: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 320),
+              const SizedBox(height: 10),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 360),
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 child: SingleChildScrollView(
                   controller: _scroll,
+                  physics: const ClampingScrollPhysics(),
                   child: SelectableText.rich(
                     buildHighlightedSpan(highlight(content, widget.path)),
-                    style: GoogleFonts.firaCode(fontSize: 11, height: 1.5),
+                    style: GoogleFonts.firaCode(fontSize: 11.5, height: 1.5),
                   ),
                 ),
               ),
-              const SizedBox(height: 6),
-              Text('AI is writing… edits unlock when done',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10.5, color: const Color(0xFF6E6B65))),
+              const SizedBox(height: 8),
+              Row(children: [
+                const SizedBox(
+                  width: 10,
+                  height: 10,
+                  child: CircularProgressIndicator(strokeWidth: 1.5),
+                ),
+                const SizedBox(width: 8),
+                Text('AI is writing… edits unlock when done',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF707076))),
+              ]),
             ]),
       );
     });
@@ -126,14 +139,14 @@ class FileEditorCard extends StatefulWidget {
 }
 
 class FileEditorCardState extends State<FileEditorCard> {
-  late final TextEditingController _ctrl;
+  late final SyntaxHighlightingController _ctrl;
   bool _dirty = false;
   bool _viewMode = false; // false = edit, true = highlighted view
 
   @override
   void initState() {
     super.initState();
-    _ctrl = TextEditingController(text: widget.initial);
+    _ctrl = SyntaxHighlightingController(text: widget.initial, path: widget.path);
     _ctrl.addListener(() {
       final d = _ctrl.text != widget.initial;
       if (d != _dirty && mounted) setState(() => _dirty = d);
@@ -152,14 +165,23 @@ class FileEditorCardState extends State<FileEditorCard> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: widget.isDark ? AppColors.surface : Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
             color: widget.isDark
                 ? Colors.white.withValues(alpha: 0.07)
                 : Dt.hairline),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: widget.isDark ? 0.2 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          )
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
+          const Icon(LucideIcons.fileCode, size: 16, color: Dt.accent),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(widget.path,
                 maxLines: 1,
@@ -169,77 +191,93 @@ class FileEditorCardState extends State<FileEditorCard> {
           ),
           if (_dirty)
             Container(
-              margin: const EdgeInsets.only(right: 4),
-              width: 8,
-              height: 8,
+              margin: const EdgeInsets.only(right: 6),
+              width: 7,
+              height: 7,
               decoration:
                   const BoxDecoration(color: Dt.accent, shape: BoxShape.circle),
             ),
-          IconButton(
-            tooltip: 'Copy',
-            icon: const Icon(LucideIcons.copy, size: 16),
-            onPressed: () => Clipboard.setData(ClipboardData(text: _ctrl.text)),
-          ),
-          IconButton(
-            tooltip: _viewMode ? 'Edit code' : 'View highlighted',
-            icon: Icon(_viewMode ? LucideIcons.pencil : LucideIcons.eye,
-                size: 16),
-            onPressed: () => setState(() => _viewMode = !_viewMode),
-          ),
-          IconButton(
-            tooltip: 'Save edits',
-            icon: const Icon(LucideIcons.check, size: 18),
-            color: Dt.accent,
-            onPressed: () async {
-              final ws = Get.find<AgentWorkspaceService>();
-              final ac = Get.find<AgentController>();
-              final pid = ac.project.value?.id;
-              if (pid == null) return;
-              final err = await ws.writeFile(pid, widget.path, _ctrl.text);
-              if (err != null && context.mounted) {
-                Get.snackbar('Save failed', err,
-                    snackPosition: SnackPosition.BOTTOM);
-              } else {
-                await ac.notifyFilesChanged();
-                if (context.mounted) {
-                  Get.snackbar('Saved', widget.path,
-                      snackPosition: SnackPosition.BOTTOM,
-                      duration: const Duration(seconds: 1));
-                }
-              }
-            },
-          ),
+          _actionIcon(LucideIcons.copy, 'Copy', () {
+            Clipboard.setData(ClipboardData(text: _ctrl.text));
+            AppSnackbar.showTop('Copied', 'Code copied to clipboard', logHistory: false);
+          }),
+          _actionIcon(_viewMode ? LucideIcons.pencil : LucideIcons.eye,
+              _viewMode ? 'Edit' : 'Preview',
+              () => setState(() => _viewMode = !_viewMode)),
+          _actionIcon(LucideIcons.check, 'Save', () async {
+            final ws = Get.find<AgentWorkspaceService>();
+            final ac = Get.find<AgentController>();
+            final pid = ac.project.value?.id;
+            if (pid == null) return;
+            final err = await ws.writeFile(pid, widget.path, _ctrl.text);
+            if (err != null && context.mounted) {
+              AppSnackbar.showTop('Save failed', err);
+            } else {
+              await ac.notifyFilesChanged();
+              if (mounted) setState(() => _dirty = false);
+              AppSnackbar.showTop('Saved', widget.path, logHistory: false);
+            }
+          }, color: Dt.accent),
         ]),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Container(
-          constraints: const BoxConstraints(maxHeight: 320),
-          padding: const EdgeInsets.all(10),
+          constraints: const BoxConstraints(maxHeight: 400),
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: widget.isDark
-                ? const Color(0xFF1E1E2E)
-                : const Color(0xFFF8F9FA),
-            borderRadius: BorderRadius.circular(10),
+                ? const Color(0xFF16161E)
+                : const Color(0xFFF8F9FB),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: widget.isDark ? Colors.white.withValues(alpha: 0.03) : Dt.hairline,
+            ),
           ),
           child: _viewMode
               ? SingleChildScrollView(
-                  padding: EdgeInsets.zero,
                   child: SelectableText.rich(
                     buildHighlightedSpan(highlight(_ctrl.text, widget.path)),
                     style: GoogleFonts.firaCode(fontSize: 12, height: 1.5),
                   ),
                 )
-              : SingleChildScrollView(
-                  child: TextField(
-                    controller: _ctrl,
-                    maxLines: null,
-                    style: GoogleFonts.firaCode(fontSize: 12, height: 1.5),
-                    decoration: const InputDecoration.collapsed(hintText: ''),
-                  ),
+              : TextField(
+                  controller: _ctrl,
+                  maxLines: null,
+                  keyboardType: TextInputType.multiline,
+                  style: GoogleFonts.firaCode(fontSize: 12, height: 1.5),
+                  decoration: const InputDecoration.collapsed(hintText: ''),
                 ),
         ),
       ]),
     );
   }
+
+  Widget _actionIcon(IconData icon, String tooltip, VoidCallback onTap, {Color? color}) {
+    return Tooltip(
+      message: tooltip,
+      child: IconButton(
+        visualDensity: VisualDensity.compact,
+        icon: Icon(icon, size: 16, color: color),
+        onPressed: onTap,
+      ),
+    );
+  }
+}
+
+class FileNode {
+  final String name;
+  final String path;
+  final bool isDir;
+  final List<FileNode> children;
+  bool isExpanded;
+
+  FileNode({
+    required this.name,
+    required this.path,
+    this.isDir = false,
+    this.children = const [],
+    this.isExpanded = false,
+  });
 }
 
 class WebTemplate {

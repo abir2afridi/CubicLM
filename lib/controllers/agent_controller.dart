@@ -164,7 +164,7 @@ class AgentController extends GetxController {
 
   /// Chat transcript with the builder AI (user prompts + agent replies).
   /// Mirrors other builders: conversation is visible, not hidden.
-  final transcript = <Map<String, String>>[].obs;
+  final transcript = <Map<String, dynamic>>[].obs;
 
   /// Live build status shown in the preview pane while working
   /// (null when idle). E.g. "Streaming response… 12k chars".
@@ -177,6 +177,12 @@ class AgentController extends GetxController {
   /// Element picked from the live preview (long-press in preview).
   /// Injected as context into the next modify prompt.
   final pickedElement = RxnString();
+
+  /// Element currently hovered in the preview (canvas mode).
+  final hoveredElement = RxnString();
+
+  /// Signal to the view to focus the ask input.
+  final requestAskFocus = 0.obs;
 
   /// When true, long-press on any preview element captures it as context.
   final elementPickMode = false.obs;
@@ -206,7 +212,9 @@ class AgentController extends GetxController {
   /// Called by the preview's JS bridge when the user long-presses an element.
   void onElementPicked(String info) {
     pickedElement.value = info;
+    hoveredElement.value = null;
     elementPickMode.value = false;
+    requestAskFocus.value++;
     term(
         '🎯 element picked: ${info.length > 80 ? '${info.substring(0, 80)}…' : info}');
     AppSnackbar.showTop(
@@ -216,11 +224,39 @@ class AgentController extends GetxController {
     );
   }
 
-  void _say(String role, String text) {
+  void _say(String role, String text, {List<Map<String, String>>? activity}) {
     try {
-      transcript.add({'role': role, 'text': text});
+      transcript.add({
+        'role': role,
+        'text': text,
+        if (activity != null) 'activity': activity,
+      });
       while (transcript.length > 100) {
         transcript.removeAt(0);
+      }
+    } catch (_) {}
+  }
+
+  void _snapshotActivity() {
+    try {
+      final idx = transcript.lastIndexWhere((m) => m['role'] == 'activity');
+      if (idx != -1) {
+        transcript[idx] = {
+          'role': 'activity',
+          'steps': buildSteps.toList(),
+        };
+      }
+    } catch (_) {}
+  }
+
+  void _markLastAssistantWithBuild() {
+    try {
+      final idx = transcript.lastIndexWhere((m) => m['role'] == 'assistant');
+      if (idx != -1) {
+        transcript[idx] = {
+          ...transcript[idx],
+          'has_build': true,
+        };
       }
     } catch (_) {}
   }
@@ -647,6 +683,7 @@ class AgentController extends GetxController {
     currentTraceId = newTraceId();
     transcript.clear();
     _say('user', t);
+    _say('activity', '');
     buildStatus.value = 'Designing project…';
     term(
         '> build "${t.length > 60 ? '${t.substring(0, 60)}…' : t}" ($buildFramework)');
@@ -711,9 +748,11 @@ class AgentController extends GetxController {
       buildStatus.value = null;
       final builtPaths = [for (final f in parsed) f.path];
       step('done', 'Built ${builtPaths.length} files — preview live.');
+      _snapshotActivity();
       final summary =
           '${_doneSummary('Built', builtPaths)}\nTap a file to edit, or ask for changes below.';
       _say('assistant', summary);
+      _markLastAssistantWithBuild();
       term('✓ build done — ${files.length} files, preview live');
     } catch (e) {
       if (_cancelled) {
@@ -734,6 +773,7 @@ class AgentController extends GetxController {
       lastError.value = '$e';
       term('✗ build failed: $e');
       step('error', 'Build failed — rolled back.');
+      _snapshotActivity();
       _log('Project build failed', e);
     } finally {
       _clearStreaming();
@@ -754,6 +794,7 @@ class AgentController extends GetxController {
     lastError.value = null;
     currentTraceId = newTraceId();
     _say('user', t);
+    _say('activity', '');
     buildStatus.value = 'Applying change…';
     term('> modify: "${t.length > 80 ? '${t.substring(0, 80)}…' : t}"');
     _beginSteps();
@@ -861,7 +902,9 @@ class AgentController extends GetxController {
       ];
       step('done',
           'Updated $applied file${applied == 1 ? '' : 's'} — preview reloaded.');
+      _snapshotActivity();
       _say('assistant', _doneSummary('Done', changedPaths));
+      _markLastAssistantWithBuild();
       AppSnackbar.showTop(
         'Updated',
         '$applied file${applied == 1 ? '' : 's'} changed — preview reloaded.',
@@ -885,6 +928,7 @@ class AgentController extends GetxController {
       lastError.value = '$e';
       term('✗ modify failed: $e');
       step('error', 'Change failed — rolled back.');
+      _snapshotActivity();
       _log('Project modify failed', e);
     } finally {
       _clearStreaming();
@@ -965,6 +1009,7 @@ class AgentController extends GetxController {
     consoleError.value = null;
     _autoRounds = 0;
     _say('user', '✓ Build it');
+    _say('activity', '');
     buildStatus.value = 'Building from plan…';
     term('> build from plan (${framework.value})');
     try {
@@ -1002,7 +1047,10 @@ class AgentController extends GetxController {
       buildStatus.value = null;
       final summary =
           'Built ${parsed.length} files from plan — preview is live.';
+      step('done', 'Built ${parsed.length} files from plan.');
+      _snapshotActivity();
       _say('assistant', summary);
+      _markLastAssistantWithBuild();
       term('✓ build done — ${files.length} files, preview live');
     } catch (e) {
       if (_cancelled) {
@@ -1011,6 +1059,8 @@ class AgentController extends GetxController {
       }
       lastError.value = '$e';
       term('✗ build from plan failed: $e');
+      step('error', 'Build from plan failed.');
+      _snapshotActivity();
       _log('Build from plan failed', e);
     } finally {
       generating.value = false;
@@ -1118,6 +1168,9 @@ class AgentController extends GetxController {
     fixing.value = true;
     _cancelled = false;
     lastError.value = null;
+    currentTraceId = newTraceId();
+    _say('user', 'Auto-fix error: ${err.length > 200 ? '${err.substring(0, 200)}…' : err}');
+    _say('activity', '');
     buildStatus.value = 'Fixing error…';
     term('⚙ auto-fix round $_autoRounds/$maxRepairRounds…');
     try {
@@ -1158,6 +1211,8 @@ class AgentController extends GetxController {
           'Fixed $applied file${applied == 1 ? '' : 's'} — preview reloaded.');
       _say('assistant',
           'Fixed — $applied file${applied == 1 ? '' : 's'} rewritten, preview reloaded.');
+      _snapshotActivity();
+      _markLastAssistantWithBuild();
       AppSnackbar.showTop(
         'Auto-fix applied',
         '$applied file${applied == 1 ? '' : 's'} rewritten — reloaded.',
@@ -1170,6 +1225,8 @@ class AgentController extends GetxController {
       }
       lastError.value = '$e';
       term('✗ auto-fix failed: $e');
+      step('error', 'Auto-fix failed.');
+      _snapshotActivity();
       _log('Auto-fix failed', e);
     } finally {
       fixing.value = false;
@@ -1189,6 +1246,7 @@ class AgentController extends GetxController {
     _cancelled = false;
     lastError.value = null;
     _say('user', '🔍 Auto-test: review project for bugs and improvements');
+    _say('activity', '');
     buildStatus.value = 'Running auto-test…';
     term('> auto-test: reviewing "${p.name}"…');
     try {
@@ -1237,14 +1295,22 @@ class AgentController extends GetxController {
         if (truncated.isNotEmpty) {
           term('⚠ truncated: ${truncated.join(', ')}');
         }
-        _say(
-            'assistant',
-            'Auto-test found and fixed $applied file${applied == 1 ? '' : 's'}. '
-                'Preview reloaded — check the result.');
-        term('✓ auto-test: fixed $applied files');
-        AppSnackbar.showTop('Auto-test fixed',
-            '$applied file${applied == 1 ? '' : 's'} updated.',
-            logHistory: false);
+        if (applied > 0) {
+          step('done', 'Applied $applied fixes from auto-test.');
+          _snapshotActivity();
+          _say(
+              'assistant',
+              'Auto-test found and fixed $applied file${applied == 1 ? '' : 's'}. '
+                  'Preview reloaded — check the result.');
+          _markLastAssistantWithBuild();
+          term('✓ auto-test: fixed $applied files');
+          AppSnackbar.showTop('Auto-test fixed',
+              '$applied file${applied == 1 ? '' : 's'} updated.',
+              logHistory: false);
+        } else {
+          step('done', 'No issues found.');
+          _snapshotActivity();
+        }
       }
     } catch (e) {
       if (_cancelled) {
@@ -1253,6 +1319,8 @@ class AgentController extends GetxController {
       }
       lastError.value = '$e';
       term('✗ auto-test failed: $e');
+      step('error', 'Auto-test failed.');
+      _snapshotActivity();
       _log('Auto-test failed', e);
     } finally {
       generating.value = false;
