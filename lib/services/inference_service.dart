@@ -116,25 +116,15 @@ class InferenceService extends GetxService {
   }
 
   /// Block length (elements) and byte size per GGML quant block.
-  /// Unknown types return null (caller skips instead of false-alarming).
+  /// Only long-stable, certain type IDs are listed. Anything else
+  /// returns null (skipped, never a false alarm): a wrong size would
+  /// either block a valid model or miss a cut, both worse than skipping.
   static int? _ggmlBlockBytes(int type, int nelements) {
     switch (type) {
       case 0:
         return nelements * 4; // F32
       case 1:
         return nelements * 2; // F16
-      case 30:
-        return nelements * 2; // BF16
-      case 16:
-        return nelements; // I8
-      case 17:
-        return nelements * 2; // I16
-      case 18:
-        return nelements * 4; // I32
-      case 19:
-        return nelements * 8; // I64
-      case 20:
-        return nelements * 8; // F64
       case 2:
         return (nelements ~/ 32) * 18; // Q4_0
       case 3:
@@ -166,13 +156,17 @@ class InferenceService extends GetxService {
   /// to end inside the file. Returns null when sane (or unverifiable).
   static String? _validateGgufTensors(
       RandomAccessFile raf, int fileLen, int tensorCount) {
-    const cap = 4 * 1024 * 1024;
+    // Read enough to cover any realistic header (tokenizer arrays can
+    // be several MB). Overruns inside a fully-read header are definitive.
+    const cap = 32 * 1024 * 1024;
     final want = fileLen < cap ? fileLen : cap;
     raf.setPositionSync(0);
     final bytes = raf.readSync(want);
     if (bytes.length < 32) return 'cannot read header';
     final bd = bytes.buffer.asByteData(bytes.offsetInBytes);
-    int pos = 32; // past magic+version+counts
+    // Header is exactly 24 bytes: magic(4) + version(4) + tensor
+    // count(8) + metadata count(8). Metadata KVs start right after.
+    int pos = 24;
 
     int u32() {
       final v = bd.getUint32(pos, Endian.little);
@@ -275,10 +269,14 @@ class InferenceService extends GetxService {
       return null;
     } catch (e) {
       final msg = '$e';
+      final windowed = bytes.length < fileLen;
       if (msg.contains('overruns') ||
           msg.contains('implausible') ||
           msg.contains('too long') ||
           msg.contains('too big')) {
+        // Ran past the read window on a bigger file: unverifiable, not
+        // proof of corruption. Only a true EOF overrun is a rejection.
+        if (windowed && msg.contains('overruns')) return null;
         return 'corrupt header ($msg)';
       }
       return null; // short read inside window: unverifiable, don't block

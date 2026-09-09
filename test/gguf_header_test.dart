@@ -97,12 +97,13 @@ void main() {
       {required int dim, required int fileBytes}) {
     final f = File('${tmp.path}/$name');
     const nameBytes = [0x77]; // "w"
-    // header 32 + namelen(8)+1 + ndims(4) + dim(8) + type(4) + offset(8)
-    const tableEnd = 32 + 8 + 1 + 4 + 8 + 4 + 8;
+    // Real GGUF layout: 24-byte header, 0 metadata KVs, then the tensor
+    // block: namelen(8)+1 + ndims(4) + dim(8) + type(4) + offset(8).
+    const tableEnd = 24 + 8 + 1 + 4 + 8 + 4 + 8;
     const dataBase = ((tableEnd + 31) ~/ 32) * 32;
-    assert(dataBase == 96);
+    assert(dataBase == 64);
     final raf = f.openSync(mode: FileMode.write);
-    final head = ByteData(32);
+    final head = ByteData(24);
     head.setUint8(0, 0x47);
     head.setUint8(1, 0x47);
     head.setUint8(2, 0x55);
@@ -110,7 +111,6 @@ void main() {
     head.setUint32(4, 3, Endian.little);
     head.setUint64(8, 1, Endian.little); // 1 tensor
     head.setUint64(16, 0, Endian.little); // 0 metadata
-    head.setUint64(24, 0, Endian.little);
     raf.writeFromSync(head.buffer.asUint8List());
     final tb = ByteData(8 + nameBytes.length + 4 + 8 + 4 + 8);
     var o = 0;
