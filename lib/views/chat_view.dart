@@ -58,8 +58,11 @@ class ChatView extends GetView<ChatController> {
                   return emptyState(context, isDark);
                 }
                 final showArtifact = controller.showArtifactPanel.value;
-                final artifact =
-                    controller.artifacts[controller.activeArtifactId.value];
+                final activeId = controller.activeArtifactId.value;
+                final artifact = activeId != null &&
+                        controller.artifacts.containsKey(activeId)
+                    ? controller.artifacts[activeId]
+                    : null;
 
                 // NOTE: this observer deliberately does NOT read
                 // streamingResponse — token flushes rebuild only the stream

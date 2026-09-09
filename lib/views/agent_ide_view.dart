@@ -486,73 +486,114 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               final hasP = c.project.value != null;
               final dim = Theme.of(context).hintColor.withValues(alpha: 0.45);
               return Row(mainAxisSize: MainAxisSize.min, children: [
+                // 1. Project Management Group
                 IconButton(
-                  tooltip: hasP ? 'History' : 'History (needs a project)',
-                  icon: Icon(LucideIcons.history,
-                      size: 20, color: hasP ? Dt.accent : dim),
-                  onPressed: hasP ? () => showHistorySheet(context) : null,
+                  tooltip: 'New project',
+                  icon: const Icon(LucideIcons.plusCircle, size: 20, color: Dt.accent),
+                  onPressed: _newProjectReset,
                 ),
-                IconButton(
-                  tooltip: hasP
-                      ? 'Auto-fix ${c.autoFix.value ? 'on' : 'off'}'
-                      : 'Auto-fix (needs a project)',
-                  icon: Icon(
-                      c.autoFix.value
-                          ? Icons.bolt_rounded
-                          : Icons.bolt_outlined,
-                      size: 20,
-                      color: !hasP
-                          ? dim
-                          : (c.autoFix.value
-                              ? Dt.accent
-                              : Theme.of(context).hintColor)),
-                  onPressed:
-                      hasP ? () => c.autoFix.value = !c.autoFix.value : null,
+                
+                // 2. AI Magic Tools Menu
+                PopupMenuButton<String>(
+                  tooltip: 'AI Tools',
+                  icon: Icon(LucideIcons.sparkles, color: hasP ? Dt.accent : dim),
+                  onSelected: (v) {
+                    if (v == 'polish') c.autoPolish();
+                    if (v == 'autofix') c.autoFix.value = !c.autoFix.value;
+                    if (v == 'pick') c.toggleElementPick();
+                    if (v == 'test') c.runAutoTest();
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'polish',
+                      enabled: hasP,
+                      child: const Row(children: [
+                        Icon(LucideIcons.wand2, size: 16, color: Dt.accent),
+                        SizedBox(width: 12),
+                        Text('Magic Polish UI', style: TextStyle(fontSize: 14)),
+                      ]),
+                    ),
+                    PopupMenuItem(
+                      value: 'autofix',
+                      enabled: hasP,
+                      child: Row(children: [
+                        Icon(c.autoFix.value ? Icons.bolt_rounded : Icons.bolt_outlined, size: 16, color: Dt.accent),
+                        const SizedBox(width: 12),
+                        Text('Auto-fix: ${c.autoFix.value ? 'ON' : 'OFF'}', style: const TextStyle(fontSize: 14)),
+                      ]),
+                    ),
+                    PopupMenuItem(
+                      value: 'pick',
+                      enabled: hasP,
+                      child: const Row(children: [
+                        Icon(LucideIcons.crosshair, size: 16, color: Dt.accent),
+                        SizedBox(width: 12),
+                        Text('Inspect Element', style: TextStyle(fontSize: 14)),
+                      ]),
+                    ),
+                    PopupMenuItem(
+                      value: 'test',
+                      enabled: hasP,
+                      child: const Row(children: [
+                        Icon(LucideIcons.shieldCheck, size: 16, color: Dt.accent),
+                        SizedBox(width: 12),
+                        Text('Run Auto-Test', style: TextStyle(fontSize: 14)),
+                      ]),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: hasP
-                      ? (c.elementPickMode.value
-                          ? 'Pick mode on — click an element in preview'
-                          : 'Pick an element in preview to edit')
-                      : 'Pick element (needs a project)',
-                  icon: Icon(LucideIcons.crosshair,
-                      size: 20,
-                      color: !hasP
-                          ? dim
-                          : (c.elementPickMode.value
-                              ? Dt.accent
-                              : Theme.of(context).hintColor)),
-                  onPressed: hasP ? () => c.toggleElementPick() : null,
-                ),
-                IconButton(
-                  tooltip: hasP ? 'Magic Wand (Auto-Polish UI)' : 'Polish (needs a project)',
-                  icon: Icon(LucideIcons.wand2,
-                      size: 20, color: hasP ? Dt.accent : dim),
-                  onPressed: hasP ? () => c.autoPolish() : null,
+
+                // 3. Configuration Menu
+                PopupMenuButton<String>(
+                  tooltip: 'Configuration',
+                  icon: const Icon(LucideIcons.settings2, size: 20, color: Dt.accent),
+                  onSelected: (v) {
+                    if (v == 'instructions') _showSystemPromptSheet(context);
+                    if (v == 'brand') _showBrandIdentitySheet(context);
+                    if (v == 'settings') showBuilderSettingsSheet(context);
+                    if (v == 'history') showHistorySheet(context);
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'instructions',
+                      child: Row(children: [
+                        Icon(LucideIcons.binary, size: 16, color: Dt.accent),
+                        SizedBox(width: 12),
+                        Text('System Instructions', style: TextStyle(fontSize: 14)),
+                      ]),
+                    ),
+                    const PopupMenuItem(
+                      value: 'brand',
+                      child: Row(children: [
+                        Icon(LucideIcons.palette, size: 16, color: Dt.accent),
+                        SizedBox(width: 12),
+                        Text('Brand Identity', style: TextStyle(fontSize: 14)),
+                      ]),
+                    ),
+                    const PopupMenuItem(
+                      value: 'history',
+                      child: Row(children: [
+                        Icon(LucideIcons.history, size: 16, color: Dt.accent),
+                        SizedBox(width: 12),
+                        Text('Snapshot History', style: TextStyle(fontSize: 14)),
+                      ]),
+                    ),
+                    const PopupMenuItem(
+                      value: 'settings',
+                      child: Row(children: [
+                        Icon(LucideIcons.sliders, size: 16, color: Dt.accent),
+                        SizedBox(width: 12),
+                        Text('Builder Settings', style: TextStyle(fontSize: 14)),
+                      ]),
+                    ),
+                  ],
                 ),
               ]);
             }),
-            IconButton(
-              tooltip: 'System Instructions',
-              icon: const Icon(LucideIcons.binary, size: 20, color: Dt.accent),
-              onPressed: () => _showSystemPromptSheet(context),
-            ),
-            IconButton(
-              tooltip: 'Brand Identity',
-              icon: const Icon(LucideIcons.palette, size: 20, color: Dt.accent),
-              onPressed: () => _showBrandIdentitySheet(context),
-            ),
-            IconButton(
-              tooltip: 'Builder Settings',
-              icon: const Icon(LucideIcons.settings2, size: 20, color: Dt.accent),
-              onPressed: () => showBuilderSettingsSheet(context),
-            ),
-            IconButton(
-              tooltip: 'New project',
-              icon: const Icon(LucideIcons.plus, size: 20, color: Dt.accent),
-              onPressed: _newProjectReset,
-            ),
+            
+            // 4. System Status & Logs
             Obx(() {
+              final isDark = Theme.of(context).brightness == Brightness.dark;
               int n = 0;
               try {
                 n = Get.find<CubicWebLogger>().unreadErrors.value;
@@ -605,8 +646,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 ],
               );
             }),
+
+            // 5. Context Menu
             Obx(() {
               final hasP = c.project.value != null;
+              final isDark = Theme.of(context).brightness == Brightness.dark;
               return PopupMenuButton<String>(
                 tooltip: 'Project',
                 icon: Icon(LucideIcons.folderGit2,
@@ -620,10 +664,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     value: 'switch',
                     child: Text('Switch project (${c.projectsOf().length})',
                         style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                  ),
-                  const PopupMenuItem(
-                    value: 'new',
-                    child: Text('New project', style: TextStyle(fontSize: 14)),
                   ),
                   PopupMenuItem(
                     value: 'export',

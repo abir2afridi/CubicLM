@@ -30,7 +30,7 @@ class _ChatSidebarState extends State<ChatSidebar> {
   final RxString _sidebarQuery = ''.obs;
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
-  final RxSet<String> _searchHits = <String>{}.obs;
+  final RxSet<String> _searchHits = RxSet<String>();
   @override
   Widget build(BuildContext context) {
     final isDark = widget.isDark;
