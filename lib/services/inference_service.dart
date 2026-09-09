@@ -264,9 +264,31 @@ class InferenceService extends GetxService {
       final finalContextSize =
           isLiteRt ? contextSize.clamp(512, 4096) : contextSize;
 
+      // Cap context by CURRENT free RAM (not tier): the KV cache scales
+      // with ctx, and requesting 4096+ with <3GB free is a native OOM —
+      // instant app death with no Dart log.
+      var cappedCtx = finalContextSize;
+      try {
+        if (Get.isRegistered<DeviceInfoService>()) {
+          final avail =
+              Get.find<DeviceInfoService>().availableRamGB.value;
+          if (avail > 0 && avail < 2.0) {
+            cappedCtx = cappedCtx.clamp(512, 1024);
+          } else if (avail > 0 && avail < 3.0) {
+            cappedCtx = cappedCtx.clamp(512, 2048);
+          }
+          if (cappedCtx != finalContextSize) {
+            Get.find<AppLogService>().info(
+              'Context capped to $cappedCtx (free RAM ${avail.toStringAsFixed(1)}GB)',
+              category: LogCategory.model,
+            );
+          }
+        }
+      } catch (_) {}
+
       final lastLoadedContext =
           _hive.getSetting<int>('last_loaded_context_size') ?? 0;
-      final contextChanged = isLiteRt && lastLoadedContext != finalContextSize;
+      final contextChanged = isLiteRt && lastLoadedContext != cappedCtx;
 
       final deviceTier = _getDeviceTier();
       final isTensorSoC = _getIsTensorSoC();
@@ -279,14 +301,14 @@ class InferenceService extends GetxService {
       try {
         final sizeMb = modelFile.lengthSync() ~/ (1024 * 1024);
         Get.find<AppLogService>().info(
-          'Loading local model: $requestedModelName (${sizeMb}MB, ctx=$finalContextSize, tier=$deviceTier)',
+          'Loading local model: $requestedModelName (${sizeMb}MB, ctx=$cappedCtx, tier=$deviceTier)',
           category: LogCategory.model,
         );
       } catch (_) {}
       final result = await _loadModelOnEngine(
         modelPath: modelPath,
         modelRuntime: modelRuntime,
-        contextSize: finalContextSize,
+        contextSize: cappedCtx,
         deviceTier: deviceTier,
         isTensorSoC: isTensorSoC,
         liteRtPerformanceMode: liteRtMode,
@@ -341,7 +363,7 @@ class InferenceService extends GetxService {
         await _hive.setSetting(AppConstants.keyLiteRtGpuCrashDetected, false);
       }
       contextTokensUsed.value = 0;
-      contextTokensTotal.value = finalContextSize;
+      contextTokensTotal.value = cappedCtx;
 
       await _hive.setSetting(AppConstants.keyLocalModelPath, modelPath);
       await _hive.setSetting(
@@ -353,7 +375,7 @@ class InferenceService extends GetxService {
 
       // Track loaded context size across ALL runtimes so the instant-switch
       // path can tell when a resident slot predates a context-size change.
-      await _hive.setSetting('last_loaded_context_size', finalContextSize);
+      await _hive.setSetting('last_loaded_context_size', cappedCtx);
 
       refreshResidency();
 

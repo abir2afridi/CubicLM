@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:cubiclm/controllers/model_controller.dart';
 import 'package:cubiclm/services/inference_service.dart';
 
 /// Guards against native SIGABRT: malformed GGUF headers must be rejected
@@ -87,6 +88,41 @@ void main() {
     test('rejects missing file', () {
       final f = File('${tmp.path}/nope.gguf');
       expect(InferenceService.validateGgufHeader(f), isNotNull);
+    });
+  });
+
+  group('isRamInsufficient', () {
+    const gb = 1024 * 1024 * 1024;
+
+    test('blocks big model on tight RAM (the reported crash)', () {
+      // 3GB model, 4GB free: mmap pressure + KV + headroom exceeds.
+      expect(
+          ModelController.isRamInsufficient(
+            availableBytes: 4 * gb,
+            fileBytes: 3 * gb,
+            kvBytes: 300 * 1024 * 1024,
+          ),
+          isTrue);
+    });
+
+    test('allows small model with headroom', () {
+      expect(
+          ModelController.isRamInsufficient(
+            availableBytes: 5 * gb,
+            fileBytes: 146 * 1024 * 1024,
+            kvBytes: 100 * 1024 * 1024,
+          ),
+          isFalse);
+    });
+
+    test('unmeasurable memory never blocks (warn path handles it)', () {
+      expect(
+          ModelController.isRamInsufficient(
+            availableBytes: 0,
+            fileBytes: 3 * gb,
+            kvBytes: 0,
+          ),
+          isFalse);
     });
   });
 }

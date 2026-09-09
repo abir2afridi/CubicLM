@@ -1206,6 +1206,23 @@ class ModelController extends GetxController {
   /// Switching models is a one-tap action: the previously loaded model is freed
   /// automatically, so no dialog is shown for an ordinary swap. A prompt only
   /// appears when memory is genuinely too tight to load safely.
+  ///
+  /// Pure RAM gate ([isRamInsufficient]): true when loading would almost
+  /// Pure RAM gate: true when loading would almost surely die natively
+  /// (mmap page pressure + transient dequant buffers + KV). The 1.25x file
+  /// factor covers mmap page-cache pressure on low-RAM devices. Public
+  /// for unit tests.
+  static bool isRamInsufficient({
+    required int availableBytes,
+    required int fileBytes,
+    required int kvBytes,
+  }) {
+    if (availableBytes <= 0 || fileBytes <= 0) return false;
+    const headroomBytes = 1024 * 1024 * 1024;
+    return availableBytes <
+        (fileBytes * 1.25).round() + kvBytes + headroomBytes;
+  }
+
   Future<_ModelLoadAction> _confirmModelLoadSafety({
     required String filename,
     required int fileBytes,
@@ -1227,12 +1244,17 @@ class ModelController extends GetxController {
     final isCriticallyLow = hasMeasuredMemory &&
         (availableBytes < estimatedNeed || _isLowMemoryBytes(availableBytes));
 
-    // Hard block: not enough RAM for file + KV cache + 1GB OS headroom.
-    // The native loader mmaps the whole file and aborts (instant app
+    // Hard block: not enough RAM for file (×1.25 mmap pressure) + KV
+    // cache + 1GB OS headroom. The native loader aborts (instant app
     // death, no catch possible) — offering "Load anyway" here is a crash
     // button, so refuse outright.
-    const headroomBytes = 1024 * 1024 * 1024;
-    if (hasMeasuredMemory && availableBytes < estimatedNeed + headroomBytes) {
+    final kvBytes = (estimatedNeed - fileBytes).clamp(0, 1 << 62);
+    if (hasMeasuredMemory &&
+        isRamInsufficient(
+          availableBytes: availableBytes,
+          fileBytes: fileBytes,
+          kvBytes: kvBytes,
+        )) {
       final needLabel = DownloadService.formatWholeMb(estimatedNeed);
       final ramLabel = DownloadService.formatWholeMb(availableBytes);
       Get.snackbar(
