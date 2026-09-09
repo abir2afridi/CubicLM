@@ -74,6 +74,16 @@
             android:foregroundServiceType="dataSync"
             android:stopWithTask="false" />
 
+        <!-- llama.cpp inference foreground service (started/stopped by
+             the llama_flutter_android plugin around model loads; keeps
+             long native loads alive under background restrictions) -->
+        <service
+            android:name="com.write4me.llama_flutter_android.InferenceService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            android:stopWithTask="false" />
+
         <!-- Boot receiver to restart after reboot -->
         <receiver
             android:name=".BootReceiver"

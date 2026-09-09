@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../controllers/model_controller.dart';
 import '../../core/colors.dart';
 import '../../models/ai_model.dart';
+import '../../services/app_log_service.dart';
 import '../../services/download_service.dart';
 import '../../services/inference_service.dart';
 import '../../services/local_image_service.dart';
@@ -15,6 +16,29 @@ import 'provider_cards.dart';
 /// Extracted from views/model_view.dart.
 
 ModelController get _c => Get.find<ModelController>();
+
+/// Load guarded end-to-end: any Dart-side throw (even before the first
+/// await) becomes a persisted log row + snackbar instead of a silent
+/// zone error. Native kills are covered by the load breadcrumb.
+Future<void> _guardedLoad(String filename) async {
+  try {
+    await _c.loadModel(filename);
+  } catch (e) {
+    try {
+      Get.find<AppLogService>().error(
+        'Model load threw: $filename',
+        details: '$e',
+        category: LogCategory.model,
+      );
+    } catch (_) {}
+    Get.snackbar(
+      'Load failed',
+      '$e',
+      snackPosition: SnackPosition.BOTTOM,
+      duration: const Duration(seconds: 6),
+    );
+  }
+}
 
 void confirmDownload(BuildContext context, AiModel model,
     {bool isToDownloadsFolder = false}) {
@@ -199,7 +223,7 @@ Widget buildModelCard(BuildContext context, AiModel model) {
         borderRadius: BorderRadius.circular(20),
         onTap: isActive || disableActions
             ? null
-            : () => _c.loadModel(model.filename),
+            : () => _guardedLoad(model.filename),
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
@@ -347,7 +371,7 @@ Widget buildModelCard(BuildContext context, AiModel model) {
                                 onPressed: (disableActions ||
                                         !_c.supportsLocalInference)
                                     ? null
-                                    : () => _c.loadModel(model.filename),
+                                    : () => _guardedLoad(model.filename),
                                 style: FilledButton.styleFrom(
                                   backgroundColor: Dt.accent,
                                   padding: const EdgeInsets.symmetric(

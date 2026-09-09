@@ -409,6 +409,53 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
     return f;
   }
 
+  File? _cachedBreadcrumbFile;
+
+  Future<File> get _breadcrumbFile async {
+    final cached = _cachedBreadcrumbFile;
+    if (cached != null) return cached;
+    final dir = await getApplicationDocumentsDirectory();
+    final f = File('${dir.path}/cubiclm_breadcrumb.json');
+    _cachedBreadcrumbFile = f;
+    return f;
+  }
+
+  /// Kill-proof breadcrumb: awaited flush:true write BEFORE a native call
+  /// that can SIGKILL the process (model load). If the app dies, the next
+  /// boot finds a `-start` step with no resolution and reports it — so a
+  /// silent native death always leaves evidence.
+  Future<void> setBreadcrumb(String step, [String detail = '']) async {
+    try {
+      final f = await _breadcrumbFile;
+      await f.writeAsString(
+          jsonEncode({
+            'step': step,
+            'detail': detail,
+            'at': DateTime.now().toIso8601String(),
+          }),
+          flush: true);
+    } catch (_) {}
+  }
+
+  /// Reads + clears the breadcrumb. Returns null when the previous
+  /// session shut down cleanly (or never wrote one).
+  Future<Map<String, String>?> takeBreadcrumb() async {
+    try {
+      final f = await _breadcrumbFile;
+      if (!await f.exists()) return null;
+      final decoded = jsonDecode(await f.readAsString());
+      await f.delete();
+      if (decoded is! Map) return null;
+      return {
+        'step': '${decoded['step'] ?? ''}',
+        'detail': '${decoded['detail'] ?? ''}',
+        'at': '${decoded['at'] ?? ''}',
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Persists the "unfixed" error immediately with a *synchronous* write so
   /// even an instant process kill (OOM, force-stop, low-battery death) right
   /// after the error cannot lose it. Errors are rare, so this is cheap.
@@ -490,6 +537,29 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
     await _loadPersistedLogs();
     await _loadPersistedUnresolved();
     await _loadPersistedCrashHistory();
+    await _reportUnresolvedBreadcrumb();
+  }
+
+  /// A `-start` breadcrumb with no matching resolution means the previous
+  /// process died mid-step (native abort, LMK kill, force-stop) with no
+  /// chance to log. Report it as a persisted error so "no logs" deaths
+  /// are visible + exportable on the next launch.
+  Future<void> _reportUnresolvedBreadcrumb() async {
+    try {
+      final bc = await takeBreadcrumb();
+      if (bc == null) return;
+      final step = bc['step'] ?? '';
+      if (!step.endsWith('-start')) return;
+      final detail = bc['detail'] ?? '';
+      error(
+        'Previous session ended during: $step${detail.isNotEmpty ? ' ($detail)' : ''}',
+        details:
+            'The app died without shutting down (native abort or system kill — no Dart log possible). '
+            'If this was a model load: re-download the file, free RAM, or try a smaller model. '
+            'Breadcrumb from ${bc['at']}.',
+        category: LogCategory.model,
+      );
+    } catch (_) {}
   }
 
   /// Force-write everything (main log + unresolved record) to disk.

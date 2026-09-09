@@ -236,6 +236,10 @@ class InferenceService extends GetxService {
                 AppConstants.keyLocalModelRuntime, 'llama');
             Get.find<AppLogService>()
                 .info('Instant switch to resident model: $requestedName', category: LogCategory.model);
+            try {
+              await Get.find<AppLogService>()
+                  .setBreadcrumb('model-load-done', requestedName);
+            } catch (_) {}
             refreshResidency();
             return 'Switched to $requestedName instantly (no reload).';
           }
@@ -298,13 +302,18 @@ class InferenceService extends GetxService {
       final activeModelName = requestedModelName;
       // Evidence row BEFORE the native call: a JNI-time abort kills the
       // process with no Dart exception, so without this the log shows
-      // nothing and the next crash is undebuggable.
+      // nothing and the next crash is undebuggable. Breadcrumb + flush
+      // survive even SIGKILL (info rows alone would die in memory).
       try {
         final sizeMb = modelFile.lengthSync() ~/ (1024 * 1024);
-        Get.find<AppLogService>().info(
+        final logSvc = Get.find<AppLogService>();
+        logSvc.info(
           'Loading local model: $requestedModelName (${sizeMb}MB, ctx=$cappedCtx, tier=$deviceTier)',
           category: LogCategory.model,
         );
+        await logSvc.setBreadcrumb(
+            'native-load-start', '$requestedModelName (${sizeMb}MB)');
+        await logSvc.flush();
       } catch (_) {}
       final result = await _loadModelOnEngine(
         modelPath: modelPath,
@@ -344,9 +353,17 @@ class InferenceService extends GetxService {
               'model=$requestedModelName, runtime=$runtime, backend=${result.backend}, message=${result.message}',
           category: LogCategory.model,
         );
+        try {
+          await Get.find<AppLogService>()
+              .setBreadcrumb('model-load-failed', requestedModelName);
+        } catch (_) {}
         return result.message;
       }
 
+      try {
+        await Get.find<AppLogService>()
+            .setBreadcrumb('model-load-done', requestedModelName);
+      } catch (_) {}
       isModelLoaded.value = result.success;
       isLoadingModel.value = false;
       loadingModelName.value = '';

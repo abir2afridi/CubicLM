@@ -142,9 +142,16 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
                         return@launch
                     }
 
-                    // Start foreground service for long-running task
-                    val intent = Intent(context, InferenceService::class.java)
-                    ContextCompat.startForegroundService(context, intent)
+                    // Start foreground service for long-running task.
+                    // Guarded: on strict ROMs the start can throw (e.g. policy);
+                    // the load itself must still proceed, just less protected.
+                    try {
+                        val intent =
+                            Intent(context, InferenceService::class.java)
+                        ContextCompat.startForegroundService(context, intent)
+                    } catch (t: Throwable) {
+                        Log.w(TAG, "Foreground service unavailable, loading without it", t)
+                    }
 
                     // ── Pick a slot: existing mapping → empty → LRU victim ──
                     var slot = slotIndexOf(requestedPath)
@@ -186,13 +193,14 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
                         callback(Result.success(Unit))
                     }
                 }
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 scope.launch {
                     withContext(Dispatchers.Main) {
-                        flutterApi.onError(e.message ?: "Failed to load model") { result ->
+                        flutterApi.onError(t.message ?: "Failed to load model") { result ->
                             // Handle result if needed
                         }
-                        callback(Result.failure(e))
+                        callback(Result.failure(t))
                     }
                 }
             }
@@ -257,14 +265,15 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
                 withContext(Dispatchers.Main) {
                     callback(Result.success(Unit))
                 }
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 if (!isStopping.get()) {
                     scope.launch {
                         withContext(Dispatchers.Main) {
-                            flutterApi.onError(e.message ?: "Generation failed") { result ->
+                            flutterApi.onError(t.message ?: "Generation failed") { result ->
                                 // Handle result if needed
                             }
-                            callback(Result.failure(e))
+                            callback(Result.failure(t))
                         }
                     }
                 }
@@ -299,9 +308,10 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
                 withContext(Dispatchers.Main) {
                     callback(Result.success(Unit))
                 }
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 withContext(Dispatchers.Main) {
-                    callback(Result.failure(e))
+                    callback(Result.failure(t))
                 }
             }
         }
@@ -372,14 +382,15 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
                 withContext(Dispatchers.Main) {
                     callback(Result.success(Unit))
                 }
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 if (!isStopping.get()) {
                     scope.launch {
                         withContext(Dispatchers.Main) {
-                            flutterApi.onError(e.message ?: "Generation failed") { result ->
+                            flutterApi.onError(t.message ?: "Generation failed") { result ->
                                 // Handle result if needed
                             }
-                            callback(Result.failure(e))
+                            callback(Result.failure(t))
                         }
                     }
                 }
@@ -425,9 +436,10 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
                 withContext(Dispatchers.Main) {
                     callback(Result.success(Unit))
                 }
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 withContext(Dispatchers.Main) {
-                    callback(Result.failure(e))
+                    callback(Result.failure(t))
                 }
             }
         }
@@ -490,7 +502,8 @@ class LlamaFlutterAndroidPlugin : FlutterPlugin, LlamaHostApi {
                         recommendedGpuLayers = recommendedGpuLayers.toLong()
                     )))
                 }
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
+                if (t is CancellationException) throw t
                 withContext(Dispatchers.Main) {
                     callback(Result.success(GpuInfo(
                         vulkanSupported = false,
