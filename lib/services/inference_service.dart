@@ -3,6 +3,7 @@ import 'dart:io' show File, FileMode;
 import 'dart:typed_data';
 import 'package:get/get.dart';
 import 'hive_service.dart';
+import 'inference_types.dart';
 import '../core/constants.dart';
 import 'device_info_service.dart';
 import 'app_log_service.dart';
@@ -608,7 +609,7 @@ class InferenceService extends GetxService {
     }
   }
 
-  Future<platform.LoadResult> _loadModelOnEngine({
+  Future<LoadResult> _loadModelOnEngine({
     required String modelPath,
     required String? modelRuntime,
     required int contextSize,
@@ -677,14 +678,14 @@ class InferenceService extends GetxService {
             onProgress: (p) => modelLoadProgress.value = _normalizeProgress(p),
           );
         } catch (cpuError) {
-          return platform.LoadResult(
+          return LoadResult(
             success: false,
             message: 'ERROR: Failed to load model - $cpuError',
           );
         }
       }
       gpuLoadFailed = true;
-      return platform.LoadResult(
+      return LoadResult(
         success: false,
         message: 'ERROR: Failed to load model - $e',
       );

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:cubiclm/services/inference_android.dart';
+import 'package:cubiclm/services/inference_gguf.dart';
 
 /// Guards the native KV-cache overflow: once cumulative session tokens
 /// pass the context size, llama_decode fails with "Failed to decode
@@ -10,7 +10,7 @@ void main() {
   group('needsContextClear', () {
     test('false when plenty of room', () {
       expect(
-          InferenceEngine.needsContextClear(
+          GgufEngine.needsContextClear(
             tokensUsed: 100,
             contextSize: 2048,
             promptChars: 400, // ~100 tokens
@@ -22,7 +22,7 @@ void main() {
     test('true when call would overflow (the reported bug)', () {
       // Mirrors the user log: ~1566 cumulative tokens, ctx 2048.
       expect(
-          InferenceEngine.needsContextClear(
+          GgufEngine.needsContextClear(
             tokensUsed: 1566,
             contextSize: 2048,
             promptChars: 400,
@@ -33,7 +33,7 @@ void main() {
 
     test('true when already over capacity', () {
       expect(
-          InferenceEngine.needsContextClear(
+          GgufEngine.needsContextClear(
             tokensUsed: 2100,
             contextSize: 2048,
             promptChars: 40,
@@ -44,7 +44,7 @@ void main() {
 
     test('false on unknown context size', () {
       expect(
-          InferenceEngine.needsContextClear(
+          GgufEngine.needsContextClear(
             tokensUsed: 99999,
             contextSize: 0,
             promptChars: 100,
@@ -55,7 +55,7 @@ void main() {
 
     test('huge single prompt triggers clear even on fresh session', () {
       expect(
-          InferenceEngine.needsContextClear(
+          GgufEngine.needsContextClear(
             tokensUsed: 0,
             contextSize: 2048,
             promptChars: 8000, // ~2000 tokens (big system prompt)
@@ -74,7 +74,7 @@ void main() {
     test('keeps history when it fits', () {
       final h = hist(4);
       expect(
-          InferenceEngine.trimHistoryToFit(
+          GgufEngine.trimHistoryToFit(
             history: h,
             fixedChars: 500,
             maxPromptChars: 6000,
@@ -83,7 +83,7 @@ void main() {
     });
 
     test('drops oldest turns until it fits', () {
-      final trimmed = InferenceEngine.trimHistoryToFit(
+      final trimmed = GgufEngine.trimHistoryToFit(
         history: hist(10),
         fixedChars: 500,
         maxPromptChars: 2000,
@@ -95,7 +95,7 @@ void main() {
     });
 
     test('never drops below 2 turns', () {
-      final trimmed = InferenceEngine.trimHistoryToFit(
+      final trimmed = GgufEngine.trimHistoryToFit(
         history: hist(6, 2000),
         fixedChars: 500,
         maxPromptChars: 100,
@@ -105,14 +105,14 @@ void main() {
 
     test('null/empty passes through', () {
       expect(
-          InferenceEngine.trimHistoryToFit(
+          GgufEngine.trimHistoryToFit(
             history: null,
             fixedChars: 1,
             maxPromptChars: 1,
           ),
           isNull);
       expect(
-          InferenceEngine.trimHistoryToFit(
+          GgufEngine.trimHistoryToFit(
             history: [],
             fixedChars: 1,
             maxPromptChars: 1,
