@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -6,6 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../controllers/agent_controller.dart';
 import '../../core/colors.dart';
 import '../../services/agent_workspace.dart';
+import '../../services/cloud_service.dart';
 import '../../theme/design_tokens.dart';
 import '../../utils/app_snackbar.dart';
 import '../../utils/syntax_highlight.dart';
@@ -142,20 +144,131 @@ class FileEditorCardState extends State<FileEditorCard> {
   late final SyntaxHighlightingController _ctrl;
   bool _dirty = false;
   bool _viewMode = false; // false = edit, true = highlighted view
+  final _aiEditCtrl = TextEditingController();
+  Timer? _ghostTimer;
+  bool _requestingGhost = false;
+
+  void _onTextChanged() {
+    final d = _ctrl.text != widget.initial;
+    if (d != _dirty && mounted) setState(() => _dirty = d);
+    
+    // Ghost Autocomplete Logic
+    _ghostTimer?.cancel();
+    if (_ctrl.text.isNotEmpty && _ctrl.selection.isCollapsed && _ctrl.selection.baseOffset == _ctrl.text.length) {
+      _ghostTimer = Timer(const Duration(milliseconds: 1200), _fetchGhostSuggestion);
+    } else {
+      if (_ctrl.ghostText != null) {
+        setState(() => _ctrl.ghostText = null);
+      }
+    }
+  }
+
+  Future<void> _fetchGhostSuggestion() async {
+    if (_requestingGhost || !mounted) return;
+    _requestingGhost = true;
+    
+    try {
+      final prompt = 'Complete the following code in "${widget.path}". Return ONLY the next 1-3 lines of code. No prose.\n\nCODE:\n${_ctrl.text}';
+      
+      final cloud = Get.find<CloudService>();
+      final suggestion = await cloud.sendMessage(
+        messages: [{'role': 'user', 'content': prompt}],
+        maxTokens: 50,
+      );
+      
+      if (mounted && suggestion.trim().isNotEmpty && !suggestion.startsWith('```')) {
+        setState(() => _ctrl.ghostText = suggestion);
+      }
+    } catch (_) {
+    } finally {
+      _requestingGhost = false;
+    }
+  }
+
+  void _acceptGhost() {
+    if (_ctrl.ghostText != null) {
+      final text = _ctrl.text + _ctrl.ghostText!;
+      _ctrl.text = text;
+      _ctrl.selection = TextSelection.collapsed(offset: text.length);
+      setState(() => _ctrl.ghostText = null);
+    }
+  }
+
+  void _showAiEditDialog() {
+    final selection = _ctrl.selection.textInside(_ctrl.text);
+    if (selection.trim().isEmpty) {
+      AppSnackbar.showTop('Select Text', 'Highlight some code first to use AI Edit.');
+      return;
+    }
+
+    Get.dialog(
+      AlertDialog(
+        title: const Row(
+          children: [
+            Icon(LucideIcons.sparkles, size: 20, color: Dt.accent),
+            SizedBox(width: 10),
+            Text('AI Inline Edit'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                selection.length > 100 ? '${selection.substring(0, 100)}...' : selection,
+                style: GoogleFonts.firaCode(fontSize: 10, color: Colors.grey),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _aiEditCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'e.g., refactor to arrow function, add comments...',
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => _performAiEdit(selection),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Dt.accent),
+            onPressed: () => _performAiEdit(selection),
+            child: const Text('Edit with AI'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _performAiEdit(String selection) {
+    final prompt = _aiEditCtrl.text.trim();
+    if (prompt.isEmpty) return;
+    Get.back();
+    Get.find<AgentController>().inlineEdit(widget.path, selection, prompt);
+    _aiEditCtrl.clear();
+  }
 
   @override
   void initState() {
     super.initState();
     _ctrl = SyntaxHighlightingController(text: widget.initial, path: widget.path);
-    _ctrl.addListener(() {
-      final d = _ctrl.text != widget.initial;
-      if (d != _dirty && mounted) setState(() => _dirty = d);
-    });
+    _ctrl.addListener(_onTextChanged);
   }
 
   @override
   void dispose() {
+    _ghostTimer?.cancel();
+    _ctrl.removeListener(_onTextChanged);
     _ctrl.dispose();
+    _aiEditCtrl.dispose();
     super.dispose();
   }
 
@@ -201,6 +314,7 @@ class FileEditorCardState extends State<FileEditorCard> {
             Clipboard.setData(ClipboardData(text: _ctrl.text));
             AppSnackbar.showTop('Copied', 'Code copied to clipboard', logHistory: false);
           }),
+          _actionIcon(LucideIcons.sparkles, 'AI Edit', _showAiEditDialog, color: Dt.accent),
           _actionIcon(_viewMode ? LucideIcons.pencil : LucideIcons.eye,
               _viewMode ? 'Edit' : 'Preview',
               () => setState(() => _viewMode = !_viewMode)),
@@ -240,12 +354,21 @@ class FileEditorCardState extends State<FileEditorCard> {
                     style: GoogleFonts.firaCode(fontSize: 12, height: 1.5),
                   ),
                 )
-              : TextField(
-                  controller: _ctrl,
-                  maxLines: null,
-                  keyboardType: TextInputType.multiline,
-                  style: GoogleFonts.firaCode(fontSize: 12, height: 1.5),
-                  decoration: const InputDecoration.collapsed(hintText: ''),
+              : CallbackShortcuts(
+                  bindings: {
+                    const SingleActivator(LogicalKeyboardKey.tab): () {
+                      if (_ctrl.ghostText != null) {
+                        _acceptGhost();
+                      }
+                    },
+                  },
+                  child: TextField(
+                    controller: _ctrl,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    style: GoogleFonts.firaCode(fontSize: 12, height: 1.5),
+                    decoration: const InputDecoration.collapsed(hintText: ''),
+                  ),
                 ),
         ),
       ]),

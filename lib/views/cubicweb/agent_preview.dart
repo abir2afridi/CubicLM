@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
@@ -30,6 +31,9 @@ class _AgentPreviewState extends State<AgentPreview> {
   bool _loading = true;
   double _widthFactor = 1.0;
   bool _isResizing = false;
+  OverlayEntry? _promptOverlay;
+  final _promptLayer = LayerLink();
+  final _canvasPromptCtrl = TextEditingController();
 
   bool _forwardedLoadError = false;
   InAppWebViewController? _webCtrl;
@@ -106,6 +110,100 @@ class _AgentPreviewState extends State<AgentPreview> {
 })();
 ''';
 
+  void _showFloatingPrompt(BuildContext context, String info) {
+    _hideFloatingPrompt();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Map<String, dynamic> data = jsonDecode(info);
+    final double x = (data['x'] as num).toDouble();
+    final double y = (data['y'] as num).toDouble();
+    final tag = data['tag'] ?? 'element';
+
+    _promptOverlay = OverlayEntry(
+      builder: (context) => Positioned(
+        width: 300,
+        child: CompositedTransformFollower(
+          link: _promptLayer,
+          showWhenUnlinked: false,
+          offset: Offset(x.clamp(0, 50), y + 20), // Basic positioning
+          child: Material(
+            elevation: 12,
+            borderRadius: BorderRadius.circular(12),
+            color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Dt.accent.withValues(alpha: 0.5), width: 1.5),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.sparkles, size: 14, color: Dt.accent),
+                      const SizedBox(width: 8),
+                      Text('Edit <$tag>', style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(LucideIcons.x, size: 14),
+                        onPressed: _hideFloatingPrompt,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _canvasPromptCtrl,
+                    autofocus: true,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'e.g., make this blue, larger font...',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onSubmitted: (val) {
+                      if (val.trim().isNotEmpty) {
+                        Get.find<AgentController>().topic.value = val;
+                        Get.find<AgentController>().modifyProject();
+                        _hideFloatingPrompt();
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Dt.accent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () {
+                        final val = _canvasPromptCtrl.text;
+                        if (val.trim().isNotEmpty) {
+                          Get.find<AgentController>().topic.value = val;
+                          Get.find<AgentController>().modifyProject();
+                          _hideFloatingPrompt();
+                        }
+                      },
+                      child: const Text('Apply Change', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    Overlay.of(context).insert(_promptOverlay!);
+  }
+
+  void _hideFloatingPrompt() {
+    _promptOverlay?.remove();
+    _promptOverlay = null;
+    _canvasPromptCtrl.clear();
+  }
+
   @override
   void didUpdateWidget(covariant AgentPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -149,56 +247,63 @@ class _AgentPreviewState extends State<AgentPreview> {
                         color: Colors.white,
                         border: Border.all(color: isDark ? Colors.white10 : Dt.hairline),
                       ),
-                      child: Stack(children: [
-                        InAppWebView(
-                          initialUrlRequest: URLRequest(url: WebUri(widget.url)),
-                          initialSettings: InAppWebViewSettings(
-                            javaScriptEnabled: true,
-                            domStorageEnabled: true,
-                            supportZoom: true,
-                            transparentBackground: false,
-                          ),
-                          onWebViewCreated: (ctrl) {
-                            _webCtrl = ctrl;
-                            ac.previewWebController = ctrl;
-                            ctrl.addJavaScriptHandler(
-                              handlerName: 'cubicOnElement',
-                              callback: (args) {
-                                final info = args.isNotEmpty ? '${args.first}' : '';
-                                if (info.isNotEmpty && info != '{}') {
-                                  widget.onElementPicked(info);
+                      child: CompositedTransformTarget(
+                        link: _promptLayer,
+                        child: Stack(children: [
+                          InAppWebView(
+                            initialUrlRequest: URLRequest(url: WebUri(widget.url)),
+                            initialSettings: InAppWebViewSettings(
+                              javaScriptEnabled: true,
+                              domStorageEnabled: true,
+                              supportZoom: true,
+                              transparentBackground: false,
+                            ),
+                            onWebViewCreated: (ctrl) {
+                              _webCtrl = ctrl;
+                              ac.previewWebController = ctrl;
+                              ctrl.addJavaScriptHandler(
+                                handlerName: 'cubicOnElement',
+                                callback: (args) {
+                                  final info = args.isNotEmpty ? '${args.first}' : '';
+                                  if (info.isNotEmpty && info != '{}') {
+                                    _showFloatingPrompt(context, info);
+                                    widget.onElementPicked(info);
+                                  }
+                                },
+                              );
+                              ctrl.addJavaScriptHandler(
+                                handlerName: 'cubicOnHover',
+                                callback: (args) {
+                                  if (args.isNotEmpty) ac.hoveredElement.value = '${args.first}';
+                                },
+                              );
+                            },
+                            onLoadStop: (_, __) {
+                              if (mounted) setState(() => _loading = false);
+                              _webCtrl?.evaluateJavascript(source: _pickerJs);
+                              _armPicker(widget.pickMode);
+                            },
+                            onReceivedError: (_, __, err) {
+                              if (mounted) setState(() => _loading = false);
+                              if (!_forwardedLoadError) {
+                                _forwardedLoadError = true;
+                                if (!ac.generating.value && !ac.fixing.value) {
+                                  ac.onConsoleError('Page load failed: ${err.description}');
                                 }
-                              },
-                            );
-                            ctrl.addJavaScriptHandler(
-                              handlerName: 'cubicOnHover',
-                              callback: (args) {
-                                if (args.isNotEmpty) ac.hoveredElement.value = '${args.first}';
-                              },
-                            );
-                          },
-                          onLoadStop: (_, __) {
-                            if (mounted) setState(() => _loading = false);
-                            _webCtrl?.evaluateJavascript(source: _pickerJs);
-                            _armPicker(widget.pickMode);
-                          },
-                          onReceivedError: (_, __, err) {
-                            if (mounted) setState(() => _loading = false);
-                            if (!_forwardedLoadError) {
-                              _forwardedLoadError = true;
-                              if (!ac.generating.value && !ac.fixing.value) {
-                                ac.onConsoleError('Page load failed: ${err.description}');
                               }
-                            }
-                          },
-                          onConsoleMessage: (_, msg) {
-                            if (msg.messageLevel == ConsoleMessageLevel.ERROR && mounted) {
-                              widget.onConsoleError(msg.message);
-                            }
-                          },
-                        ),
-                        if (_loading) const LinearProgressIndicator(minHeight: 2),
-                      ]),
+                            },
+                            onConsoleMessage: (_, msg) {
+                              final level = msg.messageLevel.toString().split('.').last.toLowerCase();
+                              ac.addConsoleLog(level, msg.message);
+                              
+                              if (msg.messageLevel == ConsoleMessageLevel.ERROR && mounted) {
+                                widget.onConsoleError(msg.message);
+                              }
+                            },
+                          ),
+                          if (_loading) const LinearProgressIndicator(minHeight: 2),
+                        ]),
+                      ),
                     ),
                     // Resize Handle
                     GestureDetector(

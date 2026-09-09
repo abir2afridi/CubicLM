@@ -17,8 +17,13 @@ import 'cubicweb/chat_cards.dart';
 import 'cubicweb/file_cards.dart';
 import 'cubicweb/project_sheets.dart';
 import 'cubicweb/version_timeline.dart';
+import 'cubicweb/diff_view.dart';
+import 'cubicweb/component_card.dart';
+import 'cubicweb/responsive_grid_view.dart';
+import 'cubicweb/knowledge_graph_view.dart';
 import '../widgets/cli_sheets.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:markdown/markdown.dart' as md;
 import '../services/agent_workspace.dart';
 import '../theme/design_tokens.dart';
 import '../utils/app_snackbar.dart';
@@ -42,8 +47,12 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   final _termCtrl = TextEditingController();
   final _chatScroll = ScrollController();
   final _expandedFolders = <String>{}.obs;
+  final _openTabs = <String>[].obs;
   String _tab = 'preview'; // preview | files | terminal
   String? _openFile;
+  OverlayEntry? _mentionOverlay;
+  final _askLayer = LayerLink();
+  String _devTab = 'console'; // console | terminal
 
   @override
   void initState() {
@@ -53,7 +62,10 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         : Get.put(AgentController());
 
     _askCtrl.addListener(() {
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        _checkMentions();
+      }
     });
 
     ever(c.generating, (_) {
@@ -78,7 +90,9 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     ever(c.streamingFiles, (_) {
       if (!mounted) return;
       if (_openFile == null && c.streamingFiles.isNotEmpty && _tab == 'files') {
-        setState(() => _openFile = c.streamingFiles.keys.first);
+        final path = c.streamingFiles.keys.first;
+        if (!_openTabs.contains(path)) _openTabs.add(path);
+        setState(() => _openFile = path);
       }
     });
 
@@ -88,6 +102,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
     ever(c.requestAskFocus, (_) {
       if (mounted) _askFocus.requestFocus();
+    });
+
+    // Success celebration
+    ever(c.generating, (busy) {
+      if (!busy && c.lastError.value == null && c.project.value != null) {
+        AppSnackbar.showTop('Project Live', 'Your changes have been deployed successfully! ✨', logHistory: false);
+      }
     });
 
     unawaited(c.ensureTerminalWelcome());
@@ -103,6 +124,162 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         showCliDetectedDialog(m, c.detectedCliVersion.value ?? '');
       } catch (_) {}
     });
+  }
+
+  void _checkMentions() {
+    final text = _askCtrl.text;
+    final selection = _askCtrl.selection;
+    if (selection.baseOffset <= 0) {
+      _hideMentionOverlay();
+      return;
+    }
+
+    final before = text.substring(0, selection.baseOffset);
+    if (before.endsWith('@')) {
+      _showMentionOverlay();
+    } else if (!before.contains('@')) {
+      _hideMentionOverlay();
+    }
+  }
+
+  void _showMentionOverlay() async {
+    _hideMentionOverlay();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final files = c.files.toList();
+    final symbols = await c.scanProjectSymbols();
+    if (!mounted) return;
+
+    _mentionOverlay = OverlayEntry(
+      builder: (context) => Positioned(
+        width: 280,
+        child: CompositedTransformFollower(
+          link: _askLayer,
+          showWhenUnlinked: false,
+          offset: const Offset(0, -220),
+          child: Material(
+            elevation: 8,
+            borderRadius: BorderRadius.circular(12),
+            color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+            child: Container(
+              height: 200,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: isDark ? Colors.white10 : Dt.hairline),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text('REFERENCE FILE OR SYMBOL', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.grey)),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ListView(
+                      padding: EdgeInsets.zero,
+                      children: [
+                        // Files
+                        ...files.map((f) => ListTile(
+                          dense: true,
+                          leading: Icon(_iconFor(f), size: 14, color: Dt.accent),
+                          title: Text(f, style: const TextStyle(fontSize: 12)),
+                          onTap: () => _insertMention(f),
+                        )),
+                        // Symbols
+                        ...symbols.map((s) => ListTile(
+                          dense: true,
+                          leading: Icon(s['type'] == 'component' ? LucideIcons.component : LucideIcons.functionSquare, size: 14, color: Colors.blueAccent),
+                          title: Text(s['name'], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          subtitle: Text('${s['file']} (L${s['line']})', style: const TextStyle(fontSize: 10)),
+                          onTap: () => _insertMention(s['name'] ?? ''),
+                        )),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    Overlay.of(context).insert(_mentionOverlay!);
+  }
+
+  void _insertMention(String value) {
+    final text = _askCtrl.text;
+    final selection = _askCtrl.selection;
+    final before = text.substring(0, selection.baseOffset);
+    final after = text.substring(selection.baseOffset);
+    // Replace the '@' with the value
+    final newText = before.substring(0, before.length - 1) + value + after;
+    _askCtrl.text = newText;
+    _askCtrl.selection = TextSelection.collapsed(offset: before.length - 1 + value.length);
+    _hideMentionOverlay();
+  }
+
+  void _hideMentionOverlay() {
+    _mentionOverlay?.remove();
+    _mentionOverlay = null;
+  }
+
+  void _showBrandIdentitySheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryCtrl = TextEditingController(text: c.brandIdentity['primaryColor'] ?? '#3B82F6');
+    final fontCtrl = TextEditingController(text: c.brandIdentity['font'] ?? 'Inter');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surface : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Brand Identity', style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            const Text('Define your brand styles to keep the AI consistent.', style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 24),
+            TextField(
+              controller: primaryCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Primary Color (Hex or Name)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: fontCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Global Font Family',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: Dt.accent),
+                onPressed: () {
+                  c.brandIdentity['primaryColor'] = primaryCtrl.text.trim();
+                  c.brandIdentity['font'] = fontCtrl.text.trim();
+                  Get.back();
+                  AppSnackbar.showTop('Brand Updated', 'AI will now follow these styles.');
+                },
+                child: const Text('Save Brand'),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
   }
 
   void _scrollToBottom() {
@@ -140,6 +317,10 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             HardwareKeyboard.instance.isMetaPressed;
         if (isMod && event.logicalKey == LogicalKeyboardKey.enter) {
           _sendFromAskBar();
+          return KeyEventResult.handled;
+        }
+        if (isMod && event.logicalKey == LogicalKeyboardKey.keyK) {
+          _showCommandPalette(context, isDark);
           return KeyEventResult.handled;
         }
         if (isMod && event.logicalKey == LogicalKeyboardKey.digit1) {
@@ -240,6 +421,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 ),
               ]);
             }),
+            IconButton(
+              tooltip: 'Brand Identity',
+              icon: const Icon(LucideIcons.palette, size: 20, color: Dt.accent),
+              onPressed: () => _showBrandIdentitySheet(context),
+            ),
             IconButton(
               tooltip: 'New project',
               icon: const Icon(LucideIcons.plus, size: 20, color: Dt.accent),
@@ -369,6 +555,9 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         ),
         body: Obx(() {
           final hasProject = c.project.value != null;
+          if (c.reviewingChanges.value) {
+            return DiffView(isDark: isDark);
+          }
           final wide = MediaQuery.of(context).size.width >= 900 && hasProject;
           if (wide) {
             return Row(children: [
@@ -396,35 +585,26 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                           _paneHeader(
                               context,
                               isDark,
-                              _tab == 'files' ? 'FILES' : 'LIVE PREVIEW',
-                              SegmentedButton<String>(
-                                showSelectedIcon: false,
-                                style: SegmentedButton.styleFrom(
-                                  visualDensity: VisualDensity.compact,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  backgroundColor: Colors.transparent,
-                                  selectedBackgroundColor: Dt.accent.withValues(alpha: 0.1),
-                                  selectedForegroundColor: Dt.accent,
-                                  side: BorderSide.none,
-                                ),
-                                segments: const [
-                                  ButtonSegment(
-                                      value: 'preview',
-                                      label: Text('Preview', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                                      icon: Icon(LucideIcons.eye, size: 14)),
-                                  ButtonSegment(
-                                      value: 'files',
-                                      label: Text('Code', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                                      icon: Icon(LucideIcons.fileCode, size: 14)),
-                                ],
-                                selected: {_tab == 'files' ? 'files' : 'preview'},
-                                onSelectionChanged: (s) =>
-                                    setState(() => _tab = s.first),
-                              )),
+                              _tab == 'files'
+                                  ? 'FILES'
+                                  : _tab == 'console'
+                                      ? 'CONSOLE'
+                                      : _tab == 'grid'
+                                          ? 'GRID'
+                                          : _tab == 'graph'
+                                              ? 'MIND MAP'
+                                              : 'LIVE PREVIEW',
+                              _workspaceTabs(context, isDark)),
                           Expanded(
                             child: _tab == 'files'
                                 ? _filesPane(context, isDark)
-                                : _previewPane(context, isDark, c.revision.value),
+                                : _tab == 'console'
+                                    ? _consolePane(context, isDark)
+                                    : _tab == 'grid'
+                                        ? ResponsiveGridView(url: c.previewUrl.value ?? '', isDark: isDark)
+                                        : _tab == 'graph'
+                                            ? KnowledgeGraphView(isDark: isDark, onFileClick: (f) => _openFileTab(f))
+                                            : _previewPane(context, isDark, c.revision.value),
                           ),
                         ]),
                       ),
@@ -433,7 +613,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   if (c.lastError.value != null)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                      child: Text(_friendlyError(c.lastError.value!),
+                      child: Text(_friendlyError(c.lastError.value ?? 'Unknown error'),
                           style: GoogleFonts.plusJakartaSans(
                               fontSize: 12.5, color: AppColors.error, height: 1.4)),
                     ),
@@ -443,7 +623,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             ]);
           }
           return Column(children: [
-            _tabSwitch(),
+            _tabSwitch(context, isDark),
             Expanded(
               child: _tab == 'preview' && hasProject
                   ? _splitOrPreview(context, isDark)
@@ -456,13 +636,79 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             if (c.lastError.value != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-                child: Text(_friendlyError(c.lastError.value!),
+                child: Text(_friendlyError(c.lastError.value ?? 'Unknown error'),
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 12.5, color: AppColors.error, height: 1.4)),
               ),
             _askBar(context, isDark),
           ]);
         }),
+      ),
+    );
+  }
+
+  void _showCommandPalette(BuildContext context, bool isDark) {
+    final commands = [
+            {'icon': LucideIcons.plus, 'name': 'New Project', 'action': () => _newProjectReset()},
+            {'icon': LucideIcons.search, 'name': 'Global Search', 'action': () => _showGlobalSearch(context, isDark)},
+            {'icon': LucideIcons.gitCompare, 'name': 'Review Changes', 'action': () => c.reviewingChanges.value = true},
+            {'icon': LucideIcons.history, 'name': 'Project History', 'action': () => showHistorySheet(context)},
+            {'icon': LucideIcons.eye, 'name': 'Switch to Preview', 'action': () => setState(() => _tab = 'preview')},
+            {'icon': LucideIcons.fileCode, 'name': 'Switch to Code', 'action': () => setState(() => _tab = 'files')},
+            {'icon': LucideIcons.terminal, 'name': 'Switch to Console', 'action': () => setState(() => _tab = 'console')},
+            {'icon': LucideIcons.layoutGrid, 'name': 'Switch to Grid', 'action': () => setState(() => _tab = 'grid')},
+            {'icon': LucideIcons.gitBranch, 'name': 'Switch to Mind Map', 'action': () => setState(() => _tab = 'graph')},
+          ];
+
+    Get.dialog(
+      Material(
+        color: Colors.transparent,
+        child: Center(
+          child: Container(
+            width: 400,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 20)],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: TextField(
+                    autofocus: true,
+                    decoration: InputDecoration(
+                      hintText: 'Type a command...',
+                      prefixIcon: Icon(LucideIcons.terminal, size: 18),
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 300),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: commands.length,
+                    itemBuilder: (context, i) {
+                      final cmd = commands[i] as Map<String, dynamic>;
+                      return ListTile(
+                        dense: true,
+                        leading: Icon(cmd['icon'] as IconData, size: 16),
+                        title: Text(cmd['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
+                        onTap: () {
+                          Get.back();
+                          (cmd['action'] as VoidCallback)();
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -551,7 +797,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   Widget _paneHeader(
       BuildContext context, bool isDark, String label, Widget? trailing) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+      padding: const EdgeInsets.fromLTRB(14, 0, 10, 0),
       decoration: BoxDecoration(
         color: isDark ? AppColors.surface : Colors.white,
         border: Border(
@@ -574,48 +820,74 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               )),
         Text(label,
             style: GoogleFonts.plusJakartaSans(
-                fontSize: 11,
+                fontSize: 10,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.0,
                 color: Theme.of(context).hintColor)),
         if (trailing != null) ...[
-          const Spacer(),
-          trailing,
+          const SizedBox(width: 12),
+          Expanded(child: trailing),
         ],
       ]),
     );
   }
 
-  Widget _tabSwitch() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: SizedBox(
-        width: double.infinity,
-        child: SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(
-              value: 'preview',
-              icon: Icon(LucideIcons.eye, size: 15),
-              label: Text('Preview'),
+  Widget _tabSwitch(BuildContext context, bool isDark) {
+    return _workspaceTabs(context, isDark, fullWidth: true);
+  }
+
+  Widget _workspaceTabs(BuildContext context, bool isDark, {bool fullWidth = false}) {
+    final tabs = [
+      {'id': 'preview', 'label': 'Preview', 'icon': LucideIcons.eye},
+      {'id': 'files', 'label': 'Files', 'icon': LucideIcons.folderOpen},
+      {'id': 'chat', 'label': 'Chat', 'icon': LucideIcons.messageCircle},
+      {'id': 'console', 'label': 'Console', 'icon': LucideIcons.terminal},
+      {'id': 'grid', 'label': 'Grid', 'icon': LucideIcons.layoutGrid},
+      {'id': 'graph', 'label': 'Mind Map', 'icon': LucideIcons.gitBranch},
+    ];
+
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: fullWidth ? (isDark ? AppColors.surface : Colors.white) : Colors.transparent,
+        border: fullWidth ? Border(bottom: BorderSide(color: isDark ? Colors.white10 : Dt.hairline)) : null,
+      ),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        itemCount: tabs.length,
+        itemBuilder: (context, i) {
+          final t = tabs[i];
+          final active = _tab == t['id'];
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: InkWell(
+              onTap: () => setState(() => _tab = t['id'] as String),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: active ? Dt.accent.withValues(alpha: 0.1) : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  children: [
+                    Icon(t['icon'] as IconData, size: 14, color: active ? Dt.accent : Colors.grey),
+                    const SizedBox(width: 8),
+                    Text(
+                      t['label'] as String,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11,
+                        fontWeight: active ? FontWeight.bold : FontWeight.w700,
+                        color: active ? Dt.accent : (isDark ? Colors.white70 : Colors.black87),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-            ButtonSegment(
-              value: 'files',
-              icon: Icon(LucideIcons.folderOpen, size: 15),
-              label: Text('Files'),
-            ),
-            ButtonSegment(
-              value: 'chat',
-              icon: Icon(LucideIcons.messageCircle, size: 15),
-              label: Text('Chat'),
-            ),
-          ],
-          selected: {_tab},
-          onSelectionChanged: (s) => setState(() => _tab = s.first),
-          showSelectedIcon: false,
-          style: SegmentedButton.styleFrom(
-            visualDensity: VisualDensity.compact,
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -677,32 +949,35 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-                    child: TextField(
-                      controller: _askCtrl,
-                      focusNode: _askFocus,
-                      minLines: 1,
-                      maxLines: 6,
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 16,
-                          height: 1.35,
-                          color:
-                              isDark ? AppColors.textPrimary : Dt.textPrimary,
-                          fontWeight: FontWeight.w500),
-                      decoration: InputDecoration(
-                        hintText: hasProject
-                            ? 'Ask AI to change anything…'
-                            : 'Describe what to build…',
-                        hintStyle: GoogleFonts.plusJakartaSans(
+                    child: CompositedTransformTarget(
+                      link: _askLayer,
+                      child: TextField(
+                        controller: _askCtrl,
+                        focusNode: _askFocus,
+                        minLines: 1,
+                        maxLines: 6,
+                        style: GoogleFonts.plusJakartaSans(
                             fontSize: 16,
-                            color: Dt.textPlaceholder,
+                            height: 1.35,
+                            color:
+                                isDark ? AppColors.textPrimary : Dt.textPrimary,
                             fontWeight: FontWeight.w500),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 4, vertical: 10),
-                        isDense: true,
-                        fillColor: Colors.transparent,
+                        decoration: InputDecoration(
+                          hintText: hasProject
+                              ? 'Ask AI to change anything… (@ for files)'
+                              : 'Describe what to build…',
+                          hintStyle: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              color: Dt.textPlaceholder,
+                              fontWeight: FontWeight.w500),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 10),
+                          isDense: true,
+                          fillColor: Colors.transparent,
+                        ),
                       ),
                     ),
                   ),
@@ -1121,7 +1396,148 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             onElementPicked: (info) => c.onElementPicked(info),
           ),
         ),
+        _devToolsPane(context, isDark),
       ]),
+    );
+  }
+
+  Widget _devToolsPane(BuildContext context, bool isDark) {
+    return Container(
+      height: 240,
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0D0D12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: isDark ? Colors.white10 : Dt.hairline),
+        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 10)],
+      ),
+      child: Column(
+        children: [
+          // DevTools Header/Tabs
+          Container(
+            height: 34,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.03),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            ),
+            child: Row(
+              children: [
+                _devTabBtn('console', LucideIcons.terminal, 'Console'),
+                _devTabBtn('terminal', LucideIcons.command, 'Terminal'),
+                const Spacer(),
+                if (_devTab == 'console')
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(LucideIcons.trash2, size: 14, color: Colors.grey),
+                    onPressed: () => c.clearConsole(),
+                  ),
+                if (_devTab == 'terminal')
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(LucideIcons.trash2, size: 14, color: Colors.grey),
+                    onPressed: () => c.clearTerminal(),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _devTab == 'console' ? _consolePane(context, isDark) : _terminalPane(context, isDark),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _devTabBtn(String id, IconData icon, String label) {
+    final active = _devTab == id;
+    return InkWell(
+      onTap: () => setState(() => _devTab = id),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: active ? Dt.accent : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 12, color: active ? Dt.accent : Colors.grey),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.plusJakartaSans(
+                fontSize: 11,
+                fontWeight: active ? FontWeight.bold : FontWeight.w500,
+                color: active ? Colors.white : Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _terminalPane(BuildContext context, bool isDark) {
+    return Column(
+      children: [
+        Expanded(
+          child: Obx(() {
+            final lines = c.terminal.toList();
+            return ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: lines.length,
+              itemBuilder: (context, i) {
+                return Text(
+                  lines[i],
+                  style: GoogleFonts.firaCode(fontSize: 11, color: _termColor(lines[i])),
+                );
+              },
+            );
+          }),
+        ),
+        // Terminal Input
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.02),
+            border: const Border(top: BorderSide(color: Colors.white10)),
+          ),
+          child: Row(
+            children: [
+              Obx(() {
+                final symbol = c.activeCliId.value != null ? '›' : r'$';
+                return Text(
+                  symbol,
+                  style: const TextStyle(color: Dt.accent, fontWeight: FontWeight.bold),
+                );
+              }),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _termCtrl,
+                  style: GoogleFonts.firaCode(fontSize: 12, color: Colors.white70),
+                  decoration: const InputDecoration(
+                    hintText: 'Type command or response...',
+                    hintStyle: TextStyle(color: Colors.white24, fontSize: 11),
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
+                  onSubmitted: (val) {
+                    if (val.trim().isNotEmpty) {
+                      c.sendStdin(val);
+                      _termCtrl.clear();
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1139,10 +1555,10 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             ? Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Dt.accent.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                  decoration: BoxDecoration(
+                    color: Dt.accent.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(LucideIcons.image, size: 13, color: Dt.accent),
                   const SizedBox(width: 6),
@@ -1280,6 +1696,17 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   MarkdownBody(
                     data: m['text'] ?? '',
                     selectable: true,
+                    extensionSet: md.ExtensionSet(
+                      [const ComponentSyntax(), const ArchitectureSyntax(), ...md.ExtensionSet.gitHubFlavored.blockSyntaxes],
+                      [...md.ExtensionSet.gitHubFlavored.inlineSyntaxes],
+                    ),
+                    builders: {
+                      'component': ComponentElementBuilder(isDark: isDark),
+                      'architecture': ArchitectureElementBuilder(
+                        isDark: isDark,
+                        onNodeClick: (name) => _openFileTab(name),
+                      ),
+                    },
                     styleSheet: MarkdownStyleSheet(
                       p: GoogleFonts.plusJakartaSans(
                           fontSize: 13.5,
@@ -1503,6 +1930,210 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     return const Color(0xFFCDD6F4);
   }
 
+  void _showAssetGenDialog(BuildContext context, bool isDark) {
+    final promptCtrl = TextEditingController();
+    final pathCtrl = TextEditingController(text: 'assets/logo.png');
+
+    Get.dialog(
+      AlertDialog(
+        title: const Row(
+          children: [
+            Icon(LucideIcons.sparkles, size: 20, color: Dt.accent),
+            SizedBox(width: 10),
+            Text('AI Asset Generation'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Generate a high-quality image asset directly into your project.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: promptCtrl,
+              autofocus: true,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                hintText: 'e.g., A minimalist tech logo, 3D abstract hero image...',
+                border: OutlineInputBorder(),
+                labelText: 'Image Prompt',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pathCtrl,
+              decoration: const InputDecoration(
+                hintText: 'assets/image.png',
+                border: OutlineInputBorder(),
+                labelText: 'Save Path',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Dt.accent),
+            onPressed: () {
+              if (promptCtrl.text.trim().isNotEmpty) {
+                Get.back();
+                c.generateProjectAsset(promptCtrl.text.trim(), pathCtrl.text.trim());
+              }
+            },
+            child: const Text('Generate'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showGlobalSearch(BuildContext context, bool isDark) {
+    final searchCtrl = TextEditingController();
+    final results = <Map<String, dynamic>>[].obs;
+    final searching = false.obs;
+
+    Get.dialog(
+      AlertDialog(
+        title: const Row(
+          children: [
+            Icon(LucideIcons.search, size: 20, color: Dt.accent),
+            SizedBox(width: 10),
+            Text('Global Project Search'),
+          ],
+        ),
+        content: SizedBox(
+          width: 500,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: searchCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Search for text in all files...',
+                  border: OutlineInputBorder(),
+                ),
+                onSubmitted: (q) async {
+                  if (q.trim().isEmpty) return;
+                  searching.value = true;
+                  results.value = await c.searchProjectContent(q);
+                  searching.value = false;
+                },
+              ),
+              const SizedBox(height: 16),
+              Obx(() {
+                if (searching.value) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (results.isEmpty && searchCtrl.text.isNotEmpty) {
+                  return const Text('No results found.');
+                }
+                return SizedBox(
+                  height: 300,
+                  child: ListView.builder(
+                    itemCount: results.length,
+                    itemBuilder: (context, i) {
+                      final r = results[i];
+                      return ListTile(
+                        dense: true,
+                        leading: Icon(_iconFor(r['path']), size: 14),
+                        title: Text('${r['path']} (Line ${r['line']})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        subtitle: Text(r['text'], maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.firaCode(fontSize: 10)),
+                        onTap: () {
+                          Get.back();
+                          _openFileTab(r['path']);
+                        },
+                      );
+                    },
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openFileTab(String path) {
+    if (!_openTabs.contains(path)) {
+      _openTabs.add(path);
+    }
+    setState(() => _openFile = path);
+  }
+
+  Widget _tabBar(BuildContext context, bool isDark) {
+    return Obx(() {
+      if (_openTabs.isEmpty) return const SizedBox.shrink();
+      return Container(
+        height: 38,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF16161E) : const Color(0xFFF3F4F6),
+          border: Border(
+            bottom: BorderSide(
+              color: isDark ? Colors.white10 : Dt.hairline,
+            ),
+          ),
+        ),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: _openTabs.length,
+          itemBuilder: (context, i) {
+            final path = _openTabs[i];
+            final active = path == _openFile;
+            final name = path.split('/').last;
+
+            return InkWell(
+              onTap: () => setState(() => _openFile = path),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: active
+                      ? (isDark ? AppColors.surface : Colors.white)
+                      : Colors.transparent,
+                  border: Border(
+                    right: BorderSide(color: isDark ? Colors.white10 : Dt.hairline),
+                    bottom: BorderSide(
+                      color: active ? Dt.accent : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(_iconFor(path), size: 14, color: active ? Dt.accent : Colors.grey),
+                    const SizedBox(width: 8),
+                    Text(
+                      name,
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                        color: active
+                            ? (isDark ? Colors.white : Colors.black87)
+                            : Colors.grey,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () {
+                        _openTabs.removeAt(i);
+                        if (active) {
+                          setState(() => _openFile = _openTabs.isNotEmpty ? _openTabs.last : null);
+                        }
+                      },
+                      child: Icon(LucideIcons.x,
+                          size: 12, color: active ? Dt.accent : Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      );
+    });
+  }
+
   Widget _filesPane(BuildContext context, bool isDark) {
     if (c.project.value == null) {
       return Center(
@@ -1537,8 +2168,18 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                       color: Theme.of(context).hintColor)),
             ),
             TextButton.icon(
+              onPressed: () => _showGlobalSearch(context, isDark),
+              icon: const Icon(LucideIcons.search, size: 15),
+              label: const Text('Search Content'),
+            ),
+            TextButton.icon(
+              onPressed: () => _showAssetGenDialog(context, isDark),
+              icon: const Icon(LucideIcons.sparkles, size: 15),
+              label: const Text('Gen Asset'),
+            ),
+            TextButton.icon(
               onPressed: () => showAddDialog(context, isDark,
-                  onPickFile: (p) => setState(() => _openFile = p)),
+                  onPickFile: (p) => _openFileTab(p ?? '')),
               icon: const Icon(LucideIcons.plus, size: 15),
               label: const Text('Add'),
             ),
@@ -1554,15 +2195,17 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             ),
             onSubmitted: (q) => showSearchResults(context, isDark, q,
-                onPickFile: (p) => setState(() => _openFile = p)),
+                onPickFile: (p) => _openFileTab(p ?? '')),
           ),
           const SizedBox(height: 12),
-          ..._renderTree(context, isDark, root.children, 0),
-          if (_openFile != null &&
-              (c.files.contains(_openFile) ||
-                  c.streamingFiles.containsKey(_openFile))) ...[
+          if (c.generating.value && paths.isEmpty)
+            ...List.generate(5, (i) => _fileSkeleton(isDark))
+          else
+            ..._renderTree(context, isDark, root.children, 0),
+          if (_openTabs.isNotEmpty) ...[
             const SizedBox(height: 16),
-            _fileEditor(context, isDark, _openFile!),
+            _tabBar(context, isDark),
+            if (_openFile != null) _fileEditor(context, isDark, _openFile!),
           ],
         ],
       );
@@ -1616,7 +2259,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 _expandedFolders.add(node.path);
               }
             } else {
-              setState(() => _openFile = node.path);
+              _openFileTab(node.path);
             }
           },
           child: Padding(
@@ -1697,7 +2340,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                         } else if (v == 'rename') {
                           showRenameDialog(context, isDark, node.path,
                               openFile: _openFile,
-                              onPickFile: (p) => setState(() => _openFile = p));
+                              onPickFile: (p) => _openFileTab(p ?? ''));
                         }
                       },
                       itemBuilder: (_) => [
@@ -1724,6 +2367,87 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       }
     }
     return items;
+  }
+
+  Widget _consolePane(BuildContext context, bool isDark) {
+    return Obx(() {
+      if (c.consoleBuffer.isEmpty) {
+        return Center(
+          child: Text('No logs captured yet.', style: TextStyle(color: Theme.of(context).hintColor, fontSize: 11)),
+        );
+      }
+      return ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: c.consoleBuffer.length,
+        itemBuilder: (context, i) {
+          final log = c.consoleBuffer[i];
+          final level = log['level'].toString().toLowerCase();
+          final color = _logColor(level);
+          final isError = level == 'error';
+
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '[$level]',
+                  style: GoogleFonts.firaCode(fontSize: 10, fontWeight: FontWeight.bold, color: color),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SelectableText(
+                    log['message'],
+                    style: GoogleFonts.firaCode(fontSize: 11, color: isDark ? Colors.white70 : Colors.black87),
+                  ),
+                ),
+                if (isError)
+                  Tooltip(
+                    message: 'Fix this error with AI',
+                    child: InkWell(
+                      onTap: () {
+                        c.consoleError.value = log['message'];
+                        c.repairFromError();
+                      },
+                      child: const Icon(LucideIcons.sparkles, size: 14, color: Dt.accent),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      );
+    });
+  }
+
+  Color _logColor(String level) {
+    switch (level.toLowerCase()) {
+      case 'error':
+        return Colors.redAccent;
+      case 'warning':
+        return Colors.orangeAccent;
+      case 'debug':
+        return Colors.blueAccent;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Widget _fileSkeleton(bool isDark) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Container(width: 14, height: 14, decoration: BoxDecoration(color: isDark ? Colors.white10 : Colors.black12, shape: BoxShape.circle)),
+          const SizedBox(width: 12),
+          Container(width: 120, height: 12, decoration: BoxDecoration(color: isDark ? Colors.white10 : Colors.black12, borderRadius: BorderRadius.circular(4))),
+        ],
+      ),
+    );
   }
 
   IconData _iconFor(String path) {
@@ -1780,7 +2504,132 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   }
 }
 
-extension on AgentController {
-  List<AgentProject> projectsOf() =>
-      Get.find<AgentWorkspaceService>().projects.toList();
+class ArchitectureSyntax extends md.BlockSyntax {
+  @override
+  RegExp get pattern => RegExp(r'^<architecture>');
+
+  const ArchitectureSyntax();
+
+  @override
+  md.Node parse(md.BlockParser parser) {
+    parser.advance();
+    final childLines = <String>[];
+    while (!parser.isDone && !parser.current.content.contains('</architecture>')) {
+      childLines.add(parser.current.content);
+      parser.advance();
+    }
+    if (!parser.isDone) parser.advance();
+    return md.Element('architecture', [])
+      ..children!.add(md.Text(childLines.join('\n')));
+  }
+}
+
+class ArchitectureElementBuilder extends MarkdownElementBuilder {
+  final bool isDark;
+  final Function(String) onNodeClick;
+  ArchitectureElementBuilder({required this.isDark, required this.onNodeClick});
+
+  @override
+  Widget visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    final text = element.textContent;
+    final lines = text.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.blueAccent.withValues(alpha: 0.1) : Colors.blue.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(LucideIcons.gitBranch, size: 16, color: Colors.blueAccent),
+              const SizedBox(width: 8),
+              Text('INTERACTIVE ARCHITECTURE', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.8, color: Colors.blueAccent)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: lines.map((line) {
+              if (line.contains('->')) {
+                final parts = line.split('->');
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildNode(parts[0].trim().replaceAll('[', '').replaceAll(']', '')),
+                    const Icon(LucideIcons.arrowRight, size: 12, color: Colors.grey),
+                    _buildNode(parts[1].trim().replaceAll('[', '').replaceAll(']', '')),
+                  ],
+                );
+              }
+              return _buildNode(line.trim().replaceAll('[', '').replaceAll(']', ''));
+            }).toList(),
+          ),
+          const SizedBox(height: 8),
+          const Text('Tap a component to open its code', style: TextStyle(fontSize: 9, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNode(String name) {
+    return InkWell(
+      onTap: () => onNodeClick(name),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.black26 : Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.2)),
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+        ),
+        child: Text(
+          name,
+          style: GoogleFonts.firaCode(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueAccent),
+        ),
+      ),
+    );
+  }
+}
+
+class ComponentSyntax extends md.BlockSyntax {
+  @override
+  RegExp get pattern => RegExp(r'^<component name="([^"]+)">');
+
+  const ComponentSyntax();
+
+  @override
+  md.Node parse(md.BlockParser parser) {
+    final match = pattern.firstMatch(parser.current.content)!;
+    final name = match.group(1)!;
+    parser.advance();
+    final childLines = <String>[];
+    while (!parser.isDone && !parser.current.content.contains('</component>')) {
+      childLines.add(parser.current.content);
+      parser.advance();
+    }
+    if (!parser.isDone) parser.advance();
+    return md.Element('component', [])
+      ..attributes['name'] = name
+      ..children!.add(md.Text(childLines.join('\n')));
+  }
+}
+
+class ComponentElementBuilder extends MarkdownElementBuilder {
+  final bool isDark;
+  ComponentElementBuilder({required this.isDark});
+
+  @override
+  Widget visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    final name = element.attributes['name'] ?? 'Component';
+    final code = element.textContent;
+    return ComponentPromotionCard(name: name, code: code, isDark: isDark);
+  }
 }

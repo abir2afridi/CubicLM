@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
@@ -193,6 +194,34 @@ class AgentWorkspaceService extends GetxService {
       await saveCheckpoint(np.id, label: 'Forked from ${src.name}');
     } catch (_) {}
     return np;
+  }
+
+  Future<String?> writeBinaryFile(
+      String projectId, String path, Uint8List bytes) async {
+    final clean = sanitize(path);
+    if (clean.isEmpty) return 'Rejected path.';
+    if (bytes.length > maxFileChars) return 'File too large.';
+    try {
+      final dir = await dirFor(projectId);
+      final files = await listFiles(projectId);
+      var total = 0;
+      for (final f in files) {
+        if (f == clean) continue;
+        total += await _fileLength(dir, f);
+      }
+      if (total + bytes.length > maxTotalChars) {
+        return 'Project too large.';
+      }
+      final out = File('${dir.path}/$clean');
+      await out.parent.create(recursive: true);
+      final tmp = File('${out.path}.tmp');
+      await tmp.writeAsBytes(bytes, flush: true);
+      if (await out.exists()) await out.delete();
+      await tmp.rename(out.path);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
   }
 
   /// Write (create/overwrite) one file. Returns error string or null.

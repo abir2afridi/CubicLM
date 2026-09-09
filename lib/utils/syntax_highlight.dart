@@ -20,6 +20,7 @@ class SyntaxColors {
   static const number = Color(0xFFF9E2AF); // yellow
   static const punct = Color(0xFFBAC2DE); // gray text
   static const plain = Color(0xFFCDD6F4); // default text
+  static const ghost = Color(0x66CDD6F4); // faint ghost text
 }
 
 /// Detect file type from path.
@@ -254,6 +255,8 @@ TextSpan buildHighlightedSpan(List<SyntaxToken> tokens, {double fontSize = 12}) 
 /// A specialized controller that applies syntax highlighting as you type.
 class SyntaxHighlightingController extends TextEditingController {
   final String path;
+  String? ghostText;
+
   SyntaxHighlightingController({super.text, required this.path});
 
   @override
@@ -263,6 +266,25 @@ class SyntaxHighlightingController extends TextEditingController {
     required bool withComposing,
   }) {
     final tokens = highlight(text, path);
-    return buildHighlightedSpan(tokens, fontSize: style?.fontSize ?? 12);
+    final baseSpan = buildHighlightedSpan(tokens, fontSize: style?.fontSize ?? 12);
+    
+    if (ghostText != null && selection.isCollapsed && selection.baseOffset == text.length) {
+      return TextSpan(
+        children: [
+          baseSpan,
+          TextSpan(
+            text: ghostText,
+            style: TextStyle(
+              color: SyntaxColors.ghost,
+              fontFamily: 'FiraCode',
+              fontSize: style?.fontSize ?? 12,
+              height: 1.5,
+            ),
+          ),
+        ],
+      );
+    }
+    
+    return baseSpan;
   }
 }

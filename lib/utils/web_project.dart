@@ -301,8 +301,18 @@ String _frameworkBrief(String framework) {
   }
 }
 
-String webSystemPrompt({required String framework}) {
-  return '''You are an expert web developer shipping complete, runnable projects. Output EXACTLY one fenced block and nothing else:
+String webSystemPrompt({required String framework, Map<String, String>? brandIdentity}) {
+  String brandSection = '';
+  if (brandIdentity != null && brandIdentity.isNotEmpty) {
+    brandSection = '\n[BRAND_GUIDELINES]\n'
+        'Primary Color: ${brandIdentity['primaryColor'] ?? 'default'}\n'
+        'Secondary Color: ${brandIdentity['secondaryColor'] ?? 'default'}\n'
+        'Font Family: ${brandIdentity['font'] ?? 'default'}\n'
+        'Logo: ${brandIdentity['logo'] ?? 'default'}\n'
+        'STRICT: Always use these brand styles for components and layouts.';
+  }
+
+  return '''You are an expert web developer shipping complete, runnable projects. $brandSection Output EXACTLY one fenced block and nothing else:
 
 ```files
 {"files":[{"path":"index.html","content":"..."}]}
@@ -313,6 +323,15 @@ ${_frameworkBrief(framework)}
 
 Rules:
 - Complete, working code — real content from the request, responsive layout. NEVER placeholders, lorem ipsum, TODO, or "... rest of code ...".
+- If you are starting a new project or making a major structural change, provide a brief architecture overview at the beginning of your response using this tag:
+  <architecture>
+  [Component A] -> [Component B]
+  [Component B] -> [API Service]
+  </architecture>
+- If you are explaining a reusable UI component that the user might want to save separately, wrap its code like this in your explanation:
+  <component name="Navbar">
+  const Navbar = () => ...
+  </component>
 - Relative paths only; never absolute or external local files. CDN https links allowed.
 - Keep every file focused; valid JSON with \\n escapes handled correctly.
 - Valid JSON only inside the fence. No prose outside.''';

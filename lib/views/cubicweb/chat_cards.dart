@@ -111,6 +111,19 @@ Widget activityCard(BuildContext context, bool isDark,
               ],
             ),
           ),
+        if (c.pendingChanges.isNotEmpty && !live)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: Dt.accent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                onPressed: () => c.reviewingChanges.value = true,
+                icon: const Icon(LucideIcons.gitCompare, size: 14),
+                label: const Text('Review Changes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ),
       ],
     ),
   );
