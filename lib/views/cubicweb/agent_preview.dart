@@ -121,8 +121,7 @@ class _AgentPreviewState extends State<AgentPreview> {
                 ctrl.addJavaScriptHandler(
                   handlerName: 'cubicOnElement',
                   callback: (args) {
-                    final info =
-                        args.isNotEmpty ? '${args.first}' : '';
+                    final info = args.isNotEmpty ? '${args.first}' : '';
                     if (info.isNotEmpty && info != '{}') {
                       widget.onElementPicked(info);
                     }
@@ -158,8 +157,7 @@ class _AgentPreviewState extends State<AgentPreview> {
                     if (!ac.generating.value &&
                         !ac.fixing.value &&
                         !ac.devServerStarting.value) {
-                      ac.onConsoleError(
-                          'Page load failed: ${err.description}');
+                      ac.onConsoleError('Page load failed: ${err.description}');
                     }
                   } catch (_) {}
                 }
@@ -189,8 +187,8 @@ class _AgentPreviewState extends State<AgentPreview> {
               right: 0,
               child: Center(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: Dt.accent,
                     borderRadius: BorderRadius.circular(20),
@@ -209,12 +207,10 @@ class _AgentPreviewState extends State<AgentPreview> {
               right: 12,
               bottom: 12,
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .cardColor
-                      .withValues(alpha: 0.94),
+                  color: Theme.of(context).cardColor.withValues(alpha: 0.94),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(_error!,
