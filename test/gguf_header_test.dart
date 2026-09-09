@@ -91,6 +91,70 @@ void main() {
     });
   });
 
+  /// Craft a minimal but structurally valid GGUF: v3, 0 metadata KVs,
+  /// 1 F32 tensor, real tensor payload, padded to [fileBytes].
+  File writeTensorGguf(String name,
+      {required int dim, required int fileBytes}) {
+    final f = File('${tmp.path}/$name');
+    const nameBytes = [0x77]; // "w"
+    // header 32 + namelen(8)+1 + ndims(4) + dim(8) + type(4) + offset(8)
+    const tableEnd = 32 + 8 + 1 + 4 + 8 + 4 + 8;
+    const dataBase = ((tableEnd + 31) ~/ 32) * 32;
+    assert(dataBase == 96);
+    final raf = f.openSync(mode: FileMode.write);
+    final head = ByteData(32);
+    head.setUint8(0, 0x47);
+    head.setUint8(1, 0x47);
+    head.setUint8(2, 0x55);
+    head.setUint8(3, 0x46);
+    head.setUint32(4, 3, Endian.little);
+    head.setUint64(8, 1, Endian.little); // 1 tensor
+    head.setUint64(16, 0, Endian.little); // 0 metadata
+    head.setUint64(24, 0, Endian.little);
+    raf.writeFromSync(head.buffer.asUint8List());
+    final tb = ByteData(8 + nameBytes.length + 4 + 8 + 4 + 8);
+    var o = 0;
+    tb.setUint64(o, nameBytes.length, Endian.little);
+    o += 8;
+    for (final b in nameBytes) {
+      tb.setUint8(o++, b);
+    }
+    tb.setUint32(o, 1, Endian.little); // n_dims
+    o += 4;
+    tb.setUint64(o, dim, Endian.little); // dim
+    o += 8;
+    tb.setUint32(o, 0, Endian.little); // F32
+    o += 4;
+    tb.setUint64(o, 0, Endian.little); // offset
+    raf.writeFromSync(tb.buffer.asUint8List());
+    // Pad from current pos to fileBytes.
+    var left = fileBytes - tableEnd;
+    final chunk = Uint8List(65536);
+    while (left > 0) {
+      final n = left > chunk.length ? chunk.length : left;
+      raf.writeFromSync(chunk, 0, n);
+      left -= n;
+    }
+    raf.closeSync();
+    return f;
+  }
+
+  group('validateGgufHeader tensor table', () {
+    test('accepts a complete tensor payload', () {
+      // 32 floats = 128B payload, 2MB file.
+      final f =
+          writeTensorGguf('valid.gguf', dim: 32, fileBytes: 2 * 1024 * 1024);
+      expect(InferenceService.validateGgufHeader(f), isNull);
+    });
+
+    test('rejects tensor data cut short (truncated download)', () {
+      // Claims 1M floats (4MB) but file holds only 2MB.
+      final f = writeTensorGguf('cut.gguf',
+          dim: 1000000, fileBytes: 2 * 1024 * 1024);
+      expect(InferenceService.validateGgufHeader(f), contains('truncated'));
+    });
+  });
+
   group('isRamInsufficient', () {
     const gb = 1024 * 1024 * 1024;
 
