@@ -9,6 +9,8 @@ class AppConstants {
   static const String notificationsBox = 'notifications';
   static const String skillsBox = 'skills';
   static const String mcpBox = 'mcp_config';
+  static const String projectsBox = 'chat_projects';
+  static const String foldersBox = 'chat_folders';
   static const String imageHistoryBox = 'image_history';
 
   // Settings Keys

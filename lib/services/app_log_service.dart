@@ -153,6 +153,13 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
   static const int _persistBatch = 25;
   final List<AppLogEntry> _pendingEntries = [];
   bool _flushScheduled = false;
+  // Deferred UI mutations, applied in the post-frame flush below. Writing
+  // to Rx observables synchronously from _add caused a setState-during-
+  // build infinite cascade: FlutterError.onError runs MID-BUILD, so every
+  // logged framework error spawned another one (59x in one session).
+  // File persistence stays immediate (kill-safe); only UI state waits.
+  AppLogEntry? _pendingUnresolved;
+  final List<AppLogEntry> _pendingCrashRows = [];
 
   // ── Crash-survivable diagnostics ──────────────────────────────
   /// Latest ERROR/WARNING that hasn't been cleared by the user ("unfixed").
@@ -474,9 +481,9 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
   }
 
   Future<void> _appendCrashHistory(AppLogEntry entry) async {
-    crashHistory.insert(0, entry);
-    if (crashHistory.length > _maxCrashHistory) {
-      crashHistory.removeRange(_maxCrashHistory, crashHistory.length);
+    _pendingCrashRows.insert(0, entry);
+    if (_pendingCrashRows.length > _maxCrashHistory) {
+      _pendingCrashRows.removeLast();
     }
     try {
       final f = await _crashHistoryFile;
@@ -625,8 +632,9 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
 
     // Collapse exact repeats into one row (count + last-seen bump) instead
     // of appending N identical multi-KB bodies. Any single-symbol change
-    // is a different key and stays its own row.
-    if (_bumpDuplicate(level, message, detailsStr, category)) return;
+    // is a different key and stays its own row. Pending-only: touching the
+    // shown RxList here would re-enter the build phase (see fields above).
+    if (_bumpPendingDuplicate(level, message, detailsStr, category)) return;
 
     final entry = AppLogEntry(
       level: level,
@@ -640,7 +648,7 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
     // its own file immediately (synchronously for the unresolved record) so
     // a hard process kill right after the failure can't erase it.
     if (level == 'ERROR' || level == 'WARNING') {
-      unresolvedError.value = entry;
+      _pendingUnresolved = entry;
       unawaited(_persistUnresolved(entry));
       unawaited(_appendCrashHistory(entry));
     }
@@ -649,9 +657,37 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
       _flushScheduled = true;
       SchedulerBinding.instance.addPostFrameCallback((_) {
         _flushScheduled = false;
+        // Deferred UI state first (banner sees the latest error).
+        final un = _pendingUnresolved;
+        _pendingUnresolved = null;
+        if (un != null) unresolvedError.value = un;
+        if (_pendingCrashRows.isNotEmpty) {
+          final rows = List<AppLogEntry>.from(_pendingCrashRows);
+          _pendingCrashRows.clear();
+          for (final r in rows.reversed) {
+            crashHistory.insert(0, r);
+          }
+          while (crashHistory.length > _maxCrashHistory) {
+            crashHistory.removeRange(_maxCrashHistory, crashHistory.length);
+          }
+        }
         final toAdd = List<AppLogEntry>.from(_pendingEntries);
         _pendingEntries.clear();
-        entries.insertAll(0, toAdd);
+        // Fold into shown rows with the same dedup+move-to-top rule the
+        // old synchronous path had — but safely outside the build phase.
+        for (final e in toAdd.reversed) {
+          final i = entries.indexWhere(
+              (x) => x.sameAs(e.level, e.message, e.details, e.category));
+          if (i >= 0) {
+            final ex = entries[i];
+            ex.count += e.count;
+            ex.lastAt = e.lastAt;
+            entries.removeAt(i);
+            entries.insert(0, ex);
+          } else {
+            entries.insert(0, e);
+          }
+        }
         if (entries.length > _maxEntries) {
           entries.removeRange(_maxEntries, entries.length);
         }
@@ -671,10 +707,10 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
     }
   }
 
-  /// Returns true when an identical row already exists (pending or shown)
-  /// and was bumped instead. The match is exact: any single-symbol change
-  /// in message/details (or level/category) is a different row.
-  bool _bumpDuplicate(String level, String message, String? detailsStr,
+  /// Pending-only duplicate collapse (synchronous-safe: touches no Rx —
+  /// see the fields above). Shown-row folding happens in the post-frame
+  /// flush. Returns true when an identical pending row was bumped instead.
+  bool _bumpPendingDuplicate(String level, String message, String? detailsStr,
       LogCategory category) {
     final now = DateTime.now();
     for (final e in _pendingEntries) {
@@ -684,24 +720,7 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
         return true;
       }
     }
-    var moved = false;
-    for (var i = 0; i < entries.length; i++) {
-      final e = entries[i];
-      if (e.sameAs(level, message, detailsStr, category)) {
-        e.count++;
-        e.lastAt = now;
-        if (i > 0) {
-          // Re-surface recurrences at the top without duplicating rows.
-          entries.removeAt(i);
-          entries.insert(0, e);
-        } else {
-          entries.refresh();
-        }
-        moved = true;
-        break;
-      }
-    }
-    return moved;
+    return false;
   }
 
   // --- Search & Filter ---

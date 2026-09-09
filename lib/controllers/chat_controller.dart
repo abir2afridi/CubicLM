@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
-import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -20,6 +19,8 @@ import '../controllers/home_controller.dart';
 import '../core/constants.dart';
 import '../models/chat_message.dart';
 import '../models/chat_session.dart';
+import '../models/project_model.dart';
+import '../models/folder_model.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import '../services/hive_service.dart';
 import '../services/chat_backup.dart';
@@ -36,31 +37,12 @@ import '../models/web_source.dart';
 import '../utils/thought_parser.dart';
 import '../utils/history_budget.dart';
 import '../services/stats_service.dart';
+import '../services/memory_service.dart';
+import '../services/vector_service.dart';
+import '../utils/artifact_parser.dart';
 
 const int _visionImageMaxSide = 768;
 const int _visionImageJpegQuality = 72;
-
-Uint8List? _resizeVisionImageBytes(Map<String, dynamic> args) {
-  final bytes = args['bytes'] as Uint8List;
-  final decoded = img.decodeImage(bytes);
-  if (decoded == null) return null;
-
-  final longestSide =
-      decoded.width > decoded.height ? decoded.width : decoded.height;
-  if (longestSide <= _visionImageMaxSide) {
-    return bytes;
-  }
-
-  final resized = img.copyResize(
-    decoded,
-    width: decoded.width >= decoded.height ? _visionImageMaxSide : null,
-    height: decoded.height > decoded.width ? _visionImageMaxSide : null,
-    interpolation: img.Interpolation.average,
-  );
-  return Uint8List.fromList(
-    img.encodeJpg(resized, quality: _visionImageJpegQuality),
-  );
-}
 
 class ChatController extends GetxController {
   final HiveService _hive = Get.find<HiveService>();
@@ -69,7 +51,10 @@ class ChatController extends GetxController {
   // State
   final sessions = <ChatSession>[].obs;
   final messages = <ChatMessage>[].obs;
+  final projects = <ChatProject>[].obs;
+  final folders = <ChatFolder>[].obs;
   final currentSessionId = ''.obs;
+  final currentProjectId = Rxn<String>();
   final isLoading = false.obs;
   final inputText = ''.obs;
   final selectedImagePath = Rxn<String>();
@@ -79,6 +64,7 @@ class ChatController extends GetxController {
   final selectedFilePath = Rxn<String>();
   final selectedFileType = Rxn<String>();
   final selectedFileSize = 0.obs;
+  final selectedFileChunks = <String>[].obs;
 
   // Real-time streaming state — the AI response as it's being generated
   final streamingResponse = ''.obs;
@@ -97,6 +83,64 @@ class ChatController extends GetxController {
 
   // UI state
   final showScrollToBottom = false.obs;
+
+  // Artifacts (Claude-style side panel)
+  final activeArtifactId = Rxn<String>();
+  final artifacts = <String, List<Map<String, String>>>{}
+      .obs; // id -> [{title, type, content, timestamp}]
+  final showArtifactPanel = false.obs;
+
+  // Search Mode (Perplexity-style)
+  final isSearchMode = false.obs;
+
+  final templateSearchQuery = ''.obs;
+  List<Map<String, String>> get filteredTemplates {
+    final query = templateSearchQuery.value.toLowerCase();
+    if (query.isEmpty) return promptTemplates;
+    return promptTemplates.where((t) {
+      final name = (t['name'] ?? '').toLowerCase();
+      final body = (t['body'] ?? '').toLowerCase();
+      return name.contains(query) || body.contains(query);
+    }).toList();
+  }
+
+  void openArtifact(String id, String content, {String? title, String? type}) {
+    final version = {
+      'title': title ?? 'Artifact',
+      'type': type ?? 'code',
+      'content': content,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+
+    if (artifacts.containsKey(id)) {
+      // Check if content is different before adding a new version
+      if (artifacts[id]!.last['content'] != content) {
+        artifacts[id]!.add(version);
+      }
+    } else {
+      artifacts[id] = [version];
+    }
+
+    activeArtifactId.value = id;
+    showArtifactPanel.value = true;
+  }
+
+  void updateArtifact(String id, String content) {
+    if (!artifacts.containsKey(id)) return;
+    final last = artifacts[id]!.last;
+    final version = {
+      'title': last['title'] ?? 'Artifact',
+      'type': last['type'] ?? 'code',
+      'content': content,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+    artifacts[id]!.add(version);
+    artifacts.refresh();
+  }
+
+  void closeArtifact() {
+    showArtifactPanel.value = false;
+  }
 
   // Speech-to-text
   final isListening = false.obs;
@@ -164,6 +208,13 @@ class ChatController extends GetxController {
     _voiceWorkers.add(ever<bool>(isLoading, (loading) {
       if (_wasLoading && !loading) unawaited(_onVoiceReplyReady());
       _wasLoading = loading;
+    }));
+
+    // Voice interruption: stop TTS if user starts speaking
+    _voiceWorkers.add(ever<bool>(isListening, (listening) {
+      if (voiceMode.value && listening && tts != null && tts.isSpeaking.value) {
+        unawaited(tts.stop());
+      }
     }));
   }
 
@@ -324,6 +375,8 @@ class ChatController extends GetxController {
     scrollController.addListener(_handleUserScroll);
     _scrollListenerAttached = true;
     loadSessions();
+    loadProjects();
+    loadFolders();
     _initSpeech();
     _loadAutoBackupPrefs();
     // Pick up Android share-target text (cold start).
@@ -538,6 +591,76 @@ class ChatController extends GetxController {
       ..sort(_sessionSort);
   }
 
+  void loadProjects() {
+    final raw = _hive.getAllProjects();
+    projects.value = raw.map((m) => ChatProject.fromMap(m)).toList()
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  }
+
+  void loadFolders() {
+    final raw = _hive.getAllFolders();
+    folders.value = raw.map((m) => ChatFolder.fromMap(m)).toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  void createFolder(String name, {String? parentId}) {
+    final id = _uuid.v4();
+    final folder = ChatFolder(id: id, name: name, parentId: parentId);
+    _hive.saveFolder(id, folder.toMap());
+    folders.add(folder);
+  }
+
+  void deleteFolder(String id) {
+    _hive.deleteFolder(id);
+    folders.removeWhere((f) => f.id == id);
+    // Move chats to root
+    for (var i = 0; i < sessions.length; i++) {
+      if (sessions[i].folderId == id) {
+        final updated = sessions[i].copyWith(folderId: null);
+        sessions[i] = updated;
+        _hive.saveSession(updated.id, updated.toMap());
+      }
+    }
+  }
+
+  void addChatToFolder(String chatId, String? folderId) {
+    final sIdx = sessions.indexWhere((s) => s.id == chatId);
+    if (sIdx >= 0) {
+      final updated = sessions[sIdx].copyWith(folderId: folderId);
+      sessions[sIdx] = updated;
+      _hive.saveSession(updated.id, updated.toMap());
+    }
+  }
+
+  void createProject(String name) {
+    final id = _uuid.v4();
+    final project = ChatProject(id: id, name: name);
+    _hive.saveProject(id, project.toMap());
+    projects.insert(0, project);
+  }
+
+  void deleteProject(String id) {
+    _hive.deleteProject(id);
+    projects.removeWhere((p) => p.id == id);
+    // Unlink chats
+    for (var i = 0; i < sessions.length; i++) {
+      if (sessions[i].projectId == id) {
+        final updated = sessions[i].copyWith(projectId: null);
+        sessions[i] = updated;
+        _hive.saveSession(updated.id, updated.toMap());
+      }
+    }
+  }
+
+  void addChatToProject(String chatId, String projectId) {
+    final sIdx = sessions.indexWhere((s) => s.id == chatId);
+    if (sIdx >= 0) {
+      final updated = sessions[sIdx].copyWith(projectId: projectId);
+      sessions[sIdx] = updated;
+      _hive.saveSession(updated.id, updated.toMap());
+    }
+  }
+
   /// Pinned sessions float to the top, then most-recently-updated first.
   int _sessionSort(ChatSession a, ChatSession b) {
     if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
@@ -696,7 +819,10 @@ class ChatController extends GetxController {
     }
     _resetInferenceContext();
     final opened = sessions.firstWhereOrNull((s) => s.id == sessionId);
-    if (opened != null) unawaited(_applySessionModel(opened));
+    if (opened != null) {
+      currentProjectId.value = opened.projectId;
+      unawaited(_applySessionModel(opened));
+    }
     // Best-effort: send anything queued while offline for this chat.
     unawaited(_flushOutbox());
     _scrollToBottom(force: true);
@@ -1220,123 +1346,108 @@ class ChatController extends GetxController {
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: [
-          'png',
-          'jpg',
-          'jpeg',
-          'webp',
-          'gif',
-          'heic',
-          'pdf',
-          'docx',
-          'mp3',
-          'm4a',
-          'wav',
-          'aac',
-          'ogg',
-          'flac',
-          'txt',
-          'md',
-          'json',
-          'csv',
-          'log',
-          'yaml',
-          'yml',
-          'xml',
-          'dart',
-          'kt',
-          'java',
-          'js',
-          'ts',
-          'py'
+          'png', 'jpg', 'jpeg', 'webp', 'gif', 'heic',
+          'pdf', 'docx',
+          'mp3', 'm4a', 'wav', 'aac', 'ogg', 'flac',
+          'txt', 'md', 'json', 'csv', 'log', 'yaml', 'yml', 'xml',
+          'dart', 'kt', 'java', 'js', 'ts', 'py',
+          'zip', 'c', 'cpp', 'h', 'hpp', 'go', 'rs', 'rb', 'php'
         ],
         withData: kIsWeb,
       );
       if (result == null) return;
       final file = result.files.single;
-      final extension = file.extension?.toLowerCase() ?? '';
+      await handleFile(file.path!, file.name,
+          size: file.size, bytes: file.bytes);
+    } catch (e) {
+      Get.find<AppLogService>().error('File pick failed',
+          details: e, category: LogCategory.chat);
+    }
+  }
+
+  Future<void> handleFile(String path, String name,
+      {int? size, Uint8List? bytes}) async {
+    try {
+      final extension = name.split('.').last.toLowerCase();
       final fileType = _attachmentTypeForExtension(extension);
 
       // Reject unsupported or extension-less files
-      if (extension.isEmpty || fileType == 'file') {
+      if (extension.isEmpty || (fileType == 'file' && extension != 'zip')) {
         Get.snackbar(
           'Unsupported file',
-          'Only images, audio, PDF, DOCX, and text/code files are supported.',
+          'Only images, audio, PDF, DOCX, ZIP and text/code files are supported.',
           snackPosition: SnackPosition.BOTTOM,
         );
         return;
       }
 
       if (fileType == 'image') {
-        final bytes = file.bytes ??
-            (file.path != null ? await File(file.path!).readAsBytes() : null);
-        if (bytes == null) return;
-        final optimizedPath = await _prepareVisionImagePath(
-          bytes: bytes,
-          originalName: file.name,
-          fallbackPath: file.path,
-        );
-
-        selectedFileName.value = file.name;
-        selectedFilePath.value = optimizedPath;
+        selectedImagePath.value = path;
+        selectedImageBase64.value =
+            (kIsWeb && bytes != null) ? base64Encode(bytes) : null;
+        selectedFileName.value = name;
+        selectedFilePath.value = path;
         selectedFileType.value = 'image';
-        selectedFileSize.value = await File(optimizedPath).length();
+        selectedFileSize.value = size ?? await File(path).length();
         selectedFileContent.value = null;
-        selectedImagePath.value = optimizedPath;
-        selectedImageBase64.value = null;
         _checkVisionSupport();
         return;
       }
 
-      selectedFileName.value = file.name;
-      selectedFilePath.value = file.path;
-      selectedFileType.value = fileType;
-      selectedFileSize.value = file.size;
-      selectedFileContent.value = null;
+      selectedFileName.value = name;
+      selectedFileType.value = extension;
+      selectedFileSize.value = size ?? await File(path).length();
+      selectedFilePath.value = path;
+      selectedFileContent.value = 'chat_extracting_text'.tr;
 
-      selectedImagePath.value = null;
-      selectedImageBase64.value = null;
+      if (extension == 'zip') {
+        final chunks = await DocumentExtractorService.extractZip(path);
+        final structure = _generateProjectStructure(chunks);
+        final content =
+            chunks.map((c) => '--- ${c.source} ---\n${c.text}').join('\n\n');
+        selectedFileContent.value = '$structure\n\n$content';
+      } else {
+        final text = await DocumentExtractorService.extractText(path, extension);
+        selectedFileContent.value = text;
+      }
 
-      if (fileType == 'pdf' || fileType == 'docx') {
-        final path = file.path;
-        if (path != null) {
-          try {
-            var content = await DocumentExtractorService.extractText(
-              path,
-              extension,
-            );
-            if (content.length > 12000) {
-              content =
-                  '${content.substring(0, 12000)}\n\n[File truncated for context size]';
-            }
-            selectedFileContent.value = content;
-          } catch (e) {
-            Get.find<AppLogService>().warning(
-              'Document extraction failed',
-              details: e,
-              category: LogCategory.chat,
-            );
-            selectedFileContent.value =
-                '[Could not extract text from ${selectedFileName.value}: $e]';
-          }
-        }
-      } else if (fileType == 'text') {
-        final bytes = file.bytes ??
-            (file.path != null ? await File(file.path!).readAsBytes() : null);
-        if (bytes == null) return;
-        selectedFileSize.value = file.size > 0 ? file.size : bytes.length;
-        var content = utf8.decode(bytes, allowMalformed: true);
-        if (content.length > 12000) {
-          content =
-              '${content.substring(0, 12000)}\n\n[File truncated for context size]';
-        }
-        selectedFileContent.value = content;
+      // Chunk for RAG if it's large (> 2000 chars)
+      if (selectedFileContent.value != null && selectedFileContent.value!.length > 2000) {
+        final vs = Get.find<VectorService>();
+        selectedFileChunks.assignAll(vs.chunkText(selectedFileContent.value!));
+      } else {
+        selectedFileChunks.clear();
       }
     } catch (e) {
-      Get.find<AppLogService>().warning('File attachment failed',
+      Get.find<AppLogService>().error('File handle failed',
           details: e, category: LogCategory.chat);
-      Get.snackbar('File not attached', '$e',
-          snackPosition: SnackPosition.BOTTOM);
     }
+  }
+
+  String _generateProjectStructure(List<DocumentChunk> chunks) {
+    final buffer = StringBuffer();
+    buffer.writeln('Project Structure Overview:');
+    
+    final tree = <String, Set<String>>{};
+    for (final c in chunks) {
+      final parts = c.source.split('/');
+      if (parts.length > 1) {
+        final root = parts[0];
+        tree.putIfAbsent(root, () => {}).add(parts.sublist(0, parts.length - 1).join('/'));
+      }
+    }
+
+    if (tree.isNotEmpty) {
+      buffer.writeln('Root Folders: ${tree.keys.join(', ')}');
+      // Limit detailed folder listing if too many
+      if (tree.values.fold(0, (sum, set) => sum + set.length) < 20) {
+        buffer.writeln('Subfolders: ${tree.values.expand((e) => e).join(', ')}');
+      }
+    }
+    
+    buffer.writeln('Total files: ${chunks.length}');
+    buffer.writeln('---');
+    return buffer.toString();
   }
 
   void clearFile() {
@@ -1345,37 +1456,10 @@ class ChatController extends GetxController {
     selectedFilePath.value = null;
     selectedFileType.value = null;
     selectedFileSize.value = 0;
+    selectedFileChunks.clear();
   }
 
-  Future<String> _prepareVisionImagePath({
-    required Uint8List bytes,
-    required String originalName,
-    String? fallbackPath,
-  }) async {
-    final resized = await compute(_resizeVisionImageBytes, {'bytes': bytes});
-    if (resized == null) {
-      if (fallbackPath != null && fallbackPath.isNotEmpty) return fallbackPath;
-      final tempDir = await getTemporaryDirectory();
-      final failedDecodeFile = File(
-        '${tempDir.path}/ai_chat_image_${DateTime.now().millisecondsSinceEpoch}_$originalName',
-      );
-      await failedDecodeFile.writeAsBytes(bytes, flush: false);
-      return failedDecodeFile.path;
-    }
 
-    if (resized.length == bytes.length &&
-        fallbackPath != null &&
-        fallbackPath.isNotEmpty) {
-      return fallbackPath;
-    }
-
-    final tempDir = await getTemporaryDirectory();
-    final file = File(
-      '${tempDir.path}/ai_chat_vision_${DateTime.now().millisecondsSinceEpoch}.jpg',
-    );
-    await file.writeAsBytes(resized, flush: false);
-    return file.path;
-  }
 
   // ─── Send Message ───────────────────────────────
 
@@ -1593,6 +1677,46 @@ class ChatController extends GetxController {
           .where((e) => e['role'] == 'user' || e['role'] == 'assistant')
           .toList();
 
+      // ─── RAG: Smart Context Retrieval ───
+      try {
+        final vs = Get.find<VectorService>();
+        // 1. Apply RAG to current prompt
+        if (prompt.contains('Attached file:') && prompt.length > 3000) {
+          final contentMatch = RegExp(r'```text\n([\s\S]*?)\n```').firstMatch(prompt);
+          if (contentMatch != null) {
+            final full = contentMatch.group(1) ?? '';
+            final hits = vs.retrieve(prompt.split('\n\n').first, vs.chunkText(full));
+            if (hits.isNotEmpty) {
+              prompt = prompt.replaceFirst(
+                RegExp(r'Attached file:.*?\n```text\n[\s\S]*?\n```'),
+                '[Relevant snippets from attachment]:\n${hits.map((h) => "> $h").join("\n\n")}'
+              );
+            }
+          }
+        }
+        // 2. Apply RAG to history turns
+        for (var i = 0; i < history.length; i++) {
+          final turn = history[i];
+          final content = turn['content'] ?? '';
+          if (turn['role'] == 'user' && content.contains('Attached file:') && content.length > 3000) {
+            final contentMatch = RegExp(r'```text\n([\s\S]*?)\n```').firstMatch(content);
+            if (contentMatch != null) {
+              final full = contentMatch.group(1) ?? '';
+              final hits = vs.retrieve(prompt, vs.chunkText(full));
+              if (hits.isNotEmpty) {
+                history[i] = {
+                  'role': 'user',
+                  'content': content.replaceFirst(
+                    RegExp(r'Attached file:.*?\n```text\n[\s\S]*?\n```'),
+                    '[Relevant snippets from file]:\n${hits.map((h) => "> $h").join("\n\n")}'
+                  )
+                };
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
       // Fallback: if storage came back empty but the UI holds turns
       // (write/query race or store hiccup), build from the visible list
       // so the model never loses context silently.
@@ -1657,9 +1781,11 @@ class ChatController extends GetxController {
       if (persona.isNotEmpty) {
         basePrompt = '$basePrompt\n\n[Chat persona]\n$persona';
       }
-      final String systemPromptForThisTurn = relevantSkills.isEmpty
+      final String systemPromptForThisTurn = Get.find<MemoryService>().injectMemories(
+      relevantSkills.isEmpty
           ? basePrompt
-          : '$basePrompt${SkillInjector.buildForSkills(relevantSkills)}';
+          : '$basePrompt${SkillInjector.buildForSkills(relevantSkills)}',
+    );
 
       // Web access — fetch readable text for any URLs in the prompt so
       // the model can reason over real page content.
@@ -1690,7 +1816,38 @@ class ChatController extends GetxController {
         }
       } catch (_) {}
 
-      if (inferenceMode == 'local') {
+      final cloud = Get.find<CloudService>();
+
+
+      if (isSearchMode.value && cloud.isProviderConfigured('perplexity')) {
+        // ── Deep Search Mode (Perplexity Sonar Pro) ──
+        final apiMessages = [
+          {
+            'role': 'system',
+            'content':
+                'You are a helpful assistant with real-time web search capabilities. Provide comprehensive answers with citations where possible.'
+          },
+          ...history,
+          {'role': 'user', 'content': prompt},
+        ];
+
+        final buffer = StringBuffer();
+        try {
+          await for (final chunk in cloud.streamMessageAs(
+            providerId: 'perplexity',
+            model: 'sonar-pro',
+            messages: apiMessages,
+          )) {
+            buffer.write(chunk);
+            bufferToken(chunk);
+          }
+          rawResponse = buffer.toString();
+        } catch (e) {
+          rawResponse = 'Search failed: $e';
+        }
+        flushTokens();
+        tokenFlushTimer?.cancel();
+      } else if (inferenceMode == 'local') {
         final localImage = Get.find<LocalImageService>();
 
         if (localImage.isModelLoaded.value &&
@@ -1859,11 +2016,14 @@ class ChatController extends GetxController {
         } catch (_) {}
       }
 
+      final artifactsDetected = parseArtifacts(rawResponse);
+      final cleanContent = removeArtifacts(rawResponse);
+
       final aiMsg = ChatMessage(
         id: aiMsgId,
         chatId: currentSessionId.value,
         role: 'assistant',
-        content: rawResponse,
+        content: cleanContent,
         imageBase64: outImageBase64,
         imagePath: outImagePath,
         tokensPerSec: tps,
@@ -1872,6 +2032,16 @@ class ChatController extends GetxController {
         generationDurationMs: totalDurationMs,
         webSources: webSources.isEmpty ? null : webSources,
         usedSkills: usedSkillNames.isEmpty ? null : usedSkillNames,
+        artifacts: artifactsDetected.isEmpty
+            ? null
+            : artifactsDetected
+                .map((e) => {
+                      'id': e.id ?? _uuid.v4(),
+                      'type': e.type ?? 'code',
+                      'title': e.title ?? 'Artifact',
+                      'content': e.content,
+                    })
+                .toList(),
       );
 
       if (insertAt != null && insertAt >= 0 && insertAt <= messages.length) {
@@ -1916,6 +2086,9 @@ class ChatController extends GetxController {
           history: history,
         );
       }
+
+      // ── Long-term Memory Extraction ──
+      unawaited(_extractMemories(prompt, rawResponse));
     } catch (e) {
       if (generationId != _generationSerial) {
         tokenFlushTimer?.cancel();
@@ -1968,6 +2141,42 @@ class ChatController extends GetxController {
       _scrollToBottom();
     }
     return true;
+  }
+
+  Future<void> _extractMemories(String userMsg, String aiMsg) async {
+    // Simple heuristic-based extraction.
+    final personalKeywords = [
+      'my name is',
+      'i live in',
+      'i like',
+      'i work as',
+      'my birthday is',
+      'i am interested in',
+      'i prefer',
+      'i use',
+      'my favorite',
+      'i want to learn',
+      'i am a'
+    ];
+    final lowerUser = userMsg.toLowerCase();
+    for (final kw in personalKeywords) {
+      if (lowerUser.contains(kw)) {
+        final startIdx = lowerUser.indexOf(kw);
+        // Take a reasonable slice of the sentence
+        var fact = userMsg.substring(startIdx).trim();
+        final endIdx = fact.indexOf(RegExp(r'[.!?\n]'));
+        if (endIdx != -1) {
+          fact = fact.substring(0, endIdx).trim();
+        }
+        
+        if (fact.length > kw.length + 2) {
+          final existing = Get.find<MemoryService>().getAllMemories();
+          if (!existing.any((m) => m.toLowerCase() == fact.toLowerCase())) {
+            await Get.find<MemoryService>().addMemory(fact);
+          }
+        }
+      }
+    }
   }
 
   // ─── Offline outbox (FIFO, cap 20, per-chat) ────

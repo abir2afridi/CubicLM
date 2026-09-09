@@ -1,3 +1,4 @@
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -6,6 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../../controllers/chat_controller.dart';
 import '../../controllers/home_controller.dart';
 import '../../controllers/settings_controller.dart';
+import '../../controllers/vision_live_controller.dart';
 import '../../core/colors.dart';
 import '../../ffi/sd_ffi_bindings.dart';
 import '../../services/local_image_service.dart';
@@ -24,10 +26,17 @@ ChatController get _c => Get.find<ChatController>();
 Widget inputBar(BuildContext context, bool isDark) {
   return SafeArea(
     top: false,
-    child: Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      color: Colors.transparent,
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
+    child: DropTarget(
+      onDragDone: (details) {
+        if (details.files.isNotEmpty) {
+          final file = details.files.first;
+          _c.handleFile(file.path, file.name);
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        color: Colors.transparent,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
         // Attachment preview
         Obx(() {
           final name = _c.selectedFileName.value;
@@ -79,42 +88,49 @@ Widget inputBar(BuildContext context, bool isDark) {
                     'https://www.google.com/s2/favicons?domain=$domain&sz=32';
                 return Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: isDark
                         ? Colors.white.withValues(alpha: 0.08)
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                        : Colors.white.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: isDark
-                          ? Colors.white.withValues(alpha: 0.08)
-                          : Colors.black.withValues(alpha: 0.06),
+                          ? Colors.white.withValues(alpha: 0.1)
+                          : Colors.black.withValues(alpha: 0.05),
                     ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      )
+                    ],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: Image.network(
-                          faviconUrl,
-                          width: 16,
-                          height: 16,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF3B82F6)
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: const Icon(LucideIcons.globe,
-                                size: 10, color: Color(0xFF3B82F6)),
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.network(
+                            faviconUrl,
+                            width: 14,
+                            height: 14,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(
+                                LucideIcons.globe,
+                                size: 10,
+                                color: Color(0xFF3B82F6)),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 8),
                       Flexible(
                         child: Text(
                           displayDomain,
@@ -122,13 +138,12 @@ Widget inputBar(BuildContext context, bool isDark) {
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color:
-                                isDark ? AppColors.textPrimary : Dt.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? Colors.white : Dt.textPrimary,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 8),
                       GestureDetector(
                         onTap: () {
                           final current = _c.textController.text;
@@ -141,22 +156,12 @@ Widget inputBar(BuildContext context, bool isDark) {
                               TextSelection.collapsed(offset: updated.length);
                           _c.inputText.value = updated;
                         },
-                        child: Container(
-                          width: 18,
-                          height: 18,
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Colors.black.withValues(alpha: 0.06),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            LucideIcons.x,
-                            size: 10,
-                            color: isDark
-                                ? AppColors.textSecondary
-                                : Dt.textSecondary,
-                          ),
+                        child: Icon(
+                          LucideIcons.x,
+                          size: 14,
+                          color: isDark
+                              ? AppColors.textSecondary
+                              : Dt.textSecondary,
                         ),
                       ),
                     ],
@@ -442,6 +447,29 @@ Widget inputBar(BuildContext context, bool isDark) {
                     );
                   }),
                   const SizedBox(width: 6),
+                  Obx(() {
+                    final enabled = _c.isSearchMode.value;
+                    return AppCircleButton(
+                      icon: LucideIcons.search,
+                      tooltip: 'Deep Search (Perplexity-style)',
+                      iconColor: enabled ? Dt.accent : null,
+                      onTap: () => _c.isSearchMode.value = !enabled,
+                    );
+                  }),
+                  const SizedBox(width: 6),
+                  Builder(builder: (context) {
+                    final vision = Get.put(VisionLiveController());
+                    return Obx(() {
+                      final enabled = vision.isLive.value;
+                      return AppCircleButton(
+                        icon: LucideIcons.video,
+                        tooltip: 'Live Vision (Snapshot Loop)',
+                        iconColor: enabled ? AppColors.error : null,
+                        onTap: vision.toggleLive,
+                      );
+                    });
+                  }),
+                  const SizedBox(width: 6),
                   AppCircleButton(
                     icon: LucideIcons.layoutTemplate,
                     tooltip: 'Prompt templates',
@@ -507,8 +535,10 @@ Widget inputBar(BuildContext context, bool isDark) {
                   }),
                 ]),
               ]),
+            ),
+          ],
         ),
-      ]),
+      ),
     ),
   );
 }

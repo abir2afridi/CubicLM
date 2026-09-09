@@ -117,6 +117,17 @@ class AgentController extends GetxController {
   /// True while `npm run build` validation runs.
   final validatingBuild = false.obs;
 
+  /// Token tracking
+  final totalTokensUsed = 0.obs;
+  final lastRequestTokens = 0.obs;
+  final projectSizeKb = 0.0.obs;
+
+  /// Smart Suggestions
+  final suggestions = <String>[].obs;
+
+  /// Runtime Error Details
+  final runtimeError = Rxn<Map<String, dynamic>>();
+
   /// Cloud fallback provider (unconfigured in this build — honest stub).
   final CloudRuntimeProvider cloudRuntime = UnconfiguredCloudRuntime();
 
@@ -931,9 +942,24 @@ class AgentController extends GetxController {
     final p = project.value;
     if (p == null) {
       files.clear();
+      projectSizeKb.value = 0.0;
       return;
     }
-    files.assignAll(await _ws.listFiles(p.id));
+    final list = await _ws.listFiles(p.id);
+    files.assignAll(list);
+    
+    // Calculate project size
+    double totalBytes = 0;
+    final dir = await _ws.dirFor(p.id);
+    for (final f in list) {
+      try {
+        final file = File('${dir.path}/$f');
+        if (await file.exists()) {
+          totalBytes += await file.length();
+        }
+      } catch (_) {}
+    }
+    projectSizeKb.value = totalBytes / 1024;
   }
 
   /// Call after manual file ops (save/rename/add/delete) so the explorer
@@ -1191,7 +1217,7 @@ class AgentController extends GetxController {
         }
         if (total > 1000000) before = {};
       } catch (_) {}
-      final projContext = await _projectContext(p.id);
+      final projContext = await _projectContext(p.id, t);
       // One-shot visual context: user long-pressed an element in preview.
       final picked = pickedElement.value;
       pickedElement.value = null;
@@ -1521,7 +1547,7 @@ class AgentController extends GetxController {
     term('⚙ auto-fix round $_autoRounds/$maxRepairRounds…');
     try {
       await _ws.saveCheckpoint(p.id, label: 'Before auto-fix');
-      final projContext = await _projectContext(p.id);
+      final projContext = await _projectContext(p.id, err);
       final raw = await _ask(
         prompt: 'Fix this runtime error in the "${p.name}" '
             '${p.framework} project:\n\nERROR:\n$err\n\n'
@@ -1544,29 +1570,30 @@ class AgentController extends GetxController {
       final truncated = <String>[];
       final parsed = _parseChecked(raw, truncated);
       if (_cancelled) return;
-      var applied = 0;
+      
+      pendingChanges.clear();
+      final currentFiles = await _projectContents(p.id);
       for (final f in parsed) {
-        final werr = await _ws.writeFile(p.id, f.path, f.content);
-        if (werr == null) applied++;
+        final old = currentFiles[f.path] ?? '';
+        pendingChanges[f.path] = {'old': old, 'new': f.content};
       }
-      await _ws.touch(p.id);
-      await refreshFiles();
-      consoleError.value = null;
-      _touch();
-      buildStatus.value = null;
-      if (truncated.isNotEmpty) {
-        term('⚠ truncated: ${truncated.join(', ')}');
+
+      if (pendingChanges.isNotEmpty) {
+        reviewingChanges.value = true;
+        term('✓ auto-fix ready for review');
+        step('fix', 'Auto-fix ready for review.');
+      } else {
+        term('! auto-fix suggested no changes');
+        step('fix', 'No changes suggested.');
       }
-      term('✓ auto-fix applied ($applied files)');
-      step('fix',
-          'Fixed $applied file${applied == 1 ? '' : 's'} — preview reloaded.');
-      _say('assistant',
-          'Fixed — $applied file${applied == 1 ? '' : 's'} rewritten, preview reloaded.');
+
       _snapshotActivity();
+      _say('assistant', 'I\'ve diagnosed the error and prepared a fix. Please review it in the diff view.');
       _markLastAssistantWithBuild();
+      
       AppSnackbar.showTop(
-        'Auto-fix applied',
-        '$applied file${applied == 1 ? '' : 's'} rewritten — reloaded.',
+        'Auto-fix ready',
+        'Review the suggested fixes.',
         logHistory: false,
       );
       Future.delayed(const Duration(seconds: 1), () => captureCheckpointThumbnail());
@@ -1610,7 +1637,7 @@ class AgentController extends GetxController {
         if (generating.value) return; // already fixing
       }
       // 2) Ask AI to review all files for issues.
-      final projContext = await _projectContext(p.id);
+      final projContext = await _projectContext(p.id, 'QA review');
       final raw = await _ask(
         prompt: 'Auto-test the "${p.name}" ${p.framework} project. '
             'Review all files for: broken links, missing images, '
@@ -1681,15 +1708,51 @@ class AgentController extends GetxController {
     }
   }
 
-  /// Small-file contexts for repair/modify prompts (capped).
-  Future<String> _projectContext(String projectId) async {
+  /// Context Management (Mini-RAG): Build a relevant context for the prompt.
+  /// Prioritizes files mentioned in the prompt or symbol names.
+  Future<String> _projectContext(String projectId, [String? userPrompt]) async {
     final buf = StringBuffer();
+    final allFiles = await _ws.listFiles(projectId);
+    final sortedFiles = List<String>.from(allFiles);
+
+    // Prioritization logic
+    if (userPrompt != null && userPrompt.isNotEmpty) {
+      final promptLower = userPrompt.toLowerCase();
+      
+      // 1. Check for explicit file mentions
+      final mentioned = sortedFiles.where((f) => promptLower.contains(f.toLowerCase())).toList();
+      
+      // 2. Check for symbol mentions (functions, components)
+      final symbols = await scanProjectSymbols();
+      final mentionedBySymbol = <String>{};
+      for (final s in symbols) {
+        final name = s['name']?.toString().toLowerCase();
+        if (name != null && promptLower.contains(name)) {
+          mentionedBySymbol.add(s['file']);
+        }
+      }
+
+      // Re-sort: Mentioned files first, then by symbol, then others.
+      sortedFiles.sort((a, b) {
+        final aMentioned = mentioned.contains(a) || mentionedBySymbol.contains(a);
+        final bMentioned = mentioned.contains(b) || mentionedBySymbol.contains(b);
+        if (aMentioned && !bMentioned) return -1;
+        if (!aMentioned && bMentioned) return 1;
+        return a.compareTo(b);
+      });
+    }
+
     var used = 0;
-    for (final path in await _ws.listFiles(projectId)) {
+    for (final path in sortedFiles) {
       final content = await _ws.readFile(projectId, path) ?? '';
-      if (content.length > 8000) {
-        buf.writeln('--- $path (first 2KB of ${content.length}) ---');
-        final head = content.substring(0, 2000);
+      
+      // If we're getting close to the limit, start truncating less relevant files
+      int maxFileChars = 8000;
+      if (used > maxContextChars * 0.7) maxFileChars = 2000;
+
+      if (content.length > maxFileChars) {
+        buf.writeln('--- $path (first ${maxFileChars ~/ 1024}KB of ${content.length}) ---');
+        final head = content.substring(0, maxFileChars);
         if (used + head.length > maxContextChars) break;
         buf.writeln(head);
         used += head.length;
@@ -1711,6 +1774,44 @@ class AgentController extends GetxController {
     await refreshFiles();
     await _serve();
     _touch();
+    updateSuggestions();
+  }
+
+  /// Update smart suggestions based on the project state.
+  void updateSuggestions() {
+    final p = project.value;
+    if (p == null) {
+      suggestions.assignAll([
+        'Build a modern landing page',
+        'Create a crypto dashboard',
+        'Build a developer portfolio',
+        'Create a minimalist blog',
+      ]);
+      return;
+    }
+
+    final list = <String>[];
+    final f = p.framework.toLowerCase();
+
+    if (files.length < 5) {
+      list.add('Add a contact section');
+      list.add('Add a dark mode toggle');
+      list.add('Improve mobile responsiveness');
+    }
+
+    if (f.contains('react') || f.contains('next')) {
+      list.add('Add a Framer Motion animation');
+      list.add('Extract components to separate files');
+      list.add('Add a Shadcn UI button');
+    } else {
+      list.add('Add a sticky navigation bar');
+      list.add('Add a footer with social links');
+    }
+
+    list.add('Polish the typography');
+    list.add('Add glassmorphism styles');
+    
+    suggestions.assignAll(list.take(5).toList());
   }
 
   /// Read every project file into a path → content map (shared
@@ -2452,38 +2553,129 @@ class AgentController extends GetxController {
       }
     }
 
-    if (settings.inferenceMode.value == 'cloud') {
-      final cloud = Get.find<CloudService>();
-      await for (final chunk in cloud.streamMessage(
-        [
-          {'role': 'system', 'content': sys},
-          {'role': 'user', 'content': prompt},
-        ],
-        temperature: settings.temperature.value,
-        maxTokens:
-            settings.autoTuneParams.value ? null : settings.maxTokens.value,
-        imageBase64: attachedImage.value,
-      )) {
-        bump(chunk);
+    try {
+      if (settings.inferenceMode.value == 'cloud') {
+        final cloud = Get.find<CloudService>();
+        await for (final chunk in cloud.streamMessage(
+          [
+            {'role': 'system', 'content': sys},
+            {'role': 'user', 'content': prompt},
+          ],
+          temperature: settings.temperature.value,
+          maxTokens:
+              settings.autoTuneParams.value ? null : settings.maxTokens.value,
+          imageBase64: attachedImage.value,
+        )) {
+          bump(chunk);
+        }
+      } else {
+        final inference = Get.find<InferenceService>();
+        if (!inference.isModelLoaded.value) {
+          throw Exception(
+              'No local model loaded — load one in Explore → Local, or switch to Cloud mode.');
+        }
+        await inference.generate(
+          prompt: prompt,
+          systemPrompt: system,
+          source: 'agent',
+          onToken: bump,
+        );
       }
+      
       final out = buf.toString().trim();
       if (out.isEmpty) throw Exception('The model returned nothing.');
+      
+      // Update token tracking (heuristic: 4 chars = 1 token)
+      final tokens = (out.length / 4).round();
+      lastRequestTokens.value = tokens;
+      totalTokensUsed.value += tokens;
+      
       return out;
+    } finally {
+      // Any cleanup if needed
     }
-    final inference = Get.find<InferenceService>();
-    if (!inference.isModelLoaded.value) {
-      throw Exception(
-          'No local model loaded — load one in Explore → Local, or switch to Cloud mode.');
+  }
+
+  /// Magic Wand: Auto-Polish the UI
+  Future<void> autoPolish() async {
+    final p = project.value;
+    if (p == null || generating.value || fixing.value) return;
+    
+    generating.value = true;
+    _cancelled = false;
+    lastError.value = null;
+    currentTraceId = newTraceId();
+    
+    _say('user', '🪄 Auto-Polish: Refine UI styles and alignment');
+    _say('activity', '');
+    buildStatus.value = 'Polishing UI…';
+    term('> auto-polish: refining "${p.name}"…');
+    _beginSteps();
+    step('thinking', 'Analyzing UI for refinements…');
+
+    try {
+      final beforeCp = await _ws.saveCheckpoint(p.id, label: 'Before auto-polish');
+      final projContext = await _projectContext(p.id);
+      
+      final raw = await _ask(
+        prompt: 'Refine and polish the UI of the "${p.name}" ${p.framework} project. '
+            'Focus on: fixing inconsistent spacing/padding, improving color contrast, '
+            'refining typography, adding subtle transitions/animations, and ensuring '
+            'perfect alignment. Keep the core logic and features identical.\n\n'
+            'CURRENT FILES:\n$projContext\n\n'
+            'Return a files-JSON object with ONLY the polished files (complete new contents).',
+        system: '${webSystemPrompt(
+          framework: p.framework, 
+          brandIdentity: brandIdentity,
+          library: selectedLibrary.value,
+          designSystem: selectedDesignSystem.value,
+        )}\n'
+            'You are a senior UI/UX engineer. Your goal is to make the design "lovable".',
+        onProgress: (n) => _streamStatus('Polishing', n),
+        onPartial: (buf) => unawaited(_flushPartial(buf, p.id)),
+      );
+
+      if (_cancelled) {
+        try {
+          await _ws.rollbackToCheckpoint(p.id, beforeCp);
+          await refreshFiles();
+          _touch();
+        } catch (_) {}
+        return;
+      }
+
+      final truncated = <String>[];
+      final parsed = _parseChecked(raw, truncated);
+      
+      pendingChanges.clear();
+      final currentFiles = await _projectContents(p.id);
+      for (final f in parsed) {
+        final old = currentFiles[f.path] ?? '';
+        pendingChanges[f.path] = {'old': old, 'new': f.content};
+      }
+      
+      if (pendingChanges.isNotEmpty) {
+        reviewingChanges.value = true;
+        term('✓ UI polished — review the refinements');
+        step('done', 'UI polished — ready for review.');
+      } else {
+        term('! no refinements needed');
+        step('done', 'No refinements needed.');
+      }
+      
+      _snapshotActivity();
+      _say('assistant', 'I\'ve polished the UI. Review the refinements in the diff view.');
+      _markLastAssistantWithBuild();
+
+    } catch (e) {
+      lastError.value = '$e';
+      term('✗ polish failed: $e');
+      step('error', 'Polish failed.');
+    } finally {
+      _clearStreaming();
+      generating.value = false;
+      buildStatus.value = null;
     }
-    await inference.generate(
-      prompt: prompt,
-      systemPrompt: system,
-      source: 'agent',
-      onToken: bump,
-    );
-    final out = buf.toString().trim();
-    if (out.isEmpty) throw Exception('The model returned nothing.');
-    return out;
   }
 
   void _log(String message, Object e) {

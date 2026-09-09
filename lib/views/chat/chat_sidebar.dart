@@ -7,6 +7,8 @@ import '../../controllers/chat_controller.dart';
 import '../../controllers/home_controller.dart';
 import '../../core/colors.dart';
 import '../../models/chat_session.dart';
+import '../../models/project_model.dart';
+import '../../models/folder_model.dart';
 import '../../services/hive_service.dart';
 import '../../theme/design_tokens.dart';
 import 'chat_dialogs.dart';
@@ -172,7 +174,41 @@ class _ChatSidebarState extends State<ChatSidebar> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+        // ── Projects ──
+        Obx(() {
+          if (_c.projects.isEmpty) return const SizedBox.shrink();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  children: [
+                    Text('PROJECTS',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textMuted,
+                            letterSpacing: 0.8)),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.add_rounded, size: 16),
+                      onPressed: () => _showCreateProjectDialog(context, isDark),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'New Project',
+                    ),
+                  ],
+                ),
+              ),
+              ..._c.projects.map((p) => _projectTile(p, isDark)),
+              const SizedBox(height: 12),
+            ],
+          );
+        }),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text('chat_recents'.tr,
@@ -339,15 +375,18 @@ class _ChatSidebarState extends State<ChatSidebar> {
                 ]),
               );
             }
-            return ListView.separated(
+            return ListView(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              itemCount: filtered.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 2),
-              itemBuilder: (ctx, i) {
-                final s = filtered[i];
-                final active = _c.currentSessionId.value == s.id;
-                return _sidebarTile(context, s, active, isDark);
-              },
+              children: [
+                // ── Folders ──
+                for (final f in _c.folders)
+                  _folderTile(context, f, filtered, isDark),
+
+                // ── Chats without folders ──
+                for (final s in filtered.where((s) => s.folderId == null))
+                  _sidebarTile(context, s, _c.currentSessionId.value == s.id,
+                      isDark),
+              ],
             );
           }),
         ),
@@ -627,6 +666,76 @@ class _ChatSidebarState extends State<ChatSidebar> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _projectTile(ChatProject p, bool isDark) {
+    final active = _c.currentProjectId.value == p.id;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          _c.currentProjectId.value = active ? null : p.id;
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: active
+                ? AppColors.primary.withValues(alpha: 0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(LucideIcons.briefcase,
+                  size: 16,
+                  color: active ? AppColors.primary : AppColors.textMuted),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  p.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                    color: isDark ? AppColors.textPrimary : Dt.textPrimary,
+                  ),
+                ),
+              ),
+              if (active)
+                const Icon(LucideIcons.check, size: 14, color: AppColors.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showCreateProjectDialog(BuildContext context, bool isDark) {
+    // ...
+  }
+
+  Widget _folderTile(
+      BuildContext context, ChatFolder f, List<ChatSession> all, bool isDark) {
+    final chats = all.where((s) => s.folderId == f.id).toList();
+    if (chats.isEmpty) return const SizedBox.shrink();
+
+    return ExpansionTile(
+      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+      leading: const Icon(LucideIcons.folder,
+          size: 18, color: AppColors.textMuted),
+      title: Text(f.name,
+          style: GoogleFonts.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: isDark ? AppColors.textPrimary : Dt.textPrimary)),
+      shape: const RoundedRectangleBorder(),
+      children: chats
+          .map((s) => _sidebarTile(
+              context, s, _c.currentSessionId.value == s.id, isDark))
+          .toList(),
     );
   }
 }

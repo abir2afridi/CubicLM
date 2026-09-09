@@ -15,6 +15,7 @@ import '../../theme/design_tokens.dart';
 import '../../utils/export_file.dart';
 import '../../utils/prompt_export.dart';
 import '../../utils/web_download.dart';
+import '../../widgets/app_ui.dart';
 
 /// Chat dialogs + session export helpers.
 /// Extracted from views/chat_view.dart.
@@ -130,8 +131,65 @@ String buildMarkdownForSession(ChatSession session, List<ChatMessage> msgs) {
   return buf.toString();
 }
 
-Future<void> exportSession(BuildContext context, ChatSession session,
-    {bool asTxt = false, bool asPdf = false}) async {
+Future<void> exportSession(BuildContext context, ChatSession session) async {
+  showAppBottomSheet(
+    context,
+    builder: (sheetCtx) => SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppSheetHeader(
+                title: 'Export chat',
+                onClose: () => Navigator.pop(sheetCtx)),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf_rounded, color: AppColors.error),
+              title: const Text('Export as PDF'),
+              subtitle: const Text('Professional paginated document'),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _doExport(context, session, asPdf: true);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.image_rounded, color: AppColors.success),
+              title: const Text('Export as Image'),
+              subtitle: const Text('High-resolution screenshot'),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _doExport(context, session, asImage: true);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.description_outlined, color: AppColors.primary),
+              title: const Text('Export as Markdown'),
+              subtitle: const Text('Perfect for documentation'),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _doExport(context, session);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.text_fields_rounded, color: Dt.textSecondary),
+              title: const Text('Export as Plain Text'),
+              subtitle: const Text('Simple and lightweight'),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _doExport(context, session, asTxt: true);
+              },
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> _doExport(BuildContext context, ChatSession session,
+    {bool asTxt = false, bool asPdf = false, bool asImage = false}) async {
   try {
     final hive = Get.find<HiveService>();
     final raw = hive.getMessagesForChat(session.id);
@@ -150,9 +208,7 @@ Future<void> exportSession(BuildContext context, ChatSession session,
     final baseName = '${truncated}_${DateTime.now().millisecondsSinceEpoch}';
 
     if (asPdf) {
-      // Whole-chat PDF via the same raster builder as per-message export
-      // (device fonts → Bangla/emoji-safe). Saves straight to the
-      // device; falls back to text share on failure.
+      // ... same as before ...
       try {
         final bytes = await PromptExport.buildPdfBytes(
             buildMarkdownForSession(session, msgs));
@@ -178,6 +234,19 @@ Future<void> exportSession(BuildContext context, ChatSession session,
       } catch (_) {
         await Share.share(buildMarkdownForSession(session, msgs),
             subject: session.title);
+      }
+      return;
+    }
+
+    if (asImage) {
+      try {
+        await PromptExport.shareAsImage(
+          buildMarkdownForSession(session, msgs),
+          baseName: truncated,
+        );
+      } catch (e) {
+        Get.snackbar('Image export failed', '$e',
+            snackPosition: SnackPosition.BOTTOM);
       }
       return;
     }
@@ -269,7 +338,7 @@ void showChatActionsSheet(
                     fontSize: 15, fontWeight: FontWeight.w600)),
             onTap: () {
               Navigator.pop(context);
-              exportSession(context, session);
+              _doExport(context, session);
             },
             dense: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 20),
@@ -283,7 +352,7 @@ void showChatActionsSheet(
                     fontSize: 15, fontWeight: FontWeight.w600)),
             onTap: () {
               Navigator.pop(context);
-              exportSession(context, session, asTxt: true);
+              _doExport(context, session, asTxt: true);
             },
             dense: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 20),
@@ -297,7 +366,7 @@ void showChatActionsSheet(
                     fontSize: 15, fontWeight: FontWeight.w600)),
             onTap: () {
               Navigator.pop(context);
-              exportSession(context, session, asPdf: true);
+              _doExport(context, session, asPdf: true);
             },
             dense: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 20),

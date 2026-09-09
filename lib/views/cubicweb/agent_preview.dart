@@ -38,12 +38,35 @@ class _AgentPreviewState extends State<AgentPreview> {
   bool _forwardedLoadError = false;
   InAppWebViewController? _webCtrl;
 
-  /// JS Bridge for hover & click selection.
+  /// JS Bridge for hover & click selection + Error interceptor.
   static const _pickerJs = '''
 (function(){
   if (window.__cubicPickInstalled) return;
   window.__cubicPickInstalled = true;
   window.__cubicPickArmed = false;
+
+  // Visual Error Interceptor
+  window.onerror = function(msg, url, line, col, error) {
+    window.flutter_inappwebview.callHandler('cubicOnRuntimeError', JSON.stringify({
+      message: msg,
+      file: (url||'').split('/').pop(),
+      line: line,
+      column: col,
+      stack: error ? error.stack : ''
+    }));
+    return false;
+  };
+
+  // Promise Error Interceptor
+  window.onunhandledrejection = function(event) {
+    window.flutter_inappwebview.callHandler('cubicOnRuntimeError', JSON.stringify({
+      message: 'Unhandled Rejection: ' + (event.reason ? event.reason.message : 'Unknown'),
+      file: 'async',
+      line: 0,
+      column: 0,
+      stack: event.reason ? event.reason.stack : ''
+    }));
+  };
   
   var lastEl = null;
   
@@ -281,6 +304,17 @@ class _AgentPreviewState extends State<AgentPreview> {
                                   if (args.isNotEmpty) ac.hoveredElement.value = '${args.first}';
                                 },
                               );
+                              ctrl.addJavaScriptHandler(
+                                handlerName: 'cubicOnRuntimeError',
+                                callback: (args) {
+                                  if (args.isNotEmpty) {
+                                    try {
+                                      final Map<String, dynamic> data = jsonDecode('${args.first}');
+                                      ac.runtimeError.value = data;
+                                    } catch (_) {}
+                                  }
+                                },
+                              );
                             },
                             onLoadStop: (_, __) {
                               if (mounted) setState(() => _loading = false);
@@ -375,12 +409,91 @@ class _AgentPreviewState extends State<AgentPreview> {
                       ),
                     ),
                   ),
+
+                // Error Overlay
+                Obx(() {
+                  final err = ac.runtimeError.value;
+                  if (err == null) return const SizedBox.shrink();
+                  return _errorOverlay(context, err);
+                }),
               ],
             ),
           ),
         ],
       );
     });
+  }
+
+  Widget _errorOverlay(BuildContext context, Map<String, dynamic> err) {
+    return Positioned(
+      bottom: 20,
+      left: 20,
+      right: 20,
+      child: Material(
+        elevation: 12,
+        borderRadius: BorderRadius.circular(12),
+        color: const Color(0xFFFEE2E2), // Red-100
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.red.withValues(alpha: 0.5), width: 1.5),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(LucideIcons.alertCircle, size: 18, color: Colors.red),
+                  const SizedBox(width: 10),
+                  Text('Runtime Error Detected',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 13, fontWeight: FontWeight.w800, color: Colors.red)),
+                  const Spacer(),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(LucideIcons.x, size: 16, color: Colors.red),
+                    onPressed: () => Get.find<AgentController>().runtimeError.value = null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(err['message'] ?? 'Unknown error',
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.firaCode(fontSize: 11, color: Colors.red[900])),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(LucideIcons.fileCode, size: 12, color: Colors.red),
+                  const SizedBox(width: 6),
+                  Text('${err['file'] ?? 'unknown'} : ${err['line'] ?? 0}',
+                      style: const TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  icon: const Icon(LucideIcons.wand2, size: 14),
+                  label: const Text('Quick Fix with AI', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    Get.find<AgentController>().runtimeError.value = null;
+                    Get.find<AgentController>().repairFromError();
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _browserHeader(BuildContext context, bool isDark) {

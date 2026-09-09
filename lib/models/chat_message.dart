@@ -31,6 +31,12 @@ class ChatMessage {
   /// Skill names that were injected for this prompt (assistant messages).
   final List<String>? usedSkills;
 
+  /// Claude-style artifacts detected in this message.
+  final List<Map<String, String>>? artifacts;
+
+  /// Citations for RAG (assistant messages).
+  final List<Map<String, dynamic>>? citations;
+
   /// Edit history: each entry is {'content': String, 'response': String?}
   /// revisions[0] = first version, revisions[last] = latest version
   final List<Map<String, dynamic>>? revisions;
@@ -104,6 +110,8 @@ class ChatMessage {
     DateTime? timestamp,
     this.webSources,
     this.usedSkills,
+    this.artifacts,
+    this.citations,
     this.revisions,
     this.revisionIndex = 0,
   }) : timestamp = timestamp ?? DateTime.now();
@@ -129,6 +137,8 @@ class ChatMessage {
         'timestamp': timestamp.toIso8601String(),
         'webSources': webSources?.map((e) => e.toMap()).toList(),
         'usedSkills': usedSkills,
+        'artifacts': artifacts,
+        'citations': citations,
         'revisions': revisions,
         'revisionIndex': revisionIndex,
       };
@@ -168,6 +178,16 @@ class ChatMessage {
             : null,
         usedSkills: map['usedSkills'] != null
             ? List<String>.from(map['usedSkills'] as List)
+            : null,
+        artifacts: map['artifacts'] != null
+            ? (map['artifacts'] as List)
+                .map((e) => Map<String, String>.from(e as Map))
+                .toList()
+            : null,
+        citations: map['citations'] != null
+            ? (map['citations'] as List)
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList()
             : null,
         revisions: map['revisions'] != null
             ? List<Map<String, dynamic>>.from(

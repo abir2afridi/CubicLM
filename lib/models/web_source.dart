@@ -3,6 +3,7 @@ class WebSource {
   final String domain;
   final String faviconUrl;
   final String title;
+  final String description;
   final bool success;
 
   WebSource({
@@ -10,6 +11,7 @@ class WebSource {
     required this.domain,
     required this.faviconUrl,
     this.title = '',
+    this.description = '',
     this.success = true,
   });
 
@@ -18,6 +20,7 @@ class WebSource {
         'domain': domain,
         'faviconUrl': faviconUrl,
         'title': title,
+        'description': description,
         'success': success,
       };
 
@@ -26,6 +29,7 @@ class WebSource {
         domain: map['domain'] ?? '',
         faviconUrl: map['faviconUrl'] ?? '',
         title: map['title'] ?? '',
+        description: map['description'] ?? '',
         success: map['success'] ?? true,
       );
 

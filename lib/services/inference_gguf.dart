@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:llama_flutter_android/llama_flutter_android.dart';
 
+import '../controllers/settings_controller.dart';
 import 'inference_text.dart';
 import 'inference_types.dart';
+import 'package:get/get.dart';
 
 /// GGUF inference engine (llama.cpp) - owns the llama.cpp session
 /// lifecycle: load, generate, KV guard, hard reset. LiteRT lives in
@@ -321,7 +323,11 @@ class GgufEngine {
 
     // ── Thread Tuning ──
     int threads;
-    if (gpuLayers > 0) {
+    final settings = Get.find<SettingsController>();
+    
+    if (settings.autoAdjustThreads.value) {
+      threads = settings.recommendedThreads;
+    } else if (gpuLayers > 0) {
       threads = deviceTier == 'ultra'
           ? 4
           : deviceTier == 'high'

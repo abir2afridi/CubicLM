@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../core/assets_data.dart';
 import '../controllers/agent_controller.dart';
 import '../core/colors.dart';
 import '../services/cubicweb/cubicweb_logger.dart';
@@ -24,6 +25,7 @@ import 'cubicweb/knowledge_graph_view.dart';
 import '../widgets/cli_sheets.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:markdown/markdown.dart' as md;
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../services/agent_workspace.dart';
 import '../theme/design_tokens.dart';
 import '../utils/app_snackbar.dart';
@@ -53,6 +55,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   OverlayEntry? _mentionOverlay;
   final _askLayer = LayerLink();
   String _devTab = 'console'; // console | terminal
+  final _speech = stt.SpeechToText();
+  bool _isListening = false;
 
   @override
   void initState() {
@@ -136,18 +140,61 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
     final before = text.substring(0, selection.baseOffset);
     if (before.endsWith('@')) {
-      _showMentionOverlay();
-    } else if (!before.contains('@')) {
+      _showMentionOverlay('file');
+    } else if (before.endsWith('#')) {
+      _showMentionOverlay('icon');
+    } else if (before.endsWith(r'$')) {
+      _showMentionOverlay('font');
+    } else if (!before.contains('@') && !before.contains('#') && !before.contains(r'$')) {
       _hideMentionOverlay();
     }
   }
 
-  void _showMentionOverlay() async {
+  void _showMentionOverlay(String type) async {
     _hideMentionOverlay();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final files = c.files.toList();
-    final symbols = await c.scanProjectSymbols();
-    if (!mounted) return;
+    
+    List<Widget> items = [];
+    String title = 'REFERENCE';
+
+    if (type == 'file') {
+      title = 'REFERENCE FILE OR SYMBOL';
+      final files = c.files.toList();
+      final symbols = await c.scanProjectSymbols();
+      items = [
+        ...files.map((f) => ListTile(
+          dense: true,
+          leading: Icon(_iconFor(f), size: 14, color: Dt.accent),
+          title: Text(f, style: const TextStyle(fontSize: 12)),
+          onTap: () => _insertMention(f, '@'),
+        )),
+        ...symbols.map((s) => ListTile(
+          dense: true,
+          leading: Icon(s['type'] == 'component' ? LucideIcons.component : LucideIcons.functionSquare, size: 14, color: Colors.blueAccent),
+          title: Text(s['name'], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          subtitle: Text('${s['file']} (L${s['line']})', style: const TextStyle(fontSize: 10)),
+          onTap: () => _insertMention(s['name'] ?? '', '@'),
+        )),
+      ];
+    } else if (type == 'icon') {
+      title = 'LUCIDE ICONS';
+      items = AssetsData.lucideIcons.map((icon) => ListTile(
+        dense: true,
+        leading: const Icon(LucideIcons.sparkles, size: 14, color: Colors.amber),
+        title: Text(icon, style: const TextStyle(fontSize: 12)),
+        onTap: () => _insertMention(icon, '#'),
+      )).toList();
+    } else if (type == 'font') {
+      title = 'GOOGLE FONTS';
+      items = AssetsData.googleFonts.map((font) => ListTile(
+        dense: true,
+        leading: const Icon(LucideIcons.type, size: 14, color: Colors.teal),
+        title: Text(font, style: GoogleFonts.getFont(font, fontSize: 12)),
+        onTap: () => _insertMention(font, r'$'),
+      )).toList();
+    }
+
+    if (!mounted || items.isEmpty) return;
 
     _mentionOverlay = OverlayEntry(
       builder: (context) => Positioned(
@@ -171,29 +218,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(8.0),
-                    child: Text('REFERENCE FILE OR SYMBOL', style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.grey)),
+                    child: Text(title, style: GoogleFonts.plusJakartaSans(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.grey)),
                   ),
                   const Divider(height: 1),
                   Expanded(
                     child: ListView(
                       padding: EdgeInsets.zero,
-                      children: [
-                        // Files
-                        ...files.map((f) => ListTile(
-                          dense: true,
-                          leading: Icon(_iconFor(f), size: 14, color: Dt.accent),
-                          title: Text(f, style: const TextStyle(fontSize: 12)),
-                          onTap: () => _insertMention(f),
-                        )),
-                        // Symbols
-                        ...symbols.map((s) => ListTile(
-                          dense: true,
-                          leading: Icon(s['type'] == 'component' ? LucideIcons.component : LucideIcons.functionSquare, size: 14, color: Colors.blueAccent),
-                          title: Text(s['name'], style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          subtitle: Text('${s['file']} (L${s['line']})', style: const TextStyle(fontSize: 10)),
-                          onTap: () => _insertMention(s['name'] ?? ''),
-                        )),
-                      ],
+                      children: items,
                     ),
                   ),
                 ],
@@ -206,21 +237,73 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     Overlay.of(context).insert(_mentionOverlay!);
   }
 
-  void _insertMention(String value) {
+  void _insertMention(String value, String trigger) {
     final text = _askCtrl.text;
     final selection = _askCtrl.selection;
     final before = text.substring(0, selection.baseOffset);
     final after = text.substring(selection.baseOffset);
-    // Replace the '@' with the value
-    final newText = before.substring(0, before.length - 1) + value + after;
+    
+    // Prefix for context inject
+    String prefix = '';
+    if (trigger == '#') prefix = 'icon:';
+    if (trigger == r'$') prefix = 'font:';
+
+    final newText = before.substring(0, before.length - 1) + prefix + value + after;
     _askCtrl.text = newText;
-    _askCtrl.selection = TextSelection.collapsed(offset: before.length - 1 + value.length);
+    _askCtrl.selection = TextSelection.collapsed(offset: before.length - 1 + prefix.length + value.length);
     _hideMentionOverlay();
   }
 
   void _hideMentionOverlay() {
     _mentionOverlay?.remove();
     _mentionOverlay = null;
+  }
+
+  void _showSystemPromptSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ctrl = TextEditingController(text: c.brandIdentity['systemPrompt'] ?? '');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surface : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('builder_edit_instructions'.tr, style: GoogleFonts.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: ctrl,
+              maxLines: 5,
+              decoration: const InputDecoration(
+                hintText: 'e.g. You are a senior React developer focused on performance...',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: Dt.accent),
+                onPressed: () {
+                  c.brandIdentity['systemPrompt'] = ctrl.text.trim();
+                  Get.back();
+                  AppSnackbar.showTop('Settings Saved', 'AI personality updated for this project.');
+                },
+                child: Text('common_save'.tr),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showBrandIdentitySheet(BuildContext context) {
@@ -302,6 +385,28 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     _termCtrl.dispose();
     _chatScroll.dispose();
     super.dispose();
+  }
+
+  void _toggleVoice() async {
+    if (_isListening) {
+      await _speech.stop();
+      setState(() => _isListening = false);
+    } else {
+      final available = await _speech.initialize();
+      if (available) {
+        setState(() => _isListening = true);
+        _speech.listen(onResult: (result) {
+          setState(() {
+            _askCtrl.text = result.recognizedWords;
+            if (result.finalResult) {
+              _isListening = false;
+            }
+          });
+        });
+      } else {
+        AppSnackbar.showTop('Error', 'Speech recognition unavailable');
+      }
+    }
   }
 
   @override
@@ -419,8 +524,19 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                               : Theme.of(context).hintColor)),
                   onPressed: hasP ? () => c.toggleElementPick() : null,
                 ),
+                IconButton(
+                  tooltip: hasP ? 'Magic Wand (Auto-Polish UI)' : 'Polish (needs a project)',
+                  icon: Icon(LucideIcons.wand2,
+                      size: 20, color: hasP ? Dt.accent : dim),
+                  onPressed: hasP ? () => c.autoPolish() : null,
+                ),
               ]);
             }),
+            IconButton(
+              tooltip: 'System Instructions',
+              icon: const Icon(LucideIcons.binary, size: 20, color: Dt.accent),
+              onPressed: () => _showSystemPromptSheet(context),
+            ),
             IconButton(
               tooltip: 'Brand Identity',
               icon: const Icon(LucideIcons.palette, size: 20, color: Dt.accent),
@@ -622,6 +738,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                           style: GoogleFonts.plusJakartaSans(
                               fontSize: 12.5, color: AppColors.error, height: 1.4)),
                     ),
+                  _bottomMeter(context, isDark),
+                  _smartSuggestions(context, isDark),
                   _askBar(context, isDark),
                 ]),
               ),
@@ -636,7 +754,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                       ? _previewPane(context, isDark, c.revision.value)
                       : _tab == 'files'
                           ? _filesPane(context, isDark)
-                          : _chatPane(context, isDark),
+                          : _tab == 'console'
+                              ? _consolePane(context, isDark)
+                              : _tab == 'grid'
+                                  ? ResponsiveGridView(url: c.previewUrl.value ?? '', isDark: isDark)
+                                  : _tab == 'graph'
+                                      ? KnowledgeGraphView(isDark: isDark, onFileClick: (f) => _openFileTab(f))
+                                      : _chatPane(context, isDark),
             ),
             if (c.lastError.value != null)
               Padding(
@@ -645,9 +769,128 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 12.5, color: AppColors.error, height: 1.4)),
               ),
+            _bottomMeter(context, isDark),
+            _smartSuggestions(context, isDark),
             _askBar(context, isDark),
           ]);
         }),
+      ),
+    );
+  }
+
+  Widget _bottomMeter(BuildContext context, bool isDark) {
+    return Obx(() {
+      final hasP = c.project.value != null;
+      if (!hasP) return const SizedBox.shrink();
+
+      return Container(
+        height: 24,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.black26 : Colors.black.withValues(alpha: 0.02),
+          border: Border(top: BorderSide(color: isDark ? Colors.white10 : Dt.hairline)),
+        ),
+        child: Row(
+          children: [
+            _meterItem(LucideIcons.coins, '${c.totalTokensUsed.value} tokens', 'Total tokens used'),
+            const SizedBox(width: 16),
+            _meterItem(LucideIcons.hardDrive, '${c.projectSizeKb.value.toStringAsFixed(1)} KB', 'Project size'),
+            const Spacer(),
+            if (c.lastRequestTokens.value > 0)
+              _meterItem(LucideIcons.zap, '+${c.lastRequestTokens.value}', 'Last request tokens'),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _meterItem(IconData icon, String label, String tooltip) {
+    return Tooltip(
+      message: tooltip,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: Colors.grey),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAssetBrowser(BuildContext context, bool isDark) {
+    Get.dialog(
+      AlertDialog(
+        title: Text('builder_project_gallery'.tr),
+        content: SizedBox(
+          width: 600,
+          height: 400,
+          child: DefaultTabController(
+            length: 2,
+            child: Column(
+              children: [
+                const TabBar(
+                  tabs: [
+                    Tab(icon: Icon(LucideIcons.sparkles), text: 'Icons'),
+                    Tab(icon: Icon(LucideIcons.type), text: 'Fonts'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      // Icons Grid
+                      GridView.builder(
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 5,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
+                        itemCount: AssetsData.lucideIcons.length,
+                        itemBuilder: (context, i) {
+                          final name = AssetsData.lucideIcons[i];
+                          return InkWell(
+                            onTap: () {
+                              _askCtrl.text += ' icon:$name ';
+                              Get.back();
+                              _askFocus.requestFocus();
+                            },
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(LucideIcons.sparkles, size: 20),
+                                const SizedBox(height: 4),
+                                Text(name, style: const TextStyle(fontSize: 8), overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      // Fonts List
+                      ListView.builder(
+                        itemCount: AssetsData.googleFonts.length,
+                        itemBuilder: (context, i) {
+                          final name = AssetsData.googleFonts[i];
+                          return ListTile(
+                            title: Text(name, style: GoogleFonts.getFont(name)),
+                            onTap: () {
+                              _askCtrl.text += ' font:$name ';
+                              Get.back();
+                              _askFocus.requestFocus();
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -656,6 +899,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     final commands = [
             {'icon': LucideIcons.plus, 'name': 'New Project', 'action': () => _newProjectReset()},
             {'icon': LucideIcons.search, 'name': 'Global Search', 'action': () => _showGlobalSearch(context, isDark)},
+            {'icon': LucideIcons.image, 'name': 'Asset Browser', 'action': () => _showAssetBrowser(context, isDark)},
             {'icon': LucideIcons.gitCompare, 'name': 'Review Changes', 'action': () => c.reviewingChanges.value = true},
             {'icon': LucideIcons.history, 'name': 'Project History', 'action': () => showHistorySheet(context)},
             {'icon': LucideIcons.eye, 'name': 'Switch to Preview', 'action': () => setState(() => _tab = 'preview')},
@@ -897,6 +1141,37 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     );
   }
 
+  Widget _smartSuggestions(BuildContext context, bool isDark) {
+    return Obx(() {
+      if (c.suggestions.isEmpty) return const SizedBox.shrink();
+      
+      return Container(
+        height: 36,
+        margin: const EdgeInsets.only(bottom: 4),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: c.suggestions.length,
+          itemBuilder: (context, i) {
+            final s = c.suggestions[i];
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ActionChip(
+                label: Text(s, style: GoogleFonts.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.w600)),
+                backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+                side: BorderSide(color: isDark ? Colors.white10 : Colors.black12),
+                onPressed: () {
+                  _askCtrl.text = s;
+                  _askFocus.requestFocus();
+                },
+              ),
+            );
+          },
+        ),
+      );
+    });
+  }
+
   Widget _askBar(BuildContext context, bool isDark) {
     final hasProject = c.project.value != null;
     final busy = c.generating.value || c.fixing.value;
@@ -1046,6 +1321,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                         )
                       : const SizedBox.shrink()),
                   Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    AppCircleButton(
+                      icon: _isListening ? LucideIcons.mic : LucideIcons.micOff,
+                      tooltip: _isListening ? 'builder_voice_listening'.tr : 'builder_voice_hint'.tr,
+                      iconColor: _isListening ? AppColors.error : null,
+                      onTap: _toggleVoice,
+                    ),
+                    const SizedBox(width: 8),
                     AppCircleButton(
                       icon: LucideIcons.plus,
                       tooltip: 'Builder tools',

@@ -11,6 +11,26 @@ class ResponsiveGridView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (url.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(LucideIcons.layoutGrid, size: 48, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text('Preview not live yet',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey)),
+            const SizedBox(height: 8),
+            const Text('Build the project first to see responsive previews.',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
     return Container(
       color: isDark ? const Color(0xFF0D0D12) : const Color(0xFFF9FAFB),
       child: Column(

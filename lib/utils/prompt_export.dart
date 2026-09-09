@@ -80,6 +80,27 @@ class PromptExport {
     }
   }
 
+  /// Renders the prompt into a high-res PNG image and saves it.
+  static Future<void> shareAsImage(String text, {String? baseName}) async {
+    try {
+      final bytes = await _textChunkToPng(text);
+      final name = '${_sanitize(baseName ?? 'prompt')}_${_stamp()}.png';
+      final saved = await ExportFile.saveBytes(
+        bytes: bytes,
+        fileName: name,
+        dialogTitle: 'Save Image',
+        mimeType: 'image/png',
+      );
+      if (saved != null) {
+        Get.snackbar('Export saved', saved,
+            snackPosition: SnackPosition.BOTTOM);
+      }
+    } catch (e) {
+      Get.snackbar('prompt_export_failed'.tr, '$e',
+          snackPosition: SnackPosition.BOTTOM);
+    }
+  }
+
   /// Public, unit-testable filename builders (also used by the share fns).
   static String buildMarkdownFileName(String baseName) =>
       '${_sanitize(baseName)}_${_stamp()}.md';

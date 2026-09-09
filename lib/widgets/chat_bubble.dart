@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_latex/flutter_markdown_latex.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../controllers/chat_controller.dart';
 import '../models/chat_message.dart';
 import '../models/web_source.dart';
 import '../utils/prompt_export.dart';
@@ -17,6 +20,9 @@ import 'attachment_preview.dart';
 import 'code_block.dart';
 import 'image_viewer.dart';
 import 'thought_disclosure.dart';
+import 'citation_chip.dart';
+import 'chat_branch_timeline.dart';
+import '../views/chat/project_context_view.dart';
 
 class ChatBubble extends StatefulWidget {
   final ChatMessage message;
@@ -58,6 +64,7 @@ class _ChatBubbleState extends State<ChatBubble> {
   MarkdownStyleSheet? _mdSheet;
   MarkdownStyleSheet? _thoughtSheet;
   CodeBlockBuilder? _codeBuilder;
+  CitationLinkBuilder? _citationBuilder;
   Brightness? _sheetBrightness;
 
   @override
@@ -69,6 +76,7 @@ class _ChatBubbleState extends State<ChatBubble> {
       _mdSheet = _markdownStyle(context);
       _thoughtSheet = _thoughtMarkdownStyle(context);
       _codeBuilder = CodeBlockBuilder(context);
+      _citationBuilder = CitationLinkBuilder(context, widget.message.citations);
     }
   }
 
@@ -87,11 +95,21 @@ class _ChatBubbleState extends State<ChatBubble> {
         
     final answerContent = isUser ? visibleContent : thoughtParts.answer.trim();
 
+    final displayContent = isUser
+        ? visibleContent
+        : answerContent.replaceAllMapped(
+            RegExp(r'\[cite:(\d+)\]'),
+            (m) => '[${m.group(1)}](cite:${m.group(1)})',
+          );
+
     // Raw/code view shows exactly what "Copy exact text" copies: the
     // prompt without the attachment metadata footer.
     final rawContent = widget.message.fileName == null
         ? widget.message.content
         : widget.message.content.split('\n\nAttached file:').first;
+
+    final revisions = widget.message.revisions;
+    final hasRevisions = revisions != null && revisions.isNotEmpty;
 
     return TweenAnimationBuilder<double>(
       duration: const Duration(milliseconds: 300),
@@ -213,26 +231,60 @@ class _ChatBubbleState extends State<ChatBubble> {
                                   styleSheet:
                                       _mdSheet ?? _markdownStyle(context),
                                   builders: {
+                                    'latex': LatexElementBuilder(
+                                      textStyle: _mdSheet?.p,
+                                    ),
                                     'code': _codeBuilder ??
                                         CodeBlockBuilder(context),
                                     'pre': _codeBuilder ??
                                         CodeBlockBuilder(context),
+                                    'a': _citationBuilder ??
+                                        CitationLinkBuilder(context, widget.message.citations),
                                   },
+                                  extensionSet: md.ExtensionSet(
+                                    [
+                                      ...md.ExtensionSet.gitHubFlavored
+                                          .blockSyntaxes,
+                                      LatexBlockSyntax(),
+                                    ],
+                                    [
+                                      ...md.ExtensionSet.gitHubFlavored
+                                          .inlineSyntaxes,
+                                      LatexInlineSyntax(),
+                                    ],
+                                  ),
                                 )
                         else if (answerContent.isNotEmpty)
                           _rawMode
                               ? _rawCodeContainer(answerContent, isDark)
                               : MarkdownBody(
-                                  data: answerContent,
+                                  data: displayContent,
                                   selectable: true,
                                   styleSheet:
                                       _mdSheet ?? _markdownStyle(context),
                                   builders: {
+                                    'latex': LatexElementBuilder(
+                                      textStyle: _mdSheet?.p,
+                                    ),
                                     'code': _codeBuilder ??
                                         CodeBlockBuilder(context),
                                     'pre': _codeBuilder ??
                                         CodeBlockBuilder(context),
+                                    'a': _citationBuilder ??
+                                        CitationLinkBuilder(context, widget.message.citations),
                                   },
+                                  extensionSet: md.ExtensionSet(
+                                    [
+                                      ...md.ExtensionSet.gitHubFlavored
+                                          .blockSyntaxes,
+                                      LatexBlockSyntax(),
+                                    ],
+                                    [
+                                      ...md.ExtensionSet.gitHubFlavored
+                                          .inlineSyntaxes,
+                                      LatexInlineSyntax(),
+                                    ],
+                                  ),
                                 ),
 
                         // Activated skills (intelligent per-prompt)
@@ -243,6 +295,16 @@ class _ChatBubbleState extends State<ChatBubble> {
                             padding: const EdgeInsets.only(top: 10),
                             child: _skillsUsedBar(
                                 context, widget.message.usedSkills!, isDark),
+                          ),
+
+                        // Claude-style artifacts detected in this message
+                        if (!isUser &&
+                            widget.message.artifacts != null &&
+                            widget.message.artifacts!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: _artifactsBar(
+                                context, widget.message.artifacts!, isDark),
                           ),
 
                         // Web sources fetched for this turn
@@ -258,14 +320,21 @@ class _ChatBubbleState extends State<ChatBubble> {
                         // File attachment
                         if (widget.message.fileName != null) ...[
                           const SizedBox(height: 12),
-                          AttachmentPreview(
-                            fileName: widget.message.fileName!,
-                            fileType: widget.message.fileType,
-                            fileSize: widget.message.fileSize,
-                            imageBase64: widget.message.imageBase64,
-                            imagePath: widget.message.imagePath,
-                            compact: true,
-                          ),
+                          if (widget.message.fileType == 'zip')
+                            ProjectContextView(
+                              fileName: widget.message.fileName!,
+                              structure: widget.message.fileContent?.split('---').first ?? '',
+                              fileCount: widget.message.fileContent?.split('---').length ?? 0,
+                            )
+                          else
+                            AttachmentPreview(
+                              fileName: widget.message.fileName!,
+                              fileType: widget.message.fileType,
+                              fileSize: widget.message.fileSize,
+                              imageBase64: widget.message.imageBase64,
+                              imagePath: widget.message.imagePath,
+                              compact: true,
+                            ),
                         ],
 
                         // Footer info
@@ -321,6 +390,28 @@ class _ChatBubbleState extends State<ChatBubble> {
             ),
 
             // Inline action bar
+            if (hasRevisions)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: ChatBranchTimeline(
+                  total: revisions.length + 1,
+                  current: widget.message.revisionIndex,
+                  onSelect: (idx) {
+                    final diff = idx - widget.message.revisionIndex;
+                    if (diff != 0) {
+                      if (diff > 0 && widget.onNextRevision != null) {
+                        for (var i = 0; i < diff; i++) {
+                          widget.onNextRevision!();
+                        }
+                      } else if (diff < 0 && widget.onPrevRevision != null) {
+                        for (var i = 0; i < -diff; i++) {
+                          widget.onPrevRevision!();
+                        }
+                      }
+                    }
+                  },
+                ),
+              ),
             _buildActionBar(context, isUser, isDark),
           ],
         ),
@@ -746,6 +837,99 @@ class _ChatBubbleState extends State<ChatBubble> {
     );
   }
 
+  Widget _artifactsBar(
+      BuildContext context, List<Map<String, String>> artifacts, bool isDark) {
+    final controller = Get.find<ChatController>();
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(LucideIcons.layout,
+                  size: 12, color: AppColors.primary),
+            ),
+            const SizedBox(width: 6),
+            Text('Artifacts',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.3,
+                    color: AppColors.primary)),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text('${artifacts.length}',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primary)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: artifacts.map((art) {
+              final id = art['id'] ?? '';
+              final title = art['title'] ?? 'Artifact';
+              final type = art['type'] ?? 'code';
+              final content = art['content'] ?? '';
+              
+              IconData icon = LucideIcons.fileText;
+              if (type == 'html') icon = LucideIcons.layout;
+              if (type == 'code') icon = LucideIcons.code2;
+              if (type == 'mermaid') icon = LucideIcons.gitBranch;
+
+              return InkWell(
+                onTap: () => controller.openArtifact(id, content, title: title, type: type),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withValues(alpha: 0.06) : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 14, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        title,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: isDark ? Colors.white : Dt.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _skillsUsedBar(
       BuildContext context, List<String> skills, bool isDark) {
     return Container(
@@ -1079,5 +1263,30 @@ class _ChatBubbleState extends State<ChatBubble> {
         .replaceAll('<|im_end|>', '')
         .replaceAll('<|end|>', '')
         .trim();
+  }
+}
+
+class CitationLinkBuilder extends MarkdownElementBuilder {
+  final BuildContext context;
+  final List<Map<String, dynamic>>? citations;
+
+  CitationLinkBuilder(this.context, this.citations);
+
+  @override
+  Widget? visitElementAfter(element, TextStyle? preferredStyle) {
+    final href = element.attributes['href'];
+    if (href != null && href.startsWith('cite:')) {
+      final index = int.tryParse(href.substring(5)) ?? 0;
+      final citation = (citations != null && index > 0 && index <= citations!.length)
+          ? citations![index - 1]
+          : null;
+      
+      return CitationChip(
+        index: index,
+        source: citation?['source'] ?? 'Unknown Source',
+        page: citation?['pageNumber'],
+      );
+    }
+    return null;
   }
 }

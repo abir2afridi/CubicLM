@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart'
     show kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:get/get.dart';
+import 'package:dynamic_color/dynamic_color.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:window_manager/window_manager.dart';
@@ -40,6 +41,9 @@ import 'services/runtime/dev_server_manager.dart';
 import 'services/runtime/runtime_manager.dart';
 import 'services/deploy_service.dart';
 import 'services/update_service.dart';
+import 'services/vector_service.dart';
+import 'services/code_interpreter_service.dart';
+import 'services/memory_service.dart';
 import 'core/constants.dart';
 import 'core/languages.dart';
 import 'core/app_translations.dart';
@@ -228,6 +232,9 @@ void main() {
       Get.put(CloudModelController());
       Get.put(InferenceService());
       Get.put(CloudService());
+      final memoryService = MemoryService();
+      await memoryService.init();
+      Get.put(memoryService);
       Get.put(UsageTrackerService());
       Get.put(StatsService());
       unawaited(Get.find<StatsService>().init().then((_) {}, onError: (_) {}));
@@ -399,6 +406,8 @@ Future<void> _initDeferredServices(
       timeout: const Duration(seconds: 10));
   await safePut(() => UpdateService().init(), 'UpdateService',
       timeout: const Duration(seconds: 4));
+  Get.put(VectorService());
+  Get.put(CodeInterpreterService());
   // Kick off auto-check (3s delay + 24h throttle inside the service),
   // honoring the Update-center "Check automatically" pref.
   try {
@@ -596,28 +605,38 @@ class CubicLMApp extends StatelessWidget {
       );
     }
     final settings = Get.find<SettingsController>();
-    return Obx(() {
-      final themeMode = settings.themeMode.value;
-      final scale = settings.fontScale.value;
-      final currentLocale = settings.locale.value.locale;
-      return GetMaterialApp(
-        title: 'CubicLM',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: themeMode,
-        initialRoute: AppRoutes.splash,
-        getPages: AppPages.pages,
-        translations: AppTranslations(),
-        locale: currentLocale,
-        fallbackLocale: AppLanguage.localeFromCode('en'),
-        builder: (ctx, child) => MediaQuery(
-          data: MediaQuery.of(ctx).copyWith(
-            textScaler: TextScaler.linear(scale),
+    return DynamicColorBuilder(builder: (lightDynamic, dark) {
+      return Obx(() {
+        final themeMode = settings.themeMode.value;
+        final scale = settings.fontScale.value;
+        final currentLocale = settings.locale.value.locale;
+
+        final lightTheme = AppTheme.lightTheme.copyWith(
+          colorScheme: lightDynamic?.harmonized(),
+        );
+        final darkTheme = AppTheme.darkTheme.copyWith(
+          colorScheme: dark?.harmonized(),
+        );
+
+        return GetMaterialApp(
+          title: 'CubicLM',
+          debugShowCheckedModeBanner: false,
+          theme: lightTheme,
+          darkTheme: darkTheme,
+          themeMode: themeMode,
+          initialRoute: AppRoutes.splash,
+          getPages: AppPages.pages,
+          translations: AppTranslations(),
+          locale: currentLocale,
+          fallbackLocale: AppLanguage.localeFromCode('en'),
+          builder: (ctx, child) => MediaQuery(
+            data: MediaQuery.of(ctx).copyWith(
+              textScaler: TextScaler.linear(scale),
+            ),
+            child: LockGate(child: child!),
           ),
-          child: LockGate(child: child!),
-        ),
-      );
+        );
+      });
     });
   }
 }

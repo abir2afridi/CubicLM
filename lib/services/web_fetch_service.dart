@@ -58,8 +58,10 @@ class WebFetchService {
       final rawHtml = await _fetchRawHtml(url);
       String? page;
       String title = '';
+      String description = '';
       if (rawHtml != null) {
         title = WebSource.titleFromHtml(rawHtml, url);
+        description = _descriptionFromHtml(rawHtml);
         page = _htmlToText(rawHtml);
         page = _truncate(page);
         if (page.trim().isEmpty) page = null;
@@ -81,6 +83,7 @@ class WebFetchService {
           domain: domain,
           faviconUrl: favicon,
           title: title.isEmpty ? domain : title,
+          description: description,
           success: true));
       buffer
         ..writeln()
@@ -197,6 +200,21 @@ class WebFetchService {
       final code = int.tryParse(m.group(1)!, radix: 16);
       return code != null && code > 0 ? String.fromCharCode(code) : '';
     });
+  }
+
+  static String _descriptionFromHtml(String html) {
+    final match = RegExp(
+      r'<meta[^>]*name=["'']description["''][^>]*content=["''](.*?)["'']',
+      caseSensitive: false,
+    ).firstMatch(html);
+    if (match != null) return match.group(1) ?? '';
+
+    // Check og:description too
+    final ogMatch = RegExp(
+      r'<meta[^>]*property=["'']og:description["''][^>]*content=["''](.*?)["'']',
+      caseSensitive: false,
+    ).firstMatch(html);
+    return ogMatch?.group(1) ?? '';
   }
 
   static String _truncate(String s) {

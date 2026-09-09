@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_latex/flutter_markdown_latex.dart';
+import 'package:markdown/markdown.dart' as md;
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -22,9 +24,12 @@ import 'chat/chat_widgets.dart';
 import 'chat/empty_state.dart';
 import 'chat/input_bar.dart';
 import 'chat/selection_bar.dart';
+import '../widgets/artifact_renderer.dart';
 import '../widgets/thinking_orb.dart';
 import '../widgets/thought_disclosure.dart';
+import '../widgets/voice_overlay.dart';
 import '../core/colors.dart';
+import '../services/tts_service.dart';
 
 // ignore: must_be_immutable
 class ChatView extends GetView<ChatController> {
@@ -38,127 +43,180 @@ class ChatView extends GetView<ChatController> {
       backgroundColor: isDark ? Dt.canvasDark : Dt.canvas,
       drawer: ChatSidebar(isDark: isDark),
       appBar: _appBar(context, isDark),
-      body: Column(
+      body: Stack(
         children: [
-          modelLoadingBar(context, isDark),
-          contextBar(context, isDark),
-          Obx(() => controller.findActive.value
-              ? findBar(context, isDark)
-              : const SizedBox.shrink()),
-          Expanded(child: Obx(() {
-            if (controller.currentSessionId.value.isEmpty ||
-                controller.messages.isEmpty) {
-              return emptyState(context, isDark);
-            }
-            // NOTE: this observer deliberately does NOT read
-            // streamingResponse — token flushes rebuild only the stream
-            // bubble's own Obx below, not the whole list + every
-            // MarkdownBody (was: full rebuild at ~25fps while streaming).
-            final streaming = controller.isStreaming.value;
-            final n = controller.messages.length;
-            return Stack(
-              children: [
-                NotificationListener<ScrollUpdateNotification>(
-                  onNotification: (note) {
-                    if (note.dragDetails != null && streaming) {
-                      if ((note.scrollDelta ?? 0) < 0) {
-                        controller.pauseStreamingFollow();
-                      } else {
-                        controller.resumeStreamingFollowIfNearBottom();
-                      }
-                    }
-                    return false;
-                  },
-                  child: ListView.builder(
-                    controller: controller.scrollController,
-                    padding: const EdgeInsets.only(top: 12, bottom: 12),
-                    // Perf: bubbles rebuild on content change anyway — no
-                    // need to keep every offscreen subtree alive.
-                    addAutomaticKeepAlives: false,
-                    addRepaintBoundaries: true,
-                    itemCount: n + (streaming ? 1 : 0),
-                    itemBuilder: (_, i) {
-                      if (i == n && streaming) {
-                        // Own observer: per-token rebuilds stay inside the
-                        // streaming bubble instead of the whole list.
-                        return Obx(() => _streamBubble(context,
-                            controller.streamingResponse.value, isDark));
-                      }
-                      final msg = controller.messages[i];
-                      // Date header: show when first message or different day than previous
-                      Widget? dateHeader;
-                      if (i == 0 ||
-                          !isSameDay(controller.messages[i - 1].timestamp,
-                              msg.timestamp)) {
-                        dateHeader = dateChip(msg.timestamp, isDark);
-                      }
-                      final hasRevisions =
-                          msg.revisions != null && msg.revisions!.isNotEmpty;
-                      final bubble = ChatBubble(
-                        message: msg,
-                        onCopy: () {
-                          Clipboard.setData(ClipboardData(text: msg.content));
+          Column(
+            children: [
+              modelLoadingBar(context, isDark),
+              contextBar(context, isDark),
+              Obx(() => controller.findActive.value
+                  ? findBar(context, isDark)
+                  : const SizedBox.shrink()),
+              Expanded(child: Obx(() {
+                if (controller.currentSessionId.value.isEmpty ||
+                    controller.messages.isEmpty) {
+                  return emptyState(context, isDark);
+                }
+                final showArtifact = controller.showArtifactPanel.value;
+                final artifact =
+                    controller.artifacts[controller.activeArtifactId.value];
+
+                // NOTE: this observer deliberately does NOT read
+                // streamingResponse — token flushes rebuild only the stream
+                // bubble's own Obx below, not the whole list + every
+                // MarkdownBody (was: full rebuild at ~25fps while streaming).
+                final streaming = controller.isStreaming.value;
+                final n = controller.messages.length;
+
+                Widget chatStack = Stack(
+                  children: [
+                    NotificationListener<ScrollUpdateNotification>(
+                      onNotification: (note) {
+                        if (note.dragDetails != null && streaming) {
+                          if ((note.scrollDelta ?? 0) < 0) {
+                            controller.pauseStreamingFollow();
+                          } else {
+                            controller.resumeStreamingFollowIfNearBottom();
+                          }
+                        }
+                        return false;
+                      },
+                      child: ListView.builder(
+                        controller: controller.scrollController,
+                        padding: const EdgeInsets.only(top: 12, bottom: 12),
+                        // Perf: bubbles rebuild on content change anyway — no
+                        // need to keep every offscreen subtree alive.
+                        addAutomaticKeepAlives: false,
+                        addRepaintBoundaries: true,
+                        itemCount: n + (streaming ? 1 : 0),
+                        itemBuilder: (_, i) {
+                          if (i == n && streaming) {
+                            // Own observer: per-token rebuilds stay inside the
+                            // streaming bubble instead of the whole list.
+                            return Obx(() => _streamBubble(context,
+                                controller.streamingResponse.value, isDark));
+                          }
+                          final msg = controller.messages[i];
+                          // Date header: show when first message or different day than previous
+                          Widget? dateHeader;
+                          if (i == 0 ||
+                              !isSameDay(controller.messages[i - 1].timestamp,
+                                  msg.timestamp)) {
+                            dateHeader = dateChip(msg.timestamp, isDark);
+                          }
+                          final hasRevisions =
+                              msg.revisions != null && msg.revisions!.isNotEmpty;
+                          final bubble = ChatBubble(
+                            message: msg,
+                            onCopy: () {
+                              Clipboard.setData(ClipboardData(text: msg.content));
+                            },
+                            onRetry: () => controller.regenerateFromMessage(msg),
+                            onBranch: () => controller.branchNewChat(msg),
+                            onEdit: msg.role == 'user'
+                                ? () => showEditDialog(context, msg)
+                                : null,
+                            onDelete: () =>
+                                confirmDeleteMessage(context, msg, isDark),
+                            onPrevRevision: hasRevisions && msg.revisionIndex > 0
+                                ? () => controller.navigateRevision(msg, -1)
+                                : null,
+                            onNextRevision: hasRevisions &&
+                                    msg.revisionIndex < msg.revisions!.length - 1
+                                ? () => controller.navigateRevision(msg, 1)
+                                : null,
+                          );
+                          if (dateHeader != null) {
+                            return RepaintBoundary(
+                              key: controller.findKeyFor(msg.id),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  dateHeader,
+                                  selectableRow(context, msg, bubble, isDark)
+                                ],
+                              ),
+                            );
+                          }
+                          return RepaintBoundary(
+                              key: controller.findKeyFor(msg.id),
+                              child: selectableRow(context, msg, bubble, isDark));
                         },
-                        onRetry: () => controller.regenerateFromMessage(msg),
-                        onBranch: () => controller.branchNewChat(msg),
-                        onEdit: msg.role == 'user'
-                            ? () => showEditDialog(context, msg)
-                            : null,
-                        onDelete: () =>
-                            confirmDeleteMessage(context, msg, isDark),
-                        onPrevRevision: hasRevisions && msg.revisionIndex > 0
-                            ? () => controller.navigateRevision(msg, -1)
-                            : null,
-                        onNextRevision: hasRevisions &&
-                                msg.revisionIndex < msg.revisions!.length - 1
-                            ? () => controller.navigateRevision(msg, 1)
-                            : null,
-                      );
-                      if (dateHeader != null) {
-                        return RepaintBoundary(
-                          key: controller.findKeyFor(msg.id),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              dateHeader,
-                              selectableRow(context, msg, bubble, isDark)
-                            ],
-                          ),
-                        );
-                      }
-                      return RepaintBoundary(
-                          key: controller.findKeyFor(msg.id),
-                          child: selectableRow(context, msg, bubble, isDark));
-                    },
-                  ),
-                ),
-                Positioned(
-                  bottom: 16,
-                  right: 16,
-                  child: Obx(() => AnimatedScale(
-                        scale: controller.showScrollToBottom.value ? 1.0 : 0.0,
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeOutBack,
-                        child: Semantics(
-                          label: 'Scroll to bottom',
-                          button: true,
-                          child: FloatingActionButton.small(
-                            onPressed: controller.jumpToBottom,
-                            backgroundColor: isDark ? Dt.cardDark : Dt.card,
-                            foregroundColor: AppColors.primary,
-                            elevation: 4,
-                            child: const Icon(Icons.arrow_downward_rounded,
-                                size: 20),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 16,
+                      right: 16,
+                      child: Obx(() => AnimatedScale(
+                            scale: controller.showScrollToBottom.value ? 1.0 : 0.0,
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOutBack,
+                            child: Semantics(
+                              label: 'Scroll to bottom',
+                              button: true,
+                              child: FloatingActionButton.small(
+                                onPressed: controller.jumpToBottom,
+                                backgroundColor: isDark ? Dt.cardDark : Dt.card,
+                                foregroundColor: AppColors.primary,
+                                elevation: 4,
+                                child: const Icon(Icons.arrow_downward_rounded,
+                                    size: 20),
+                              ),
+                            ),
+                          )),
+                    ),
+                  ],
+                );
+
+                if (!showArtifact || artifact == null || artifact.isEmpty) {
+                  return chatStack;
+                }
+
+                return LayoutBuilder(builder: (context, constraints) {
+                  if (constraints.maxWidth > 900) {
+                    return Row(
+                      children: [
+                        Expanded(flex: 1, child: chatStack),
+                        Expanded(
+                          flex: 1,
+                          child: ArtifactRenderer(
+                            id: controller.activeArtifactId.value!,
+                            versions: artifact,
+                            onClose: controller.closeArtifact,
                           ),
                         ),
-                      )),
-                ),
-              ],
+                      ],
+                    );
+                  }
+                  return Stack(
+                    children: [
+                      chatStack,
+                      Positioned.fill(
+                        child: ArtifactRenderer(
+                          id: controller.activeArtifactId.value!,
+                          versions: artifact,
+                          onClose: controller.closeArtifact,
+                        ),
+                      ),
+                    ],
+                  );
+                });
+              })),
+              Obx(() => controller.selectionMode.value
+                  ? selectionBar(context, isDark)
+                  : inputBar(context, isDark)),
+            ],
+          ),
+          Obx(() {
+            if (!controller.voiceMode.value) return const SizedBox.shrink();
+            final tts = Get.isRegistered<TtsService>() ? Get.find<TtsService>() : null;
+            return VoiceOverlay(
+              isListening: controller.isListening.value,
+              isSpeaking: tts?.isSpeaking.value ?? false,
+              text: controller.inputText.value,
+              onStop: () => controller.setVoiceMode(false),
             );
-          })),
-          Obx(() => controller.selectionMode.value
-              ? selectionBar(context, isDark)
-              : inputBar(context, isDark)),
+          }),
         ],
       ),
     );
@@ -406,7 +464,23 @@ class ChatView extends GetView<ChatController> {
                                   data: answer,
                                   selectable: false,
                                   styleSheet:
-                                      _streamMdCached(context, isDark)))),
+                                      _streamMdCached(context, isDark),
+                                  builders: {
+                                    'latex': LatexElementBuilder(
+                                      textStyle: _streamMdCached(context, isDark).p,
+                                    ),
+                                  },
+                                  extensionSet: md.ExtensionSet(
+                                    [
+                                      ...md.ExtensionSet.gitHubFlavored.blockSyntaxes,
+                                      LatexBlockSyntax(),
+                                    ],
+                                    [
+                                      ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes,
+                                      LatexInlineSyntax(),
+                                    ],
+                                  ),
+                                ))),
                   const BlinkingCursor(color: Dt.accent),
                 ]),
             ],
@@ -535,15 +609,25 @@ class ChatView extends GetView<ChatController> {
 
   Widget _typingHint(BuildContext context, bool isDark,
       {String? attachmentType}) {
-    final msg = attachmentType == 'image'
+    String? msg = attachmentType == 'image'
         ? 'chat_analyzing_image'.tr
         : attachmentType == 'audio'
             ? 'chat_processing_audio'.tr
             : null;
+
+    if (controller.isSearchMode.value) {
+      msg = 'Deep Searching...';
+    }
+
     // Thinking orbs — dotted orb cycling through random states with a
     // shimmering status label (Working / Searching / Solving / …).
     final settings = Get.find<SettingsController>();
-    final fixed = orbStateFromName(settings.orbChatAnim.value);
+    OrbState? fixed = orbStateFromName(settings.orbChatAnim.value);
+
+    if (controller.isSearchMode.value) {
+      fixed = OrbState.searching;
+    }
+
     return Row(mainAxisSize: MainAxisSize.min, children: [
       if (fixed != null)
         ThinkingOrb(size: 22, state: fixed, showLabel: true)

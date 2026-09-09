@@ -145,6 +145,29 @@ class SettingsController extends GetxController {
   final locale = AppLanguage.fromCode('en').obs;
   final appVersion = ''.obs;
 
+  // Smart RAM & Performance
+  final autoAdjustThreads = true.obs;
+
+  int get recommendedThreads {
+    if (!autoAdjustThreads.value) return 4; // Default fallback
+    
+    if (Get.isRegistered<DeviceInfoService>()) {
+      final deviceInfo = Get.find<DeviceInfoService>();
+      final cores = deviceInfo.totalRamGB.value > 8 ? 6 : 4; // Simple heuristic
+      // Real core detection would be better if available in cpuInfo
+      return cores;
+    }
+    return 4;
+  }
+
+  String get recommendedQuantization {
+    final ram = Get.find<DeviceInfoService>().totalRamGB.value;
+    if (ram <= 4) return 'Q2_K or Q3_K_S';
+    if (ram <= 8) return 'Q4_K_M or Q5_K_M';
+    if (ram <= 16) return 'Q6_K or Q8_0';
+    return 'Q8_0 or F16';
+  }
+
   // Thinking Orb animation selections ('random' or an OrbState name).
   final orbChatAnim = 'random'.obs;
   final orbImageAnim = 'composing'.obs;

@@ -350,6 +350,19 @@ class AppTranslations extends Translations {
     'settings_inference_temperature': 'Inference Temperature',
     'settings_output_limit': 'Output Token Limit',
     'settings_context_window': 'Context Window Size',
+
+    // Builder
+    'builder_suggestions': 'Suggestions',
+    'builder_voice_hint': 'Tap to speak',
+    'builder_voice_listening': 'Listening...',
+    'builder_magic_wand': 'Magic Wand',
+    'builder_polish_ui': 'Polish UI',
+    'builder_tokens': 'Tokens',
+    'builder_size': 'Size',
+    'builder_last_req': 'Last request',
+    'builder_project_gallery': 'Project Gallery',
+    'builder_new_project': 'New Project',
+    'builder_edit_instructions': 'System Instructions',
   };
 
   // ── Bangla (বাংলা) ──
@@ -644,6 +657,19 @@ class AppTranslations extends Translations {
     'settings_inference_temperature': 'ইনফারেন্স তাপমাত্রা',
     'settings_output_limit': 'আউটপুট টোকেন সীমা',
     'settings_context_window': 'কনটেক্সট উইন্ডো আকার',
+
+    // Builder
+    'builder_suggestions': 'পরামর্শ',
+    'builder_voice_hint': 'বলতে ট্যাপ করুন',
+    'builder_voice_listening': 'শুনছি...',
+    'builder_magic_wand': 'ম্যাজিক ওয়ান্ড',
+    'builder_polish_ui': 'UI পালিশ করুন',
+    'builder_tokens': 'টোকেন',
+    'builder_size': 'আকার',
+    'builder_last_req': 'শেষ রিকোয়েস্ট',
+    'builder_project_gallery': 'প্রজেক্ট গ্যালারি',
+    'builder_new_project': 'নতুন প্রজেক্ট',
+    'builder_edit_instructions': 'সিস্টেম নির্দেশাবলী',
   };
 
   // ── Hindi (हिन्दी) ──

@@ -36,6 +36,12 @@ class ChatSession {
   final String modelId;
   final String modelProvider;
 
+  /// ID of the project this chat belongs to (Claude Projects style).
+  final String? projectId;
+
+  /// ID of the folder this chat belongs to.
+  final String? folderId;
+
   ChatSession({
     required this.id,
     String? title,
@@ -51,6 +57,8 @@ class ChatSession {
     this.modelMode = '',
     this.modelId = '',
     this.modelProvider = '',
+    this.projectId,
+    this.folderId,
   })  : title = title ?? 'New Chat',
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -70,6 +78,8 @@ class ChatSession {
         'modelMode': modelMode,
         'modelId': modelId,
         'modelProvider': modelProvider,
+        'projectId': projectId,
+        'folderId': folderId,
       };
 
   factory ChatSession.fromMap(Map<dynamic, dynamic> map) => ChatSession(
@@ -87,6 +97,8 @@ class ChatSession {
         modelMode: map['modelMode']?.toString() ?? '',
         modelId: map['modelId']?.toString() ?? '',
         modelProvider: map['modelProvider']?.toString() ?? '',
+        projectId: map['projectId']?.toString(),
+        folderId: map['folderId']?.toString(),
       );
 
   ChatSession copyWith({
@@ -102,6 +114,8 @@ class ChatSession {
     String? modelMode,
     String? modelId,
     String? modelProvider,
+    String? projectId,
+    String? folderId,
   }) =>
       ChatSession(
         id: id,
@@ -118,5 +132,7 @@ class ChatSession {
         modelMode: modelMode ?? this.modelMode,
         modelId: modelId ?? this.modelId,
         modelProvider: modelProvider ?? this.modelProvider,
+        projectId: projectId ?? this.projectId,
+        folderId: folderId ?? this.folderId,
       );
 }

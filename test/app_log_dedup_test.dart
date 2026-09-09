@@ -148,4 +148,33 @@ void main() {
     expect(ids.contains('service_init'), isTrue);
     expect(logs.untrackedErrors, isEmpty);
   });
+
+  testWidgets(
+      'logging never touches Rx synchronously (no build-phase cascade)',
+      (tester) async {
+    // Regression: error() used to mutate Rx observables inline
+    // (entries.removeAt/insert, unresolvedError.value), so a
+    // FlutterError reported mid-build (e.g. drawer open) threw
+    // setState-during-build, which re-reported, cascading 59x.
+    // Invariant: zero synchronous Rx notifications per error() call;
+    // everything UI-visible lands in the post-frame flush.
+    final logs = await settledLogs(tester);
+    logs.error('seed');
+    await flushLogs(tester);
+    expect(logs.entries.length, 1);
+
+    var syncHits = 0;
+    logs.entries.listen((_) => syncHits++);
+    logs.unresolvedError.listen((_) => syncHits++);
+    logs.error('seed'); // duplicate of a SHOWN row (old worst case)
+    logs.error('fresh row');
+    expect(syncHits, 0);
+    await flushLogs(tester);
+
+    expect(logs.entries.length, 2);
+    expect(logs.entries[1].message, 'seed');
+    expect(logs.entries[1].count, 2);
+    expect(logs.entries[0].message, 'fresh row');
+    expect(logs.unresolvedError.value?.message, 'fresh row');
+  });
 }

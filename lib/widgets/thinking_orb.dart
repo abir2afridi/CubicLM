@@ -163,6 +163,8 @@ double _speedFor(OrbState s, double size) {
     OrbState.composing => big ? 2.34 : 3.12,
     OrbState.breathing => big ? 3.24 : 3.78,
     OrbState.shaping => big ? 2.405 : 2.08,
+    OrbState.coding => big ? 1.885 : 3.9,
+    OrbState.summarizing => big ? 1.625 : 2.75,
   };
 }
 
@@ -200,6 +202,10 @@ _Frame _renderState(OrbState state, double t, double size, bool isDark) {
       return _band(t, size, _bandPreset(size, faceOn: true));
     case OrbState.shaping:
       return _morph(t, size);
+    case OrbState.coding:
+      return _orbits(t, size);
+    case OrbState.summarizing:
+      return _braid(t, size);
   }
 }
 
@@ -904,6 +910,8 @@ enum OrbState {
   composing,
   breathing,
   shaping,
+  coding,
+  summarizing,
 }
 
 extension OrbStateLabel on OrbState {
@@ -917,6 +925,8 @@ extension OrbStateLabel on OrbState {
         OrbState.composing => 'Composing',
         OrbState.breathing => 'Thinking',
         OrbState.shaping => 'Shaping',
+        OrbState.coding => 'Coding',
+        OrbState.summarizing => 'Summarizing',
       };
 
   String get description => switch (this) {
@@ -929,6 +939,8 @@ extension OrbStateLabel on OrbState {
         OrbState.composing => 'Flowing ribbon bands',
         OrbState.breathing => 'Concentric ripples',
         OrbState.shaping => 'Circle, triangle, square morph',
+        OrbState.coding => 'Digital orbit rings',
+        OrbState.summarizing => 'Weaving strands',
       };
 }
 

@@ -21,6 +21,7 @@ ChatController get _c => Get.find<ChatController>();
 /// composer bar.
 void showTemplateSheet(BuildContext context, bool isDark) {
   _c.ensureTemplatesLoaded();
+  _c.templateSearchQuery.value = '';
   showAppBottomSheet(
     context,
     builder: (sheetCtx) {
@@ -34,42 +35,72 @@ void showTemplateSheet(BuildContext context, bool isDark) {
               AppSheetHeader(
                   title: 'Prompt templates',
                   onClose: () => Navigator.pop(sheetCtx)),
-              const SizedBox(height: 6),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: TextField(
+                  onChanged: (v) => _c.templateSearchQuery.value = v,
+                  decoration: InputDecoration(
+                    hintText: 'Search templates...',
+                    prefixIcon: const Icon(LucideIcons.search, size: 18),
+                    filled: true,
+                    fillColor: isDark
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : Colors.black.withValues(alpha: 0.05),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
               Flexible(
-                child: Obx(() => ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: _c.promptTemplates.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 6),
-                      itemBuilder: (_, i) {
-                        final t = _c.promptTemplates[i];
-                        final builtin = (t['builtin'] ?? '').isNotEmpty;
-                        return ListTile(
-                          dense: true,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          title: Text(t['name'] ?? '',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontWeight: FontWeight.w700)),
-                          subtitle: Text(
-                              (t['body'] ?? '').replaceAll('\n', ' ').trim(),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis),
-                          trailing: builtin
-                              ? null
-                              : IconButton(
-                                  icon: const Icon(Icons.delete_outline,
-                                      size: 18),
-                                  tooltip: 'Delete template',
-                                  onPressed: () =>
-                                      _c.deletePromptTemplate(t['id'] ?? ''),
-                                ),
-                          onTap: () {
-                            Navigator.pop(sheetCtx);
-                            _c.insertTemplate(t['body'] ?? '');
-                          },
-                        );
-                      },
-                    )),
+                child: Obx(() {
+                  final list = _c.filteredTemplates;
+                  if (list.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text('No templates found',
+                          style: TextStyle(color: Theme.of(context).hintColor)),
+                    );
+                  }
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: list.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    itemBuilder: (_, i) {
+                      final t = list[i];
+                      final builtin = (t['builtin'] ?? '').isNotEmpty;
+                      return ListTile(
+                        dense: true,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        title: Text(t['name'] ?? '',
+                            style: GoogleFonts.plusJakartaSans(
+                                fontWeight: FontWeight.w700)),
+                        subtitle: Text(
+                            (t['body'] ?? '').replaceAll('\n', ' ').trim(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        trailing: builtin
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    size: 18),
+                                tooltip: 'Delete template',
+                                onPressed: () =>
+                                    _c.deletePromptTemplate(t['id'] ?? ''),
+                              ),
+                        onTap: () {
+                          Navigator.pop(sheetCtx);
+                          _c.insertTemplate(t['body'] ?? '');
+                        },
+                      );
+                    },
+                  );
+                }),
               ),
               const SizedBox(height: 8),
               SizedBox(

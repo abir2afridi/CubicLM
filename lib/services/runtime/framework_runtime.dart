@@ -55,6 +55,7 @@ class ViteRuntime extends FrameworkRuntime {
         '--port',
         '$port',
         '--strictPort',
+        '--cors',
       ];
 }
 

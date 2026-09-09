@@ -89,14 +89,14 @@ class StreamingFileCardState extends State<StreamingFileCard> {
               Container(
                 constraints: const BoxConstraints(maxHeight: 360),
                 width: double.infinity,
-                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: Colors.black.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: SingleChildScrollView(
-                  controller: _scroll,
-                  physics: const ClampingScrollPhysics(),
+                child: LineNumberWrapper(
+                  content: content,
+                  isDark: true,
+                  scrollController: _scroll,
                   child: SelectableText.rich(
                     buildHighlightedSpan(highlight(content, widget.path)),
                     style: GoogleFonts.firaCode(fontSize: 11.5, height: 1.5),
@@ -149,8 +149,10 @@ class FileEditorCardState extends State<FileEditorCard> {
   bool _requestingGhost = false;
 
   void _onTextChanged() {
-    final d = _ctrl.text != widget.initial;
-    if (d != _dirty && mounted) setState(() => _dirty = d);
+    if (!mounted) return;
+    setState(() {
+      _dirty = _ctrl.text != widget.initial;
+    });
     
     // Ghost Autocomplete Logic
     _ghostTimer?.cancel();
@@ -337,7 +339,6 @@ class FileEditorCardState extends State<FileEditorCard> {
         Container(
           constraints: const BoxConstraints(maxHeight: 400),
           width: double.infinity,
-          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: widget.isDark
                 ? const Color(0xFF16161E)
@@ -347,29 +348,32 @@ class FileEditorCardState extends State<FileEditorCard> {
               color: widget.isDark ? Colors.white.withValues(alpha: 0.03) : Dt.hairline,
             ),
           ),
-          child: _viewMode
-              ? SingleChildScrollView(
-                  child: SelectableText.rich(
+          child: LineNumberWrapper(
+            content: _ctrl.text,
+            isDark: widget.isDark,
+            child: _viewMode
+                ? SelectableText.rich(
                     buildHighlightedSpan(highlight(_ctrl.text, widget.path)),
                     style: GoogleFonts.firaCode(fontSize: 12, height: 1.5),
-                  ),
-                )
-              : CallbackShortcuts(
-                  bindings: {
-                    const SingleActivator(LogicalKeyboardKey.tab): () {
-                      if (_ctrl.ghostText != null) {
-                        _acceptGhost();
-                      }
+                  )
+                : CallbackShortcuts(
+                    bindings: {
+                      const SingleActivator(LogicalKeyboardKey.tab): () {
+                        if (_ctrl.ghostText != null) {
+                          _acceptGhost();
+                        }
+                      },
                     },
-                  },
-                  child: TextField(
-                    controller: _ctrl,
-                    maxLines: null,
-                    keyboardType: TextInputType.multiline,
-                    style: GoogleFonts.firaCode(fontSize: 12, height: 1.5),
-                    decoration: const InputDecoration.collapsed(hintText: ''),
+                    child: TextField(
+                      controller: _ctrl,
+                      maxLines: null,
+                      scrollPhysics: const NeverScrollableScrollPhysics(),
+                      keyboardType: TextInputType.multiline,
+                      style: GoogleFonts.firaCode(fontSize: 12, height: 1.5),
+                      decoration: const InputDecoration.collapsed(hintText: ''),
+                    ),
                   ),
-                ),
+          ),
         ),
       ]),
     );
@@ -412,3 +416,72 @@ class WebTemplate {
   const WebTemplate(
       this.name, this.icon, this.desc, this.prompt, this.framework);
 }
+
+/// A wrapper that adds VS Code style line numbers to the left of its child.
+class LineNumberWrapper extends StatelessWidget {
+  final String content;
+  final Widget child;
+  final bool isDark;
+  final double fontSize;
+  final ScrollController? scrollController;
+
+  const LineNumberWrapper({
+    super.key,
+    required this.content,
+    required this.child,
+    required this.isDark,
+    this.fontSize = 12,
+    this.scrollController,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = content.split('\n');
+    final lineCount = lines.length;
+    final lineDigits = lineCount.toString().length;
+    final gutterWidth = (lineDigits * 8.0) + 16.0;
+    
+    return SingleChildScrollView(
+      controller: scrollController,
+      scrollDirection: Axis.vertical,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Line Numbers column
+          Container(
+            width: gutterWidth,
+            padding: const EdgeInsets.only(top: 12, right: 8),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.black.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.02),
+              border: Border(right: BorderSide(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05))),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(lineCount, (i) {
+                return SizedBox(
+                  height: fontSize * 1.5, // Match line height (1.5)
+                  child: Text(
+                    '${i + 1}',
+                    style: GoogleFonts.firaCode(
+                      fontSize: fontSize * 0.85,
+                      fontWeight: FontWeight.w500,
+                      color: isDark ? Colors.white24 : Colors.black26,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          // Code content
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+              child: child,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

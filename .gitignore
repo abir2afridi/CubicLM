@@ -23,6 +23,7 @@ migrate_working_dir/
 # VS Code
 .history/
 docs+/
+error.txt
 #.vscode/
 
 # Flutter/Dart/Pub related

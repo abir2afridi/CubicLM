@@ -184,6 +184,8 @@ class HiveService extends GetxService {
   late Box _notificationsBox;
   late Box _skillsBox;
   late Box _mcpBox;
+  late Box _projectsBox;
+  late Box _foldersBox;
   late Box _imageHistoryBox;
 
   bool _isFallback = false;
@@ -198,6 +200,8 @@ class HiveService extends GetxService {
   Box get notificationsBox => _notificationsBox;
   Box get skillsBox => _skillsBox;
   Box get mcpBox => _mcpBox;
+  Box get projectsBox => _projectsBox;
+  Box get foldersBox => _foldersBox;
   Box get imageHistoryBox => _imageHistoryBox;
 
   /// Pure memory fallback — no Hive disk access.
@@ -210,6 +214,8 @@ class HiveService extends GetxService {
     _notificationsBox = _MemoryBox();
     _skillsBox = _MemoryBox();
     _mcpBox = _MemoryBox();
+    _projectsBox = _MemoryBox();
+    _foldersBox = _MemoryBox();
     _imageHistoryBox = _MemoryBox();
   }
 
@@ -293,6 +299,8 @@ class HiveService extends GetxService {
       _openBoxWithFallback(AppConstants.notificationsBox),
       _openBoxWithFallback(AppConstants.skillsBox),
       _openBoxWithFallback(AppConstants.mcpBox),
+      _openBoxWithFallback(AppConstants.projectsBox),
+      _openBoxWithFallback(AppConstants.foldersBox),
       _openBoxWithFallback(AppConstants.imageHistoryBox),
     ]);
     _sessionsBox = results[0];
@@ -302,7 +310,9 @@ class HiveService extends GetxService {
     _notificationsBox = results[4];
     _skillsBox = results[5];
     _mcpBox = results[6];
-    _imageHistoryBox = results[7];
+    _projectsBox = results[7];
+    _foldersBox = results[8];
+    _imageHistoryBox = results[9];
 
     // One-time migration: prefix message keys with chatId for O(1) lookup.
     try {
@@ -623,6 +633,68 @@ class HiveService extends GetxService {
       await _tasksBox.delete(id);
     } on HiveError {
       // Box closed — task will persist on next launch.
+    } catch (_) {}
+  }
+
+  // ─── Projects ────────────────────────────────────
+
+  List<Map<dynamic, dynamic>> getAllProjects() {
+    try {
+      if (!_isBoxUsable(_projectsBox)) return [];
+      return _projectsBox.values.map((v) => Map<dynamic, dynamic>.from(v)).toList();
+    } on HiveError {
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveProject(String id, Map<String, dynamic> data) async {
+    try {
+      if (!_isBoxUsable(_projectsBox)) return;
+      await _projectsBox.put(id, data);
+    } on HiveError {
+      // Box closed — project will persist on next launch.
+    } catch (_) {}
+  }
+
+  Future<void> deleteProject(String id) async {
+    try {
+      if (!_isBoxUsable(_projectsBox)) return;
+      await _projectsBox.delete(id);
+    } on HiveError {
+      // Box closed — project will persist on next launch.
+    } catch (_) {}
+  }
+
+  // ─── Folders ────────────────────────────────────
+
+  List<Map<dynamic, dynamic>> getAllFolders() {
+    try {
+      if (!_isBoxUsable(_foldersBox)) return [];
+      return _foldersBox.values.map((v) => Map<dynamic, dynamic>.from(v)).toList();
+    } on HiveError {
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> saveFolder(String id, Map<String, dynamic> data) async {
+    try {
+      if (!_isBoxUsable(_foldersBox)) return;
+      await _foldersBox.put(id, data);
+    } on HiveError {
+      // Box closed — folder will persist on next launch.
+    } catch (_) {}
+  }
+
+  Future<void> deleteFolder(String id) async {
+    try {
+      if (!_isBoxUsable(_foldersBox)) return;
+      await _foldersBox.delete(id);
+    } on HiveError {
+      // Box closed — folder will persist on next launch.
     } catch (_) {}
   }
 
