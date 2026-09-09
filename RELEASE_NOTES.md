@@ -1,29 +1,22 @@
-# CubicLM v1.9.0
+# CubicLM v1.12.0 — Release Notes
 
-**CubicWeb Builder goes pro: live streaming builds, real runtimes, system diagnostics.**
+## Features
+- **Intelligent code editing**: ghost-text autocomplete, inline AI edits, visual diff review, @mentions, floating prompt overlays.
+- **Studio preview**: browser header, resizable viewport, element hover/select bridge, version timeline, auto-scroll.
+- **Agent upgrades**: auto npm install, console buffering, binary writes, @mention file/symbol picking, new Knowledge/Responsive/Component views.
 
-The biggest CubicLM release yet — the website builder now streams files live like v0, runs real dev servers, manages terminal CLIs, and tells code errors apart from environment failures.
+## Fixes
+- **Silent model-load death fixed**: missing foreground-service declaration added, native errors now surface instead of killing the app, and a kill-proof breadcrumb reports the exact death step on next launch.
+- **Engine isolation**: GGUF and LiteRT run in separate engines — no cross-engine regressions, errors name the engine.
 
-## What's New
+## Performance
+- No perf changes in this release.
 
-- **Live streaming builds** — files appear as the AI writes; preview reloads live
-- **Real local runtime** — project detection, validation, dev servers, real shell
-- **Terminal CLI manager** — one-tap installs (Claude Code, OpenCode, Cline, Kilo)
-- **CubicWeb System Logs** — CW-* diagnostics, no more infinite AI fix-loops
-- **Next.js pipeline** — integrity gates, build check, crash recovery
-- **Cloud model tools** — import from /models, test-all with online dots, auto-sync
-- **Builder extras** — plan mode, undo history, templates, deploy, diff view, mobile/tablet/desktop preview
+## Dependencies
+- No dependency changes in this release.
+
+## Breaking Changes
+- None.
 
 ## Downloads
-
-| Platform | File |
-|---|---|
-| Android (arm64) | `cubiclm-v1.9.0-arm64-v8a.apk` |
-| Android (arm32) | `cubiclm-v1.9.0-armeabi-v7a.apk` |
-| Android (x86_64) | `cubiclm-v1.9.0-x86_64.apk` |
-| Windows (x64) | `cubiclm-v1.9.0-windows-x64.zip` |
-
-## Known Limitations
-
-- On-device Node.js is not bundled: framework previews need a desktop or exported ZIP (the app says so explicitly instead of failing silently).
-- No cloud execution backend yet — "Use Cloud" explains instead of pretending.
+- Android (arm64-v8a, armeabi-v7a, x86_64) APKs + Windows x64 ZIP + checksums below.

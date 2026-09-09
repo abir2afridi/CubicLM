@@ -5,6 +5,17 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.12.0+19] - 2026-09-09
+
+### Added
+- **Intelligent code editing** — ghost-text autocompletion, AI inline-edit dialog for selected code, visual DiffView for pending changes, @mentions for files/symbols, floating prompt overlays on preview elements.
+- **Studio-grade preview** — browser-style header, resizable viewport, JS bridge for element hover/selection, VersionTimeline build history, auto-scroll during streaming, Dart/Python/TSX syntax highlighting.
+- **Agent upgrades** — automated npm install, console log buffering, binary file writes, brand-identity + architecture prompt tags, new KnowledgeGraph/ResponsiveGrid/ComponentCard views.
+
+### Fixed
+- **Silent model-load death** — llama foreground service declared in manifest (was missing: fatal on Android 14+); native `Error`s now reach Dart instead of killing silently; kill-proof breadcrumb reports the death step on next launch; Load buttons guarded end-to-end.
+- **Engine separation** — GGUF and LiteRT now run in isolated engines with zero shared state; GGUF edits can no longer break LiteRT and error traces name the engine.
+
 ## [1.11.0+18] - 2026-09-09
 
 ### Added
