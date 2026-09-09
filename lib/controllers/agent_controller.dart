@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
@@ -87,6 +88,7 @@ class AgentController extends GetxController {
   void cancelWork() {
     _cancelled = true;
   }
+
   final previewUrl = RxnString();
   final consoleError = RxnString();
   final lastError = RxnString();
@@ -205,7 +207,8 @@ class AgentController extends GetxController {
   void onElementPicked(String info) {
     pickedElement.value = info;
     elementPickMode.value = false;
-    term('🎯 element picked: ${info.length > 80 ? '${info.substring(0, 80)}…' : info}');
+    term(
+        '🎯 element picked: ${info.length > 80 ? '${info.substring(0, 80)}…' : info}');
     AppSnackbar.showTop(
       'Element picked',
       'Context added — describe the change you want.',
@@ -233,8 +236,7 @@ class AgentController extends GetxController {
     try {
       buildSteps.add({
         'kind': kind,
-        'text':
-            text.length > 140 ? '${text.substring(0, 140)}…' : text,
+        'text': text.length > 140 ? '${text.substring(0, 140)}…' : text,
         'ms': DateTime.now().millisecondsSinceEpoch.toString(),
       });
       while (buildSteps.length > 100) {
@@ -305,8 +307,7 @@ class AgentController extends GetxController {
     final now = DateTime.now().millisecondsSinceEpoch;
     if (now - _lastStatusMs < 300) return;
     _lastStatusMs = now;
-    buildStatus.value =
-        '$prefix… ${(chars / 1024).toStringAsFixed(1)}k chars';
+    buildStatus.value = '$prefix… ${(chars / 1024).toStringAsFixed(1)}k chars';
   }
 
   int _lastLiveWriteMs = 0;
@@ -362,8 +363,7 @@ class AgentController extends GetxController {
 
   /// Merge issue lists without code+path duplicates (disk validation
   /// and write-fidelity often flag the same file twice).
-  void _mergeIssues(
-      List<ProjectIssue> base, List<ProjectIssue> extra) {
+  void _mergeIssues(List<ProjectIssue> base, List<ProjectIssue> extra) {
     final have = base.map((i) => '${i.code}:${i.path}').toSet();
     for (final i in extra) {
       if (have.add('${i.code}:${i.path}')) base.add(i);
@@ -426,7 +426,8 @@ class AgentController extends GetxController {
         npm = (await Get.find<RuntimeManager>().refresh()).npmPath;
       } catch (_) {}
       if (npm == null || npm.isEmpty) {
-        term('✗ NEXT_BUILD_FAILED — npm unavailable (NPM_MISSING): Node.js runtime missing.');
+        term(
+            '✗ NEXT_BUILD_FAILED — npm unavailable (NPM_MISSING): Node.js runtime missing.');
         lastError.value = 'npm is unavailable — Node.js runtime missing.';
         try {
           _cw?.log(
@@ -458,8 +459,7 @@ class AgentController extends GetxController {
       final sub2 = session.stderrLines.listen(term);
       int code;
       try {
-        code = await session.exitCode
-            .timeout(const Duration(minutes: 10));
+        code = await session.exitCode.timeout(const Duration(minutes: 10));
       } on TimeoutException {
         code = -1;
         try {
@@ -476,11 +476,11 @@ class AgentController extends GetxController {
         term('✓ npm run build passed');
         _say('assistant',
             'Production build passed (`npm run build` ✅). Preview keeps running the dev server.');
-        AppSnackbar.showTop(
-            'Build passed', '`npm run build` succeeded.',
+        AppSnackbar.showTop('Build passed', '`npm run build` succeeded.',
             logHistory: false);
       } else {
-        term('✗ NEXT_BUILD_FAILED (exit $code) — compiler output above; tap the terminal wand (Ask AI) and I’ll fix it');
+        term(
+            '✗ NEXT_BUILD_FAILED (exit $code) — compiler output above; tap the terminal wand (Ask AI) and I’ll fix it');
         lastError.value =
             '`npm run build` failed (exit $code) — see Terminal, then Ask AI to Fix.';
         _say('assistant',
@@ -585,6 +585,41 @@ class AgentController extends GetxController {
       await generatePlan();
       return;
     }
+    // Framework guard (CW-PREVIEW-003): a Node framework with no Node
+    // runtime produces an unpreviewable project. Offer static instead.
+    var buildFramework = framework.value;
+    if (frameworkNeedsNode(buildFramework)) {
+      var nodeOk = false;
+      try {
+        nodeOk = (await Get.find<RuntimeManager>().refresh()).nodeAvailable;
+      } catch (_) {}
+      if (!nodeOk) {
+        final choice = await Get.dialog<String>(
+          AlertDialog(
+            title: const Text('No Node.js on this device'),
+            content: Text(
+                '"$buildFramework" needs Node.js (`npm run dev`), which is not available here. Build as static single-file HTML instead so preview works?'),
+            actions: [
+              TextButton(
+                onPressed: () => Get.back(result: null),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Get.back(result: 'node'),
+                child: Text('Build $buildFramework anyway'),
+              ),
+              FilledButton(
+                onPressed: () => Get.back(result: 'static'),
+                child: const Text('Build static HTML'),
+              ),
+            ],
+          ),
+          barrierDismissible: false,
+        );
+        if (choice == null) return;
+        if (choice == 'static') buildFramework = 'Single HTML';
+      }
+    }
     generating.value = true;
     _cancelled = false;
     lastError.value = null;
@@ -594,19 +629,19 @@ class AgentController extends GetxController {
     transcript.clear();
     _say('user', t);
     buildStatus.value = 'Designing project…';
-    term('> build "${t.length > 60 ? '${t.substring(0, 60)}…' : t}" (${framework.value})');
+    term(
+        '> build "${t.length > 60 ? '${t.substring(0, 60)}…' : t}" ($buildFramework)');
     _beginSteps();
-    step('thinking', 'Planning ${framework.value} project…');
+    step('thinking', 'Planning $buildFramework project…');
     String? createdCp;
     try {
       final name = t.length > 40 ? '${t.substring(0, 40)}…' : t;
-      final p = await _ws.createProject(name, framework.value);
+      final p = await _ws.createProject(name, buildFramework);
       project.value = p;
-      createdCp =
-          await _ws.saveCheckpoint(p.id, label: 'Project created');
+      createdCp = await _ws.saveCheckpoint(p.id, label: 'Project created');
       final raw = await _ask(
-        prompt: 'Build this website with ${framework.value}: $t',
-        system: webSystemPrompt(framework: framework.value),
+        prompt: 'Build this website with $buildFramework: $t',
+        system: webSystemPrompt(framework: buildFramework),
         onProgress: (n) => _streamStatus('Writing project', n),
         onPartial: (buf) => unawaited(_flushPartial(buf, p.id)),
       );
@@ -625,8 +660,8 @@ class AgentController extends GetxController {
       }
       buildStatus.value = 'Saving files…';
       final parsed = parseFiles(raw);
-      final err = await _ws.importFiles(
-          p.id, {for (final f in parsed) f.path: f.content});
+      final err = await _ws
+          .importFiles(p.id, {for (final f in parsed) f.path: f.content});
       if (err != null) {
         lastError.value = 'Some files failed: $err';
       }
@@ -638,14 +673,15 @@ class AgentController extends GetxController {
           p.id, {for (final f in parsed) f.path: f.content});
       if (fidelity.isNotEmpty) {
         _mergeIssues(previewIssues, fidelity);
-        final blocking =
-            previewIssues.where((i) => i.blocksPreview).toList();
+        final blocking = previewIssues.where((i) => i.blocksPreview).toList();
         if (blocking.isNotEmpty) {
           previewDecision.value = routePreview(
               kind: previewKind.value,
               issues: previewIssues.toList(),
-              nodeAvailable: true);
-          term('✗ source validation failed: ${blocking.map((i) => i.code).join(', ')}');
+              nodeAvailable: true,
+              cloudConfigured: cloudRuntime.isConfigured);
+          term(
+              '✗ source validation failed: ${blocking.map((i) => i.code).join(', ')}');
           _say('assistant',
               'Generated source validation failed — ${blocking.length} problem(s), not previewing blindly:\n${blocking.map((i) => '• ${i.message}').join('\n')}\nTap “Ask AI to Fix” and I’ll regenerate the broken files.');
         }
@@ -778,17 +814,18 @@ class AgentController extends GetxController {
       previewIssues.assignAll(mergedNow);
       var nodeOk = false;
       try {
-        nodeOk =
-            (await Get.find<RuntimeManager>().refresh()).nodeAvailable;
+        nodeOk = (await Get.find<RuntimeManager>().refresh()).nodeAvailable;
       } catch (_) {}
       previewDecision.value = routePreview(
           kind: kindNow,
           issues: previewIssues.toList(),
-          nodeAvailable: nodeOk);
+          nodeAvailable: nodeOk,
+          cloudConfigured: cloudRuntime.isConfigured);
       final fidelityBlocking =
           fidelityNow.where((i) => i.blocksPreview).toList();
       if (fidelityBlocking.isNotEmpty) {
-        term('✗ source validation failed: ${fidelityBlocking.map((i) => i.code).join(', ')}');
+        term(
+            '✗ source validation failed: ${fidelityBlocking.map((i) => i.code).join(', ')}');
         _say('assistant',
             'Change applied, but source validation failed:\n${fidelityBlocking.map((i) => '• ${i.message}').join('\n')}\nTap “Ask AI to Fix” and I’ll regenerate the broken files.');
       }
@@ -846,11 +883,11 @@ class AgentController extends GetxController {
     transcript.clear();
     _say('user', t);
     buildStatus.value = 'Thinking through the plan…';
-    term('> plan: "${t.length > 60 ? '${t.substring(0, 60)}…' : t}" (${framework.value})');
+    term(
+        '> plan: "${t.length > 60 ? '${t.substring(0, 60)}…' : t}" (${framework.value})');
     try {
       final raw = await _ask(
-        prompt:
-            'Plan this ${framework.value} project based on: $t\n\n'
+        prompt: 'Plan this ${framework.value} project based on: $t\n\n'
             'Output a structured plan in this EXACT format inside a ```plan fenced block:\n\n'
             '```plan\n'
             'PROJECT: <short project name>\n'
@@ -925,8 +962,8 @@ class AgentController extends GetxController {
       if (_cancelled) return;
       buildStatus.value = 'Saving files…';
       final parsed = parseFiles(raw);
-      final err = await _ws.importFiles(
-          p.id, {for (final f in parsed) f.path: f.content});
+      final err = await _ws
+          .importFiles(p.id, {for (final f in parsed) f.path: f.content});
       if (err != null) {
         lastError.value = 'Some files failed: $err';
       }
@@ -978,7 +1015,8 @@ class AgentController extends GetxController {
   Future<void> onConsoleError(String message) async {
     final p = project.value;
     consoleError.value = message;
-    term('✗ console: ${message.length > 160 ? '${message.substring(0, 160)}…' : message}');
+    term(
+        '✗ console: ${message.length > 160 ? '${message.substring(0, 160)}…' : message}');
     if (message.startsWith('Page load failed') && p != null) {
       ClassificationResult? c;
       try {
@@ -1005,7 +1043,8 @@ class AgentController extends GetxController {
             aiCanFix: false,
             fallbackAvailable: c.fallbackAvailable,
           );
-          term('■ ${c.errorCode} — ${c.title} (see System Logs; no code rewrite)');
+          term(
+              '■ ${c.errorCode} — ${c.title} (see System Logs; no code rewrite)');
         } catch (_) {}
         return;
       }
@@ -1014,9 +1053,8 @@ class AgentController extends GetxController {
     if (!autoFix.value || _autoRounds >= maxRepairRounds) return;
     _autoRounds++;
     try {
-      final short = message.length > 120
-          ? '${message.substring(0, 120)}…'
-          : message;
+      final short =
+          message.length > 120 ? '${message.substring(0, 120)}…' : message;
       step('error', short);
       step('fix', 'Auto-fix round $_autoRounds/$maxRepairRounds — diagnosing…');
     } catch (_) {}
@@ -1033,7 +1071,8 @@ class AgentController extends GetxController {
       return true;
     }
     if (c.errorCode != null && !c.aiCanFix) {
-      term('■ ${c.errorCode} — ${c.title}: environment problem, skipping code rewrite (see System Logs)');
+      term(
+          '■ ${c.errorCode} — ${c.title}: environment problem, skipping code rewrite (see System Logs)');
       _say('assistant',
           '${c.title} (${c.errorCode}). ${c.explanation} I did not modify your files — open CubicWeb System Logs for details.');
       return false;
@@ -1139,8 +1178,7 @@ class AgentController extends GetxController {
             'If you find issues, return a files-JSON object with the '
             'corrected files (complete new contents). If everything looks '
             'good, respond with just: OK',
-        system:
-            '${webSystemPrompt(framework: p.framework)}\n'
+        system: '${webSystemPrompt(framework: p.framework)}\n'
             'You are a QA engineer. Be thorough but practical.',
         onProgress: (n) => _streamStatus('Testing', n),
       );
@@ -1162,9 +1200,10 @@ class AgentController extends GetxController {
         await _ws.touch(p.id);
         await refreshFiles();
         _touch();
-        _say('assistant',
+        _say(
+            'assistant',
             'Auto-test found and fixed $applied file${applied == 1 ? '' : 's'}. '
-            'Preview reloaded — check the result.');
+                'Preview reloaded — check the result.');
         term('✓ auto-test: fixed $applied files');
         AppSnackbar.showTop('Auto-test fixed',
             '$applied file${applied == 1 ? '' : 's'} updated.',
@@ -1252,7 +1291,10 @@ class AgentController extends GetxController {
           const PreviewStep('Preview', 'ok', 'static server'),
         ]);
         previewDecision.value = routePreview(
-            kind: kind, issues: issues, nodeAvailable: true);
+            kind: kind,
+            issues: issues,
+            nodeAvailable: true,
+            cloudConfigured: cloudRuntime.isConfigured);
         previewUrl.value = await _preview.start(p.id, dir.path);
         devServerUrl.value = null;
         return;
@@ -1264,12 +1306,15 @@ class AgentController extends GetxController {
       ];
       final blocking = issues.where((i) => i.blocksPreview).toList();
       if (blocking.isNotEmpty) {
-        steps.add(PreviewStep(
-            'Validate', 'fail', '${blocking.length} blocker(s)'));
+        steps.add(
+            PreviewStep('Validate', 'fail', '${blocking.length} blocker(s)'));
         steps.add(const PreviewStep('Preview', 'fail', 'blocked'));
         previewSteps.assignAll(steps);
         previewDecision.value = routePreview(
-            kind: kind, issues: issues, nodeAvailable: false);
+            kind: kind,
+            issues: issues,
+            nodeAvailable: false,
+            cloudConfigured: cloudRuntime.isConfigured);
         term('✗ preview blocked: ${blocking.map((i) => i.code).join(', ')}');
         _say('assistant',
             'I generated a ${projectKindLabel(kind)} project, but ${blocking.length} structural problem(s) block preview:\n${blocking.map((i) => '• ${i.message}').join('\n')}\nTap “Ask AI to Fix” in the preview pane and I’ll repair them.');
@@ -1288,7 +1333,10 @@ class AgentController extends GetxController {
         steps.add(const PreviewStep('Preview', 'fail', 'needs runtime'));
         previewSteps.assignAll(steps);
         previewDecision.value = routePreview(
-            kind: kind, issues: issues, nodeAvailable: false);
+            kind: kind,
+            issues: issues,
+            nodeAvailable: false,
+            cloudConfigured: cloudRuntime.isConfigured);
         term('✗ preview needs Node.js — runtime unavailable (${st.platform})');
         try {
           _cw?.log(
@@ -1309,19 +1357,22 @@ class AgentController extends GetxController {
             fallbackAvailable: 'USE_CLOUD_RUNTIME',
           );
         } catch (_) {}
-        _say('assistant',
+        _say(
+            'assistant',
             'This is a ${projectKindLabel(kind)} project — it needs Node.js (`npm run dev`), which is not available on this device. '
-            'Static serving cannot execute JSX, so the preview would only show unstyled HTML. '
-            'Use “Recheck” after installing a runtime, “Cloud” if configured, or export the ZIP and run it where Node exists.');
+                'Static serving cannot execute JSX, so the preview would only show unstyled HTML. '
+                'Use “Recheck” after installing a runtime, “Cloud” if configured, or export the ZIP and run it where Node exists.');
         previewUrl.value = await _preview.start(p.id, dir.path);
         devServerUrl.value = null;
         return;
       }
-      steps.add(PreviewStep(
-          'Runtime', 'ok', 'node ${st.nodeVersion}'.trim()));
+      steps.add(PreviewStep('Runtime', 'ok', 'node ${st.nodeVersion}'.trim()));
       previewSteps.assignAll(steps);
       previewDecision.value = routePreview(
-          kind: kind, issues: issues, nodeAvailable: true);
+          kind: kind,
+          issues: issues,
+          nodeAvailable: true,
+          cloudConfigured: cloudRuntime.isConfigured);
       // Auto-start the dev server and point preview at the REAL url.
       await startDevServer();
     } catch (_) {
@@ -1374,7 +1425,8 @@ class AgentController extends GetxController {
       steps.add(const PreviewStep('Preview', 'ok', 'live dev server'));
       previewSteps.assignAll(steps);
       term('✓ preview → live dev server ${session.url}');
-      _say('assistant', 'Dev server is live — the preview now shows the real running app.');
+      _say('assistant',
+          'Dev server is live — the preview now shows the real running app.');
     } on DevServerException catch (e) {
       term('✗ dev server: ${e.message}');
       // Structured mapping (§18): dependency-flavored failures return
@@ -1460,8 +1512,7 @@ class AgentController extends GetxController {
       final steps = previewSteps.toList()
         ..removeWhere((s) => s.label == 'Preview' || s.label == 'Server');
       steps.add(const PreviewStep('Server', 'fail', 'crashed'));
-      steps.add(
-          const PreviewStep('Preview', 'info', 'static fallback'));
+      steps.add(const PreviewStep('Preview', 'info', 'static fallback'));
       previewSteps.assignAll(steps);
       _touch();
     } catch (_) {}
@@ -1506,10 +1557,10 @@ class AgentController extends GetxController {
   /// One-tap repair for structural preview blockers: feeds the issues
   /// back into the normal modify flow so the AI fixes them.
   Future<void> fixPreviewIssues() async {
-    final blockers =
-        previewIssues.where((i) => i.blocksPreview).toList();
+    final blockers = previewIssues.where((i) => i.blocksPreview).toList();
     if (blockers.isEmpty || generating.value || fixing.value) return;
-    topic.value = 'Fix these preview blockers in the "${project.value?.name}" project:\n'
+    topic.value =
+        'Fix these preview blockers in the "${project.value?.name}" project:\n'
         '${blockers.map((i) => '• [${i.path ?? 'project'}] ${i.message}').join('\n')}\n'
         'Return a files-JSON object with the corrected files (complete new contents).';
     await modifyProject();
@@ -1604,15 +1655,16 @@ class AgentController extends GetxController {
             traceId: currentTraceId,
           );
           if (ev != null) {
-            term('■ ${ev.errorCode} — ${ev.title} (see System Logs; no code rewrite)');
+            term(
+                '■ ${ev.errorCode} — ${ev.title} (see System Logs; no code rewrite)');
           }
         } catch (_) {}
       }
       // Adopt terminal-installed CLIs into the manager (§34).
       if (code == 0) {
         try {
-          final found = await Get.find<CliManagerService>()
-              .detectAfterCommand(cmd, code);
+          final found =
+              await Get.find<CliManagerService>().detectAfterCommand(cmd, code);
           if (found != null) {
             detectedCliId.value = found.id;
             detectedCliVersion.value =
@@ -1670,7 +1722,8 @@ class AgentController extends GetxController {
       final session = await mgr.launchInProject(m, workDir);
       activeCliId.value = m.id;
       final where = project.value?.name ?? 'sandbox';
-      term('▶ ${m.displayName} started (pid ${session.pid}) in $where — type below to interact, ■ to stop');
+      term(
+          '▶ ${m.displayName} started (pid ${session.pid}) in $where — type below to interact, ■ to stop');
       session.stdoutLines.listen(term);
       session.stderrLines.listen(term);
       unawaited(session.exitCode.then((code) {
@@ -1763,8 +1816,7 @@ class AgentController extends GetxController {
       }
     }
     if (errs.isEmpty) {
-      AppSnackbar.showTop(
-          'No errors', 'The terminal shows no recent failures.',
+      AppSnackbar.showTop('No errors', 'The terminal shows no recent failures.',
           logHistory: false);
       return;
     }
@@ -1948,9 +2000,8 @@ class AgentController extends GetxController {
           {'role': 'user', 'content': prompt},
         ],
         temperature: settings.temperature.value,
-        maxTokens: settings.autoTuneParams.value
-            ? null
-            : settings.maxTokens.value,
+        maxTokens:
+            settings.autoTuneParams.value ? null : settings.maxTokens.value,
         imageBase64: attachedImage.value,
       )) {
         bump(chunk);

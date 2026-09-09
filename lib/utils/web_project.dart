@@ -93,8 +93,7 @@ List<WebFile> parseFiles(String raw) {
   } catch (_) {}
   // Fallback: lone html fence → index.html, else raw text.
   final htmlFence =
-      RegExp(r'```html\n([\s\S]*?)```', caseSensitive: false)
-          .firstMatch(raw);
+      RegExp(r'```html\n([\s\S]*?)```', caseSensitive: false).firstMatch(raw);
   if (htmlFence != null && htmlFence.group(1)!.trim().isNotEmpty) {
     return [WebFile(path: 'index.html', content: htmlFence.group(1)!.trim())];
   }
@@ -171,7 +170,8 @@ List<PartialWebFile> parsePartialFiles(String raw) {
   }
 
   // Trailing partial entry: "path":"P","content":"<unfinished…>
-  final openRe = RegExp(r'"path"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"content"\s*:\s*"');
+  final openRe =
+      RegExp(r'"path"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"content"\s*:\s*"');
   for (final m in openRe.allMatches(body)) {
     // Skip ones already consumed as closed entries.
     var consumed = false;
@@ -233,6 +233,21 @@ const List<String> webFrameworks = [
   'Next.js',
   'Vue 3',
 ];
+
+/// True when [framework] needs Node.js at preview/serve time (dev
+/// server + build). Static frameworks preview anywhere. Public for
+/// the pre-build guard + unit tests.
+bool frameworkNeedsNode(String framework) {
+  final f = framework.toLowerCase();
+  return f.contains('vite') ||
+      f.contains('react') ||
+      f.contains('next') ||
+      f.contains('vue') ||
+      f.contains('node') ||
+      f.contains('nuxt') ||
+      f.contains('svelte') ||
+      f.contains('angular');
+}
 
 String _frameworkBrief(String framework) {
   const esmRule =

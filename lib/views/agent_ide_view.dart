@@ -1105,6 +1105,10 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         label = 'Run in cloud';
         icon = LucideIcons.cloud;
         onTap = () => c.useCloudFallback();
+      case 'export-zip':
+        label = 'Export ZIP';
+        icon = LucideIcons.packageOpen;
+        onTap = () => c.exportZip();
       case 'fix-issues':
         label = 'Ask AI to Fix';
         icon = LucideIcons.wand2;

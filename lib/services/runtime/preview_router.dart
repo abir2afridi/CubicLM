@@ -29,20 +29,23 @@ class PreviewDecision {
   final String statusLine;
 
   /// Action keys the UI understands: 'start-dev-server', 'recheck-runtime',
-  /// 'use-cloud', 'fix-issues', 'open-terminal'.
+  /// 'use-cloud', 'export-zip', 'fix-issues', 'open-terminal'.
   final List<String> actions;
 
-  const PreviewDecision(this.route, this.statusLine,
-      [this.actions = const []]);
+  const PreviewDecision(this.route, this.statusLine, [this.actions = const []]);
 }
 
 /// Route a project to its preview strategy.
 ///
 /// [nodeAvailable] comes from the runtime manager probe (never assumed).
+/// [cloudConfigured] decides the recovery action: a cloud chip is only
+/// offered when a backend actually exists — otherwise the user gets a
+/// direct export action instead of a dead-end button (CW-CLOUD-001).
 PreviewDecision routePreview({
   required ProjectKind kind,
   required List<ProjectIssue> issues,
   required bool nodeAvailable,
+  bool cloudConfigured = false,
 }) {
   final blocking = issues.where((i) => i.blocksPreview).toList();
   if (blocking.isNotEmpty) {
@@ -55,8 +58,7 @@ PreviewDecision routePreview({
   switch (kind) {
     case ProjectKind.staticSite:
     case ProjectKind.unknown:
-      return const PreviewDecision(
-          PreviewRoute.staticServe, 'Static preview');
+      return const PreviewDecision(PreviewRoute.staticServe, 'Static preview');
     case ProjectKind.vite:
     case ProjectKind.nextjs:
     case ProjectKind.nodeGeneric:
@@ -67,10 +69,12 @@ PreviewDecision routePreview({
           ['start-dev-server', 'validate-build', 'open-terminal'],
         );
       }
-      return const PreviewDecision(
+      return PreviewDecision(
         PreviewRoute.devServerPipeline,
         'Framework project needs Node.js — runtime unavailable on this device',
-        ['recheck-runtime', 'use-cloud', 'open-terminal'],
+        cloudConfigured
+            ? const ['recheck-runtime', 'use-cloud', 'open-terminal']
+            : const ['recheck-runtime', 'export-zip', 'open-terminal'],
       );
   }
 }

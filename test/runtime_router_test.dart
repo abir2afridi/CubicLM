@@ -62,11 +62,23 @@ void main() {
       expect(d.actions, contains('validate-build'));
     });
 
-    test('vite without node offers recheck + cloud', () {
+    test('vite without node offers recheck + cloud (configured)', () {
+      final d = routePreview(
+          kind: ProjectKind.vite,
+          issues: const [],
+          nodeAvailable: false,
+          cloudConfigured: true);
+      expect(d.route, PreviewRoute.devServerPipeline);
+      expect(d.actions, containsAll(['recheck-runtime', 'use-cloud']));
+    });
+
+    test('vite without node or cloud offers export instead (CW-CLOUD-001)',
+        () {
       final d = routePreview(
           kind: ProjectKind.vite, issues: const [], nodeAvailable: false);
       expect(d.route, PreviewRoute.devServerPipeline);
-      expect(d.actions, containsAll(['recheck-runtime', 'use-cloud']));
+      expect(d.actions, containsAll(['recheck-runtime', 'export-zip']));
+      expect(d.actions, isNot(contains('use-cloud')));
     });
 
     test('Case-A regression: framework kinds NEVER route static', () {

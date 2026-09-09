@@ -71,6 +71,15 @@ void main() {
       final single = webSystemPrompt(framework: 'Single HTML');
       expect(single.contains('PLAIN JAVASCRIPT'), isTrue);
     });
+
+    test('frameworkNeedsNode splits static vs node frameworks', () {
+      expect(frameworkNeedsNode('Single HTML'), isFalse);
+      expect(frameworkNeedsNode('HTML + CSS + JS'), isFalse);
+      expect(frameworkNeedsNode('React (Vite)'), isTrue);
+      expect(frameworkNeedsNode('Next.js'), isTrue);
+      expect(frameworkNeedsNode('Vue 3'), isTrue);
+      expect(frameworkNeedsNode('Nuxt'), isTrue);
+    });
   });
 
   group('parsePartialFiles', () {
