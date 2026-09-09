@@ -6,11 +6,8 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:share_plus/share_plus.dart';
 import '../controllers/chat_controller.dart';
-import '../models/chat_message.dart';
 import '../controllers/settings_controller.dart';
-import '../controllers/model_controller.dart';
 import '../controllers/home_controller.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
@@ -20,16 +17,17 @@ import '../widgets/attachment_preview.dart';
 import '../widgets/app_ui.dart';
 import '../theme/design_tokens.dart';
 import '../widgets/chat_bubble.dart';
+import 'chat/chat_bars.dart';
 import 'chat/chat_dialogs.dart';
 import 'chat/chat_format.dart';
 import 'chat/chat_sidebar.dart';
 import 'chat/chat_widgets.dart';
+import 'chat/empty_state.dart';
+import 'chat/selection_bar.dart';
 import '../widgets/model_switcher_sheet.dart';
 import '../widgets/thinking_orb.dart';
 import '../widgets/thought_disclosure.dart';
 import '../core/colors.dart';
-import '../services/notification_history_service.dart';
-import 'notification_history_view.dart';
 
 // ignore: must_be_immutable
 class ChatView extends GetView<ChatController> {
@@ -45,15 +43,15 @@ class ChatView extends GetView<ChatController> {
       appBar: _appBar(context, isDark),
       body: Column(
         children: [
-          _modelLoadingBar(context, isDark),
-          _contextBar(context, isDark),
+          modelLoadingBar(context, isDark),
+          contextBar(context, isDark),
           Obx(() => controller.findActive.value
-              ? _findBar(context, isDark)
+              ? findBar(context, isDark)
               : const SizedBox.shrink()),
           Expanded(child: Obx(() {
             if (controller.currentSessionId.value.isEmpty ||
                 controller.messages.isEmpty) {
-              return _emptyState(context, isDark);
+              return emptyState(context, isDark);
             }
             // NOTE: this observer deliberately does NOT read
             // streamingResponse — token flushes rebuild only the stream
@@ -126,14 +124,14 @@ class ChatView extends GetView<ChatController> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               dateHeader,
-                              _selectableRow(context, msg, bubble, isDark)
+                              selectableRow(context, msg, bubble, isDark)
                             ],
                           ),
                         );
                       }
                       return RepaintBoundary(
                           key: controller.findKeyFor(msg.id),
-                          child: _selectableRow(context, msg, bubble, isDark));
+                          child: selectableRow(context, msg, bubble, isDark));
                     },
                   ),
                 ),
@@ -162,7 +160,7 @@ class ChatView extends GetView<ChatController> {
             );
           })),
           Obx(() => controller.selectionMode.value
-              ? _selectionBar(context, isDark)
+              ? selectionBar(context, isDark)
               : _inputBar(context, isDark)),
         ],
       ),
@@ -173,86 +171,6 @@ class ChatView extends GetView<ChatController> {
 
   /// Long-press enters selection mode; tap toggles while active.
   /// Normal taps pass through (bubble buttons keep working).
-  Widget _selectableRow(
-      BuildContext context, ChatMessage msg, Widget child, bool isDark) {
-    return GestureDetector(
-      onLongPress: () {
-        controller.toggleSelectionMode(true);
-        controller.toggleSelected(msg.id);
-      },
-      onTap: () {
-        if (controller.selectionMode.value) {
-          controller.toggleSelected(msg.id);
-        }
-      },
-      child: Obx(() {
-        final selected = controller.selectionMode.value &&
-            controller.selectedIds.contains(msg.id);
-        if (!selected) return child;
-        return Container(
-          decoration: const BoxDecoration(
-            color: Color(0x14D97757),
-            border: Border(left: BorderSide(color: Dt.accent, width: 3)),
-          ),
-          child: child,
-        );
-      }),
-    );
-  }
-
-  Widget _selectionBar(BuildContext context, bool isDark) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-      decoration: BoxDecoration(
-        color: isDark ? Dt.cardDark : Dt.card,
-        border: Border(
-            top: BorderSide(
-                color: isDark
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.black.withValues(alpha: 0.06))),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Obx(() {
-          final n = controller.selectedIds.length;
-          return Row(
-            children: [
-              Text('$n selected',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.w800, fontSize: 14)),
-              const Spacer(),
-              IconButton(
-                tooltip: 'Copy selected',
-                icon: const Icon(LucideIcons.copy, size: 20),
-                onPressed: n == 0
-                    ? null
-                    : () => Clipboard.setData(
-                        ClipboardData(text: controller.selectedAsMarkdown())),
-              ),
-              IconButton(
-                tooltip: 'Share selected',
-                icon: const Icon(LucideIcons.share2, size: 20),
-                onPressed: n == 0
-                    ? null
-                    : () => Share.share(controller.selectedAsMarkdown()),
-              ),
-              IconButton(
-                tooltip: 'Delete selected',
-                icon: const Icon(LucideIcons.trash2,
-                    size: 20, color: AppColors.error),
-                onPressed: n == 0 ? null : () => controller.deleteSelected(),
-              ),
-              IconButton(
-                tooltip: 'Done',
-                icon: const Icon(LucideIcons.x, size: 20),
-                onPressed: () => controller.toggleSelectionMode(false),
-              ),
-            ],
-          );
-        }),
-      ),
-    );
-  }
 
   PreferredSizeWidget _appBar(BuildContext context, bool isDark) {
     return AppBar(
@@ -358,7 +276,7 @@ class ChatView extends GetView<ChatController> {
         ),
       ),
       actions: [
-        _notificationBell(context, isDark),
+        notificationBell(context, isDark),
         Obx(() {
           // Always visible: Battle Arena needs no open chat. Session
           // items disable gracefully on the empty state instead of
@@ -440,481 +358,6 @@ class ChatView extends GetView<ChatController> {
     final session = controller.sessions.firstWhereOrNull((s) => s.id == sid);
     if (session == null) return;
     await exportSession(context, session);
-  }
-
-  Widget _findBar(BuildContext context, bool isDark) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: isDark ? Dt.cardDark : Dt.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.08)
-              : Colors.black.withValues(alpha: 0.06),
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(LucideIcons.search,
-              size: 18, color: isDark ? AppColors.textPrimary : Dt.iconDefault),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: controller.findController,
-              autofocus: true,
-              onChanged: controller.updateFind,
-              onSubmitted: (_) => controller.stepFind(1),
-              style: GoogleFonts.plusJakartaSans(fontSize: 14),
-              decoration: InputDecoration(
-                hintText: 'Find in this chat…',
-                hintStyle: GoogleFonts.plusJakartaSans(
-                    fontSize: 14, color: Theme.of(context).hintColor),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
-              ),
-            ),
-          ),
-          Obx(() {
-            final n = controller.findMatches.length;
-            final q = controller.findQuery.value;
-            final label = q.isEmpty
-                ? ''
-                : n == 0
-                    ? '0'
-                    : '${controller.findIndex.value + 1}/$n';
-            return Text(label,
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Theme.of(context).hintColor));
-          }),
-          IconButton(
-            tooltip: 'Previous',
-            icon: const Icon(LucideIcons.chevronUp, size: 20),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: () => controller.stepFind(-1),
-          ),
-          IconButton(
-            tooltip: 'Next',
-            icon: const Icon(LucideIcons.chevronDown, size: 20),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: () => controller.stepFind(1),
-          ),
-          IconButton(
-            tooltip: 'Close find',
-            icon: const Icon(LucideIcons.x, size: 20),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: () => controller.toggleFind(false),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _notificationBell(BuildContext context, bool isDark) {
-    // Never throw if DI isn't ready yet (cold-start race) — bell just
-    // shows no badge until the service lands.
-    if (!Get.isRegistered<NotificationHistoryService>()) {
-      return IconButton(
-        tooltip: 'Notifications',
-        icon: Icon(LucideIcons.bell,
-            size: Dt.iconSize - 2,
-            color: isDark ? AppColors.textPrimary : Dt.iconDefault),
-        onPressed: () => Get.to(() => const NotificationHistoryView(),
-            transition: Transition.rightToLeft,
-            duration: const Duration(milliseconds: 260),
-            curve: Curves.easeOutCubic),
-      );
-    }
-    final svc = Get.find<NotificationHistoryService>();
-    return Obx(() {
-      final unread = svc.unreadCount;
-      return Stack(
-        clipBehavior: Clip.none,
-        children: [
-          IconButton(
-            tooltip: 'Notifications',
-            icon: Icon(LucideIcons.bell,
-                size: Dt.iconSize - 2,
-                color: isDark ? AppColors.textPrimary : Dt.iconDefault),
-            onPressed: () {
-              svc.markAllRead();
-              Get.to(() => const NotificationHistoryView(),
-                  transition: Transition.rightToLeft,
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeOutCubic);
-            },
-          ),
-          if (unread > 0)
-            Positioned(
-              right: 6,
-              top: 6,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                decoration: BoxDecoration(
-                  color: Dt.accent,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: isDark ? Dt.canvasDark : Dt.canvas, width: 1.5),
-                ),
-                child: Center(
-                  child: Text(
-                    unread > 99 ? '99+' : '$unread',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        height: 1),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      );
-    });
-  }
-
-  // ── Model Loading ──
-  Widget _modelLoadingBar(BuildContext context, bool isDark) {
-    return Obx(() {
-      final inf = Get.find<InferenceService>();
-      if (!inf.isLoadingModel.value) return const SizedBox.shrink();
-      final pct = (inf.modelLoadProgress.value * 100).toStringAsFixed(0);
-      return ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
-            decoration: BoxDecoration(
-              color: (isDark ? AppColors.surface : Colors.white)
-                  .withValues(alpha: 0.8),
-              border: Border(
-                  bottom: BorderSide(
-                      color:
-                          isDark ? AppColors.border : AppColors.borderLightMode,
-                      width: 1)),
-            ),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2.5, color: AppColors.primary)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text("${'chat_sync_intelligence'.tr} $pct%",
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14,
-                          color:
-                              isDark ? AppColors.textPrimary : Dt.textPrimary,
-                          fontWeight: FontWeight.w800)),
-                ),
-              ]),
-              const SizedBox(height: 14),
-              Stack(
-                children: [
-                  ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                          value: inf.modelLoadProgress.value,
-                          backgroundColor:
-                              isDark ? Dt.pillMutedDark : Dt.pillMuted,
-                          color: AppColors.primary,
-                          minHeight: 6)),
-                  if (inf.modelLoadProgress.value > 0.05)
-                    Positioned.fill(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: inf.modelLoadProgress.value,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              boxShadow: [
-                                BoxShadow(
-                                  color:
-                                      AppColors.primary.withValues(alpha: 0.4),
-                                  blurRadius: 10,
-                                  spreadRadius: 1,
-                                )
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ]),
-          ),
-        ),
-      );
-    });
-  }
-
-  // ── Context Bar ──
-  Widget _contextBar(BuildContext context, bool isDark) {
-    return Obx(() {
-      final settings = Get.find<SettingsController>();
-      final inf = Get.find<InferenceService>();
-      final active = controller.currentSessionId.value.isNotEmpty &&
-          controller.messages.isNotEmpty;
-      if (!active || settings.inferenceMode.value != 'local') {
-        return const SizedBox.shrink();
-      }
-      final total = inf.contextTokensTotal.value > 0
-          ? inf.contextTokensTotal.value
-          : settings.contextSize.value;
-      final est =
-          controller.messages.fold<int>(0, (s, m) => s + m.content.length);
-      final used = (inf.contextTokensUsed.value > 0
-              ? inf.contextTokensUsed.value
-              : (est / 4).ceil())
-          .clamp(0, total)
-          .toInt();
-      final pct = total == 0 ? 0.0 : (used / total).clamp(0.0, 1.0).toDouble();
-      final warn = pct >= 0.75;
-      final accent = warn ? AppColors.warning : AppColors.primary;
-
-      return Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.04)
-              : Colors.black.withValues(alpha: 0.03),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.05)
-                : Colors.black.withValues(alpha: 0.05),
-          ),
-        ),
-        child: Row(children: [
-          Icon(Icons.query_stats_rounded, size: 14, color: accent),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('chat_context_usage'.tr,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10,
-                            color: Theme.of(context).hintColor,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.2)),
-                    Text('${fmtK(used)} / ${fmtK(total)} ${'chat_tokens'.tr}',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10,
-                            color: accent,
-                            fontWeight: FontWeight.w800)),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                        value: pct,
-                        backgroundColor: isDark ? Dt.cardDark : Dt.card,
-                        color: accent,
-                        minHeight: 3)),
-              ],
-            ),
-          ),
-        ]),
-      );
-    });
-  }
-
-  // ── Empty State ──
-  Widget _emptyState(BuildContext context, bool isDark) {
-    final suggestions = [
-      {
-        'text': 'Explain quantum computing simply',
-        'icon': Icons.auto_awesome_rounded,
-        'color': Colors.blue
-      },
-      {
-        'text': 'Write a short poem about time',
-        'icon': Icons.edit_note_rounded,
-        'color': Colors.purple
-      },
-      {
-        'text': 'What makes the Northern Lights happen?',
-        'icon': Icons.light_mode_rounded,
-        'color': Colors.teal
-      },
-      {
-        'text': 'Give me a 5-minute healthy breakfast recipe',
-        'icon': Icons.restaurant_rounded,
-        'color': Colors.orange
-      },
-    ];
-    return Center(
-        child: SingleChildScrollView(
-      padding: const EdgeInsets.all(32),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Image.asset(
-          'assets/icons/CubicLM.png',
-          width: 64,
-          height: 64,
-          fit: BoxFit.contain,
-        ),
-        const SizedBox(height: 16),
-        AnimatedAppName(isDark: isDark),
-        const SizedBox(height: 20),
-        Text('chat_empty_title'.tr,
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 22,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.3,
-                color: isDark ? AppColors.textPrimary : Dt.textPrimary)),
-        const SizedBox(height: 8),
-        Text('chat_empty_subtitle'.tr,
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 14,
-                color: Dt.textSecondary,
-                fontWeight: FontWeight.w500)),
-        const SizedBox(height: 28),
-        Obx(() {
-          final settings = Get.find<SettingsController>();
-          final models = Get.find<ModelController>();
-          final isLocal = settings.inferenceMode.value == 'local';
-          if (isLocal && models.downloadedCount == 0) {
-            return Container(
-              padding: const EdgeInsets.all(28),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                    color: AppColors.warning.withValues(alpha: 0.2),
-                    width: 1.5),
-              ),
-              child: Column(children: [
-                const Icon(Icons.cloud_download_rounded,
-                    color: AppColors.warning, size: 48),
-                const SizedBox(height: 16),
-                Text('chat_no_local_models_title'.tr,
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : Colors.black)),
-                const SizedBox(height: 10),
-                Text('chat_no_local_models_desc'.tr,
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 14,
-                        color: Theme.of(context).hintColor,
-                        height: 1.5)),
-                const SizedBox(height: 28),
-                FilledButton.icon(
-                  onPressed: () => Get.find<HomeController>().changeTab(1),
-                  icon: const Icon(Icons.arrow_right_alt_rounded, size: 22),
-                  label: Text('chat_go_to_hub'.tr),
-                  style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.warning,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 32, vertical: 16),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20))),
-                ),
-              ]),
-            );
-          }
-          return LayoutBuilder(
-            builder: (ctx, constraints) {
-              final w = constraints.maxWidth;
-              final cols = w >= 600 ? (w >= 900 ? 4 : 3) : 2;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: cols,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  // Fixed dp height (not width-derived) so wrapped text on
-                  // narrow screens can never overflow the tile.
-                  mainAxisExtent: 136,
-                ),
-                itemCount: suggestions.length,
-                itemBuilder: (ctx, i) {
-                  final s = suggestions[i];
-                  return _suggestionCard(context, s['text'] as String,
-                      s['icon'] as IconData, s['color'] as Color, isDark);
-                },
-              );
-            },
-          );
-        }),
-      ]),
-    ));
-  }
-
-  Widget _suggestionCard(BuildContext context, String text, IconData icon,
-      Color color, bool isDark) {
-    return InkWell(
-      onTap: () {
-        controller.createNewChat();
-        controller.textController.text = text;
-        controller.inputText.value = text;
-        controller.sendMessage();
-      },
-      borderRadius: BorderRadius.circular(24),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.surface : Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.05)
-                : Colors.black.withValues(alpha: 0.05),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            Text(text,
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13,
-                    color: isDark ? AppColors.textPrimary : Dt.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    height: 1.3),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
-          ],
-        ),
-      ),
-    );
   }
 
   // ── Streaming Bubble ──
