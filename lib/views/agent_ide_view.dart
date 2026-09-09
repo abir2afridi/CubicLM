@@ -20,6 +20,7 @@ import '../services/runtime/project_detector.dart';
 import 'system_logs_view.dart';
 import 'cubicweb/agent_preview.dart';
 import 'cubicweb/chat_cards.dart';
+import 'cubicweb/file_cards.dart';
 import '../widgets/cli_sheets.dart';
 import '../services/agent_workspace.dart';
 import '../services/deploy_service.dart';
@@ -27,7 +28,6 @@ import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../theme/design_tokens.dart';
 import '../utils/app_snackbar.dart';
-import '../utils/syntax_highlight.dart';
 import '../utils/web_project.dart';
 import '../widgets/app_ui.dart';
 import '../widgets/model_switcher_sheet.dart';
@@ -1942,12 +1942,12 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   Widget _templateGrid(BuildContext context, bool isDark) {
     final templates = [
-      const _Template('Landing Page', LucideIcons.rocket, 'Marketing page with hero, features, CTA, footer', 'Build a modern landing page with: hero section with gradient background and CTA button, features grid (3 cards with icons), testimonial section, email signup form, and footer with links. Use a professional color scheme (indigo/blue). Responsive layout.', 'Single HTML'),
-      const _Template('Dashboard', LucideIcons.layoutDashboard, 'Admin panel with sidebar, charts, stats', 'Build an admin dashboard with: left sidebar navigation (5 items with icons), top bar with search and user avatar, 4 stat cards (revenue, users, orders, growth), a line chart placeholder, a data table with 5 rows, and a dark sidebar with light content area. Use Tailwind-style colors.', 'HTML + CSS + JS'),
-      const _Template('Portfolio', LucideIcons.user, 'Personal portfolio with projects and contact', 'Build a personal portfolio site with: animated hero with name and title, about section with photo placeholder and bio, projects grid (4 project cards with images and tech tags), skills section with progress bars, contact form, and smooth scroll navigation. Dark theme with accent color.', 'Single HTML'),
-      const _Template('Blog', LucideIcons.fileText, 'Blog with posts, sidebar, and categories', 'Build a blog homepage with: header with site name and nav, featured post hero, 3 article cards with image/title/excerpt/date, sidebar with categories and recent posts, newsletter signup, and footer. Clean typography, warm color palette.', 'HTML + CSS + JS'),
-      const _Template('E-commerce', LucideIcons.shoppingCart, 'Product grid with cart and filters', 'Build a product listing page with: top nav with logo, search bar, and cart icon with badge, filter sidebar (category, price range), product grid (6 product cards with image, name, price, rating stars, add-to-cart button), and a mini cart dropdown. Modern clean design.', 'HTML + CSS + JS'),
-      const _Template('SaaS Page', LucideIcons.globe, 'Product page with pricing tiers', 'Build a SaaS product page with: sticky nav, hero with product mockup, 3-step how-it-works section, pricing table (3 tiers: Free/Pro/Enterprise with feature comparison), customer logos bar, FAQ accordion, and CTA footer. Gradient accents, professional look.', 'Single HTML'),
+      const WebTemplate('Landing Page', LucideIcons.rocket, 'Marketing page with hero, features, CTA, footer', 'Build a modern landing page with: hero section with gradient background and CTA button, features grid (3 cards with icons), testimonial section, email signup form, and footer with links. Use a professional color scheme (indigo/blue). Responsive layout.', 'Single HTML'),
+      const WebTemplate('Dashboard', LucideIcons.layoutDashboard, 'Admin panel with sidebar, charts, stats', 'Build an admin dashboard with: left sidebar navigation (5 items with icons), top bar with search and user avatar, 4 stat cards (revenue, users, orders, growth), a line chart placeholder, a data table with 5 rows, and a dark sidebar with light content area. Use Tailwind-style colors.', 'HTML + CSS + JS'),
+      const WebTemplate('Portfolio', LucideIcons.user, 'Personal portfolio with projects and contact', 'Build a personal portfolio site with: animated hero with name and title, about section with photo placeholder and bio, projects grid (4 project cards with images and tech tags), skills section with progress bars, contact form, and smooth scroll navigation. Dark theme with accent color.', 'Single HTML'),
+      const WebTemplate('Blog', LucideIcons.fileText, 'Blog with posts, sidebar, and categories', 'Build a blog homepage with: header with site name and nav, featured post hero, 3 article cards with image/title/excerpt/date, sidebar with categories and recent posts, newsletter signup, and footer. Clean typography, warm color palette.', 'HTML + CSS + JS'),
+      const WebTemplate('E-commerce', LucideIcons.shoppingCart, 'Product grid with cart and filters', 'Build a product listing page with: top nav with logo, search bar, and cart icon with badge, filter sidebar (category, price range), product grid (6 product cards with image, name, price, rating stars, add-to-cart button), and a mini cart dropdown. Modern clean design.', 'HTML + CSS + JS'),
+      const WebTemplate('SaaS Page', LucideIcons.globe, 'Product page with pricing tiers', 'Build a SaaS product page with: sticky nav, hero with product mockup, 3-step how-it-works section, pricing table (3 tiers: Free/Pro/Enterprise with feature comparison), customer logos bar, FAQ accordion, and CTA footer. Gradient accents, professional look.', 'Single HTML'),
     ];
     // Scrollable: inside Center the height is unbounded, so a fixed
     // Column + grid would overflow on short screens / large text.
@@ -2230,7 +2230,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     // While the AI is writing this file, show the LIVE stream instead
     // of a stale disk read (tap in and watch the code appear).
     if (c.streamingActive.value && c.streamingFiles.containsKey(path)) {
-      return _StreamingFileCard(path: path, isDark: isDark);
+      return StreamingFileCard(path: path, isDark: isDark);
     }
     return FutureBuilder<String?>(
       key: ValueKey('editor-$path-${c.revision.value}'),
@@ -2247,7 +2247,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                         CircularProgressIndicator(strokeWidth: 2))),
           );
         }
-        return _FileEditorCard(
+        return FileEditorCard(
           key: ValueKey('card-$path'),
           path: path,
           initial: snap.data ?? '',
@@ -2492,18 +2492,18 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   void _showComponentLibrary(BuildContext context, bool isDark) {
     final components = [
-      const _Component('Navbar', LucideIcons.menu, 'Navigation bar with logo and links'),
-      const _Component('Hero Section', LucideIcons.star, 'Full-width hero with CTA'),
-      const _Component('Pricing Table', LucideIcons.creditCard, '3-tier pricing cards'),
-      const _Component('FAQ Accordion', LucideIcons.helpCircle, 'Expandable Q&A items'),
-      const _Component('Contact Form', LucideIcons.mail, 'Name, email, message fields'),
-      const _Component('Footer', LucideIcons.arrowDown, 'Multi-column footer'),
-      const _Component('Card Grid', LucideIcons.grid, 'Responsive card layout'),
-      const _Component('Modal/Dialog', LucideIcons.maximize2, 'Centered overlay modal'),
-      const _Component('Tabs', LucideIcons.layout, 'Tabbed content switcher'),
-      const _Component('Testimonials', LucideIcons.quote, 'Customer review carousel'),
-      const _Component('Stats Bar', LucideIcons.barChart3, 'Animated number counters'),
-      const _Component('Timeline', LucideIcons.clock, 'Vertical step timeline'),
+      const WebComponent('Navbar', LucideIcons.menu, 'Navigation bar with logo and links'),
+      const WebComponent('Hero Section', LucideIcons.star, 'Full-width hero with CTA'),
+      const WebComponent('Pricing Table', LucideIcons.creditCard, '3-tier pricing cards'),
+      const WebComponent('FAQ Accordion', LucideIcons.helpCircle, 'Expandable Q&A items'),
+      const WebComponent('Contact Form', LucideIcons.mail, 'Name, email, message fields'),
+      const WebComponent('Footer', LucideIcons.arrowDown, 'Multi-column footer'),
+      const WebComponent('Card Grid', LucideIcons.grid, 'Responsive card layout'),
+      const WebComponent('Modal/Dialog', LucideIcons.maximize2, 'Centered overlay modal'),
+      const WebComponent('Tabs', LucideIcons.layout, 'Tabbed content switcher'),
+      const WebComponent('Testimonials', LucideIcons.quote, 'Customer review carousel'),
+      const WebComponent('Stats Bar', LucideIcons.barChart3, 'Animated number counters'),
+      const WebComponent('Timeline', LucideIcons.clock, 'Vertical step timeline'),
     ];
     showModalBottomSheet(
       context: context,
@@ -2990,256 +2990,5 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 extension on AgentController {
   List<AgentProject> projectsOf() =>
       Get.find<AgentWorkspaceService>().projects.toList();
-}
-
-class _Component {
-  final String name;
-  final IconData icon;
-  final String prompt;
-  const _Component(this.name, this.icon, this.prompt);
-}
-
-/// Live streaming file card: read-only highlighted view of the code
-/// AS the AI writes it. Auto-scrolls while open; replaced by the real
-/// editor once the file lands on disk.
-class _StreamingFileCard extends StatefulWidget {
-  final String path;
-  final bool isDark;
-  const _StreamingFileCard({required this.path, required this.isDark});
-
-  @override
-  State<_StreamingFileCard> createState() => _StreamingFileCardState();
-}
-
-class _StreamingFileCardState extends State<_StreamingFileCard> {
-  final _scroll = ScrollController();
-  int _shown = 0;
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = Get.find<AgentController>();
-    return Obx(() {
-      final content = c.streamingFiles[widget.path] ?? '';
-      if (content.length != _shown) {
-        _shown = content.length;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scroll.hasClients) {
-            try {
-              _scroll.jumpTo(_scroll.position.maxScrollExtent);
-            } catch (_) {}
-          }
-        });
-      }
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: const Color(0xFF101014),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-              color: Dt.accent.withValues(alpha: 0.35)),
-        ),
-        child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(children: [
-                Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                        shape: BoxShape.circle, color: Dt.accent)),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(widget.path,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.firaCode(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFFCDD6F4))),
-                ),
-                Text('${(content.length / 1024).toStringAsFixed(1)}k',
-                    style: GoogleFonts.firaCode(
-                        fontSize: 10,
-                        color: const Color(0xFF6E6B65))),
-              ]),
-              const SizedBox(height: 8),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 320),
-                child: SingleChildScrollView(
-                  controller: _scroll,
-                  child: SelectableText.rich(
-                    buildHighlightedSpan(
-                        highlight(content, widget.path)),
-                    style: GoogleFonts.firaCode(
-                        fontSize: 11, height: 1.5),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text('AI is writing… edits unlock when done',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10.5,
-                      color: const Color(0xFF6E6B65))),
-            ]),
-      );
-    });
-  }
-}
-
-/// File editor card: owns its controller so parent rebuilds never wipe
-/// in-progress edits. Save writes through the workspace service.
-class _FileEditorCard extends StatefulWidget {
-  final String path;
-  final String initial;
-  final bool isDark;
-  const _FileEditorCard({
-    super.key,
-    required this.path,
-    required this.initial,
-    required this.isDark,
-  });
-
-  @override
-  State<_FileEditorCard> createState() => _FileEditorCardState();
-}
-
-class _FileEditorCardState extends State<_FileEditorCard> {
-  late final TextEditingController _ctrl;
-  bool _dirty = false;
-  bool _viewMode = false; // false = edit, true = highlighted view
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.initial);
-    _ctrl.addListener(() {
-      final d = _ctrl.text != widget.initial;
-      if (d != _dirty && mounted) setState(() => _dirty = d);
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: widget.isDark ? AppColors.surface : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-            color: widget.isDark
-                ? Colors.white.withValues(alpha: 0.07)
-                : Dt.hairline),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-            child: Text(widget.path,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 13, fontWeight: FontWeight.w800)),
-          ),
-          if (_dirty)
-            Container(
-              margin: const EdgeInsets.only(right: 4),
-              width: 8,
-              height: 8,
-              decoration: const BoxDecoration(
-                  color: Dt.accent, shape: BoxShape.circle),
-            ),
-          IconButton(
-            tooltip: 'Copy',
-            icon: const Icon(LucideIcons.copy, size: 16),
-            onPressed: () =>
-                Clipboard.setData(ClipboardData(text: _ctrl.text)),
-          ),
-          IconButton(
-            tooltip: _viewMode ? 'Edit code' : 'View highlighted',
-            icon: Icon(
-                _viewMode ? LucideIcons.pencil : LucideIcons.eye,
-                size: 16),
-            onPressed: () => setState(() => _viewMode = !_viewMode),
-          ),
-          IconButton(
-            tooltip: 'Save edits',
-            icon: const Icon(LucideIcons.check, size: 18),
-            color: Dt.accent,
-            onPressed: () async {
-              final ws = Get.find<AgentWorkspaceService>();
-              final ac = Get.find<AgentController>();
-              final pid = ac.project.value?.id;
-              if (pid == null) return;
-              final err =
-                  await ws.writeFile(pid, widget.path, _ctrl.text);
-              if (err != null && context.mounted) {
-                Get.snackbar('Save failed', err,
-                    snackPosition: SnackPosition.BOTTOM);
-              } else {
-                await ac.notifyFilesChanged();
-                if (context.mounted) {
-                  Get.snackbar('Saved', widget.path,
-                      snackPosition: SnackPosition.BOTTOM,
-                      duration: const Duration(seconds: 1));
-                }
-              }
-            },
-          ),
-        ]),
-        const SizedBox(height: 8),
-        Container(
-          constraints: const BoxConstraints(maxHeight: 320),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: widget.isDark
-                ? const Color(0xFF1E1E2E)
-                : const Color(0xFFF8F9FA),
-            borderRadius: BorderRadius.circular(10),
-          ),
-          child: _viewMode
-              ? SingleChildScrollView(
-                  padding: EdgeInsets.zero,
-                  child: SelectableText.rich(
-                    buildHighlightedSpan(
-                        highlight(_ctrl.text, widget.path)),
-                    style: GoogleFonts.firaCode(
-                        fontSize: 12, height: 1.5),
-                  ),
-                )
-              : SingleChildScrollView(
-                  child: TextField(
-                    controller: _ctrl,
-                    maxLines: null,
-                    style: GoogleFonts.firaCode(
-                        fontSize: 12, height: 1.5),
-                    decoration:
-                        const InputDecoration.collapsed(hintText: ''),
-                  ),
-                ),
-        ),
-      ]),
-    );
-  }
-}
-
-class _Template {
-  final String name;
-  final IconData icon;
-  final String desc;
-  final String prompt;
-  final String framework;
-  const _Template(this.name, this.icon, this.desc, this.prompt, this.framework);
 }
 
