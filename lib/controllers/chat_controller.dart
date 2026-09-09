@@ -22,6 +22,7 @@ import '../models/chat_message.dart';
 import '../models/chat_session.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import '../services/hive_service.dart';
+import '../services/chat_backup.dart';
 import '../services/web_fetch_service.dart';
 import '../services/inference_service.dart';
 import '../services/cloud_service.dart';
@@ -34,7 +35,6 @@ import '../services/skills/skill_injector.dart';
 import '../models/web_source.dart';
 import '../utils/thought_parser.dart';
 import '../utils/history_budget.dart';
-import '../utils/export_file.dart';
 import '../services/stats_service.dart';
 
 const int _visionImageMaxSide = 768;
@@ -45,7 +45,8 @@ Uint8List? _resizeVisionImageBytes(Map<String, dynamic> args) {
   final decoded = img.decodeImage(bytes);
   if (decoded == null) return null;
 
-  final longestSide = decoded.width > decoded.height ? decoded.width : decoded.height;
+  final longestSide =
+      decoded.width > decoded.height ? decoded.width : decoded.height;
   if (longestSide <= _visionImageMaxSide) {
     return bytes;
   }
@@ -221,8 +222,7 @@ class ChatController extends GetxController {
 
   /// Stable per-message key: doubles as the list identity key (state by
   /// id, not position) and the find-jump anchor for ensureVisible.
-  GlobalKey findKeyFor(String id) =>
-      _findKeys.putIfAbsent(id, GlobalKey.new);
+  GlobalKey findKeyFor(String id) => _findKeys.putIfAbsent(id, GlobalKey.new);
 
   void toggleFind(bool open) {
     findActive.value = open;
@@ -312,6 +312,7 @@ class ChatController extends GetxController {
       } catch (_) {}
     });
   }
+
   Timer? _scrollTimer;
   bool _followStreaming = true;
   bool _scrollListenerAttached = false;
@@ -331,7 +332,7 @@ class ChatController extends GetxController {
     if (!_autoBackupChecked) {
       _autoBackupChecked = true;
       unawaited(Future.delayed(
-          const Duration(seconds: 10), () => maybeAutoBackup()));
+          const Duration(seconds: 10), () => maybeAutoBackup(_hive)));
     }
   }
 
@@ -360,8 +361,7 @@ class ChatController extends GetxController {
           Get.find<HomeController>().changeTab(0);
         }
       } catch (_) {}
-      Get.snackbar('Shared text added',
-          'Review and tap send when ready.',
+      Get.snackbar('Shared text added', 'Review and tap send when ready.',
           snackPosition: SnackPosition.BOTTOM,
           duration: const Duration(seconds: 3));
     } catch (_) {}
@@ -422,7 +422,8 @@ class ChatController extends GetxController {
             mainButton: const TextButton(
               onPressed: openAppSettings,
               child: Text('Open settings'),
-            ),          );
+            ),
+          );
           return;
         }
         if (!mic.isGranted) return; // denied (not permanent) — stay silent
@@ -448,9 +449,7 @@ class ChatController extends GetxController {
           // Hands-free: final transcript auto-sends (once per utterance).
           if (voiceMode.value && result.finalResult) {
             final said = result.recognizedWords.trim();
-            if (said.isNotEmpty &&
-                _voiceSendArmed &&
-                !isLoading.value) {
+            if (said.isNotEmpty && _voiceSendArmed && !isLoading.value) {
               _voiceSendArmed = false;
               sendMessage();
             }
@@ -761,8 +760,7 @@ class ChatController extends GetxController {
         hasOlderMessages.value = false;
         return;
       }
-      final oldestMs =
-          messages.first.timestamp.millisecondsSinceEpoch;
+      final oldestMs = messages.first.timestamp.millisecondsSinceEpoch;
       final raw = _hive.getMessagesForChatPaged(
         sessionId,
         limit: _chatPageSize,
@@ -793,8 +791,7 @@ class ChatController extends GetxController {
         try {
           final newMax = scrollController.position.maxScrollExtent;
           scrollController.jumpTo(
-            (oldPixels + (newMax - oldMax))
-                .clamp(0.0, newMax.toDouble()),
+            (oldPixels + (newMax - oldMax)).clamp(0.0, newMax.toDouble()),
           );
         } catch (_) {}
       });
@@ -892,177 +889,10 @@ class ChatController extends GetxController {
 
   // ─── Backup & Restore ───────────────────────────
 
-  /// Build the backup JSON string, or null when there is nothing to back
-  /// up. Shared by manual export and silent auto-backup.
-  ///
-  /// - [includeImages]: keep base64 image payloads (much larger file).
-  /// - [passphrase]: non-empty encrypts the payload (AES-256-CBC,
-  ///   SHA-256 key). Import then requires the same passphrase.
-  Future<String?> buildBackupJson({
-    bool includeImages = false,
-    String? passphrase,
-  }) async {
-    final sessionsRaw = _hive.getAllSessions();
-    final messagesRaw = _hive.getAllMessagesRaw();
-    if (sessionsRaw.isEmpty) return null;
-
-    final sessionsOut = sessionsRaw.map((s) {
-      final m = Map<String, dynamic>.from(s);
-      if (!includeImages) m.remove('imageBase64');
-      return m;
-    }).map((s) => ChatSession.fromMap(s).toMap()).toList();
-
-    final messagesOut = messagesRaw.map((m) {
-      final c = Map<String, dynamic>.from(m);
-      // File paths never transfer across devices.
-      c['imagePath'] = null;
-      if (!includeImages) c['imageBase64'] = null;
-      return c;
-    }).toList();
-
-    final inner = {
-      'sessions': sessionsOut,
-      'messages': messagesOut,
-    };
-    final Map<String, dynamic> payload;
-    final pass = (passphrase ?? '').trim();
-    if (pass.isNotEmpty) {
-      final plain = Uint8List.fromList(utf8.encode(
-        '${HiveService.backupMagic}${jsonEncode(inner)}',
-      ));
-      final packed = await _hive.encryptBackupBytes(plain, pass);
-      payload = {
-        'app': 'CubicLM',
-        'type': 'chat_backup_encrypted',
-        'version': 1,
-        'algo': 'aes256cbc-sha256',
-        'exportedAt': DateTime.now().toIso8601String(),
-        'data': base64Encode(packed),
-      };
-    } else {
-      payload = {
-        'app': 'CubicLM',
-        'type': 'chat_backup',
-        'version': 1,
-        'exportedAt': DateTime.now().toIso8601String(),
-        ...inner,
-      };
-    }
-    return jsonEncode(payload);
-  }
-
-  /// Export every session + message to a single JSON backup file, saved
-  /// straight to the device via the system Save dialog (no share sheet).
-  /// Desktop has no share sheet — a native save dialog is shown instead
-  /// so the user picks the destination directly.
-  Future<String?> exportAllChats({
-    bool includeImages = false,
-    String? passphrase,
-  }) async {
-    try {
-      final jsonStr = await buildBackupJson(
-          includeImages: includeImages, passphrase: passphrase);
-      if (jsonStr == null) return 'empty';
-
-      if (!kIsWeb &&
-          (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-        return await _exportChatsDesktop(jsonStr);
-      }
-
-      final stamp = DateTime.now().toIso8601String().split('T').first;
-      final saved = await ExportFile.saveText(
-        text: jsonStr,
-        fileName: 'cubiclm_chat_backup_$stamp.json',
-        dialogTitle: 'Save CubicLM chat backup',
-        mimeType: 'application/json',
-      );
-      return saved == null ? 'cancelled' : null;
-    } catch (e) {
-      Get.find<AppLogService>().error('Backup export failed',
-          details: e, category: LogCategory.chat);
-      return 'error';
-    }
-  }
-
-  /// Desktop export: native save dialog writes the JSON directly to the
-  /// path the user picks. Returns null on success, 'cancelled' when the
-  /// user dismisses the dialog, 'error' on failure.
-  Future<String?> _exportChatsDesktop(String jsonStr) async {
-    try {
-      final stamp = DateTime.now().toIso8601String().split('T').first;
-      final outPath = await FilePicker.saveFile(
-        dialogTitle: 'Save CubicLM chat backup',
-        fileName: 'cubiclm_chat_backup_$stamp.json',
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-        bytes: Uint8List.fromList(utf8.encode(jsonStr)),
-      );
-      if (outPath == null) return 'cancelled';
-      Get.snackbar(
-        'Backup saved',
-        outPath,
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 6),
-      );
-      Get.find<AppLogService>().info('Chat backup exported',
-          details: outPath, category: LogCategory.chat);
-      return null;
-    } catch (e) {
-      Get.find<AppLogService>().error('Backup export failed',
-          details: e, category: LogCategory.chat);
-      return 'error';
-    }
-  }
-
-  /// Silent scheduled backup: writes unencrypted JSON (no images) to the
-  /// app documents dir when enabled and due, keeping the last 3 files.
-  /// Runs once per process from onInit. Never throws, never prompts.
-  /// NOTE: auto-backups are unencrypted (no unattended passphrase) —
-  /// use manual export with a passphrase for sensitive chats.
-  Future<void> maybeAutoBackup() async {
-    try {
-      final enabled = _hive.getSetting<bool>(
-              AppConstants.keyAutoBackupEnabled,
-              defaultValue: false) ??
-          false;
-      if (enabled != true) return;
-      if (kIsWeb) return;
-      final days = _hive.getSetting<int>(AppConstants.keyAutoBackupDays,
-              defaultValue: 7) ??
-          7;
-      final last = _hive.getSetting<int>(AppConstants.keyLastAutoBackup,
-              defaultValue: 0) ??
-          0;
-      final nowMs = DateTime.now().millisecondsSinceEpoch;
-      if (nowMs - last < days * 24 * 60 * 60 * 1000) return;
-      final jsonStr = await buildBackupJson();
-      if (jsonStr == null) return;
-      final dir = await getApplicationDocumentsDirectory();
-      final stamp = DateTime.now()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .split('.')
-          .first;
-      final file = File('${dir.path}/cubiclm_auto_backup_$stamp.json');
-      await file.writeAsString(jsonStr, flush: true);
-      // Prune to the last 3 auto-backups.
-      final autos = Directory(dir.path)
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.contains('cubiclm_auto_backup_'))
-          .toList()
-        ..sort((a, b) => b.path.compareTo(a.path));
-      for (final old in autos.skip(3)) {
-        try {
-          await old.delete();
-        } catch (_) {}
-      }
-      await _hive.setSetting(AppConstants.keyLastAutoBackup, nowMs);
-      Get.find<AppLogService>().info('Auto backup saved',
-          details: file.path, category: LogCategory.chat);
-    } catch (_) {}
-  }
-
+  /// Import a previously exported CubicLM chat backup. Existing sessions
+  /// and messages are never overwritten — only new items are merged in.
+  /// Encrypted backups require [passphrase]: 'locked' when missing,
+  /// 'invalid' when wrong. Returns an error string, or null on success.
   Future<void> setAutoBackup(bool enabled, [int? days]) async {
     autoBackupEnabled.value = enabled;
     await _hive.setSetting(AppConstants.keyAutoBackupEnabled, enabled);
@@ -1072,113 +902,6 @@ class ChatController extends GetxController {
     }
   }
 
-  /// Export app settings WITHOUT secrets (API keys live in secure
-  /// storage and custom-profile inline keys are excluded too).
-  /// Returns null on success, or an error string. Desktop shows a native
-  /// save dialog; mobile shares the file.
-  static final _settingsSecretKeys = {
-    AppConstants.keyOpenaiKey,
-    AppConstants.keyAnthropicKey,
-    AppConstants.keyGoogleKey,
-    AppConstants.keyKimiKey,
-    AppConstants.keyStabilityKey,
-    AppConstants.keyNvidiaKey,
-    AppConstants.keyOpenRouterKey,
-    AppConstants.keyDeepSeekKey,
-    AppConstants.keyZaiKey,
-    AppConstants.keyGroqKey,
-    AppConstants.keyMistralKey,
-    AppConstants.keyTogetherKey,
-    AppConstants.keyXaiKey,
-    AppConstants.keyPerplexityKey,
-    AppConstants.keyCerebrasKey,
-    AppConstants.keyFireworksKey,
-    AppConstants.keyCohereKey,
-    AppConstants.keyHuggingFaceKey,
-    AppConstants.keyXkiroKey,
-    AppConstants.keyTokenRouterKey,
-    AppConstants.keyCustomCloudKey,
-    AppConstants.keyCustomCloudProfiles,
-    AppConstants.keyServerApiKey,
-  };
-  static final _settingsSecretPattern =
-      RegExp(r'token|secret|password|apikey|api_key|credential', caseSensitive: false);
-
-  Future<String?> exportSettings() async {
-    try {
-      final all = _hive.getAllSettingsRaw();
-      all.removeWhere((k, _) =>
-          _settingsSecretKeys.contains(k) ||
-          _settingsSecretPattern.hasMatch(k));
-      final payload = {
-        'app': 'CubicLM',
-        'type': 'settings_backup',
-        'version': 1,
-        'exportedAt': DateTime.now().toIso8601String(),
-        'settings': all,
-      };
-      final jsonStr = jsonEncode(payload);
-      final stamp = DateTime.now().toIso8601String().split('T').first;
-      final fileName = 'cubiclm_settings_$stamp.json';
-      final outPath = await ExportFile.saveText(
-        text: jsonStr,
-        fileName: fileName,
-        dialogTitle: 'Save CubicLM settings',
-        mimeType: 'application/json',
-      );
-      if (outPath == null) return 'cancelled';
-      Get.find<AppLogService>().info('Settings exported',
-          details: outPath, category: LogCategory.chat);
-      return null;
-    } catch (e) {
-      Get.find<AppLogService>().error('Settings export failed',
-          details: e, category: LogCategory.chat);
-      return 'error';
-    }
-  }
-
-  /// Import a settings backup. Secrets are never imported (skipped).
-  /// Returns null on success, or an error string. Some settings apply
-  /// after an app restart.
-  Future<String?> importSettings() async {
-    try {
-      final picked = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-      );
-      if (picked == null || picked.files.isEmpty) return 'cancelled';
-      final bytes = picked.files.first.bytes ??
-          await File(picked.files.first.path!).readAsBytes();
-      final decoded = jsonDecode(utf8.decode(bytes));
-      if (decoded is! Map || decoded['type'] != 'settings_backup') {
-        return 'Not a CubicLM settings file.';
-      }
-      final map = Map<String, dynamic>.from(decoded['settings'] ?? {});
-      var applied = 0;
-      for (final e in map.entries) {
-        if (_settingsSecretKeys.contains(e.key) ||
-            _settingsSecretPattern.hasMatch(e.key)) {
-          continue;
-        }
-        try {
-          // Only JSON-native values cross devices safely.
-          jsonEncode(e.value);
-          await _hive.setSetting(e.key, e.value);
-          applied++;
-        } catch (_) {}
-      }
-      Get.find<AppLogService>().info('Settings imported: $applied applied',
-          category: LogCategory.chat);
-      return null;
-    } catch (e) {
-      return 'Import failed: $e';
-    }
-  }
-
-  /// Import a previously exported CubicLM chat backup. Existing sessions
-  /// and messages are never overwritten — only new items are merged in.
-  /// Encrypted backups require [passphrase]: 'locked' when missing,
-  /// 'invalid' when wrong. Returns an error string, or null on success.
   Future<String?> importChats({String? passphrase}) async {
     try {
       final picked = await FilePicker.pickFiles(
@@ -1231,8 +954,7 @@ class ChatController extends GetxController {
       }
       if (body is! Map<String, dynamic>) return 'invalid';
       final t = body['type'];
-      final hasData =
-          body['sessions'] is List || body['messages'] is List;
+      final hasData = body['sessions'] is List || body['messages'] is List;
       // Plain backups carry type 'chat_backup'; decrypted payloads and
       // legacy files may omit it but must carry data.
       if (t != 'chat_backup' && !(t == null && hasData)) return 'invalid';
@@ -1256,8 +978,8 @@ class ChatController extends GetxController {
       // Build the set of existing message keys to skip duplicates.
       final existingMessageKeys = _hive
           .getAllMessagesRaw()
-          .map((m) => _messageKey(m['chatId']?.toString() ?? '',
-              m['id']?.toString() ?? ''))
+          .map((m) => _messageKey(
+              m['chatId']?.toString() ?? '', m['id']?.toString() ?? ''))
           .toSet();
 
       final rawMessages = body['messages'];
@@ -1320,10 +1042,10 @@ class ChatController extends GetxController {
         _checkVisionSupport();
       }
     } catch (e) {
-      Get.find<AppLogService>().error('Image pick failed',
-          details: e, category: LogCategory.chat);
-      Get.snackbar('Image Pick Failed',
-          'Could not pick an image on this device.',
+      Get.find<AppLogService>()
+          .error('Image pick failed', details: e, category: LogCategory.chat);
+      Get.snackbar(
+          'Image Pick Failed', 'Could not pick an image on this device.',
           snackPosition: SnackPosition.BOTTOM);
     }
   }
@@ -1411,36 +1133,55 @@ class ChatController extends GetxController {
     final provider = s.cloudProvider.value;
     String modelName = '';
     switch (provider) {
-      case 'anthropic': modelName = s.anthropicModel.value; break;
-      case 'google': modelName = s.googleModel.value; break;
-      case 'kimi': modelName = s.kimiModel.value; break;
-      case 'stability': modelName = s.stabilityModel.value; break;
-      case 'nvidia': modelName = s.nvidiaModel.value; break;
-      case 'openrouter': modelName = s.openRouterModel.value; break;
-      case 'deepseek': modelName = s.deepSeekModel.value; break;
-      case 'custom': modelName = s.customCloudModel.value; break;
-      default: modelName = s.openaiModel.value; break;
+      case 'anthropic':
+        modelName = s.anthropicModel.value;
+        break;
+      case 'google':
+        modelName = s.googleModel.value;
+        break;
+      case 'kimi':
+        modelName = s.kimiModel.value;
+        break;
+      case 'stability':
+        modelName = s.stabilityModel.value;
+        break;
+      case 'nvidia':
+        modelName = s.nvidiaModel.value;
+        break;
+      case 'openrouter':
+        modelName = s.openRouterModel.value;
+        break;
+      case 'deepseek':
+        modelName = s.deepSeekModel.value;
+        break;
+      case 'custom':
+        modelName = s.customCloudModel.value;
+        break;
+      default:
+        modelName = s.openaiModel.value;
+        break;
     }
-    
+
     final model = modelName.toLowerCase();
-    
+
     // Known vision keywords in cloud model names
-    final isVision = model.contains('vision') || 
-                     model.contains('-vl') || 
-                     model.contains('gpt-4o') || 
-                     model.contains('claude-3') || 
-                     model.contains('gemini') || 
-                     model.contains('pixtral') || 
-                     model.contains('llava') ||
-                     model.contains('omni');
-                     
+    final isVision = model.contains('vision') ||
+        model.contains('-vl') ||
+        model.contains('gpt-4o') ||
+        model.contains('claude-3') ||
+        model.contains('gemini') ||
+        model.contains('pixtral') ||
+        model.contains('llava') ||
+        model.contains('omni');
+
     if (!isVision) {
       Get.snackbar(
         'Warning: Text-Only Model',
         'The selected model ($modelName) might not support images. If you get an error, switch to a vision model (like Gemini, GPT-4o, or Claude 3).',
         snackPosition: SnackPosition.TOP,
         duration: const Duration(seconds: 6),
-        backgroundColor: const Color(0xFFFF9500).withValues(alpha: 0.95), // Warning Orange
+        backgroundColor:
+            const Color(0xFFFF9500).withValues(alpha: 0.95), // Warning Orange
         colorText: Colors.white,
         margin: const EdgeInsets.all(12),
       );
@@ -1574,7 +1315,8 @@ class ChatController extends GetxController {
               details: e,
               category: LogCategory.chat,
             );
-            selectedFileContent.value = '[Could not extract text from ${selectedFileName.value}: $e]';
+            selectedFileContent.value =
+                '[Could not extract text from ${selectedFileName.value}: $e]';
           }
         }
       } else if (fileType == 'text') {
@@ -1590,7 +1332,8 @@ class ChatController extends GetxController {
         selectedFileContent.value = content;
       }
     } catch (e) {
-      Get.find<AppLogService>().warning('File attachment failed', details: e, category: LogCategory.chat);
+      Get.find<AppLogService>().warning('File attachment failed',
+          details: e, category: LogCategory.chat);
       Get.snackbar('File not attached', '$e',
           snackPosition: SnackPosition.BOTTOM);
     }
@@ -1643,9 +1386,9 @@ class ChatController extends GetxController {
     final hasAttachment =
         selectedImagePath.value != null || selectedFileName.value != null;
     if (text.isEmpty && !hasAttachment) return;
-    
+
     unawaited(HapticFeedback.lightImpact());
-    
+
     final fileName = selectedFileName.value;
     final fileContent = selectedFileContent.value;
     final filePath = selectedFilePath.value;
@@ -1838,14 +1581,17 @@ class ChatController extends GetxController {
         currentSessionId.value,
         limit: 40,
       );
-      var history = storedForHistory.map((m) {
-        final role = m['role']?.toString() ?? '';
-        var content = m['content']?.toString() ?? '';
-        if (role == 'assistant') {
-          content = splitThoughtTags(content).answer;
-        }
-        return {'role': role, 'content': content};
-      }).where((e) => e['role'] == 'user' || e['role'] == 'assistant').toList();
+      var history = storedForHistory
+          .map((m) {
+            final role = m['role']?.toString() ?? '';
+            var content = m['content']?.toString() ?? '';
+            if (role == 'assistant') {
+              content = splitThoughtTags(content).answer;
+            }
+            return {'role': role, 'content': content};
+          })
+          .where((e) => e['role'] == 'user' || e['role'] == 'assistant')
+          .toList();
 
       // Fallback: if storage came back empty but the UI holds turns
       // (write/query race or store hiccup), build from the visible list
@@ -1875,16 +1621,15 @@ class ChatController extends GetxController {
       // budget (their windows are 32k+). Oversized turns are
       // middle-truncated, never fully dropped.
       final preTrimTurns = history.length;
-      final historyBudget = inferenceMode == 'local'
-          ? _historyCharBudget()
-          : 48000;
+      final historyBudget =
+          inferenceMode == 'local' ? _historyCharBudget() : 48000;
       history = _fitHistoryToBudget(history, historyBudget);
 
       // Observability: what context the model actually receives (roles +
       // sizes only, never content).
       try {
-        final chars = history.fold<int>(
-            0, (s, m) => s + (m['content'] ?? '').length);
+        final chars =
+            history.fold<int>(0, (s, m) => s + (m['content'] ?? '').length);
         final roles = history.isEmpty
             ? 'none'
             : '${history.first['role']}…${history.last['role']}';
@@ -1955,7 +1700,7 @@ class ChatController extends GetxController {
           final imageNotifications =
               Get.find<ImageGenerationNotificationService>();
           final steps = _hive.getSetting<int>(AppConstants.keyImageSteps,
-              defaultValue: AppConstants.defaultImageSteps) ??
+                  defaultValue: AppConstants.defaultImageSteps) ??
               AppConstants.defaultImageSteps;
           final sizeSetting = settings.imageGenSize.value;
           final sizeLabel =
@@ -1977,7 +1722,7 @@ class ChatController extends GetxController {
             steps: steps,
             sizeLabel: sizeLabel,
           );
-          
+
           final pngBytes = await localImage.generateImage(
             prompt: prompt,
             onProgress: (step, total) {
@@ -1990,7 +1735,8 @@ class ChatController extends GetxController {
               if (step > 0 && total > 0 && step < total) {
                 final start = imageGenStartTime.value;
                 if (start != null) {
-                  final elapsed = DateTime.now().difference(start).inMilliseconds;
+                  final elapsed =
+                      DateTime.now().difference(start).inMilliseconds;
                   final avgMsPerStep = elapsed / step;
                   final remainingSteps = total - step;
                   imageGenEstimatedSecs.value =
@@ -2010,9 +1756,11 @@ class ChatController extends GetxController {
               _scrollToBottom();
             },
           );
-          
+
           final genDurationMs = imageGenStartTime.value != null
-              ? DateTime.now().difference(imageGenStartTime.value!).inMilliseconds
+              ? DateTime.now()
+                  .difference(imageGenStartTime.value!)
+                  .inMilliseconds
               : null;
 
           if (pngBytes != null) {
@@ -2051,13 +1799,12 @@ class ChatController extends GetxController {
           temperature: settings.temperature.value,
           // Auto Tune: no output cap — let the model use its full native
           // budget so long, detailed answers are never truncated.
-          maxTokens: settings.autoTuneParams.value
-              ? null
-              : settings.maxTokens.value,
+          maxTokens:
+              settings.autoTuneParams.value ? null : settings.maxTokens.value,
           onToken: bufferToken,
         );
-          flushTokens();
-          tokenFlushTimer?.cancel();
+        flushTokens();
+        tokenFlushTimer?.cancel();
       }
 
       if (thoughtStartedAt != null && thoughtDurationSeconds == null) {
@@ -2074,11 +1821,11 @@ class ChatController extends GetxController {
       final tps = inferenceMode == 'local'
           ? Get.find<InferenceService>().tokensPerSecond.value
           : null;
-      
+
       final totalDurationMs = generationStartTime.value != null
           ? DateTime.now().difference(generationStartTime.value!).inMilliseconds
           : null;
-      
+
       final imageDurationMs = imageGenStartTime.value != null
           ? DateTime.now().difference(imageGenStartTime.value!).inMilliseconds
           : null;
@@ -2126,7 +1873,7 @@ class ChatController extends GetxController {
         webSources: webSources.isEmpty ? null : webSources,
         usedSkills: usedSkillNames.isEmpty ? null : usedSkillNames,
       );
-      
+
       if (insertAt != null && insertAt >= 0 && insertAt <= messages.length) {
         messages.insert(insertAt, aiMsg);
       } else {
@@ -2154,12 +1901,10 @@ class ChatController extends GetxController {
         if (st == AppLifecycleState.paused ||
             st == AppLifecycleState.hidden ||
             st == AppLifecycleState.inactive) {
-          final answerPreview =
-              splitThoughtTags(rawResponse).answer.trim();
+          final answerPreview = splitThoughtTags(rawResponse).answer.trim();
           unawaited(Get.find<ImageGenerationNotificationService>()
-              .notifyChatDone(answerPreview.isNotEmpty
-                  ? answerPreview
-                  : rawResponse));
+              .notifyChatDone(
+                  answerPreview.isNotEmpty ? answerPreview : rawResponse));
         }
       } catch (_) {}
       // One-shot compare: challenger answers the same prompt, then the
@@ -2189,7 +1934,8 @@ class ChatController extends GetxController {
         await Get.find<ImageGenerationNotificationService>().failed();
       }
       imageGenStartTime.value = null;
-      Get.find<AppLogService>().error('Chat response failed', details: e, category: LogCategory.chat);
+      Get.find<AppLogService>().error('Chat response failed',
+          details: e, category: LogCategory.chat);
       final errorMsg = ChatMessage(
         id: _uuid.v4(),
         chatId: currentSessionId.value,
@@ -2209,8 +1955,8 @@ class ChatController extends GetxController {
             filePath: filePath,
           );
       if (queued) {
-        Get.snackbar('Queued — offline',
-            'Will auto-send when you are back online.',
+        Get.snackbar(
+            'Queued — offline', 'Will auto-send when you are back online.',
             snackPosition: SnackPosition.BOTTOM,
             duration: const Duration(seconds: 3));
       }
@@ -2237,8 +1983,8 @@ class ChatController extends GetxController {
   }) async {
     try {
       if (imagePath != null && imagePath.isNotEmpty) return false;
-      final raw = _hive.getSetting<List>(AppConstants.keyChatOutbox,
-              defaultValue: []) ??
+      final raw = _hive
+              .getSetting<List>(AppConstants.keyChatOutbox, defaultValue: []) ??
           [];
       final list = raw
           .whereType<Map>()
@@ -2270,16 +2016,15 @@ class ChatController extends GetxController {
     if (backoff != null && DateTime.now().isBefore(backoff)) return;
     _flushingOutbox = true;
     try {
-      final raw = _hive.getSetting<List>(AppConstants.keyChatOutbox,
-              defaultValue: []) ??
+      final raw = _hive
+              .getSetting<List>(AppConstants.keyChatOutbox, defaultValue: []) ??
           [];
       var list = raw
           .whereType<Map>()
           .map((m) => Map<String, dynamic>.from(m))
           .toList();
-      final mine = list
-          .where((e) => e['chatId'] == currentSessionId.value)
-          .toList();
+      final mine =
+          list.where((e) => e['chatId'] == currentSessionId.value).toList();
       for (final e in mine) {
         list.remove(e);
         await _hive.setSetting(AppConstants.keyChatOutbox, list);
@@ -2291,8 +2036,7 @@ class ChatController extends GetxController {
         if (!ok) {
           // Failed (and re-queued by the catch path if network) — back
           // off instead of hammering every open/send while offline.
-          _outboxBackoffUntil =
-              DateTime.now().add(const Duration(minutes: 2));
+          _outboxBackoffUntil = DateTime.now().add(const Duration(minutes: 2));
           return;
         }
       }
@@ -2311,7 +2055,7 @@ class ChatController extends GetxController {
       if (Get.isRegistered<TtsService>()) Get.find<TtsService>().stop();
     } catch (_) {}
     final partialResponse = streamingResponse.value.trim();
-    
+
     final genDurationMs = generationStartTime.value != null
         ? DateTime.now().difference(generationStartTime.value!).inMilliseconds
         : null;
@@ -2400,7 +2144,8 @@ class ChatController extends GetxController {
       final raw = _hive.getSetting<String>(_kTemplatesKey);
       if (raw == null || raw.isEmpty) {
         promptTemplates.assignAll(_defaultTemplates());
-        unawaited(_hive.setSetting(_kTemplatesKey, jsonEncode(promptTemplates)));
+        unawaited(
+            _hive.setSetting(_kTemplatesKey, jsonEncode(promptTemplates)));
       } else {
         final list = (jsonDecode(raw) as List)
             .whereType<Map>()
@@ -2412,8 +2157,7 @@ class ChatController extends GetxController {
                 })
             .where((m) => (m['name'] ?? '').isNotEmpty)
             .toList();
-        promptTemplates.assignAll(
-            list.isEmpty ? _defaultTemplates() : list);
+        promptTemplates.assignAll(list.isEmpty ? _defaultTemplates() : list);
       }
     } catch (_) {
       promptTemplates.assignAll(_defaultTemplates());
@@ -2442,14 +2186,16 @@ class ChatController extends GetxController {
       'body': body,
       'builtin': '',
     });
-    await _hive.setSetting(_kTemplatesKey, jsonEncode(promptTemplates.toList()));
+    await _hive.setSetting(
+        _kTemplatesKey, jsonEncode(promptTemplates.toList()));
   }
 
   Future<void> deletePromptTemplate(String id) async {
     ensureTemplatesLoaded();
     promptTemplates
         .removeWhere((t) => t['id'] == id && (t['builtin'] ?? '').isEmpty);
-    await _hive.setSetting(_kTemplatesKey, jsonEncode(promptTemplates.toList()));
+    await _hive.setSetting(
+        _kTemplatesKey, jsonEncode(promptTemplates.toList()));
   }
 
   // ─── Multi-select (bulk copy/share/delete) ────
@@ -2596,8 +2342,7 @@ class ChatController extends GetxController {
         final cmc = Get.find<CloudModelController>();
         if (s.modelProvider == 'custom') {
           final idx =
-              int.tryParse(s.modelId.replaceFirst('custom-profile:', '')) ??
-                  0;
+              int.tryParse(s.modelId.replaceFirst('custom-profile:', '')) ?? 0;
           await cmc.selectCustomProfile(idx);
           await settings.setCloudProvider('custom');
           await settings.setInferenceMode('cloud');
@@ -2656,9 +2401,7 @@ class ChatController extends GetxController {
     final primaryLocal = Get.find<InferenceService>().loadedModelName.value;
     final label = ref['mode'] == 'cloud'
         ? '${ref['provider']}: ${ref['model']}'
-        : (ref['model'] ?? '')
-            .replaceAll('.gguf', '')
-            .replaceAll('.GGUF', '');
+        : (ref['model'] ?? '').replaceAll('.gguf', '').replaceAll('.GGUF', '');
     Get.snackbar('Comparing…', 'Asking $label too',
         snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 2));
@@ -2674,9 +2417,8 @@ class ChatController extends GetxController {
             ...history,
           ],
           temperature: settings.temperature.value,
-          maxTokens: settings.autoTuneParams.value
-              ? null
-              : settings.maxTokens.value,
+          maxTokens:
+              settings.autoTuneParams.value ? null : settings.maxTokens.value,
         );
       } else {
         await settings.setInferenceMode('local');
@@ -2703,8 +2445,8 @@ class ChatController extends GetxController {
       messages.add(msg);
       _hive.saveMessage(msg.id, msg.toMap());
     } catch (e) {
-      Get.find<AppLogService>().warning('Compare failed: $e',
-          category: LogCategory.chat);
+      Get.find<AppLogService>()
+          .warning('Compare failed: $e', category: LogCategory.chat);
       Get.snackbar('Compare failed', e.toString(),
           snackPosition: SnackPosition.BOTTOM);
     } finally {
@@ -2755,8 +2497,7 @@ class ChatController extends GetxController {
         lower.contains('rate limited');
     if (rateLimited) {
       var wait = '';
-      final m =
-          RegExp(r'retry_after_seconds"?\s*:\s*(\d+)').firstMatch(s);
+      final m = RegExp(r'retry_after_seconds"?\s*:\s*(\d+)').firstMatch(s);
       if (m != null) wait = ' (~${m.group(1)}s)';
       return '⏳ The provider rate-limited this request$wait '
           '(free shared pool).\n\n• Wait a bit and retry\n'
@@ -2793,7 +2534,7 @@ class ChatController extends GetxController {
 
     // Initialize or copy revisions list
     final allRevisions = List<Map<String, dynamic>>.from(msg.revisions ?? []);
-    
+
     // If this is the first edit, add the original version first
     if (allRevisions.isEmpty) {
       allRevisions.add({
@@ -2874,10 +2615,11 @@ class ChatController extends GetxController {
 
     // Current assistant response (if any) should be saved back to the current revision
     String? currentResponse;
-    if (msgIdx + 1 < messages.length && messages[msgIdx + 1].role == 'assistant') {
+    if (msgIdx + 1 < messages.length &&
+        messages[msgIdx + 1].role == 'assistant') {
       currentResponse = messages[msgIdx + 1].content;
     }
-    
+
     final updatedRevisions = List<Map<String, dynamic>>.from(revisions);
     updatedRevisions[msg.revisionIndex] = {
       'content': msg.content,
@@ -2910,7 +2652,8 @@ class ChatController extends GetxController {
     _hive.saveMessage(updatedUser.id, updatedUser.toMap());
 
     // Update or remove the assistant reply
-    if (msgIdx + 1 < messages.length && messages[msgIdx + 1].role == 'assistant') {
+    if (msgIdx + 1 < messages.length &&
+        messages[msgIdx + 1].role == 'assistant') {
       if (targetResponse != null) {
         final oldAssistant = messages[msgIdx + 1];
         final updatedAssistant = ChatMessage(
@@ -2993,9 +2736,7 @@ class ChatController extends GetxController {
     // from the branch.
     final stored = _hive.getMessagesForChat(msg.chatId);
     final cutoff = msg.timestamp;
-    final historyToCopy = stored
-        .map((m) => ChatMessage.fromMap(m))
-        .toList()
+    final historyToCopy = stored.map((m) => ChatMessage.fromMap(m)).toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     historyToCopy.retainWhere((m) =>
         m.id != msg.id &&
@@ -3003,7 +2744,7 @@ class ChatController extends GetxController {
         (m.role == 'user' || m.role == 'assistant'));
 
     createNewChat();
-    
+
     for (final m in historyToCopy) {
       final copied = ChatMessage(
         id: _uuid.v4(),
@@ -3115,7 +2856,7 @@ class ChatController extends GetxController {
     if (!scrollController.hasClients) return;
     final position = scrollController.position;
     final distanceFromBottom = position.maxScrollExtent - position.pixels;
-    
+
     // Show button if we are more than 200px away from bottom
     showScrollToBottom.value = distanceFromBottom > 200;
 
@@ -3179,16 +2920,10 @@ class ChatController extends GetxController {
       final chatDir = Directory('${dir.path}/chat_images');
       if (!await chatDir.exists()) await chatDir.create(recursive: true);
       final ext = sourcePath.split('.').last.toLowerCase();
-      final validExt = {
-        'jpg',
-        'jpeg',
-        'png',
-        'webp',
-        'gif',
-        'heic'
-      }.contains(ext)
-          ? ext
-          : 'jpg';
+      final validExt =
+          {'jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'}.contains(ext)
+              ? ext
+              : 'jpg';
       final dest = File('${chatDir.path}/$messageId.$validExt');
       await File(sourcePath).copy(dest.path);
       return dest.path;

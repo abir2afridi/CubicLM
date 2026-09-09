@@ -4,6 +4,8 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../controllers/chat_controller.dart';
+import '../services/chat_backup.dart';
+import '../services/hive_service.dart';
 import '../services/stats_service.dart';
 import '../core/routes.dart';
 import '../core/colors.dart';
@@ -32,32 +34,30 @@ class AppSettingsView extends GetView<SettingsController> {
       if (!Get.isRegistered<ChatController>()) {
         Get.put(ChatController());
       }
-      final chat = Get.find<ChatController>();
-      final err = await chat.exportAllChats(
+      final err = await exportAllChats(
+        Get.find<HiveService>(),
         includeImages: opts.includeImages,
         passphrase: opts.passphrase.isEmpty ? null : opts.passphrase,
       );
       if (err == 'empty') {
-        AppSnackbar.showTop('Nothing to export',
-            'No chats found. Start a conversation first.',
+        AppSnackbar.showTop(
+            'Nothing to export', 'No chats found. Start a conversation first.',
             icon: LucideIcons.info, type: 'general', logHistory: false);
       } else if (err == 'cancelled') {
         // User dismissed the desktop save dialog — stay silent.
         return;
       } else if (err != null) {
-        AppSnackbar.showTop('Export failed',
-            'Something went wrong while creating the backup.',
-            icon: LucideIcons.alertTriangle,
-            type: 'error',
-            iconName: 'alert');
+        AppSnackbar.showTop(
+            'Export failed', 'Something went wrong while creating the backup.',
+            icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
       } else if (opts.passphrase.isNotEmpty) {
         AppSnackbar.showTop('Encrypted backup saved',
             'Keep your passphrase safe — it cannot be recovered.',
             icon: LucideIcons.lock, type: 'success', iconName: 'lock');
       }
     } catch (_) {
-      AppSnackbar.showTop('Export failed',
-          'Something went wrong while creating the backup.',
+      AppSnackbar.showTop(
+          'Export failed', 'Something went wrong while creating the backup.',
           icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
     }
   }
@@ -79,8 +79,7 @@ class AppSettingsView extends GetView<SettingsController> {
               children: [
                 CheckboxListTile(
                   value: includeImages,
-                  onChanged: (v) =>
-                      setState(() => includeImages = v ?? false),
+                  onChanged: (v) => setState(() => includeImages = v ?? false),
                   title: const Text('Include images'),
                   subtitle: const Text(
                       'Much larger file. Needed to restore pictures.'),
@@ -131,8 +130,7 @@ class AppSettingsView extends GetView<SettingsController> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: isDark ? AppColors.surface : Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text('Usage statistics',
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
         content: Column(
@@ -185,7 +183,7 @@ class AppSettingsView extends GetView<SettingsController> {
   Future<void> _exportSettings() async {
     try {
       if (!Get.isRegistered<ChatController>()) Get.put(ChatController());
-      final err = await Get.find<ChatController>().exportSettings();
+      final err = await exportSettings(Get.find<HiveService>());
       if (err == null) {
         AppSnackbar.showTop('Settings exported',
             'API keys were excluded. Import them manually on the new device.',
@@ -200,7 +198,7 @@ class AppSettingsView extends GetView<SettingsController> {
   Future<void> _importSettings() async {
     try {
       if (!Get.isRegistered<ChatController>()) Get.put(ChatController());
-      final err = await Get.find<ChatController>().importSettings();
+      final err = await importSettings(Get.find<HiveService>());
       if (err == null) {
         AppSnackbar.showTop('Settings imported',
             'Applied. Restart the app if something looks stale.',
@@ -241,13 +239,13 @@ class AppSettingsView extends GetView<SettingsController> {
               iconName: 'alert');
           return;
         case 'nothing':
-          AppSnackbar.showTop('Nothing new',
-              'All chats in that backup already exist here.',
+          AppSnackbar.showTop(
+              'Nothing new', 'All chats in that backup already exist here.',
               icon: LucideIcons.info, type: 'general', logHistory: false);
           return;
         case 'error':
-          AppSnackbar.showTop('Import failed',
-              'Something went wrong while reading the backup.',
+          AppSnackbar.showTop(
+              'Import failed', 'Something went wrong while reading the backup.',
               icon: LucideIcons.alertTriangle,
               type: 'error',
               iconName: 'alert');
@@ -258,8 +256,8 @@ class AppSettingsView extends GetView<SettingsController> {
           }
       }
     } catch (_) {
-      AppSnackbar.showTop('Import failed',
-          'Something went wrong while reading the backup.',
+      AppSnackbar.showTop(
+          'Import failed', 'Something went wrong while reading the backup.',
           icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
     }
   }
@@ -269,26 +267,19 @@ class AppSettingsView extends GetView<SettingsController> {
     final sessions = parts.length > 1 ? parts[1] : '0';
     final messages = parts.length > 2 ? parts[2] : '0';
     AppSnackbar.showTop(
-        'Backup restored',
-        '$sessions chats and $messages messages imported.',
-        icon: LucideIcons.checkCircle2,
-        type: 'success',
-        iconName: 'check');
+        'Backup restored', '$sessions chats and $messages messages imported.',
+        icon: LucideIcons.checkCircle2, type: 'success', iconName: 'check');
   }
 
   void _showImportError(String err) {
     if (err == 'invalid') {
-      AppSnackbar.showTop('Invalid file',
-          'Not a CubicLM backup — or the passphrase is wrong.',
-          icon: LucideIcons.alertTriangle,
-          type: 'error',
-          iconName: 'alert');
+      AppSnackbar.showTop(
+          'Invalid file', 'Not a CubicLM backup — or the passphrase is wrong.',
+          icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
     } else {
-      AppSnackbar.showTop('Import failed',
-          'Something went wrong while reading the backup.',
-          icon: LucideIcons.alertTriangle,
-          type: 'error',
-          iconName: 'alert');
+      AppSnackbar.showTop(
+          'Import failed', 'Something went wrong while reading the backup.',
+          icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
     }
   }
 
@@ -347,9 +338,7 @@ class AppSettingsView extends GetView<SettingsController> {
         ),
         title: Text('settings_title'.tr,
             style: GoogleFonts.plusJakartaSans(
-                fontWeight: FontWeight.w800,
-                fontSize: 24,
-                letterSpacing: -1)),
+                fontWeight: FontWeight.w800, fontSize: 24, letterSpacing: -1)),
         toolbarHeight: 70,
         centerTitle: false,
       ),
@@ -442,8 +431,7 @@ class AppSettingsView extends GetView<SettingsController> {
                           ? 'startup_auto_load_on'.tr
                           : 'startup_auto_load_off'.tr,
                       value: controller.autoLoadLastModel.value,
-                      onChanged: (v) =>
-                          controller.setAutoLoadLastModel(v),
+                      onChanged: (v) => controller.setAutoLoadLastModel(v),
                     )),
               ]),
               const SizedBox(height: 28),
@@ -499,8 +487,7 @@ class AppSettingsView extends GetView<SettingsController> {
                         ? 'Device PIN will NOT unlock the app'
                         : 'Allow device PIN as fallback',
                     value: controller.lockBiometricOnly.value,
-                    onChanged: (v) =>
-                        controller.setLockBiometricOnly(v),
+                    onChanged: (v) => controller.setLockBiometricOnly(v),
                   );
                 }),
               ]),
@@ -585,10 +572,8 @@ class AppSettingsView extends GetView<SettingsController> {
                   final on = stats.enabled.value;
                   // ignore: unused_local_variable
                   final v = stats.version.value;
-                  final counts =
-                      on ? stats.snapshot() : <String, int>{};
-                  final total =
-                      counts.values.fold<int>(0, (a, b) => a + b);
+                  final counts = on ? stats.snapshot() : <String, int>{};
+                  final total = counts.values.fold<int>(0, (a, b) => a + b);
                   return _appleListTile(
                     context,
                     isDark,
@@ -634,10 +619,11 @@ class AppSettingsView extends GetView<SettingsController> {
                 _appleListTile(
                   context,
                   isDark,
-                  leading: const Icon(LucideIcons.globe,
-                      size: 20, color: Dt.accent),
+                  leading:
+                      const Icon(LucideIcons.globe, size: 20, color: Dt.accent),
                   title: 'settings_language'.tr,
-                  subtitle: '${controller.locale.value.flag}  ${controller.locale.value.nativeName}',
+                  subtitle:
+                      '${controller.locale.value.flag}  ${controller.locale.value.nativeName}',
                   trailing: Icon(LucideIcons.chevronRight,
                       size: 18, color: Theme.of(context).hintColor),
                   showDivider: false,
@@ -664,56 +650,55 @@ class AppSettingsView extends GetView<SettingsController> {
                     onTap: () => Get.to(() => const AboutView()),
                     borderRadius: BorderRadius.circular(12),
                     child: Row(children: [
-                    Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(15),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
-                              ),
+                      Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(15),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]),
+                          clipBehavior: Clip.antiAlias,
+                          child: Image.asset(
+                            'assets/icons/CubicLM.png',
+                            fit: BoxFit.cover,
+                          )),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('CubicLM',
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800)),
+                              const SizedBox(height: 2),
+                              Text(
+                                  'Developed by Abir Hasan Siam (CodeCraftedStudio)',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Dt.accent.withValues(alpha: 0.7))),
+                              const SizedBox(height: 1),
+                              Obx(() => Text(
+                                  controller.appVersion.value.isEmpty
+                                      ? 'Engineering Build'
+                                      : 'Version ${controller.appVersion.value}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(context).hintColor))),
                             ]),
-                        clipBehavior: Clip.antiAlias,
-                        child: Image.asset(
-                          'assets/icons/CubicLM.png',
-                          fit: BoxFit.cover,
-                        )),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('CubicLM',
-                                style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w800)),
-                            const SizedBox(height: 2),
-                            Text(
-                                'Developed by Abir Hasan Siam (CodeCraftedStudio)',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: Dt.accent
-                                        .withValues(alpha: 0.7))),
-                            const SizedBox(height: 1),
-                            Obx(() => Text(
-                                controller.appVersion.value.isEmpty
-                                    ? 'Engineering Build'
-                                    : 'Version ${controller.appVersion.value}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: Theme.of(context).hintColor))),
-                          ]),
-                    ),
-                  ]),
+                      ),
+                    ]),
                   ),
                 ),
               ]),
@@ -742,16 +727,14 @@ class AppSettingsView extends GetView<SettingsController> {
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            const Icon(LucideIcons.type,
-                size: 16, color: Dt.accent),
+            const Icon(LucideIcons.type, size: 16, color: Dt.accent),
             const SizedBox(width: 10),
             Text('typography_scale'.tr,
                 style: GoogleFonts.plusJakartaSans(
                     fontSize: 15, fontWeight: FontWeight.w700)),
             const Spacer(),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                   color: Dt.accent.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8)),
@@ -878,8 +861,7 @@ class AppSettingsView extends GetView<SettingsController> {
                 Flexible(
                   child: ListView(
                     shrinkWrap: true,
-                    padding:
-                        const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                     children: [
                       _orbOption(sheetCtx, isDark,
                           value: 'random',
@@ -934,8 +916,7 @@ class AppSettingsView extends GetView<SettingsController> {
             child: Center(
               child: orbState != null
                   ? ThinkingOrb(size: 24, state: orbState)
-                  : Icon(icon,
-                      size: 20, color: Theme.of(sheetCtx).hintColor),
+                  : Icon(icon, size: 20, color: Theme.of(sheetCtx).hintColor),
             ),
           ),
           const SizedBox(width: 14),
@@ -948,9 +929,8 @@ class AppSettingsView extends GetView<SettingsController> {
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: isDark
-                              ? AppColors.textPrimary
-                              : Dt.textPrimary)),
+                          color:
+                              isDark ? AppColors.textPrimary : Dt.textPrimary)),
                   const SizedBox(height: 2),
                   Text(description,
                       style: GoogleFonts.plusJakartaSans(
@@ -1048,9 +1028,8 @@ class AppSettingsView extends GetView<SettingsController> {
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
-                          color: isDark
-                              ? AppColors.textPrimary
-                              : Dt.textPrimary)),
+                          color:
+                              isDark ? AppColors.textPrimary : Dt.textPrimary)),
                   if (subtitle != null) ...[
                     const SizedBox(height: 3),
                     Text(subtitle,
