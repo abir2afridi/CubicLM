@@ -5,6 +5,22 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0+18] - 2026-09-09
+
+### Added
+- **Direct device export** — every export (chat, slides, logs, backup, zip) now saves via the system Save dialog instead of the share sheet; works with no receiver apps installed.
+- **CubicWeb visual edit** — long-press any preview element to add it as AI context; preview screenshot capture as vision input; project fork.
+- **Live build timeline** — chat shows thinking → files → errors → fixes live, plus rich completion summaries listing changed files.
+- **Framework guard** — Node frameworks with no runtime offer a static-HTML build up front instead of an unpreviewable project; Export ZIP replaces the dead cloud button when unconfigured.
+
+### Fixed
+- **Local inference KV overflow** — native session is cleared before overflow, oversized prompts trim history, repeated decode failures trigger a full native reload + retry with an honest message.
+- **Truncated source** — capped files now surface as blocking preview issues instead of silently serving partial code.
+- **Vite/Next.js pipeline verified** — lossless parse/write proven by round-trip tests; no Node on Android documented with static fallback.
+
+### Changed
+- **Codebase modularized** — giant views split into focused files (chat 3555→551, model 3754→869, settings 2690→505 lines); backup logic extracted to a pure service.
+
 ## [1.10.1+17] - 2026-09-08
 
 ### Fixed
