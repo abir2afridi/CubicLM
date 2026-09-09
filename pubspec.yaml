@@ -36,6 +36,13 @@ dependencies:
   path_provider: ^2.1.0
   permission_handler: ^11.3.0
   connectivity_plus: ^6.1.4
+  camera: ^0.11.0
+  # Pinned exact: 1.9.0 rewrote android/ to .kts without applying
+  # kotlin-android, so `kotlin {}` fails script compilation in this
+  # project's build (AGP 8.11.1 + flutter-plugin-loader). 1.8.1 uses the
+  # classic Groovy script which compiles fine. Do NOT caret this.
+  dynamic_color: 1.8.1
+  desktop_drop: ^0.5.0
 
   # Image Support
   image_picker: ^1.1.0
