@@ -45,7 +45,7 @@ class AppPages {
     ),
     GetPage(
       name: AppRoutes.chat,
-      page: () => ChatView(),
+      page: () => const ChatView(),
       binding: BindingsBuilder(() {
         Get.lazyPut(() => ChatController());
       }),

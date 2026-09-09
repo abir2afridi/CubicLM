@@ -92,11 +92,11 @@ class _HomeViewState extends State<HomeView> {
       body: Obx(() {
         final content = IndexedStack(
           index: controller.currentTab.value,
-          children: [
+          children: const [
             ChatView(),
-            const ModelView(),
-            const ServerView(),
-            const AppSettingsView()
+            ModelView(),
+            ServerView(),
+            AppSettingsView()
           ],
         );
         if (_isWide) {
