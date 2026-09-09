@@ -5,14 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import '../controllers/agent_controller.dart';
-import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
 import '../services/cubicweb/cubicweb_logger.dart';
 import '../services/runtime/cli_manager.dart';
@@ -21,14 +17,11 @@ import 'system_logs_view.dart';
 import 'cubicweb/agent_preview.dart';
 import 'cubicweb/chat_cards.dart';
 import 'cubicweb/file_cards.dart';
+import 'cubicweb/project_sheets.dart';
 import '../widgets/cli_sheets.dart';
 import '../services/agent_workspace.dart';
-import '../services/deploy_service.dart';
-import '../services/inference_service.dart';
-import '../services/local_image_service.dart';
 import '../theme/design_tokens.dart';
 import '../utils/app_snackbar.dart';
-import '../utils/web_project.dart';
 import '../widgets/app_ui.dart';
 import '../widgets/model_switcher_sheet.dart';
 
@@ -63,21 +56,27 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       if (mounted) setState(() {});
     });
     // Also update send button when generation/fix state changes.
-    ever(c.generating, (_) { if (mounted) setState(() {}); });
-    ever(c.fixing, (_) { if (mounted) setState(() {}); });
-    ever(c.project, (_) { if (mounted) setState(() {}); });
+    ever(c.generating, (_) {
+      if (mounted) setState(() {});
+    });
+    ever(c.fixing, (_) {
+      if (mounted) setState(() {});
+    });
+    ever(c.project, (_) {
+      if (mounted) setState(() {});
+    });
     // Auto-open the first streaming file on the Files tab so the user
     // watches code appear without hunting for it.
     ever(c.streamingFiles, (_) {
       if (!mounted) return;
-      if (_openFile == null &&
-          c.streamingFiles.isNotEmpty &&
-          _tab == 'files') {
+      if (_openFile == null && c.streamingFiles.isNotEmpty && _tab == 'files') {
         setState(() => _openFile = c.streamingFiles.keys.first);
       }
     });
     // Terminal input suggestions rebuild as the user types.
-    _termCtrl.addListener(() { if (mounted) setState(() {}); });
+    _termCtrl.addListener(() {
+      if (mounted) setState(() {});
+    });
     unawaited(c.ensureTerminalWelcome());
     // Offer to adopt terminal-installed CLIs into the manager.
     ever(c.detectedCliId, (_) {
@@ -139,332 +138,312 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         return KeyEventResult.ignored;
       },
       child: Scaffold(
-      appBar: AppBar(
-        // Project identity lives IN the header: name + framework/files
-        // once built, app title before that.
-        title: Obx(() {
-          final p = c.project.value;
-          if (p == null) {
+        appBar: AppBar(
+          // Project identity lives IN the header: name + framework/files
+          // once built, app title before that.
+          title: Obx(() {
+            final p = c.project.value;
+            if (p == null) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('CubicWeb Builder',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontWeight: FontWeight.w800)),
+                  Text('Agent IDE',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).hintColor)),
+                ],
+              );
+            }
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('CubicWeb Builder',
+                Text(p.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.plusJakartaSans(
                         fontWeight: FontWeight.w800)),
-                Text('Agent IDE',
+                Text('${p.framework} · ${c.files.length} files',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.plusJakartaSans(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: Theme.of(context).hintColor)),
               ],
             );
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(p.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontWeight: FontWeight.w800)),
-              Text('${p.framework} · ${c.files.length} files',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).hintColor)),
-            ],
-          );
-        }),
-        actions: [
-          // History + Auto-fix live in the header too (always visible,
-          // dimmed until a project exists).
-          Obx(() {
-            final hasP = c.project.value != null;
-            final dim = Theme.of(context)
-                .hintColor
-                .withValues(alpha: 0.45);
-            return Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(
-                tooltip: hasP ? 'History' : 'History (needs a project)',
-                icon: Icon(LucideIcons.history,
-                    size: 20, color: hasP ? Dt.accent : dim),
-                onPressed:
-                    hasP ? () => _showHistorySheet(context) : null,
-              ),
-              IconButton(
-                tooltip: hasP
-                    ? 'Auto-fix ${c.autoFix.value ? 'on' : 'off'}'
-                    : 'Auto-fix (needs a project)',
-                icon: Icon(
-                    c.autoFix.value
-                        ? Icons.bolt_rounded
-                        : Icons.bolt_outlined,
-                    size: 20,
-                    color: !hasP
-                        ? dim
-                        : (c.autoFix.value
-                            ? Dt.accent
-                            : Theme.of(context).hintColor)),
-                onPressed: hasP
-                    ? () => c.autoFix.value = !c.autoFix.value
-                    : null,
-              ),
-              IconButton(
-                tooltip: hasP
-                    ? (c.elementPickMode.value
-                        ? 'Pick mode on — long-press an element in preview'
-                        : 'Pick an element in preview to edit')
-                    : 'Pick element (needs a project)',
-                icon: Icon(
-                    LucideIcons.crosshair,
-                    size: 20,
-                    color: !hasP
-                        ? dim
-                        : (c.elementPickMode.value
-                            ? Dt.accent
-                            : Theme.of(context).hintColor)),
-                onPressed:
-                    hasP ? () => c.toggleElementPick() : null,
-              ),
-            ]);
           }),
-          IconButton(
-            tooltip: 'New project',
-            icon: const Icon(LucideIcons.plus, size: 20, color: Dt.accent),
-            onPressed: _newProjectReset,
-          ),
-          // CubicWeb System Logs in the main header (badge = unread).
-          Obx(() {
-            int n = 0;
-            try {
-              n = Get.find<CubicWebLogger>().unreadErrors.value;
-            } catch (_) {}
-            return Stack(
-              clipBehavior: Clip.none,
-              children: [
+          actions: [
+            // History + Auto-fix live in the header too (always visible,
+            // dimmed until a project exists).
+            Obx(() {
+              final hasP = c.project.value != null;
+              final dim = Theme.of(context).hintColor.withValues(alpha: 0.45);
+              return Row(mainAxisSize: MainAxisSize.min, children: [
                 IconButton(
-                  tooltip: 'CubicWeb System Logs',
-                  icon: Icon(LucideIcons.activity,
-                      size: 20,
-                      color: n > 0
-                          ? AppColors.error
-                          : (isDark
-                              ? AppColors.textPrimary
-                              : Dt.iconDefault)),
-                  onPressed: () =>
-                      Get.to(() => const SystemLogsView(),
-                          transition: Transition.rightToLeft,
-                          duration:
-                              const Duration(milliseconds: 260),
-                          curve: Curves.easeOutCubic),
+                  tooltip: hasP ? 'History' : 'History (needs a project)',
+                  icon: Icon(LucideIcons.history,
+                      size: 20, color: hasP ? Dt.accent : dim),
+                  onPressed: hasP ? () => showHistorySheet(context) : null,
                 ),
-                if (n > 0)
-                  Positioned(
-                    right: 6,
-                    top: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 4, vertical: 1),
-                      constraints: const BoxConstraints(
-                          minWidth: 16, minHeight: 16),
-                      decoration: BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                            color: Theme.of(context)
-                                .scaffoldBackgroundColor,
-                            width: 1.5),
-                      ),
-                      child: Center(
-                        child: Text(
-                          n > 99 ? '99+' : '$n',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                              height: 1),
+                IconButton(
+                  tooltip: hasP
+                      ? 'Auto-fix ${c.autoFix.value ? 'on' : 'off'}'
+                      : 'Auto-fix (needs a project)',
+                  icon: Icon(
+                      c.autoFix.value
+                          ? Icons.bolt_rounded
+                          : Icons.bolt_outlined,
+                      size: 20,
+                      color: !hasP
+                          ? dim
+                          : (c.autoFix.value
+                              ? Dt.accent
+                              : Theme.of(context).hintColor)),
+                  onPressed:
+                      hasP ? () => c.autoFix.value = !c.autoFix.value : null,
+                ),
+                IconButton(
+                  tooltip: hasP
+                      ? (c.elementPickMode.value
+                          ? 'Pick mode on — long-press an element in preview'
+                          : 'Pick an element in preview to edit')
+                      : 'Pick element (needs a project)',
+                  icon: Icon(LucideIcons.crosshair,
+                      size: 20,
+                      color: !hasP
+                          ? dim
+                          : (c.elementPickMode.value
+                              ? Dt.accent
+                              : Theme.of(context).hintColor)),
+                  onPressed: hasP ? () => c.toggleElementPick() : null,
+                ),
+              ]);
+            }),
+            IconButton(
+              tooltip: 'New project',
+              icon: const Icon(LucideIcons.plus, size: 20, color: Dt.accent),
+              onPressed: _newProjectReset,
+            ),
+            // CubicWeb System Logs in the main header (badge = unread).
+            Obx(() {
+              int n = 0;
+              try {
+                n = Get.find<CubicWebLogger>().unreadErrors.value;
+              } catch (_) {}
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  IconButton(
+                    tooltip: 'CubicWeb System Logs',
+                    icon: Icon(LucideIcons.activity,
+                        size: 20,
+                        color: n > 0
+                            ? AppColors.error
+                            : (isDark
+                                ? AppColors.textPrimary
+                                : Dt.iconDefault)),
+                    onPressed: () => Get.to(() => const SystemLogsView(),
+                        transition: Transition.rightToLeft,
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeOutCubic),
+                  ),
+                  if (n > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 1),
+                        constraints:
+                            const BoxConstraints(minWidth: 16, minHeight: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: Theme.of(context).scaffoldBackgroundColor,
+                              width: 1.5),
+                        ),
+                        child: Center(
+                          child: Text(
+                            n > 99 ? '99+' : '$n',
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                height: 1),
+                          ),
                         ),
                       ),
                     ),
+                ],
+              );
+            }),
+            // Always visible: without a project the icon is dimmed and
+            // project-dependent items are disabled.
+            Obx(() {
+              final hasP = c.project.value != null;
+              return PopupMenuButton<String>(
+                tooltip: 'Project',
+                icon: Icon(LucideIcons.folderGit2,
+                    color: hasP
+                        ? (isDark ? AppColors.textPrimary : Dt.iconDefault)
+                        : Theme.of(context).hintColor.withValues(alpha: 0.45)),
+                onSelected: (v) =>
+                    onProjectMenu(context, v, promptCtrl: _promptCtrl),
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'switch',
+                    child: Text('Switch project (${c.projectsOf().length})',
+                        style: GoogleFonts.plusJakartaSans(fontSize: 14)),
                   ),
-              ],
-            );
-          }),
-          // Always visible: without a project the icon is dimmed and
-          // project-dependent items are disabled.
-          Obx(() {
-            final hasP = c.project.value != null;
-            return PopupMenuButton<String>(
-              tooltip: 'Project',
-              icon: Icon(LucideIcons.folderGit2,
-                  color: hasP
-                      ? (isDark
-                          ? AppColors.textPrimary
-                          : Dt.iconDefault)
-                      : Theme.of(context)
-                          .hintColor
-                          .withValues(alpha: 0.45)),
-              onSelected: (v) => _onProjectMenu(v),
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'switch',
-                  child: Text('Switch project (${c.projectsOf().length})',
+                  const PopupMenuItem(
+                    value: 'new',
+                    child: Text('New project', style: TextStyle(fontSize: 14)),
+                  ),
+                  PopupMenuItem(
+                    value: 'export',
+                    enabled: hasP,
+                    child: const Text('Export ZIP',
+                        style: TextStyle(fontSize: 14)),
+                  ),
+                  PopupMenuItem(
+                    value: 'rename',
+                    enabled: hasP,
+                    child: const Text('Rename project',
+                        style: TextStyle(fontSize: 14)),
+                  ),
+                  PopupMenuItem(
+                    value: 'fork',
+                    enabled: hasP,
+                    child: const Text('Fork project',
+                        style: TextStyle(fontSize: 14)),
+                  ),
+                  PopupMenuItem(
+                    value: 'deploy',
+                    enabled: hasP,
+                    child: const Text('Deploy to web',
+                        style: TextStyle(fontSize: 14)),
+                  ),
+                  PopupMenuItem(
+                    value: 'share',
+                    enabled: hasP,
+                    child: const Text('Share project link',
+                        style: TextStyle(fontSize: 14)),
+                  ),
+                  PopupMenuItem(
+                    value: 'github',
+                    enabled: hasP,
+                    child: const Text('Export to GitHub',
+                        style: TextStyle(fontSize: 14)),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    enabled: hasP,
+                    child: Text('Delete project',
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 14, color: AppColors.error)),
+                  ),
+                ],
+              );
+            }),
+            const SizedBox(width: 4),
+          ],
+        ),
+        body: Obx(() {
+          // ONE page, chat-style: the ask bar IS the input (prompt +
+          // framework + send). No separate composer gate.
+          final hasProject = c.project.value != null;
+          // Wide screens (desktop/tablet landscape): IDE split — chat LEFT,
+          // preview/files RIGHT side by side. Narrow keeps the tab switcher.
+          final wide = MediaQuery.of(context).size.width >= 900 && hasProject;
+          if (wide) {
+            return Column(children: [
+              Expanded(
+                child: Row(children: [
+                  Expanded(
+                    flex: 2,
+                    child: Column(children: [
+                      _paneHeader(context, isDark, 'CHAT', null),
+                      Expanded(child: _chatPane(context, isDark)),
+                    ]),
+                  ),
+                  Container(
+                    width: 1,
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.07)
+                        : Dt.hairline,
+                  ),
+                  Expanded(
+                    flex: 3,
+                    child: Column(children: [
+                      _paneHeader(
+                          context,
+                          isDark,
+                          _tab == 'files' ? 'FILES' : 'LIVE PREVIEW',
+                          SegmentedButton<String>(
+                            style: const ButtonStyle(
+                                visualDensity: VisualDensity.compact,
+                                tapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap),
+                            segments: const [
+                              ButtonSegment(
+                                  value: 'preview',
+                                  icon: Icon(LucideIcons.eye, size: 14)),
+                              ButtonSegment(
+                                  value: 'files',
+                                  icon: Icon(LucideIcons.folderOpen, size: 14)),
+                            ],
+                            selected: {_tab == 'files' ? 'files' : 'preview'},
+                            onSelectionChanged: (s) =>
+                                setState(() => _tab = s.first),
+                          )),
+                      Expanded(
+                        child: _tab == 'files'
+                            ? _filesPane(context, isDark)
+                            : _previewPane(context, isDark, c.revision.value),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+              if (c.lastError.value != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+                  child: Text(_friendlyError(c.lastError.value!),
                       style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14)),
+                          fontSize: 12.5, color: AppColors.error, height: 1.4)),
                 ),
-                const PopupMenuItem(
-                  value: 'new',
-                  child: Text('New project',
-                      style: TextStyle(fontSize: 14)),
-                ),
-                PopupMenuItem(
-                  value: 'export',
-                  enabled: hasP,
-                  child: const Text('Export ZIP',
-                      style: TextStyle(fontSize: 14)),
-                ),
-                PopupMenuItem(
-                  value: 'rename',
-                  enabled: hasP,
-                  child: const Text('Rename project',
-                      style: TextStyle(fontSize: 14)),
-                ),
-                PopupMenuItem(
-                  value: 'fork',
-                  enabled: hasP,
-                  child: const Text('Fork project',
-                      style: TextStyle(fontSize: 14)),
-                ),
-                PopupMenuItem(
-                  value: 'deploy',
-                  enabled: hasP,
-                  child: const Text('Deploy to web',
-                      style: TextStyle(fontSize: 14)),
-                ),
-                PopupMenuItem(
-                  value: 'share',
-                  enabled: hasP,
-                  child: const Text('Share project link',
-                      style: TextStyle(fontSize: 14)),
-                ),
-                PopupMenuItem(
-                  value: 'github',
-                  enabled: hasP,
-                  child: const Text('Export to GitHub',
-                      style: TextStyle(fontSize: 14)),
-                ),
-                PopupMenuItem(
-                  value: 'delete',
-                  enabled: hasP,
-                  child: Text('Delete project',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 14, color: AppColors.error)),
-                ),
-              ],
-            );
-          }),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: Obx(() {
-        // ONE page, chat-style: the ask bar IS the input (prompt +
-        // framework + send). No separate composer gate.
-        final hasProject = c.project.value != null;
-        // Wide screens (desktop/tablet landscape): IDE split — chat LEFT,
-        // preview/files RIGHT side by side. Narrow keeps the tab switcher.
-        final wide =
-            MediaQuery.of(context).size.width >= 900 && hasProject;
-        if (wide) {
+              _askBar(context, isDark),
+            ]);
+          }
           return Column(children: [
+            _tabSwitch(),
             Expanded(
-              child: Row(children: [
-                Expanded(
-                  flex: 2,
-                  child: Column(children: [
-                    _paneHeader(context, isDark, 'CHAT', null),
-                    Expanded(child: _chatPane(context, isDark)),
-                  ]),
-                ),
-                Container(
-                  width: 1,
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.07)
-                      : Dt.hairline,
-                ),
-                Expanded(
-                  flex: 3,
-                  child: Column(children: [
-                    _paneHeader(context, isDark,
-                        _tab == 'files' ? 'FILES' : 'LIVE PREVIEW',
-                        SegmentedButton<String>(
-                          style: const ButtonStyle(
-                              visualDensity: VisualDensity.compact,
-                              tapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap),
-                          segments: const [
-                            ButtonSegment(
-                                value: 'preview',
-                                icon: Icon(LucideIcons.eye, size: 14)),
-                            ButtonSegment(
-                                value: 'files',
-                                icon: Icon(LucideIcons.folderOpen, size: 14)),
-                          ],
-                          selected: {
-                            _tab == 'files' ? 'files' : 'preview'
-                          },
-                          onSelectionChanged: (s) =>
-                              setState(() => _tab = s.first),
-                        )),
-                    Expanded(
-                      child: _tab == 'files'
+              child: _tab == 'preview' && hasProject
+                  ? _splitOrPreview(context, isDark)
+                  : _tab == 'preview'
+                      ? _previewPane(context, isDark, c.revision.value)
+                      : _tab == 'files'
                           ? _filesPane(context, isDark)
-                          : _previewPane(
-                              context, isDark, c.revision.value),
-                    ),
-                  ]),
-                ),
-              ]),
+                          : _chatPane(context, isDark),
             ),
             if (c.lastError.value != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
                 child: Text(_friendlyError(c.lastError.value!),
                     style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12.5,
-                        color: AppColors.error,
-                        height: 1.4)),
+                        fontSize: 12.5, color: AppColors.error, height: 1.4)),
               ),
             _askBar(context, isDark),
           ]);
-        }
-        return Column(children: [
-          _tabSwitch(),
-          Expanded(
-            child: _tab == 'preview' && hasProject
-                ? _splitOrPreview(context, isDark)
-                : _tab == 'preview'
-                    ? _previewPane(context, isDark, c.revision.value)
-                    : _tab == 'files'
-                        ? _filesPane(context, isDark)
-                        : _chatPane(context, isDark),
-          ),
-          if (c.lastError.value != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
-              child: Text(_friendlyError(c.lastError.value!),
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12.5,
-                      color: AppColors.error,
-                      height: 1.4)),
-            ),
-          _askBar(context, isDark),
-        ]);
-      }),
-    ),
+        }),
+      ),
     );
   }
 
@@ -476,7 +455,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     if (_askCtrl.text.trim().isEmpty && c.attachedImage.value == null) return;
     final text = _askCtrl.text.trim();
     final hasImg = c.attachedImage.value != null;
-    c.topic.value = text.isEmpty && hasImg ? 'Build from this screenshot' : text;
+    c.topic.value =
+        text.isEmpty && hasImg ? 'Build from this screenshot' : text;
     _askCtrl.clear();
     final hasProject = c.project.value != null;
     if (hasProject) {
@@ -486,166 +466,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     }
   }
 
-  /// Short framework label for the ask-row button.
-  String _frameworkShort(String f) {
-    if (f == 'Single HTML') return 'HTML';
-    if (f == 'HTML + CSS + JS') return 'Trio';
-    if (f.startsWith('React')) return 'React';
-    if (f.startsWith('Next')) return 'Next';
-    if (f.startsWith('Vue')) return 'Vue';
-    return f.length > 8 ? f.substring(0, 8) : f;
-  }
-
   /// Framework picker sheet (no-project state only).
-  void _showFrameworkSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Framework',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16, fontWeight: FontWeight.w800)),
-              ),
-            ),
-            Obx(() => RadioGroup<String>(
-                  groupValue: c.framework.value,
-                  onChanged: (v) {
-                    if (v != null) c.framework.value = v;
-                    Navigator.pop(context);
-                  },
-                  child: Column(
-                    children: [
-                      for (final f in webFrameworks)
-                        RadioListTile<String>(
-                          dense: true,
-                          title: Text(f,
-                              style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                          value: f,
-                          activeColor: Dt.accent,
-                        ),
-                    ],
-                  ),
-                )),
-            const SizedBox(height: 12),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showHistorySheet(BuildContext context) async {
-    final p = c.project.value;
-    if (p == null) return;
-    final checkpoints = await Get.find<AgentWorkspaceService>()
-        .listCheckpoints(p.id);
-    if (!context.mounted) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => SafeArea(
-        child: DraggableScrollableSheet(
-          initialChildSize: 0.5,
-          minChildSize: 0.3,
-          maxChildSize: 0.85,
-          expand: false,
-          builder: (_, scrollCtrl) => Column(children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(children: [
-                Expanded(
-                  child: Text('History',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 16, fontWeight: FontWeight.w800)),
-                ),
-                Text('${checkpoints.length} snapshots',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        color: Theme.of(context).hintColor)),
-              ]),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: checkpoints.isEmpty
-                  ? Center(
-                      child: Text('No checkpoints yet.\nSnapshots are saved automatically before each build.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 13,
-                              color: Theme.of(context).hintColor)),
-                    )
-                  : ListView.builder(
-                      controller: scrollCtrl,
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      itemCount: checkpoints.length,
-                      itemBuilder: (_, i) {
-                        final cp = checkpoints[i];
-                        final dt = DateTime.fromMillisecondsSinceEpoch(
-                            cp.timestampMs);
-                        final timeStr =
-                            '${dt.hour.toString().padLeft(2, '0')}:'
-                            '${dt.minute.toString().padLeft(2, '0')}';
-                        final dateStr =
-                            '${dt.month}/${dt.day} $timeStr';
-                        return ListTile(
-                          dense: true,
-                          leading: Icon(
-                            i == 0
-                                ? LucideIcons.dot
-                                : LucideIcons.history,
-                            size: 16,
-                            color: i == 0
-                                ? Dt.accent
-                                : Theme.of(context).hintColor,
-                          ),
-                          title: Text(cp.label,
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 13,
-                                  fontWeight: i == 0
-                                      ? FontWeight.w700
-                                      : FontWeight.w500)),
-                          subtitle: Text(
-                              '$dateStr · ${cp.fileCount} files',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 11,
-                                  color: Theme.of(context)
-                                      .hintColor)),
-                          trailing: i == 0
-                              ? null
-                              : TextButton(
-                                  onPressed: () async {
-                                    Navigator.pop(context);
-                                    final count = await Get.find<
-                                            AgentWorkspaceService>()
-                                        .rollbackToCheckpoint(
-                                            p.id, cp.id);
-                                    await c.refreshFiles();
-                                    c.revision.value++;
-                                    AppSnackbar.showTop(
-                                      'Rolled back',
-                                      '$count files restored from "${cp.label}"',
-                                    );
-                                  },
-                                  child: Text('Restore',
-                                      style: GoogleFonts.plusJakartaSans(
-                                          fontSize: 12,
-                                          fontWeight:
-                                              FontWeight.w700)),
-                                ),
-                        );
-                      },
-                    ),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
 
   /// Locked prompt summary on the project page: what was asked + which
   /// framework (read-only — the brief doesn't change mid-project).
@@ -667,19 +488,28 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   String _friendlyError(String raw) {
     final lower = raw.toLowerCase();
-    if (lower.contains('429') || lower.contains('rate limit') || lower.contains('too many requests')) {
+    if (lower.contains('429') ||
+        lower.contains('rate limit') ||
+        lower.contains('too many requests')) {
       return 'Rate limited — wait a moment and try again.';
     }
     if (lower.contains('timeout') || lower.contains('timed out')) {
       return 'Request timed out — check your connection and try again.';
     }
-    if (lower.contains('network') || lower.contains('socket') || lower.contains('connection')) {
+    if (lower.contains('network') ||
+        lower.contains('socket') ||
+        lower.contains('connection')) {
       return 'Network error — check your internet connection.';
     }
-    if (lower.contains('401') || lower.contains('403') || lower.contains('unauthorized') || lower.contains('forbidden')) {
+    if (lower.contains('401') ||
+        lower.contains('403') ||
+        lower.contains('unauthorized') ||
+        lower.contains('forbidden')) {
       return 'API key issue — check your provider settings.';
     }
-    if (lower.contains('500') || lower.contains('502') || lower.contains('503')) {
+    if (lower.contains('500') ||
+        lower.contains('502') ||
+        lower.contains('503')) {
       return 'Server error — the AI provider is temporarily unavailable.';
     }
     if (lower.contains('no local model loaded')) {
@@ -718,9 +548,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.07)
-                : Dt.hairline,
+            color: isDark ? Colors.white.withValues(alpha: 0.07) : Dt.hairline,
           ),
         ),
       ),
@@ -732,9 +560,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 margin: const EdgeInsets.only(right: 8),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: c.livePreviewReady.value
-                      ? AppColors.success
-                      : Dt.accent,
+                  color:
+                      c.livePreviewReady.value ? AppColors.success : Dt.accent,
                 ),
               )),
         Text(label,
@@ -771,16 +598,11 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
         decoration: BoxDecoration(
-          color: active
-              ? Dt.accent.withValues(alpha: 0.2)
-              : Colors.transparent,
+          color: active ? Dt.accent.withValues(alpha: 0.2) : Colors.transparent,
           borderRadius: BorderRadius.circular(5),
         ),
         child: Icon(icon,
-            size: 13,
-            color: active
-                ? Dt.accent
-                : Theme.of(context).hintColor),
+            size: 13, color: active ? Dt.accent : Theme.of(context).hintColor),
       ),
     );
   }
@@ -822,16 +644,15 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   Widget _askBar(BuildContext context, bool isDark) {
     final hasProject = c.project.value != null;
     final busy = c.generating.value || c.fixing.value;
-    final hasContent = _askCtrl.text.trim().isNotEmpty ||
-        c.attachedImage.value != null;
+    final hasContent =
+        _askCtrl.text.trim().isNotEmpty || c.attachedImage.value != null;
     return SafeArea(
       top: false,
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
         color: Colors.transparent,
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (c.consoleError.value != null &&
-              c.consoleError.value!.isNotEmpty)
+          if (c.consoleError.value != null && c.consoleError.value!.isNotEmpty)
             Container(
               width: double.infinity,
               margin: const EdgeInsets.only(bottom: 8),
@@ -850,8 +671,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 ),
                 const SizedBox(width: 8),
                 TextButton(
-                  onPressed:
-                      c.fixing.value ? null : () => c.repairFromError(),
+                  onPressed: c.fixing.value ? null : () => c.repairFromError(),
                   child: Text(c.fixing.value ? 'Fixing…' : 'Fix'),
                 ),
               ]),
@@ -887,9 +707,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 16,
                           height: 1.35,
-                          color: isDark
-                              ? AppColors.textPrimary
-                              : Dt.textPrimary,
+                          color:
+                              isDark ? AppColors.textPrimary : Dt.textPrimary,
                           fontWeight: FontWeight.w500),
                       decoration: InputDecoration(
                         hintText: hasProject
@@ -971,115 +790,115 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                         )
                       : const SizedBox.shrink()),
                   // ── Controls row: + / model pill / tools … send ──
-                  Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // "+" — builder tools live here (left side).
-                        AppCircleButton(
-                          icon: LucideIcons.plus,
-                          tooltip: 'Builder tools',
-                          onTap: () => _showBuilderToolsSheet(
-                              context, isDark, hasProject),
-                        ),
-                        const SizedBox(width: 8),
-                        // Model selector pill — under the box, not in header.
-                        SizedBox(
-                          width: 125,
-                          child: Obx(() => AppModelPill(
-                                label: _builderModelLabel(),
-                                onTap: () =>
-                                    showModelSwitcherSheet(context),
-                              )),
-                        ),
-                        const SizedBox(width: 6),
-                        // Scrollable tools strip — never squeezes the field.
-                        Expanded(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-            if (!hasProject)
-              GestureDetector(
-                onTap: () => _showFrameworkSheet(context),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 9, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: Dt.accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: Dt.accent.withValues(alpha: 0.3)),
-                  ),
-                  child: Text(
-                    _frameworkShort(c.framework.value),
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: Dt.accent                    ),
-                  ),
-                ),
-              ),
-            if (!hasProject && c.planMode.value)
-              const SizedBox(width: 6),
-            if (!hasProject && c.planMode.value)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 8, vertical: 7),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: const Color(0xFFF59E0B).withValues(alpha: 0.4)),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  const Icon(LucideIcons.map,
-                      size: 12, color: Color(0xFFF59E0B)),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Plan',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFFF59E0B)),
-                  ),
-                ]),
-              ),
-            // Shared tools — identical before AND after build. Only
-            // Auto-test needs a project (dimmed + disabled until then).
-            if (!hasProject) const SizedBox(width: 6),
-            AppCircleButton(
-              icon: LucideIcons.brain,
-              tooltip: 'Extended thinking',
-              iconColor: c.extendedThinking.value
-                  ? const Color(0xFF8B5CF6)
-                  : null,
-              onTap: () => c.extendedThinking.value =
-                  !c.extendedThinking.value,
-            ),
-            const SizedBox(width: 6),
-            AppCircleButton(
-              icon: LucideIcons.globe,
-              tooltip: 'Web search',
-              iconColor: c.webSearch.value
-                  ? const Color(0xFF10B981)
-                  : null,
-              onTap: () =>
-                  c.webSearch.value = !c.webSearch.value,
-            ),
-            const SizedBox(width: 6),
-            Opacity(
-              opacity: hasProject ? 1.0 : 0.35,
-              child: AppCircleButton(
-                icon: LucideIcons.shieldCheck,
-                tooltip: hasProject
-                    ? 'Auto-test project'
-                    : 'Auto-test (needs a project)',
-                onTap: (!hasProject || busy)
-                    ? null
-                    : () => c.runAutoTest(),
-              ),
-            ),
+                  Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                    // "+" — builder tools live here (left side).
+                    AppCircleButton(
+                      icon: LucideIcons.plus,
+                      tooltip: 'Builder tools',
+                      onTap: () => showBuilderToolsSheet(
+                          context, isDark, hasProject,
+                          askCtrl: _askCtrl,
+                          onInserted: () => _askFocus.requestFocus()),
+                    ),
+                    const SizedBox(width: 8),
+                    // Model selector pill — under the box, not in header.
+                    SizedBox(
+                      width: 125,
+                      child: Obx(() => AppModelPill(
+                            label: builderModelLabel(),
+                            onTap: () => showModelSwitcherSheet(context),
+                          )),
+                    ),
+                    const SizedBox(width: 6),
+                    // Scrollable tools strip — never squeezes the field.
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          if (!hasProject)
+                            GestureDetector(
+                              onTap: () => showFrameworkSheet(context),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 9, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: Dt.accent.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: Dt.accent.withValues(alpha: 0.3)),
+                                ),
+                                child: Text(
+                                  frameworkShort(c.framework.value),
+                                  style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: Dt.accent),
+                                ),
+                              ),
+                            ),
+                          if (!hasProject && c.planMode.value)
+                            const SizedBox(width: 6),
+                          if (!hasProject && c.planMode.value)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF59E0B)
+                                    .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: const Color(0xFFF59E0B)
+                                        .withValues(alpha: 0.4)),
+                              ),
+                              child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(LucideIcons.map,
+                                        size: 12, color: Color(0xFFF59E0B)),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Plan',
+                                      style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFFF59E0B)),
+                                    ),
+                                  ]),
+                            ),
+                          // Shared tools — identical before AND after build. Only
+                          // Auto-test needs a project (dimmed + disabled until then).
+                          if (!hasProject) const SizedBox(width: 6),
+                          AppCircleButton(
+                            icon: LucideIcons.brain,
+                            tooltip: 'Extended thinking',
+                            iconColor: c.extendedThinking.value
+                                ? const Color(0xFF8B5CF6)
+                                : null,
+                            onTap: () => c.extendedThinking.value =
+                                !c.extendedThinking.value,
+                          ),
+                          const SizedBox(width: 6),
+                          AppCircleButton(
+                            icon: LucideIcons.globe,
+                            tooltip: 'Web search',
+                            iconColor: c.webSearch.value
+                                ? const Color(0xFF10B981)
+                                : null,
+                            onTap: () => c.webSearch.value = !c.webSearch.value,
+                          ),
+                          const SizedBox(width: 6),
+                          Opacity(
+                            opacity: hasProject ? 1.0 : 0.35,
+                            child: AppCircleButton(
+                              icon: LucideIcons.shieldCheck,
+                              tooltip: hasProject
+                                  ? 'Auto-test project'
+                                  : 'Auto-test (needs a project)',
+                              onTap: (!hasProject || busy)
+                                  ? null
+                                  : () => c.runAutoTest(),
+                            ),
+                          ),
                         ]),
                       ),
                     ),
@@ -1088,16 +907,14 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                           ? 'Stop'
                           : (hasProject ? 'Apply change' : 'Build project'),
                       child: AppCtaButton(
-                        icon: busy
-                            ? LucideIcons.square
-                            : LucideIcons.arrowUp,
+                        icon: busy ? LucideIcons.square : LucideIcons.arrowUp,
                         onTap: busy
                             ? c.cancelWork
                             : (hasContent ? _sendFromAskBar : null),
                       ),
                     ),
                   ]),
-            ]),
+                ]),
           ),
         ]),
       ),
@@ -1108,8 +925,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   /// Slim progress pill shown ABOVE the live preview while the AI keeps
   /// writing (v0-style: preview stays visible, progress floats on top).
-  Widget _liveProgressPill(
-      BuildContext context, bool isDark, String? status) {
+  Widget _liveProgressPill(BuildContext context, bool isDark, String? status) {
     return Obx(() {
       final n = c.streamingFiles.length;
       return Container(
@@ -1118,8 +934,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         decoration: BoxDecoration(
           color: Dt.accent.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
-          border:
-              Border.all(color: Dt.accent.withValues(alpha: 0.3)),
+          border: Border.all(color: Dt.accent.withValues(alpha: 0.3)),
         ),
         child: Row(children: [
           const SizedBox(
@@ -1152,8 +967,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     return Obx(() {
       final steps = c.previewSteps.toList();
       final kind = c.previewKind.value;
-      final blockers =
-          c.previewIssues.where((i) => i.blocksPreview).toList();
+      final blockers = c.previewIssues.where((i) => i.blocksPreview).toList();
       if (kind == ProjectKind.staticSite || steps.isEmpty) {
         return const SizedBox.shrink();
       }
@@ -1181,13 +995,10 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                         ? LucideIcons.alertTriangle
                         : LucideIcons.info,
                     size: 14,
-                    color: blockers.isNotEmpty
-                        ? AppColors.error
-                        : Dt.accent),
+                    color: blockers.isNotEmpty ? AppColors.error : Dt.accent),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text(
-                      '${projectKindLabel(kind)} detected',
+                  child: Text('${projectKindLabel(kind)} detected',
                       style: GoogleFonts.plusJakartaSans(
                           fontSize: 13, fontWeight: FontWeight.w800)),
                 ),
@@ -1195,8 +1006,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   const SizedBox(
                       width: 14,
                       height: 14,
-                      child:
-                          CircularProgressIndicator(strokeWidth: 2)),
+                      child: CircularProgressIndicator(strokeWidth: 2)),
               ]),
               const SizedBox(height: 8),
               for (final s in steps)
@@ -1253,15 +1063,12 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   ActionChip(
                     label: Text('System Logs',
                         style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w700)),
+                            fontSize: 11.5, fontWeight: FontWeight.w700)),
                     avatar: const Icon(LucideIcons.activity, size: 14),
-                    onPressed: () =>
-                        Get.to(() => const SystemLogsView(),
-                            transition: Transition.rightToLeft,
-                            duration:
-                                const Duration(milliseconds: 260),
-                            curve: Curves.easeOutCubic),
+                    onPressed: () => Get.to(() => const SystemLogsView(),
+                        transition: Transition.rightToLeft,
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeOutCubic),
                     visualDensity: VisualDensity.compact,
                   ),
                 ]),
@@ -1289,8 +1096,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       case 'validate-build':
         label = 'Validate build';
         icon = LucideIcons.wrench;
-        onTap =
-            c.validatingBuild.value ? null : () => c.validateBuild();
+        onTap = c.validatingBuild.value ? null : () => c.validateBuild();
       case 'recheck-runtime':
         label = 'Recheck runtime';
         icon = LucideIcons.rotateCw;
@@ -1312,8 +1118,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     }
     return ActionChip(
       label: Text(label,
-          style:
-              GoogleFonts.plusJakartaSans(fontSize: 11.5, fontWeight: FontWeight.w700)),
+          style: GoogleFonts.plusJakartaSans(
+              fontSize: 11.5, fontWeight: FontWeight.w700)),
       avatar: Icon(icon, size: 14),
       onPressed: onTap,
       visualDensity: VisualDensity.compact,
@@ -1340,7 +1146,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 fontSize: 13, color: Theme.of(context).hintColor)),
       );
     }
-     return Column(children: [
+    return Column(children: [
       _previewDiagnosisCard(context, isDark),
       if (working) _liveProgressPill(context, isDark, status),
       Padding(
@@ -1351,14 +1157,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.firaCode(
-                    fontSize: 10.5,
-                    color: Theme.of(context).hintColor)),
+                    fontSize: 10.5, color: Theme.of(context).hintColor)),
           ),
           Obx(() => c.devServerUrl.value != null
               ? Container(
                   margin: const EdgeInsets.only(right: 6),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 7, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4ADE80).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
@@ -1368,8 +1173,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                         width: 6,
                         height: 6,
                         decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFF4ADE80))),
+                            shape: BoxShape.circle, color: Color(0xFF4ADE80))),
                     const SizedBox(width: 4),
                     Text('LIVE',
                         style: GoogleFonts.plusJakartaSans(
@@ -1401,8 +1205,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             borderRadius: BorderRadius.circular(6),
             child: const Padding(
               padding: EdgeInsets.all(5),
-              child:
-                  Icon(LucideIcons.rotateCw, size: 15),
+              child: Icon(LucideIcons.rotateCw, size: 15),
             ),
           ),
           InkWell(
@@ -1417,8 +1220,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             borderRadius: BorderRadius.circular(6),
             child: const Padding(
               padding: EdgeInsets.all(5),
-              child:
-                  Icon(LucideIcons.externalLink, size: 15),
+              child: Icon(LucideIcons.externalLink, size: 15),
             ),
           ),
           InkWell(
@@ -1472,8 +1274,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       decoration: BoxDecoration(
         color: const Color(0xFF101014),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -1502,8 +1303,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             borderRadius: BorderRadius.circular(6),
             child: const Padding(
               padding: EdgeInsets.all(4),
-              child: Icon(LucideIcons.package,
-                  size: 13, color: Color(0xFF9A958C)),
+              child:
+                  Icon(LucideIcons.package, size: 13, color: Color(0xFF9A958C)),
             ),
           ),
           InkWell(
@@ -1513,8 +1314,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             borderRadius: BorderRadius.circular(6),
             child: const Padding(
               padding: EdgeInsets.all(4),
-              child: Icon(LucideIcons.history,
-                  size: 13, color: Color(0xFF9A958C)),
+              child:
+                  Icon(LucideIcons.history, size: 13, color: Color(0xFF9A958C)),
             ),
           ),
           InkWell(
@@ -1522,18 +1323,17 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             borderRadius: BorderRadius.circular(6),
             child: const Padding(
               padding: EdgeInsets.all(4),
-              child: Icon(LucideIcons.wand2,
-                  size: 13, color: Color(0xFF9A958C)),
+              child:
+                  Icon(LucideIcons.wand2, size: 13, color: Color(0xFF9A958C)),
             ),
           ),
           InkWell(
-            onTap: () => Clipboard.setData(ClipboardData(
-                text: c.terminal.join('\n'))),
+            onTap: () =>
+                Clipboard.setData(ClipboardData(text: c.terminal.join('\n'))),
             borderRadius: BorderRadius.circular(6),
             child: const Padding(
               padding: EdgeInsets.all(4),
-              child: Icon(LucideIcons.copy,
-                  size: 13, color: Color(0xFF9A958C)),
+              child: Icon(LucideIcons.copy, size: 13, color: Color(0xFF9A958C)),
             ),
           ),
           InkWell(
@@ -1545,8 +1345,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             borderRadius: BorderRadius.circular(6),
             child: const Padding(
               padding: EdgeInsets.all(4),
-              child: Icon(LucideIcons.share2,
-                  size: 13, color: Color(0xFF9A958C)),
+              child:
+                  Icon(LucideIcons.share2, size: 13, color: Color(0xFF9A958C)),
             ),
           ),
           InkWell(
@@ -1554,8 +1354,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             borderRadius: BorderRadius.circular(6),
             child: const Padding(
               padding: EdgeInsets.all(4),
-              child: Icon(LucideIcons.trash2,
-                  size: 13, color: Color(0xFF9A958C)),
+              child:
+                  Icon(LucideIcons.trash2, size: 13, color: Color(0xFF9A958C)),
             ),
           ),
         ]),
@@ -1570,17 +1370,14 @@ class _AgentIdeViewState extends State<AgentIdeView> {
               );
             }
             final lines = c.terminal.toList();
-            final tail = lines.length > 40
-                ? lines.sublist(lines.length - 40)
-                : lines;
+            final tail =
+                lines.length > 40 ? lines.sublist(lines.length - 40) : lines;
             return ListView.builder(
               itemCount: tail.length,
               itemBuilder: (_, i) => SelectableText(
                 tail[i],
                 style: GoogleFonts.firaCode(
-                    fontSize: 10.5,
-                    height: 1.5,
-                    color: _termColor(tail[i])),
+                    fontSize: 10.5, height: 1.5, color: _termColor(tail[i])),
               ),
             );
           }),
@@ -1591,15 +1388,13 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           if (id == null) return const SizedBox.shrink();
           String name = id;
           try {
-            name = Get.find<CliManagerService>()
-                    .manifestById(id)
-                    ?.displayName ??
-                id;
+            name =
+                Get.find<CliManagerService>().manifestById(id)?.displayName ??
+                    id;
           } catch (_) {}
           return Container(
             margin: const EdgeInsets.only(top: 6),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
               color: Dt.accent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
@@ -1612,11 +1407,12 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                       shape: BoxShape.circle, color: Dt.accent)),
               const SizedBox(width: 6),
               Expanded(
-                child: Text('$name attached — input goes to the CLI (!cmd runs shell)',
+                child: Text(
+                    '$name attached — input goes to the CLI (!cmd runs shell)',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.firaCode(
-                        fontSize: 10.5, color: Dt.accent)),
+                    style:
+                        GoogleFonts.firaCode(fontSize: 10.5, color: Dt.accent)),
               ),
               InkWell(
                 onTap: () => c.stopActiveCli(),
@@ -1636,8 +1432,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           try {
             final attached = c.activeCliId.value != null;
             if (!attached && _termCtrl.text.trim().isNotEmpty) {
-              sug = Get.find<CliManagerService>()
-                  .suggestCommands(_termCtrl.text);
+              sug =
+                  Get.find<CliManagerService>().suggestCommands(_termCtrl.text);
             }
           } catch (_) {}
           if (sug.isEmpty) return const SizedBox.shrink();
@@ -1659,16 +1455,14 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color:
-                            Colors.white.withValues(alpha: 0.06),
+                        color: Colors.white.withValues(alpha: 0.06),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(s,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.firaCode(
-                              fontSize: 10.5,
-                              color: const Color(0xFF89DCEB))),
+                              fontSize: 10.5, color: const Color(0xFF89DCEB))),
                     ),
                   ),
               ],
@@ -1684,8 +1478,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(children: [
-            Obx(() => Text(
-                c.activeCliId.value == null ? '\$' : '›',
+            Obx(() => Text(c.activeCliId.value == null ? '\$' : '›',
                 style: GoogleFonts.firaCode(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
@@ -1702,8 +1495,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                       fontSize: 11, color: const Color(0xFF6E6B65)),
                   border: InputBorder.none,
                   isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(vertical: 8),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 ),
                 onSubmitted: (_) => _submitTermInput(),
               ),
@@ -1733,95 +1525,85 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     if (attached && !v.trimLeft().startsWith('!')) {
       c.sendStdinToCli(v);
     } else {
-      c.runShellCommand(
-          attached ? v.trimLeft().substring(1) : v);
+      c.runShellCommand(attached ? v.trimLeft().substring(1) : v);
     }
   }
 
   /// Live build/progress view: what the AI is doing RIGHT NOW
   /// (streaming, files, tool calls) — with per-file ticks.
-  Widget _buildStatusView(
-      BuildContext context, bool isDark, String? status) {
+  Widget _buildStatusView(BuildContext context, bool isDark, String? status) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: const Color(0xFF101014),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-            color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
-      child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-          Obx(() => c.attachedImage.value != null
-              ? Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Dt.accent.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Obx(() => c.attachedImage.value != null
+            ? Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Dt.accent.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(LucideIcons.image, size: 13, color: Dt.accent),
+                  const SizedBox(width: 6),
+                  Text('Screenshot attached',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11, color: Dt.accent)),
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    onTap: () => c.clearAttachment(),
+                    child:
+                        const Icon(LucideIcons.x, size: 12, color: Dt.accent),
                   ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(LucideIcons.image, size: 13, color: Dt.accent),
-                    const SizedBox(width: 6),
-                    Text('Screenshot attached',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11, color: Dt.accent)),
-                    const SizedBox(width: 6),
-                    GestureDetector(
-                      onTap: () => c.clearAttachment(),
-                      child: const Icon(LucideIcons.x,
-                          size: 12, color: Dt.accent),
-                    ),
-                  ]),
-                )
-              : const SizedBox.shrink()),
-          Row(children: [
-              const SizedBox(
-                width: 15,
-                height: 15,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(status ?? 'Working…',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white)),
-              ),
-            ]),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Obx(() => ListView.builder(
-                    itemCount: c.terminal.length > 12
-                        ? 12
-                        : c.terminal.length,
-                    itemBuilder: (_, i) {
-                      final lines = c.terminal.toList();
-                      final line = lines[
-                          lines.length - (i < lines.length ? i + 1 : 1)];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 5),
-                        child: Text(
-                          line,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.firaCode(
-                              fontSize: 11,
-                              height: 1.5,
-                              color: _termColor(line)),
-                        ),
-                      );
-                    },
-                  )),
-            ),
-            Text('Output appears here when the structure is complete.',
+                ]),
+              )
+            : const SizedBox.shrink()),
+        Row(children: [
+          const SizedBox(
+            width: 15,
+            height: 15,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(status ?? 'Working…',
                 style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11,
-                    color: const Color(0xFF8E8B85))),
-          ]),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white)),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Expanded(
+          child: Obx(() => ListView.builder(
+                itemCount: c.terminal.length > 12 ? 12 : c.terminal.length,
+                itemBuilder: (_, i) {
+                  final lines = c.terminal.toList();
+                  final line =
+                      lines[lines.length - (i < lines.length ? i + 1 : 1)];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Text(
+                      line,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.firaCode(
+                          fontSize: 11, height: 1.5, color: _termColor(line)),
+                    ),
+                  );
+                },
+              )),
+        ),
+        Text('Output appears here when the structure is complete.',
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 11, color: const Color(0xFF8E8B85))),
+      ]),
     );
   }
 
@@ -1876,21 +1658,16 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           final m = c.transcript[idx];
           final user = m['role'] == 'user';
           return Align(
-            alignment:
-                user ? Alignment.centerRight : Alignment.centerLeft,
+            alignment: user ? Alignment.centerRight : Alignment.centerLeft,
             child: Container(
               margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 13, vertical: 9),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
               constraints: BoxConstraints(
-                  maxWidth:
-                      MediaQuery.of(context).size.width * 0.82),
+                  maxWidth: MediaQuery.of(context).size.width * 0.82),
               decoration: BoxDecoration(
                 color: user
                     ? Dt.accent
-                    : (isDark
-                        ? AppColors.surface
-                        : const Color(0xFFF1EFE9)),
+                    : (isDark ? AppColors.surface : const Color(0xFFF1EFE9)),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: SelectableText(
@@ -1900,9 +1677,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                     height: 1.45,
                     color: user
                         ? Colors.white
-                        : (isDark
-                            ? AppColors.textPrimary
-                            : Dt.textPrimary)),
+                        : (isDark ? AppColors.textPrimary : Dt.textPrimary)),
               ),
             ),
           );
@@ -1927,9 +1702,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       ),
       Container(
         width: 1,
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.07)
-            : Dt.hairline,
+        color: isDark ? Colors.white.withValues(alpha: 0.07) : Dt.hairline,
       ),
       Expanded(
         flex: 2,
@@ -1942,12 +1715,42 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   Widget _templateGrid(BuildContext context, bool isDark) {
     final templates = [
-      const WebTemplate('Landing Page', LucideIcons.rocket, 'Marketing page with hero, features, CTA, footer', 'Build a modern landing page with: hero section with gradient background and CTA button, features grid (3 cards with icons), testimonial section, email signup form, and footer with links. Use a professional color scheme (indigo/blue). Responsive layout.', 'Single HTML'),
-      const WebTemplate('Dashboard', LucideIcons.layoutDashboard, 'Admin panel with sidebar, charts, stats', 'Build an admin dashboard with: left sidebar navigation (5 items with icons), top bar with search and user avatar, 4 stat cards (revenue, users, orders, growth), a line chart placeholder, a data table with 5 rows, and a dark sidebar with light content area. Use Tailwind-style colors.', 'HTML + CSS + JS'),
-      const WebTemplate('Portfolio', LucideIcons.user, 'Personal portfolio with projects and contact', 'Build a personal portfolio site with: animated hero with name and title, about section with photo placeholder and bio, projects grid (4 project cards with images and tech tags), skills section with progress bars, contact form, and smooth scroll navigation. Dark theme with accent color.', 'Single HTML'),
-      const WebTemplate('Blog', LucideIcons.fileText, 'Blog with posts, sidebar, and categories', 'Build a blog homepage with: header with site name and nav, featured post hero, 3 article cards with image/title/excerpt/date, sidebar with categories and recent posts, newsletter signup, and footer. Clean typography, warm color palette.', 'HTML + CSS + JS'),
-      const WebTemplate('E-commerce', LucideIcons.shoppingCart, 'Product grid with cart and filters', 'Build a product listing page with: top nav with logo, search bar, and cart icon with badge, filter sidebar (category, price range), product grid (6 product cards with image, name, price, rating stars, add-to-cart button), and a mini cart dropdown. Modern clean design.', 'HTML + CSS + JS'),
-      const WebTemplate('SaaS Page', LucideIcons.globe, 'Product page with pricing tiers', 'Build a SaaS product page with: sticky nav, hero with product mockup, 3-step how-it-works section, pricing table (3 tiers: Free/Pro/Enterprise with feature comparison), customer logos bar, FAQ accordion, and CTA footer. Gradient accents, professional look.', 'Single HTML'),
+      const WebTemplate(
+          'Landing Page',
+          LucideIcons.rocket,
+          'Marketing page with hero, features, CTA, footer',
+          'Build a modern landing page with: hero section with gradient background and CTA button, features grid (3 cards with icons), testimonial section, email signup form, and footer with links. Use a professional color scheme (indigo/blue). Responsive layout.',
+          'Single HTML'),
+      const WebTemplate(
+          'Dashboard',
+          LucideIcons.layoutDashboard,
+          'Admin panel with sidebar, charts, stats',
+          'Build an admin dashboard with: left sidebar navigation (5 items with icons), top bar with search and user avatar, 4 stat cards (revenue, users, orders, growth), a line chart placeholder, a data table with 5 rows, and a dark sidebar with light content area. Use Tailwind-style colors.',
+          'HTML + CSS + JS'),
+      const WebTemplate(
+          'Portfolio',
+          LucideIcons.user,
+          'Personal portfolio with projects and contact',
+          'Build a personal portfolio site with: animated hero with name and title, about section with photo placeholder and bio, projects grid (4 project cards with images and tech tags), skills section with progress bars, contact form, and smooth scroll navigation. Dark theme with accent color.',
+          'Single HTML'),
+      const WebTemplate(
+          'Blog',
+          LucideIcons.fileText,
+          'Blog with posts, sidebar, and categories',
+          'Build a blog homepage with: header with site name and nav, featured post hero, 3 article cards with image/title/excerpt/date, sidebar with categories and recent posts, newsletter signup, and footer. Clean typography, warm color palette.',
+          'HTML + CSS + JS'),
+      const WebTemplate(
+          'E-commerce',
+          LucideIcons.shoppingCart,
+          'Product grid with cart and filters',
+          'Build a product listing page with: top nav with logo, search bar, and cart icon with badge, filter sidebar (category, price range), product grid (6 product cards with image, name, price, rating stars, add-to-cart button), and a mini cart dropdown. Modern clean design.',
+          'HTML + CSS + JS'),
+      const WebTemplate(
+          'SaaS Page',
+          LucideIcons.globe,
+          'Product page with pricing tiers',
+          'Build a SaaS product page with: sticky nav, hero with product mockup, 3-step how-it-works section, pricing table (3 tiers: Free/Pro/Enterprise with feature comparison), customer logos bar, FAQ accordion, and CTA footer. Gradient accents, professional look.',
+          'Single HTML'),
     ];
     // Scrollable: inside Center the height is unbounded, so a fixed
     // Column + grid would overflow on short screens / large text.
@@ -1962,64 +1765,61 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   color: Theme.of(context).hintColor)),
           const SizedBox(height: 12),
           GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 1.6,
-          ),
-          itemCount: templates.length,
-          itemBuilder: (_, i) {
-            final t = templates[i];
-            return GestureDetector(
-              onTap: () {
-                // Fill the prompt only — framework stays as the user
-                // picked it (no silent override).
-                _askCtrl.text = t.prompt;
-                _askFocus.requestFocus();
-                AppSnackbar.showTop(
-                  'Template inserted',
-                  'Framework: ${c.framework.value} — change it from the composer if needed.',
-                  logHistory: false,
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.surface
-                      : const Color(0xFFF8F9FA),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.07)
-                          : Dt.hairline),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 1.6,
+            ),
+            itemCount: templates.length,
+            itemBuilder: (_, i) {
+              final t = templates[i];
+              return GestureDetector(
+                onTap: () {
+                  // Fill the prompt only — framework stays as the user
+                  // picked it (no silent override).
+                  _askCtrl.text = t.prompt;
+                  _askFocus.requestFocus();
+                  AppSnackbar.showTop(
+                    'Template inserted',
+                    'Framework: ${c.framework.value} — change it from the composer if needed.',
+                    logHistory: false,
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.surface : const Color(0xFFF8F9FA),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.07)
+                            : Dt.hairline),
+                  ),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(t.icon, size: 16, color: Dt.accent),
+                        const SizedBox(height: 6),
+                        Text(t.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 12, fontWeight: FontWeight.w700)),
+                        const SizedBox(height: 2),
+                        Text(t.desc,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                                fontSize: 10,
+                                color: Theme.of(context).hintColor)),
+                      ]),
                 ),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                  Icon(t.icon, size: 16, color: Dt.accent),
-                  const SizedBox(height: 6),
-                  Text(t.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 2),
-                  Text(t.desc,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          color: Theme.of(context).hintColor)),
-                ]),
-              ),
-            );
-          },
-        ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -2050,9 +1850,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             'Build a project above — its files will land here.',
             textAlign: TextAlign.center,
             style: GoogleFonts.plusJakartaSans(
-                fontSize: 13,
-                height: 1.5,
-                color: Theme.of(context).hintColor),
+                fontSize: 13, height: 1.5, color: Theme.of(context).hintColor),
           ),
         ),
       );
@@ -2076,7 +1874,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
             }),
           ),
           TextButton.icon(
-            onPressed: () => _showAddDialog(context, isDark),
+            onPressed: () => showAddDialog(context, isDark,
+                onPickFile: (p) => setState(() => _openFile = p)),
             icon: const Icon(LucideIcons.plus, size: 15),
             label: const Text('Add'),
           ),
@@ -2085,29 +1884,26 @@ class _AgentIdeViewState extends State<AgentIdeView> {
           decoration: InputDecoration(
             hintText: 'Search in code…',
             isDense: true,
-            prefixIcon:
-                const Icon(LucideIcons.search, size: 16),
-            border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10)),
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 10, vertical: 8),
+            prefixIcon: const Icon(LucideIcons.search, size: 16),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           ),
-          onSubmitted: (q) => _showSearchResults(context, isDark, q),
+          onSubmitted: (q) => showSearchResults(context, isDark, q,
+              onPickFile: (p) => setState(() => _openFile = p)),
         ),
         const SizedBox(height: 8),
         for (final path in _allFilePaths())
           Card(
             child: ListTile(
               dense: true,
-              leading: Icon(_iconFor(path),
-                  size: 18, color: Dt.accent),
+              leading: Icon(_iconFor(path), size: 18, color: Dt.accent),
               title: Row(children: [
                 Expanded(
                   child: Text(path,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style:
-                          GoogleFonts.plusJakartaSans(fontSize: 13)),
+                      style: GoogleFonts.plusJakartaSans(fontSize: 13)),
                 ),
                 Obx(() => c.streamingFiles.containsKey(path)
                     ? Container(
@@ -2118,22 +1914,19 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                           color: Dt.accent.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Dt.accent)),
-                              const SizedBox(width: 4),
-                              Text('writing',
-                                  style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      color: Dt.accent)),
-                            ]),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                  shape: BoxShape.circle, color: Dt.accent)),
+                          const SizedBox(width: 4),
+                          Text('writing',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Dt.accent)),
+                        ]),
                       )
                     : const SizedBox.shrink()),
               ]),
@@ -2141,42 +1934,38 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 IconButton(
                   tooltip: 'Open',
                   icon: const Icon(LucideIcons.chevronRight, size: 18),
-                  onPressed: () =>
-                      setState(() => _openFile = path),
+                  onPressed: () => setState(() => _openFile = path),
                 ),
                 IconButton(
                   tooltip: 'Rename',
                   icon: const Icon(LucideIcons.pencil, size: 15),
-                  onPressed: () =>
-                      _showRenameDialog(context, isDark, path),
+                  onPressed: () => showRenameDialog(context, isDark, path,
+                      openFile: _openFile,
+                      onPickFile: (p) => setState(() => _openFile = p)),
                 ),
                 IconButton(
                   tooltip: 'Delete',
                   icon: Icon(LucideIcons.trash2,
-                      size: 16,
-                      color: AppColors.error.withValues(alpha: 0.8)),
+                      size: 16, color: AppColors.error.withValues(alpha: 0.8)),
                   onPressed: () async {
                     final ok = await Get.dialog<bool>(AlertDialog(
                       title: const Text('Delete file?'),
                       content: Text('"$path" will be removed.'),
                       actions: [
                         TextButton(
-                            onPressed: () =>
-                                Get.back(result: false),
+                            onPressed: () => Get.back(result: false),
                             child: const Text('Cancel')),
                         FilledButton(
                           style: FilledButton.styleFrom(
                               backgroundColor: AppColors.error),
-                          onPressed: () =>
-                              Get.back(result: true),
+                          onPressed: () => Get.back(result: true),
                           child: const Text('Delete'),
                         ),
                       ],
                     ));
                     if (ok != true) return;
                     final ws = Get.find<AgentWorkspaceService>();
-                    await ws.deleteFile(
-                        c.project.value!.id, path);
+                    await ws.deleteFile(c.project.value!.id, path);
                     if (_openFile == path) {
                       setState(() => _openFile = null);
                     }
@@ -2184,8 +1973,8 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                   },
                 ),
               ]),
-              onTap: () => setState(() => _openFile =
-                  _openFile == path ? null : path),
+              onTap: () =>
+                  setState(() => _openFile = _openFile == path ? null : path),
             ),
           ),
         if (_openFile != null &&
@@ -2209,9 +1998,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     }
     if (p.endsWith('.json')) return LucideIcons.braces;
     if (p.endsWith('.md')) return LucideIcons.fileText;
-    if (p.endsWith('.png') ||
-        p.endsWith('.jpg') ||
-        p.endsWith('.svg')) {
+    if (p.endsWith('.png') || p.endsWith('.jpg') || p.endsWith('.svg')) {
       return LucideIcons.image;
     }
     return LucideIcons.file;
@@ -2243,8 +2030,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 child: SizedBox(
                     width: 18,
                     height: 18,
-                    child:
-                        CircularProgressIndicator(strokeWidth: 2))),
+                    child: CircularProgressIndicator(strokeWidth: 2))),
           );
         }
         return FileEditorCard(
@@ -2256,739 +2042,9 @@ class _AgentIdeViewState extends State<AgentIdeView> {
       },
     );
   }
-
-  void _onProjectMenu(String v) async {
-    if (v == 'new') {
-      c.project.value = null;
-      c.files.clear();
-      c.previewUrl.value = null;
-      _promptCtrl.clear();
-    } else if (v == 'export') {
-      await c.exportZip();
-    } else if (v == 'rename') {
-      final p = c.project.value;
-      if (p == null) return;
-      final nameCtrl = TextEditingController(text: p.name);
-      final next = await Get.dialog<String>(AlertDialog(
-        title: const Text('Rename project'),
-        content: TextField(
-          controller: nameCtrl,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration:
-              const InputDecoration(labelText: 'Name', isDense: true),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Get.back(result: null),
-              child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Get.back(result: nameCtrl.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ));
-      if (next != null && next.isNotEmpty) {
-        await c.renameProject(next);
-      }
-    } else if (v == 'fork') {
-      await c.forkProject();
-    } else if (v == 'delete') {
-      final p = c.project.value;
-      if (p == null) return;
-      final ok = await Get.dialog<bool>(AlertDialog(
-        title: const Text('Delete project?'),
-        content: Text('"${p.name}" and all its files will be removed.'),
-        actions: [
-          TextButton(
-              onPressed: () => Get.back(result: false),
-              child: const Text('Cancel')),
-          FilledButton(
-            style:
-                FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Get.back(result: true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ));
-      if (ok == true) {
-        await c.deleteProject(p.id);
-        _promptCtrl.clear();
-      }
-    } else if (v == 'switch') {
-      _showProjectSwitcher(context);
-    } else if (v == 'deploy') {
-      _showDeploySheet(context);
-    } else if (v == 'share') {
-      _shareProjectLink(context);
-    } else if (v == 'github') {
-      _exportToGitHub(context);
-    }
-  }
-
-  void _showProjectSwitcher(BuildContext context) {
-    final ws = Get.find<AgentWorkspaceService>();
-    ws.loadProjects();
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => Obx(() => SafeArea(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final p in ws.projects)
-                  ListTile(
-                    leading: const Icon(LucideIcons.folderGit2,
-                        size: 20),
-                    title: Text(p.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600)),
-                    subtitle: Text(p.framework,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 11,
-                            color:
-                                Theme.of(context).hintColor)),
-                    trailing:
-                        c.project.value?.id == p.id
-                            ? const Icon(LucideIcons.check,
-                                size: 18, color: Dt.accent)
-                            : null,
-                    onTap: () {
-                      Navigator.pop(context);
-                      c.openProject(p);
-                    },
-                  ),
-                if (ws.projects.isEmpty)
-                  const ListTile(
-                      title: Text('No projects yet.')),
-              ],
-            ),
-          )),
-    );
-  }
-
-  void _showDeploySheet(BuildContext context) {
-    final p = c.project.value;
-    if (p == null) return;
-    final files = c.files;
-    if (files.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Build the project first before deploying.')),
-      );
-      return;
-    }
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        final tokenCtrl = TextEditingController();
-        String provider = 'vercel';
-        bool deploying = false;
-        return StatefulBuilder(
-          builder: (ctx, setSheet) => SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Deploy "${p.name}"',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 16, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    ChoiceChip(
-                      label: const Text('Vercel'),
-                      selected: provider == 'vercel',
-                      onSelected: (_) => setSheet(() => provider = 'vercel'),
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: const Text('Netlify'),
-                      selected: provider == 'netlify',
-                      onSelected: (_) => setSheet(() => provider = 'netlify'),
-                    ),
-                  ]),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: tokenCtrl,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: provider == 'vercel'
-                          ? 'Vercel API Token'
-                          : 'Netlify Personal Access Token',
-                      isDense: true,
-                      prefixIcon: const Icon(LucideIcons.key, size: 18),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (deploying) const LinearProgressIndicator(minHeight: 2),
-                  const SizedBox(height: 12),
-                  Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton.icon(
-                      onPressed: deploying
-                          ? null
-                          : () async {
-                              if (tokenCtrl.text.trim().isEmpty) return;
-                              setSheet(() => deploying = true);
-                              try {
-                                // Read file contents from workspace.
-                                final ws = Get.find<AgentWorkspaceService>();
-                                final fileMap = <String, String>{};
-                                for (final f in files) {
-                                  final content = await ws.readFile(p.id, f);
-                                  if (content != null) fileMap[f] = content;
-                                }
-                                if (fileMap.isEmpty) {
-                                  throw Exception('No files to deploy. Build the project first.');
-                                }
-                                final result = await Get.find<DeployService>().deploy(
-                                  provider: provider,
-                                  token: tokenCtrl.text.trim(),
-                                  projectName: p.name,
-                                  files: fileMap,
-                                );
-                                if (ctx.mounted) Navigator.pop(ctx);
-                                // Show success URL.
-                                Get.dialog(AlertDialog(
-                                  title: Text('Deployed to $provider!'),
-                                  content: SelectableText(result.url,
-                                      style: GoogleFonts.firaCode(fontSize: 13)),
-                                  actions: [
-                                    FilledButton(
-                                      onPressed: () => Get.back(),
-                                      child: const Text('OK'),
-                                    ),
-                                  ],
-                                ));
-                              } catch (e) {
-                                setSheet(() => deploying = false);
-                                if (ctx.mounted) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(content: Text('Deploy failed: $e')),
-                                  );
-                                }
-                              }
-                            },
-                      icon: const Icon(LucideIcons.upload, size: 18),
-                      label: const Text('Deploy'),
-                    ),
-                  ]),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showComponentLibrary(BuildContext context, bool isDark) {
-    final components = [
-      const WebComponent('Navbar', LucideIcons.menu, 'Navigation bar with logo and links'),
-      const WebComponent('Hero Section', LucideIcons.star, 'Full-width hero with CTA'),
-      const WebComponent('Pricing Table', LucideIcons.creditCard, '3-tier pricing cards'),
-      const WebComponent('FAQ Accordion', LucideIcons.helpCircle, 'Expandable Q&A items'),
-      const WebComponent('Contact Form', LucideIcons.mail, 'Name, email, message fields'),
-      const WebComponent('Footer', LucideIcons.arrowDown, 'Multi-column footer'),
-      const WebComponent('Card Grid', LucideIcons.grid, 'Responsive card layout'),
-      const WebComponent('Modal/Dialog', LucideIcons.maximize2, 'Centered overlay modal'),
-      const WebComponent('Tabs', LucideIcons.layout, 'Tabbed content switcher'),
-      const WebComponent('Testimonials', LucideIcons.quote, 'Customer review carousel'),
-      const WebComponent('Stats Bar', LucideIcons.barChart3, 'Animated number counters'),
-      const WebComponent('Timeline', LucideIcons.clock, 'Vertical step timeline'),
-    ];
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-              child: Row(children: [
-                Text('Component Library',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 16, fontWeight: FontWeight.w800)),
-                const Spacer(),
-                Text('Tap to insert',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 12,
-                        color: Theme.of(context).hintColor)),
-              ]),
-            ),
-            Flexible(
-              child: GridView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 8,
-                  mainAxisSpacing: 8,
-                  childAspectRatio: 1.3,
-                ),
-                itemCount: components.length,
-                itemBuilder: (_, i) {
-                  final comp = components[i];
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _askCtrl.text += comp.prompt;
-                      _askFocus.requestFocus();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? AppColors.surface
-                            : const Color(0xFFF8F9FA),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.07)
-                                : Dt.hairline),
-                      ),
-                      child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                        Icon(comp.icon, size: 18, color: Dt.accent),
-                        const SizedBox(height: 4),
-                        Text(comp.name,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.plusJakartaSans(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600)),
-                      ]),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _shareProjectLink(BuildContext context) async {
-    final p = c.project.value;
-    if (p == null) return;
-    final ws = Get.find<AgentWorkspaceService>();
-    final files = await ws.listFiles(p.id);
-    final fileMap = <String, String>{};
-    for (final f in files) {
-      final content = await ws.readFile(p.id, f);
-      if (content != null) fileMap[f] = content;
-    }
-    if (fileMap.isEmpty) return;
-    // Compress to a data URL (base64 of JSON).
-    final json = jsonEncode({'name': p.name, 'framework': p.framework, 'files': fileMap});
-    final encoded = base64UrlEncode(utf8.encode(json));
-    final shareUrl = 'https://cubiclm.vercel.app/view?data=$encoded';
-    // Copy to clipboard.
-    await Clipboard.setData(ClipboardData(text: shareUrl));
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Share link copied to clipboard!')),
-      );
-    }
-  }
-
-  void _exportToGitHub(BuildContext context) async {
-    final p = c.project.value;
-    if (p == null) return;
-    final tokenCtrl = TextEditingController();
-    final repoCtrl = TextEditingController(text: p.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '-'));
-    final ok = await Get.dialog<bool>(AlertDialog(
-      title: const Text('Export to GitHub'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: tokenCtrl,
-            obscureText: true,
-            decoration: const InputDecoration(
-              labelText: 'GitHub Personal Access Token',
-              isDense: true,
-              prefixIcon: Icon(LucideIcons.key, size: 18),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: repoCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Repository name',
-              isDense: true,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Get.back(result: false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Get.back(result: true),
-          child: const Text('Export'),
-        ),
-      ],
-    ));
-    if (ok != true || tokenCtrl.text.trim().isEmpty) return;
-    try {
-      final ws = Get.find<AgentWorkspaceService>();
-      final files = await ws.listFiles(p.id);
-      final fileMap = <String, String>{};
-      for (final f in files) {
-        final content = await ws.readFile(p.id, f);
-        if (content != null) fileMap[f] = content;
-      }
-      final token = tokenCtrl.text.trim();
-      final repoName = repoCtrl.text.trim();
-      // Create repo.
-      final createRes = await http.post(
-        Uri.parse('https://api.github.com/user/repos'),
-        headers: {
-          'Authorization': 'token $token',
-          'Accept': 'application/vnd.github.v3+json',
-        },
-        body: jsonEncode({'name': repoName, 'auto_init': false}),
-      );
-      if (createRes.statusCode != 201) {
-        throw Exception('GitHub repo creation failed (${createRes.statusCode})');
-      }
-      // Upload each file.
-      for (final e in fileMap.entries) {
-        await http.put(
-          Uri.parse('https://api.github.com/repos/$repoName/contents/${e.key}'),
-          headers: {
-            'Authorization': 'token $token',
-            'Accept': 'application/vnd.github.v3+json',
-          },
-          body: jsonEncode({
-            'message': 'Add ${e.key}',
-            'content': base64Encode(utf8.encode(e.value)),
-          }),
-        );
-      }
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Exported to github.com/$repoName')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('GitHub export failed: $e')),
-        );
-      }
-    }
-  }
-
-  /// Short label for the builder composer model pill (mirrors chat).
-  String _builderModelLabel() {
-    final s = Get.find<SettingsController>();
-    if (s.inferenceMode.value == 'cloud') {
-      final m = s.selectedCloudModelName;
-      if (m.isEmpty) return 'Cloud';
-      final short = m.contains('/') ? m.split('/').last : m;
-      return short.length > 18 ? '${short.substring(0, 18)}…' : short;
-    }
-    final inf = Get.find<InferenceService>();
-    final img = Get.find<LocalImageService>();
-    final name = inf.isModelLoaded.value
-        ? inf.loadedModelName.value
-        : img.isModelLoaded.value
-            ? img.loadedModelName.value
-            : '';
-    if (name.isEmpty) return 'Local';
-    final stripped = name.replaceAll(
-        RegExp(r'\.(gguf|litertlm|safetensors)$', caseSensitive: false), '');
-    return stripped.length > 14 ? '${stripped.substring(0, 14)}…' : stripped;
-  }
-
-  Future<void> _pickScreenshot() async {
-    final picker = ImagePicker();
-    final x = await picker.pickImage(
-        source: ImageSource.gallery, imageQuality: 85);
-    if (x != null) {
-      final bytes = await x.readAsBytes();
-      c.attachedImage.value = base64Encode(bytes);
-    }
-  }
-
-  /// "+" sheet: every builder tool in one place (left-side entry point).
-  void _showBuilderToolsSheet(
-      BuildContext context, bool isDark, bool hasProject) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: isDark ? AppColors.surface : Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetCtx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Container(
-            width: 36,
-            height: 4,
-            margin: const EdgeInsets.only(bottom: 8, top: 12),
-            decoration: BoxDecoration(
-              color: isDark ? AppColors.surfaceLight : Dt.hairline,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-            child: Row(children: [
-              Text('Builder tools',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 16, fontWeight: FontWeight.w800)),
-              const Spacer(),
-              Text('All options here',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12, color: Theme.of(context).hintColor)),
-            ]),
-          ),
-          Flexible(
-            child: ListView(shrinkWrap: true, children: [
-              if (!hasProject)
-                ListTile(
-                  leading: const Icon(LucideIcons.layers, size: 22),
-                  title: Text('Framework — ${_frameworkShort(c.framework.value)}',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15, fontWeight: FontWeight.w600)),
-                  onTap: () {
-                    Navigator.pop(sheetCtx);
-                    _showFrameworkSheet(context);
-                  },
-                ),
-              if (!hasProject)
-                Obx(() => SwitchListTile(
-                      secondary: const Icon(LucideIcons.map, size: 22),
-                      title: Text('Plan mode',
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 15, fontWeight: FontWeight.w600)),
-                      value: c.planMode.value,
-                      onChanged: (v) => c.planMode.value = v,
-                    )),
-              Obx(() => SwitchListTile(
-                    secondary: const Icon(LucideIcons.brain, size: 22),
-                    title: Text('Extended thinking',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15, fontWeight: FontWeight.w600)),
-                    value: c.extendedThinking.value,
-                    onChanged: (v) => c.extendedThinking.value = v,
-                  )),
-              Obx(() => SwitchListTile(
-                    secondary: const Icon(LucideIcons.globe, size: 22),
-                    title: Text('Web search',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 15, fontWeight: FontWeight.w600)),
-                    value: c.webSearch.value,
-                    onChanged: (v) => c.webSearch.value = v,
-                  )),
-              ListTile(
-                leading: const Icon(LucideIcons.puzzle, size: 22),
-                title: Text('Component library',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15, fontWeight: FontWeight.w600)),
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  _showComponentLibrary(context, isDark);
-                },
-                ),
-              ListTile(
-                leading: const Icon(LucideIcons.image, size: 22),
-                title: Text('Attach screenshot',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15, fontWeight: FontWeight.w600)),
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  _pickScreenshot();
-                },
-              ),
-              if (hasProject)
-                ListTile(
-                  leading: const Icon(LucideIcons.shieldCheck, size: 22),
-                  title: Text('Auto-test project',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 15, fontWeight: FontWeight.w600)),
-                  onTap: () {
-                    Navigator.pop(sheetCtx);
-                    c.runAutoTest();
-                  },
-                ),
-              ListTile(
-                leading: const Icon(LucideIcons.box, size: 22),
-                title: Text('Switch model',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15, fontWeight: FontWeight.w600)),
-                subtitle: Text(_builderModelLabel(),
-                    style: GoogleFonts.plusJakartaSans(fontSize: 12)),
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  showModelSwitcherSheet(context);
-                },
-              ),
-            ]),
-          ),
-          const SizedBox(height: 12),
-        ]),
-      ),
-    );
-  }
-
-  void _showRenameDialog(
-      BuildContext context, bool isDark, String path) {
-    final pathCtrl = TextEditingController(text: path);
-    showDialog(
-      context: context,
-      builder: (dlgCtx) => AlertDialog(
-        backgroundColor: isDark ? AppColors.surface : Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Rename file',
-            style:
-                GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
-        content: TextField(
-          controller: pathCtrl,
-          autofocus: true,
-          decoration: const InputDecoration(
-              labelText: 'New path', isDense: true),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dlgCtx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final ws = Get.find<AgentWorkspaceService>();
-              await ws.renameFile(
-                  c.project.value!.id, path, pathCtrl.text);
-              if (_openFile == path) {
-                setState(() => _openFile = null);
-              }
-              await c.notifyFilesChanged();
-              if (dlgCtx.mounted) Navigator.pop(dlgCtx);
-            },
-            child: const Text('Rename'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showSearchResults(
-      BuildContext context, bool isDark, String query) async {
-    if (query.trim().isEmpty || c.project.value == null) return;
-    final ws = Get.find<AgentWorkspaceService>();
-    final hits = await ws.searchCode(c.project.value!.id, query);
-    if (!context.mounted) return;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => Container(
-        constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.6),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.surface : Colors.white,
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-          shrinkWrap: true,
-          children: [
-            Text('“$query” — ${hits.length} file(s)',
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 8),
-            if (hits.isEmpty)
-              Text('No matches.',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      color: Theme.of(context).hintColor)),
-            for (final e in hits.entries)
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text(e.key,
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13, fontWeight: FontWeight.w700)),
-                subtitle: Text('lines ${e.value.join(', ')}',
-                    style: GoogleFonts.plusJakartaSans(fontSize: 12)),
-                onTap: () {
-                  Navigator.pop(context);
-                  setState(() => _openFile = e.key);
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showAddDialog(BuildContext context, bool isDark) {
-    final pathCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (dlgCtx) => AlertDialog(
-        backgroundColor: isDark ? AppColors.surface : Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Add file',
-            style:
-                GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
-        content: TextField(
-          controller: pathCtrl,
-          autofocus: true,
-          decoration: const InputDecoration(
-              labelText: 'Path (e.g. about.html)', isDense: true),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dlgCtx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final ws = Get.find<AgentWorkspaceService>();
-              final pid = c.project.value?.id;
-              if (pid == null) {
-                if (dlgCtx.mounted) Navigator.pop(dlgCtx);
-                return;
-              }
-              final err =
-                  await ws.writeFile(pid, pathCtrl.text, '');
-              if (dlgCtx.mounted) Navigator.pop(dlgCtx);
-              if (err != null) {
-                Get.snackbar('Add failed', err,
-                    snackPosition: SnackPosition.BOTTOM);
-              } else {
-                await c.notifyFilesChanged();
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-  }
-
 }
 
 extension on AgentController {
   List<AgentProject> projectsOf() =>
       Get.find<AgentWorkspaceService>().projects.toList();
 }
-
