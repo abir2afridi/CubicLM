@@ -14,9 +14,12 @@ String dayLabel(DateTime d) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
   final day = DateTime(d.year, d.month, d.day);
-  if (day == today) return 'chat_today'.tr;
-  if (day == today.subtract(const Duration(days: 1)))
+  if (day == today) {
+    return 'chat_today'.tr;
+  }
+  if (day == today.subtract(const Duration(days: 1))) {
     return 'chat_yesterday'.tr;
+  }
   if (now.difference(day).inDays < 7 && now.isAfter(day)) {
     return weekday(d.weekday);
   }
