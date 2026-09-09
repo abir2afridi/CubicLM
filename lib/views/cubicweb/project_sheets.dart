@@ -929,22 +929,24 @@ void showLibrarySheet(BuildContext context) {
                       fontSize: 16, fontWeight: FontWeight.w800)),
             ),
           ),
-          Obx(() => Column(
-                children: [
-                  for (final lib in libraries)
-                    RadioListTile<String>(
-                      dense: true,
-                      title: Text(lib,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                      value: lib,
-                      groupValue: _c.selectedLibrary.value,
-                      onChanged: (v) {
-                        if (v != null) _c.selectedLibrary.value = v;
-                        Navigator.pop(context);
-                      },
-                      activeColor: Dt.accent,
-                    ),
-                ],
+          Obx(() => RadioGroup<String>(
+                groupValue: _c.selectedLibrary.value,
+                onChanged: (v) {
+                  if (v != null) _c.selectedLibrary.value = v;
+                  Navigator.pop(context);
+                },
+                child: Column(
+                  children: [
+                    for (final lib in libraries)
+                      RadioListTile<String>(
+                        dense: true,
+                        title: Text(lib,
+                            style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                        value: lib,
+                        activeColor: Dt.accent,
+                      ),
+                  ],
+                ),
               )),
           const SizedBox(height: 12),
         ],
@@ -970,22 +972,24 @@ void showDesignSystemSheet(BuildContext context) {
                       fontSize: 16, fontWeight: FontWeight.w800)),
             ),
           ),
-          Obx(() => Column(
-                children: [
-                  for (final ds in systems)
-                    RadioListTile<String>(
-                      dense: true,
-                      title: Text(ds,
-                          style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                      value: ds,
-                      groupValue: _c.selectedDesignSystem.value,
-                      onChanged: (v) {
-                        if (v != null) _c.selectedDesignSystem.value = v;
-                        Navigator.pop(context);
-                      },
-                      activeColor: Dt.accent,
-                    ),
-                ],
+          Obx(() => RadioGroup<String>(
+                groupValue: _c.selectedDesignSystem.value,
+                onChanged: (v) {
+                  if (v != null) _c.selectedDesignSystem.value = v;
+                  Navigator.pop(context);
+                },
+                child: Column(
+                  children: [
+                    for (final ds in systems)
+                      RadioListTile<String>(
+                        dense: true,
+                        title: Text(ds,
+                            style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+                        value: ds,
+                        activeColor: Dt.accent,
+                      ),
+                  ],
+                ),
               )),
           const SizedBox(height: 12),
         ],
