@@ -171,4 +171,57 @@ void main() {
       expect(roundTrip('app/globals.css', src), src);
     });
   });
+
+  group('parseFiles truncation callback (§13)', () {
+    test('oversize file is cut and reported', () {
+      final big = 'x' * (maxFileChars + 100);
+      final payload = jsonEncode({
+        'files': [
+          {'path': 'big.js', 'content': big},
+        ]
+      });
+      final cut = <String>[];
+      final out = parseFiles('```files\n$payload\n```',
+          onTruncated: cut.add);
+      expect(out.single.content.length, maxFileChars);
+      expect(cut, ['big.js']);
+    });
+
+    test('nothing reported when everything fits', () {
+      final cut = <String>[];
+      final out = parseFiles(
+          '```files\n${jsonEncode({
+                'files': [
+                  {'path': 'a.js', 'content': 'hi'}
+                ]
+              })}\n```',
+          onTruncated: cut.add);
+      expect(out.length, 1);
+      expect(cut, isEmpty);
+    });
+  });
+
+  group('parsePartialFiles streaming (§9)', () {
+    test('incremental chunks converge to the final parse', () {
+      const src =
+          "export default function Page() {\n  const id = `g-\${a}`;\n  return <><a href=\"#c\">x</a></>;\n}\n";
+      final payload =
+          '```files\n${jsonEncode({
+                'files': [
+                  {'path': 'app/page.jsx', 'content': src}
+                ]
+              })}\n```';
+      List<PartialWebFile> last = const [];
+      for (var i = 10; i <= payload.length; i += 37) {
+        last = parsePartialFiles(payload.substring(0, i));
+      }
+      final complete =
+          last.where((f) => f.complete).toList();
+      expect(complete.length, 1);
+      expect(complete.single.content, src);
+      // Final closed buffer matches one-shot parseFiles exactly.
+      final once = parseFiles(payload);
+      expect(once.single.content, complete.single.content);
+    });
+  });
 }

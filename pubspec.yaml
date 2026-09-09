@@ -82,6 +82,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  path_provider_platform_interface: ^2.1.2
 
 dependency_overrides:
   # Vendored 0.257.0: `LucideIconData extends IconData` no longer

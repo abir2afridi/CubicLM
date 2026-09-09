@@ -400,6 +400,25 @@ class AgentController extends GetxController {
     return issues;
   }
 
+  /// Parse + collect silent truncations (file/total caps) so callers can
+  /// surface them as blocking issues instead of serving partial source.
+  List<WebFile> _parseChecked(String raw, List<String> truncatedOut) =>
+      parseFiles(raw, onTruncated: truncatedOut.add);
+
+  /// Turn collected truncations into blocking preview issues (§13).
+  void _mergeTruncation(List<ProjectIssue> issues, List<String> truncated) {
+    for (final t in truncated) {
+      issues.add(ProjectIssue(
+        'truncated-source',
+        '"$t" was cut to fit size limits — ask the AI to regenerate it smaller or split it.',
+        path: t.startsWith('(') ? null : t,
+      ));
+    }
+    if (truncated.isNotEmpty) {
+      step('error', 'Truncated ${truncated.length} file(s) — see issues.');
+    }
+  }
+
   /// Production build validation (`npm run build`) for Node projects.
   /// Streams real compiler output to the terminal; failures flow into
   /// the existing Ask-AI loop via the terminal wand button.
@@ -659,7 +678,8 @@ class AgentController extends GetxController {
         return;
       }
       buildStatus.value = 'Saving files…';
-      final parsed = parseFiles(raw);
+      final truncated = <String>[];
+      final parsed = _parseChecked(raw, truncated);
       final err = await _ws
           .importFiles(p.id, {for (final f in parsed) f.path: f.content});
       if (err != null) {
@@ -671,6 +691,7 @@ class AgentController extends GetxController {
       // model emitted — byte-for-byte — plus hygiene scan.
       final fidelity = await _verifyWriteFidelity(
           p.id, {for (final f in parsed) f.path: f.content});
+      _mergeTruncation(fidelity, truncated);
       if (fidelity.isNotEmpty) {
         _mergeIssues(previewIssues, fidelity);
         final blocking = previewIssues.where((i) => i.blocksPreview).toList();
@@ -781,7 +802,8 @@ class AgentController extends GetxController {
         term('■ modify cancelled by user — rolled back');
         return;
       }
-      final parsed = parseFiles(raw);
+      final truncated = <String>[];
+      final parsed = _parseChecked(raw, truncated);
       // Diff against the pre-modify snapshot (not live-written disk).
       lastDiffs.clear();
       for (final f in parsed) {
@@ -806,6 +828,7 @@ class AgentController extends GetxController {
       previewKind.value = kindNow;
       final fidelityNow = await _verifyWriteFidelity(
           p.id, {for (final f in parsed) f.path: f.content});
+      _mergeTruncation(fidelityNow, truncated);
       for (final f in parsed) {
         fidelityNow.addAll(sourceHygieneIssues(f.path, f.content));
       }
@@ -961,7 +984,8 @@ class AgentController extends GetxController {
       );
       if (_cancelled) return;
       buildStatus.value = 'Saving files…';
-      final parsed = parseFiles(raw);
+      final truncated = <String>[];
+      final parsed = _parseChecked(raw, truncated);
       final err = await _ws
           .importFiles(p.id, {for (final f in parsed) f.path: f.content});
       if (err != null) {
@@ -969,6 +993,11 @@ class AgentController extends GetxController {
       }
       await refreshFiles();
       await _serve();
+      if (truncated.isNotEmpty) {
+        term('⚠ truncated: ${truncated.join(', ')}');
+        _say('assistant',
+            'Heads-up — ${truncated.length} file(s) were cut to fit size limits (${truncated.take(3).join(', ')}). Ask me to regenerate them smaller if anything looks off.');
+      }
       _touch();
       buildStatus.value = null;
       final summary =
@@ -1108,7 +1137,8 @@ class AgentController extends GetxController {
             '${webSystemPrompt(framework: p.framework)}\nSTRICT: output only files that change.',
         onProgress: (n) => _streamStatus('Writing fix', n),
       );
-      final parsed = parseFiles(raw);
+      final truncated = <String>[];
+      final parsed = _parseChecked(raw, truncated);
       if (_cancelled) return;
       var applied = 0;
       for (final f in parsed) {
@@ -1120,6 +1150,9 @@ class AgentController extends GetxController {
       consoleError.value = null;
       _touch();
       buildStatus.value = null;
+      if (truncated.isNotEmpty) {
+        term('⚠ truncated: ${truncated.join(', ')}');
+      }
       term('✓ auto-fix applied ($applied files)');
       step('fix',
           'Fixed $applied file${applied == 1 ? '' : 's'} — preview reloaded.');
@@ -1190,7 +1223,8 @@ class AgentController extends GetxController {
         AppSnackbar.showTop('Auto-test passed', 'No issues found.',
             logHistory: false);
       } else {
-        final parsed = parseFiles(raw);
+        final truncated = <String>[];
+        final parsed = _parseChecked(raw, truncated);
         await _ws.saveCheckpoint(p.id, label: 'Before auto-test fix');
         var applied = 0;
         for (final f in parsed) {
@@ -1200,6 +1234,9 @@ class AgentController extends GetxController {
         await _ws.touch(p.id);
         await refreshFiles();
         _touch();
+        if (truncated.isNotEmpty) {
+          term('⚠ truncated: ${truncated.join(', ')}');
+        }
         _say(
             'assistant',
             'Auto-test found and fixed $applied file${applied == 1 ? '' : 's'}. '

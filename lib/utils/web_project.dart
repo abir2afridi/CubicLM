@@ -64,7 +64,10 @@ String? extractFilesJson(String raw) {
 }
 
 /// Parse model output into files. Never throws; always ≥1 file.
-List<WebFile> parseFiles(String raw) {
+/// [onTruncated] fires once per dropped/cut entry (file cap, char cap,
+/// total cap) so callers can surface it instead of silently serving
+/// partial source (§13: truncation must block preview, not hide).
+List<WebFile> parseFiles(String raw, {void Function(String path)? onTruncated}) {
   final out = <WebFile>[];
   try {
     final payload = extractFilesJson(raw);
@@ -76,14 +79,21 @@ List<WebFile> parseFiles(String raw) {
       if (list is List) {
         var total = 0;
         for (final f in list.whereType<Map>()) {
-          if (out.length >= maxFiles) break;
+          if (out.length >= maxFiles) {
+            onTruncated?.call('(file limit: ${out.length} files)');
+            break;
+          }
           final path = sanitizePath((f['path'] ?? '').toString());
           if (path.isEmpty) continue;
           var content = (f['content'] ?? '').toString();
           if (content.length > maxFileChars) {
             content = content.substring(0, maxFileChars);
+            onTruncated?.call(path);
           }
-          if (total + content.length > maxTotalChars) break;
+          if (total + content.length > maxTotalChars) {
+            onTruncated?.call(path);
+            break;
+          }
           total += content.length;
           out.add(WebFile(path: path, content: content));
         }
