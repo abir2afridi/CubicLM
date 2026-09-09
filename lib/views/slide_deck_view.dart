@@ -12,6 +12,8 @@ import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../theme/design_tokens.dart';
 import '../utils/slide_deck.dart';
+import 'slides/slide_charts.dart';
+import 'slides/slide_painters.dart';
 import '../widgets/app_ui.dart';
 import '../widgets/model_switcher_sheet.dart';
 
@@ -64,9 +66,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               ? PopupMenuButton<String>(
                   tooltip: 'Export deck',
                   icon: Icon(LucideIcons.share2,
-                      color: isDark
-                          ? AppColors.textPrimary
-                          : Dt.iconDefault),
+                      color: isDark ? AppColors.textPrimary : Dt.iconDefault),
                   onSelected: (v) {
                     if (v == 'md') c.exportMarkdown();
                     if (v == 'pdf') c.exportPdf();
@@ -97,70 +97,72 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                     _errorBox(context, isDark),
                     const SizedBox(height: 10),
                   ],
-            if (c.hasDeck) ...[
-              const SizedBox(height: 12),
-              _deckBar(context, isDark),
-              const SizedBox(height: 10),
-              _carousel(context, isDark),
-            ] else if (c.generating.value) ...[
-              const SizedBox(height: 24),
-              const Center(child: CircularProgressIndicator()),
-              const SizedBox(height: 12),
-              Center(
-                child: Text('Designing your slides…',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        color: Theme.of(context).hintColor)),
-              ),
-            ] else ...[
-              const SizedBox(height: 24),
-              Center(
-                child: Text(
-                  'Describe a topic below — the AI designs every slide.\n'
-                  'Visual slides always reserve an image box, even when '
-                  'the model can only write text.',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 13,
-                      height: 1.5,
-                      color: Theme.of(context).hintColor),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Center(
-                child: Text(
-                  'Or start with a structured template:',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Theme.of(context).hintColor),
-                ),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                alignment: WrapAlignment.center,
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final tName in SlideDeckController.templates.keys)
-                    ActionChip(
-                      backgroundColor: isDark ? AppColors.surface : Dt.pillMuted,
-                      side: BorderSide(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.08)
-                              : Dt.hairline),
-                      label: Text(
-                        tName,
+                  if (c.hasDeck) ...[
+                    const SizedBox(height: 12),
+                    _deckBar(context, isDark),
+                    const SizedBox(height: 10),
+                    _carousel(context, isDark),
+                  ] else if (c.generating.value) ...[
+                    const SizedBox(height: 24),
+                    const Center(child: CircularProgressIndicator()),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: Text('Designing your slides…',
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 13,
+                              color: Theme.of(context).hintColor)),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 24),
+                    Center(
+                      child: Text(
+                        'Describe a topic below — the AI designs every slide.\n'
+                        'Visual slides always reserve an image box, even when '
+                        'the model can only write text.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 13,
+                            height: 1.5,
+                            color: Theme.of(context).hintColor),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Center(
+                      child: Text(
+                        'Or start with a structured template:',
                         style: GoogleFonts.plusJakartaSans(
                             fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white : Dt.textPrimary),
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).hintColor),
                       ),
-                      onPressed: () => _pickTemplate(tName),
                     ),
-                ],
-              ),
-            ],
+                    const SizedBox(height: 10),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final tName in SlideDeckController.templates.keys)
+                          ActionChip(
+                            backgroundColor:
+                                isDark ? AppColors.surface : Dt.pillMuted,
+                            side: BorderSide(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.08)
+                                    : Dt.hairline),
+                            label: Text(
+                              tName,
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color:
+                                      isDark ? Colors.white : Dt.textPrimary),
+                            ),
+                            onPressed: () => _pickTemplate(tName),
+                          ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -179,8 +181,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
   PopupMenuItem<String> _exportItem(String value, String label) {
     return PopupMenuItem(
       value: value,
-      child: Text(label,
-          style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+      child: Text(label, style: GoogleFonts.plusJakartaSans(fontSize: 14)),
     );
   }
 
@@ -218,9 +219,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               minLines: 1,
               onChanged: (v) => c.topic.value = v,
               style: GoogleFonts.plusJakartaSans(
-                  fontSize: 16,
-                  height: 1.35,
-                  fontWeight: FontWeight.w500),
+                  fontSize: 16, height: 1.35, fontWeight: FontWeight.w500),
               decoration: InputDecoration(
                 hintText: 'e.g. How photosynthesis works (class 8)',
                 hintStyle: GoogleFonts.plusJakartaSans(
@@ -252,8 +251,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                 icon: c.generating.value
                     ? Icons.hourglass_top_rounded
                     : LucideIcons.presentation,
-                onTap: c.generating.value ||
-                        _topicCtrl.text.trim().isEmpty
+                onTap: c.generating.value || _topicCtrl.text.trim().isEmpty
                     ? null
                     : () async {
                         c.topic.value = _topicCtrl.text;
@@ -320,8 +318,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
         for (final s in SlideDeckController.styles)
           PopupMenuItem(
             value: s,
-            child: Text(s,
-                style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+            child: Text(s, style: GoogleFonts.plusJakartaSans(fontSize: 14)),
           ),
       ],
       child: Container(
@@ -375,9 +372,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               padding: const EdgeInsets.all(6),
               child: Icon(Icons.remove,
                   size: 15,
-                  color: disabled
-                      ? Dt.textPlaceholder
-                      : Dt.textPrimary),
+                  color: disabled ? Dt.textPlaceholder : Dt.textPrimary),
             ),
           ),
           Text('${c.slideCount.value}',
@@ -390,9 +385,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               padding: const EdgeInsets.all(6),
               child: Icon(Icons.add,
                   size: 15,
-                  color: disabled
-                      ? Dt.textPlaceholder
-                      : Dt.textPrimary),
+                  color: disabled ? Dt.textPlaceholder : Dt.textPrimary),
             ),
           ),
         ],
@@ -419,14 +412,12 @@ class _SlideDeckViewState extends State<SlideDeckView> {
       enabled: !c.generating.value,
       tooltip: 'Target audience',
       initialValue: current.isEmpty ? null : current,
-      onSelected: (v) =>
-          c.audience.value = v == 'General' ? '' : v,
+      onSelected: (v) => c.audience.value = v == 'General' ? '' : v,
       itemBuilder: (_) => [
         for (final a in _audiences)
           PopupMenuItem(
             value: a,
-            child: Text(a,
-                style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+            child: Text(a, style: GoogleFonts.plusJakartaSans(fontSize: 13)),
           ),
       ],
       child: Container(
@@ -508,8 +499,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
           for (final s in SlideDeckController.styles)
             PopupMenuItem(
               value: s,
-              child: Text(s,
-                  style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+              child: Text(s, style: GoogleFonts.plusJakartaSans(fontSize: 13)),
             ),
         ],
         child: Container(
@@ -572,8 +562,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
             ),
           ],
           selected: {_viewMode},
-          onSelectionChanged: (s) =>
-              setState(() => _viewMode = s.first),
+          onSelectionChanged: (s) => setState(() => _viewMode = s.first),
           showSelectedIcon: false,
           style: SegmentedButton.styleFrom(
             visualDensity: VisualDensity.compact,
@@ -620,14 +609,11 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                           style: GoogleFonts.plusJakartaSans(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
-                              color: active
-                                  ? Dt.accent
-                                  : Dt.textSecondary)),
+                              color: active ? Dt.accent : Dt.textSecondary)),
                       const SizedBox(height: 2),
                       Text(ts.layout.substring(0, 4),
                           style: GoogleFonts.plusJakartaSans(
-                              fontSize: 8,
-                              color: Dt.textPlaceholder)),
+                              fontSize: 8, color: Dt.textPlaceholder)),
                     ],
                   ),
                 ),
@@ -657,79 +643,80 @@ class _SlideDeckViewState extends State<SlideDeckView> {
     ]);
   }
 
-  Widget _slideCard(
-      BuildContext context, bool isDark, int index, Slide s) {
-    final busy =
-        c.generating.value && c.regenIndex.value == index;
+  Widget _slideCard(BuildContext context, bool isDark, int index, Slide s) {
+    final busy = c.generating.value && c.regenIndex.value == index;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isDark ? AppColors.surface : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-            color: isDark
-                ? Colors.white.withValues(alpha: 0.07)
-                : Dt.hairline),
+            color: isDark ? Colors.white.withValues(alpha: 0.07) : Dt.hairline),
       ),
       // Scrollable: notes + image controls can exceed the fixed
       // PageView viewport on small screens — scroll instead of overflow.
       child: SingleChildScrollView(
-        child:
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Text('SLIDE ${index + 1}',
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                  color: Dt.accent)),
-          const Spacer(),
-          if (busy)
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          else ...[
-            _miniBtn(context, LucideIcons.pencil, 'Edit slide',
-                () => _showEditDialog(context, isDark, index, s)),
-            _miniBtn(context, LucideIcons.move, 'Free layout',
-                () => _toggleFreeLayout(index, s),
-                color: s.freeLayout ? Dt.accent : null),
-            _miniBtn(context, LucideIcons.refreshCw, 'Regenerate this slide',
-                () => c.regenerateSlide(index)),
-            _miniBtn(context, LucideIcons.sparkles, 'AI refine',
-                () => _showRefineDialog(context, isDark, index)),
-            _miniBtn(context, LucideIcons.copy, 'Duplicate slide',
-                c.slides.length >= SlideDeckController.maxSlides
-                    ? null
-                    : () => c.duplicateSlide(index)),
-            _miniBtn(context, LucideIcons.arrowUp, 'Move up',
-                index == 0 ? null : () => c.moveSlide(index, -1)),
-            _miniBtn(context, LucideIcons.arrowDown, 'Move down',
-                index == c.slides.length - 1
-                    ? null
-                    : () => c.moveSlide(index, 1)),
-            _miniBtn(context, LucideIcons.trash2, 'Delete slide',
-                () => c.deleteSlide(index),
-                color: AppColors.error.withValues(alpha: 0.8)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Text('SLIDE ${index + 1}',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                    color: Dt.accent)),
+            const Spacer(),
+            if (busy)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else ...[
+              _miniBtn(context, LucideIcons.pencil, 'Edit slide',
+                  () => _showEditDialog(context, isDark, index, s)),
+              _miniBtn(context, LucideIcons.move, 'Free layout',
+                  () => _toggleFreeLayout(index, s),
+                  color: s.freeLayout ? Dt.accent : null),
+              _miniBtn(context, LucideIcons.refreshCw, 'Regenerate this slide',
+                  () => c.regenerateSlide(index)),
+              _miniBtn(context, LucideIcons.sparkles, 'AI refine',
+                  () => _showRefineDialog(context, isDark, index)),
+              _miniBtn(
+                  context,
+                  LucideIcons.copy,
+                  'Duplicate slide',
+                  c.slides.length >= SlideDeckController.maxSlides
+                      ? null
+                      : () => c.duplicateSlide(index)),
+              _miniBtn(context, LucideIcons.arrowUp, 'Move up',
+                  index == 0 ? null : () => c.moveSlide(index, -1)),
+              _miniBtn(
+                  context,
+                  LucideIcons.arrowDown,
+                  'Move down',
+                  index == c.slides.length - 1
+                      ? null
+                      : () => c.moveSlide(index, 1)),
+              _miniBtn(context, LucideIcons.trash2, 'Delete slide',
+                  () => c.deleteSlide(index),
+                  color: AppColors.error.withValues(alpha: 0.8)),
+            ],
+          ]),
+          const SizedBox(height: 10),
+          // WYSIWYG canvas — how the slide actually looks (4:3 stage).
+          _slideCanvas(context, index, s, _viewMode),
+          if (s.notes.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text('Notes: ${s.notes.trim()}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    color: Theme.of(context).hintColor)),
           ],
-        ]),
-        const SizedBox(height: 10),
-        // WYSIWYG canvas — how the slide actually looks (4:3 stage).
-        _slideCanvas(context, index, s, _viewMode),
-        if (s.notes.trim().isNotEmpty) ...[
           const SizedBox(height: 8),
-          Text('Notes: ${s.notes.trim()}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                  color: Theme.of(context).hintColor)),
-        ],
-        const SizedBox(height: 8),
-        _imageControls(context, index, s),
+          _imageControls(context, index, s),
         ]),
       ),
     );
@@ -740,8 +727,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
   /// construction (fixed line budgets + ellipsis).
   /// [mode]: ppt (dark 4:3 stage) · docs (light paper flow) ·
   /// pdf (light A4 portrait page).
-  Widget _slideCanvas(
-      BuildContext context, int index, Slide s, String mode) {
+  Widget _slideCanvas(BuildContext context, int index, Slide s, String mode) {
     if (mode == 'docs') return _docsCanvas(context, index, s);
     if (mode == 'pdf') return _pdfCanvas(context, index, s);
     return _pptCanvas(context, index, s);
@@ -761,8 +747,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
             end: Alignment.bottomRight,
             colors: [Color(0xFF23232f), Color(0xFF101016)],
           ),
-          border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
         ),
         clipBehavior: Clip.antiAlias,
         child: s.freeLayout
@@ -778,69 +763,65 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                   bodyBase: 11.5,
                 ),
               )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-              if (hasImage)
-                SizedBox(
-                  height: 110,
-                  child: Image.memory(
-                    Uint8List.fromList(s.imageBytes!),
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const SizedBox(height: 110),
-                  ),
-                )
-              else if (s.wantsImage)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: Dt.accent.withValues(alpha: 0.12),
-                    border: const Border(
-                      bottom: BorderSide(
-                          color: Dt.accent, width: 1),
+            : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                if (hasImage)
+                  SizedBox(
+                    height: 110,
+                    child: Image.memory(
+                      Uint8List.fromList(s.imageBytes!),
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const SizedBox(height: 110),
                     ),
-                  ),
-                  child: Row(children: [
-                    const Icon(LucideIcons.imagePlus,
-                        size: 13, color: Dt.accent),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        s.imagePrompt.trim().isEmpty
-                            ? 'IMAGE SPACE'
-                            : s.imagePrompt.trim(),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFFE8B4A0)),
+                  )
+                else if (s.wantsImage)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Dt.accent.withValues(alpha: 0.12),
+                      border: const Border(
+                        bottom: BorderSide(color: Dt.accent, width: 1),
                       ),
                     ),
-                  ]),
-                ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-                  child: Stack(
-                    children: [
-                      _pptContentByLayout(s, index, showPoints, hidden),
-                      Align(
-                        alignment: Alignment.bottomRight,
-                        child: Text('${index + 1}',
-                            style: GoogleFonts.plusJakartaSans(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF6E6B65))),
+                    child: Row(children: [
+                      const Icon(LucideIcons.imagePlus,
+                          size: 13, color: Dt.accent),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          s.imagePrompt.trim().isEmpty
+                              ? 'IMAGE SPACE'
+                              : s.imagePrompt.trim(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFFE8B4A0)),
+                        ),
                       ),
-                    ],
+                    ]),
+                  ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+                    child: Stack(
+                      children: [
+                        _pptContentByLayout(s, index, showPoints, hidden),
+                        Align(
+                          alignment: Alignment.bottomRight,
+                          child: Text('${index + 1}',
+                              style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: const Color(0xFF6E6B65))),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ]),
+              ]),
       ),
     );
   }
@@ -1128,8 +1109,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10.5,
-                            color: const Color(0xFFD8D5CF)),
+                            fontSize: 10.5, color: const Color(0xFFD8D5CF)),
                       ),
                     ),
                   ],
@@ -1200,7 +1180,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
         );
 
       case 'chart':
-        return _chartContent(s);
+        return chartContent(s);
 
       default:
         return Column(
@@ -1252,404 +1232,6 @@ class _SlideDeckViewState extends State<SlideDeckView> {
   }
 
   /// Pure-Flutter chart renderer: bar, donut, or line from chartData.
-  Widget _chartContent(Slide s) {
-    final data = s.chartData;
-    if (data.isEmpty) {
-      // Fallback to bullets if chartData missing
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(s.title.isEmpty ? 'Chart' : s.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-          const SizedBox(height: 6),
-          for (final p in s.points.take(4))
-            Padding(
-              padding: const EdgeInsets.only(bottom: 3),
-              child: Text('▸ $p',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10.5, color: const Color(0xFFD8D5CF))),
-            ),
-        ],
-      );
-    }
-    final chartType = (data['type'] ?? 'bar').toString();
-    final items = <Map<String, String>>[];
-    if (data['items'] is List) {
-      for (final e in (data['items'] as List)) {
-        if (e is Map) {
-          items.add({
-            'label': (e['label'] ?? '').toString(),
-            'value': (e['value'] ?? '0').toString(),
-          });
-        }
-      }
-    }
-    if (items.isEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(s.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-        ],
-      );
-    }
-
-    // Parse numeric values for bar/line charts
-    final nums = items.map((e) {
-      final raw = e['value']?.replaceAll(RegExp(r'[^0-9.\-]'), '') ?? '0';
-      return double.tryParse(raw) ?? 0;
-    }).toList();
-    final maxVal = nums.isEmpty ? 1.0 : nums.reduce((a, b) => a > b ? a : b);
-
-    if (chartType == 'donut') {
-      return _donutChart(s.title, items, nums);
-    }
-    if (chartType == 'line') {
-      return _lineChart(s.title, items, nums, maxVal);
-    }
-    // Default: bar chart
-    return _barChart(s.title, items, nums, maxVal);
-  }
-
-  Widget _barChart(String title, List<Map<String, String>> items,
-      List<double> nums, double maxVal) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title.isEmpty ? 'Chart' : title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-        const SizedBox(height: 10),
-        Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (var i = 0; i < items.length && i < 6; i++)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Text(items[i]['value'] ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.plusJakartaSans(
-                                fontSize: 9, fontWeight: FontWeight.w700, color: Dt.accent)),
-                        const SizedBox(height: 3),
-                        Container(
-                          height: maxVal > 0 ? (nums[i] / maxVal) * 120 : 4,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                                begin: Alignment.bottomCenter,
-                                end: Alignment.topCenter,
-                                colors: [Dt.accent, Dt.accent.withValues(alpha: 0.5)]),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(items[i]['label'] ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.plusJakartaSans(
-                                fontSize: 8.5, color: const Color(0xFFB0ADA6))),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _donutChart(
-      String title, List<Map<String, String>> items, List<double> nums) {
-    final total = nums.isEmpty ? 1.0 : nums.fold(0.0, (a, b) => a + b);
-    final colors = [
-      Dt.accent,
-      const Color(0xFF4ADE80),
-      const Color(0xFF60A5FA),
-      const Color(0xFFFBBF24),
-      const Color(0xFFF87171),
-      const Color(0xFFA78BFA),
-    ];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title.isEmpty ? 'Chart' : title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-        const SizedBox(height: 8),
-        Expanded(
-          child: Row(
-            children: [
-              // Legend
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var i = 0; i < items.length && i < 6; i++)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Row(children: [
-                          Container(
-                              width: 10,
-                              height: 10,
-                              decoration: BoxDecoration(
-                                  color: colors[i % colors.length],
-                                  borderRadius: BorderRadius.circular(2))),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              '${items[i]['label']}  ${items[i]['value']}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10, color: const Color(0xFFD8D5CF)),
-                            ),
-                          ),
-                        ]),
-                      ),
-                  ],
-                ),
-              ),
-              // Donut circle
-              SizedBox(
-                width: 90,
-                height: 90,
-                child: CustomPaint(
-                  painter: _DonutPainter(nums, total, colors),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _lineChart(String title, List<Map<String, String>> items,
-      List<double> nums, double maxVal) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title.isEmpty ? 'Chart' : title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.plusJakartaSans(
-                fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
-        const SizedBox(height: 10),
-        Expanded(
-          child: LayoutBuilder(builder: (_, cons) {
-            final w = cons.maxWidth;
-            final h = cons.maxHeight;
-            final pts = <Offset>[];
-            for (var i = 0; i < nums.length && i < 8; i++) {
-              final x = nums.length > 1 ? (i / (nums.length - 1)) * w : w / 2;
-              final y = maxVal > 0 ? h - (nums[i] / maxVal) * (h - 20) : h / 2;
-              pts.add(Offset(x, y));
-            }
-            return Stack(children: [
-              CustomPaint(
-                size: Size(w, h),
-                painter: _LineChartPainter(pts, items, nums),
-              ),
-            ]);
-          }),
-        ),
-      ],
-    );
-  }
-
-  /// Returns layout-aware body widgets for Docs and PDF canvases.
-  List<Widget> _layoutBodyWidgets(Slide s, bool showImage, {double fontSize = 13, Color bulletColor = Dt.accent, Color textColor = const Color(0xFF2A2A2A)}) {
-    final List<Widget> widgets = [];
-    final hasImage = s.imageBytes != null && s.imageBytes!.isNotEmpty;
-
-    if (s.layout == 'quote') {
-      widgets.add(Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          '"${s.points.join(" ")}"',
-          style: GoogleFonts.plusJakartaSans(
-              fontSize: fontSize + 1,
-              fontStyle: FontStyle.italic,
-              height: 1.6,
-              color: textColor),
-        ),
-      ));
-      if (s.quoteAuthor.isNotEmpty) {
-        widgets.add(Text(
-          '— ${s.quoteAuthor}',
-          style: GoogleFonts.plusJakartaSans(
-              fontSize: fontSize - 1,
-              fontWeight: FontWeight.w700,
-              color: bulletColor),
-        ));
-      }
-    } else if (s.layout == 'comparison' && s.columns.length >= 2) {
-      final c1 = s.columns[0];
-      final c2 = s.columns[1];
-      final maxLen = c1.length > c2.length ? c1.length : c2.length;
-      for (var j = 0; j < maxLen; j++) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Row(
-            children: [
-              Expanded(child: Text(
-                j < c1.length ? '• ${c1[j]}' : '',
-                style: GoogleFonts.plusJakartaSans(fontSize: fontSize - 1, height: 1.4, color: textColor),
-              )),
-              const SizedBox(width: 12),
-              Expanded(child: Text(
-                j < c2.length ? '• ${c2[j]}' : '',
-                style: GoogleFonts.plusJakartaSans(fontSize: fontSize - 1, height: 1.4, color: textColor),
-              )),
-            ],
-          ),
-        ));
-      }
-    } else if (s.layout == 'stats' && s.stats.isNotEmpty) {
-      for (final st in s.stats) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Row(
-            children: [
-              Text('${st['value'] ?? ''}  ',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: fontSize + 1,
-                      fontWeight: FontWeight.w900,
-                      color: bulletColor)),
-              Expanded(child: Text(st['label'] ?? '',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: fontSize - 1,
-                      color: textColor))),
-            ],
-          ),
-        ));
-      }
-    } else if (s.layout == 'timeline' && s.points.isNotEmpty) {
-      for (var i = 0; i < s.points.length; i++) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: fontSize + 2,
-                height: fontSize + 2,
-                margin: const EdgeInsets.only(top: 2, right: 8),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: bulletColor,
-                ),
-                alignment: Alignment.center,
-                child: Text('${i + 1}',
-                    style: TextStyle(fontSize: fontSize - 3, color: Colors.white, fontWeight: FontWeight.w800)),
-              ),
-              Expanded(child: Text(s.points[i],
-                  style: GoogleFonts.plusJakartaSans(fontSize: fontSize - 1, height: 1.4, color: textColor))),
-            ],
-          ),
-        ));
-      }
-    } else if (s.layout == 'chart' && s.chartData.isNotEmpty) {
-      final data = s.chartData;
-      final type = data['type'] ?? 'bar';
-      final items = data['items'] is List ? data['items'] as List : [];
-      if (items.isNotEmpty) {
-        widgets.add(Text(
-          'Chart (${type.toString().toUpperCase()})',
-          style: GoogleFonts.plusJakartaSans(
-              fontSize: fontSize - 1,
-              fontWeight: FontWeight.w800,
-              color: bulletColor),
-        ));
-        widgets.add(const SizedBox(height: 6));
-        for (final e in items) {
-          final label = e['label']?.toString() ?? '';
-          final value = e['value']?.toString() ?? '';
-          widgets.add(Padding(
-            padding: const EdgeInsets.only(bottom: 3),
-            child: Text('• $label: $value',
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: fontSize - 1, color: textColor)),
-          ));
-        }
-      }
-    } else if (s.layout == 'summary') {
-      for (final p in s.points) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 5),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('✓  ',
-                  style: TextStyle(
-                      color: Color(0xFF2ECC71),
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13)),
-              Expanded(child: Text(p,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: fontSize - 1, height: 1.4, color: textColor))),
-            ],
-          ),
-        ));
-      }
-    } else {
-      // Default: title, bullets, image
-      for (final p in s.points) {
-        widgets.add(Padding(
-          padding: const EdgeInsets.only(bottom: 7),
-          child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('•  ',
-                    style: TextStyle(
-                        color: bulletColor,
-                        fontWeight: FontWeight.w800,
-                        fontSize: fontSize)),
-                Expanded(
-                  child: Text(p,
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: fontSize,
-                          height: 1.5,
-                          color: textColor)),
-                ),
-              ]),
-        ));
-      }
-    }
-
-    if (showImage && hasImage) {
-      widgets.add(const SizedBox(height: 10));
-      widgets.add(ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: Image.memory(
-          Uint8List.fromList(s.imageBytes!),
-          width: double.infinity,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-        ),
-      ));
-    }
-
-    return widgets;
-  }
 
   /// Docs mode: light paper, continuous flow (all content visible).
   Widget _docsCanvas(BuildContext context, int index, Slide s) {
@@ -1670,34 +1252,32 @@ class _SlideDeckViewState extends State<SlideDeckView> {
         clipBehavior: Clip.antiAlias,
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.title.isEmpty ? 'Untitled' : s.title,
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              s.title.isEmpty ? 'Untitled' : s.title,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w800,
+                  height: 1.25,
+                  color: const Color(0xFF1A1A1A)),
+            ),
+            Container(
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                height: 3,
+                width: 44,
+                decoration: BoxDecoration(
+                    color: Dt.accent, borderRadius: BorderRadius.circular(2))),
+            ...layoutBodyWidgets(s, s.wantsImage),
+            if (s.notes.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(s.notes.trim(),
                   style: GoogleFonts.plusJakartaSans(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                      height: 1.25,
-                      color: const Color(0xFF1A1A1A)),
-                ),
-                Container(
-                    margin: const EdgeInsets.symmetric(vertical: 10),
-                    height: 3,
-                    width: 44,
-                    decoration: BoxDecoration(
-                        color: Dt.accent,
-                        borderRadius: BorderRadius.circular(2))),
-                ..._layoutBodyWidgets(s, s.wantsImage),
-                if (s.notes.trim().isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(s.notes.trim(),
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11.5,
-                          fontStyle: FontStyle.italic,
-                          color: const Color(0xFF8A8A8A))),
-                ],
-              ]),
+                      fontSize: 11.5,
+                      fontStyle: FontStyle.italic,
+                      color: const Color(0xFF8A8A8A))),
+            ],
+          ]),
         ),
       ),
     );
@@ -1723,62 +1303,57 @@ class _SlideDeckViewState extends State<SlideDeckView> {
         clipBehavior: Clip.antiAlias,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-          child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  s.title.isEmpty ? 'Untitled' : s.title,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              s.title.isEmpty ? 'Untitled' : s.title,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  height: 1.25,
+                  color: const Color(0xFF111111)),
+            ),
+            const SizedBox(height: 4),
+            Text('Slide ${index + 1} of $total',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF9A9A9A))),
+            const Divider(height: 20),
+            Expanded(
+              child: s.freeLayout
+                  ? LayoutBuilder(
+                      builder: (_, cons) => _freeStack(
+                        context,
+                        s,
+                        cons.maxWidth,
+                        cons.maxHeight,
+                        titleColor: const Color(0xFF111111),
+                        bodyColor: const Color(0xFF333333),
+                        titleBase: 16,
+                        bodyBase: 11,
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ...layoutBodyWidgets(s, s.wantsImage,
+                                fontSize: 12,
+                                bulletColor: const Color(0xFF555555),
+                                textColor: const Color(0xFF222222)),
+                          ]),
+                    ),
+            ),
+            Align(
+              alignment: Alignment.bottomRight,
+              child: Text('${index + 1} / $total',
                   style: GoogleFonts.plusJakartaSans(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      height: 1.25,
-                      color: const Color(0xFF111111)),
-                ),
-                const SizedBox(height: 4),
-                Text('Slide ${index + 1} of $total',
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF9A9A9A))),
-                const Divider(height: 20),
-                Expanded(
-                  child: s.freeLayout
-                      ? LayoutBuilder(
-                          builder: (_, cons) => _freeStack(
-                            context,
-                            s,
-                            cons.maxWidth,
-                            cons.maxHeight,
-                            titleColor:
-                                const Color(0xFF111111),
-                            bodyColor:
-                                const Color(0xFF333333),
-                            titleBase: 16,
-                            bodyBase: 11,
-                          ),
-                        )
-                      : SingleChildScrollView(
-                    child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
-                        children: [
-                          ..._layoutBodyWidgets(s, s.wantsImage,
-                              fontSize: 12,
-                              bulletColor: const Color(0xFF555555),
-                              textColor: const Color(0xFF222222)),
-                        ]),
-                  ),
-                ),
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: Text('${index + 1} / $total',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          color: const Color(0xFFAAAAAA))),
-                ),
-              ]),
+                      fontSize: 10, color: const Color(0xFFAAAAAA))),
+            ),
+          ]),
         ),
       ),
     );
@@ -1786,8 +1361,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
 
   /// Image generate/retry row under the canvas (full editor lives here;
   /// the canvas only previews).
-  Widget _imageControls(
-      BuildContext context, int index, Slide s) {
+  Widget _imageControls(BuildContext context, int index, Slide s) {
     final hasImage = s.imageBytes != null && s.imageBytes!.isNotEmpty;
     return Wrap(
       spacing: 8,
@@ -1888,7 +1462,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
   }) {
     final hasImage = s.imageBytes != null && s.imageBytes!.isNotEmpty;
     return Stack(children: [
-      _FreeBox(
+      FreeBox(
         dx: s.tDx,
         dy: s.tDy,
         scale: s.tS,
@@ -1908,7 +1482,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               color: titleColor),
         ),
       ),
-      _FreeBox(
+      FreeBox(
         dx: s.bDx,
         dy: s.bDy,
         scale: s.bS,
@@ -1935,7 +1509,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
             ]),
       ),
       if (hasImage || s.wantsImage)
-        _FreeBox(
+        FreeBox(
           dx: s.iDx,
           dy: s.iDy,
           scale: s.iS,
@@ -1955,8 +1529,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                     height: 84 * sc,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const SizedBox.shrink(),
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                   ),
                 )
               : Container(
@@ -1978,7 +1551,8 @@ class _SlideDeckViewState extends State<SlideDeckView> {
     ]);
   }
 
-  Widget _miniBtn(BuildContext context, IconData icon, String tip,      VoidCallback? onTap,
+  Widget _miniBtn(
+      BuildContext context, IconData icon, String tip, VoidCallback? onTap,
       {Color? color}) {
     return Tooltip(
       message: tip,
@@ -2006,8 +1580,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
           color: Dt.accent.withValues(alpha: 0.14),
           borderRadius: BorderRadius.circular(10),
@@ -2032,8 +1605,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
 
   // ── Manual edit dialog ──
 
-  void _showEditDialog(
-      BuildContext context, bool isDark, int index, Slide s) {
+  void _showEditDialog(BuildContext context, bool isDark, int index, Slide s) {
     final titleCtrl = TextEditingController(text: s.title);
     final subtitleCtrl = TextEditingController(text: s.subtitle);
     final authorCtrl = TextEditingController(text: s.quoteAuthor);
@@ -2054,18 +1626,17 @@ class _SlideDeckViewState extends State<SlideDeckView> {
       builder: (dlgCtx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
           backgroundColor: isDark ? AppColors.surface : Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text('Edit slide ${index + 1}',
-              style:
-                  GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
           content: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextField(
                 controller: titleCtrl,
                 textCapitalization: TextCapitalization.sentences,
-                decoration: const InputDecoration(
-                    labelText: 'Title', isDense: true),
+                decoration:
+                    const InputDecoration(labelText: 'Title', isDense: true),
               ),
               const SizedBox(height: 10),
               if (layout == 'title') ...[
@@ -2115,12 +1686,12 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                       value: 'title', child: Text('Title & Subtitle')),
                   DropdownMenuItem(
                       value: 'bullets', child: Text('Bullet Points')),
-                  DropdownMenuItem(
-                      value: 'image', child: Text('Image + Text')),
+                  DropdownMenuItem(value: 'image', child: Text('Image + Text')),
                   DropdownMenuItem(
                       value: 'quote', child: Text('Quote / Key Insight')),
                   DropdownMenuItem(
-                      value: 'comparison', child: Text('Comparison (2 Columns)')),
+                      value: 'comparison',
+                      child: Text('Comparison (2 Columns)')),
                   DropdownMenuItem(
                       value: 'stats', child: Text('Key Statistics')),
                   DropdownMenuItem(
@@ -2128,13 +1699,14 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                   DropdownMenuItem(
                       value: 'summary', child: Text('Summary / Takeaways')),
                   DropdownMenuItem(
-                      value: 'chart', child: Text('Chart (Bar / Donut / Line)')),
+                      value: 'chart',
+                      child: Text('Chart (Bar / Donut / Line)')),
                 ],
                 onChanged: (v) {
                   if (v != null) setDlg(() => layout = v);
                 },
-                decoration: const InputDecoration(
-                    labelText: 'Layout', isDense: true),
+                decoration:
+                    const InputDecoration(labelText: 'Layout', isDense: true),
               ),
               if (layout == 'chart') ...[
                 const SizedBox(height: 10),
@@ -2237,273 +1809,57 @@ class _SlideDeckViewState extends State<SlideDeckView> {
       builder: (dlgCtx) => ValueListenableBuilder<bool>(
         valueListenable: isLoading,
         builder: (ctx, loading, _) => AlertDialog(
-            backgroundColor: isDark ? AppColors.surface : Colors.white,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: Text('Refine slide ${index + 1}',
-                style:
-                    GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
-            content: loading
-                ? const SizedBox(
-                    height: 48,
-                    child: Center(child: CircularProgressIndicator()))
-                : TextField(
-                    controller: ctrl,
-                    maxLines: 3,
-                    autofocus: true,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: InputDecoration(
-                      hintText:
-                          'e.g. "make it more data-driven" or "add a comparison chart"',
-                      hintStyle: GoogleFonts.plusJakartaSans(
-                          fontSize: 13, color: Dt.textPlaceholder),
-                      isDense: true,
-                    ),
-                  ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dlgCtx),
-                child: const Text('Cancel'),
-              ),
-              FilledButton.icon(
-                icon: loading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(LucideIcons.sparkles, size: 16),
-                label: const Text('Refine'),
-                style:
-                    FilledButton.styleFrom(backgroundColor: Dt.accent),
-                onPressed: loading
-                    ? null
-                    : () {
-                        final instruction = ctrl.text.trim();
-                        if (instruction.isEmpty) return;
-                        isLoading.value = true;
-                        final nav = Navigator.of(dlgCtx);
-                        c.refineSlide(index, instruction)
-                            .whenComplete(() {
-                          if (nav.mounted) nav.pop();
-                        });
-                      },
-              ),
-            ],
-          ),
-      ),
-    );
-  }
-
-}
-
-/// Draggable + scalable overlay box for freehand slide layout.
-///
-/// - Drag anywhere on the box to move (fractional canvas offsets).
-/// - Drag the corner handle to scale content.
-/// - State lives locally during the gesture; [onCommit] persists to the
-///   slide on every change (plain field writes — no list rebuild, so the
-///   drag stays smooth).
-class _FreeBox extends StatefulWidget {
-  final double dx;
-  final double dy;
-  final double scale;
-  final double canvasW;
-  final double canvasH;
-  final double boxH;
-  final Widget Function(BuildContext, double scale) builder;
-  final void Function(double dx, double dy, double scale) onCommit;
-
-  const _FreeBox({
-    required this.dx,
-    required this.dy,
-    required this.scale,
-    required this.canvasW,
-    required this.canvasH,
-    required this.builder,
-    required this.onCommit,
-    this.boxH = 0,
-  });
-
-  @override
-  State<_FreeBox> createState() => _FreeBoxState();
-}
-
-class _FreeBoxState extends State<_FreeBox> {
-  late double _dx;
-  late double _dy;
-  late double _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _dx = widget.dx;
-    _dy = widget.dy;
-    _scale = widget.scale.clamp(0.5, 2.5);
-  }
-
-  void _commit() => widget.onCommit(_dx, _dy, _scale);
-
-  @override
-  Widget build(BuildContext context) {
-    const widthFrac = 0.86;
-    final w = widget.canvasW * widthFrac;
-    final left = (_dx * widget.canvasW).clamp(0.0, widget.canvasW - w);
-    final top = (_dy * widget.canvasH).clamp(0.0, widget.canvasH - 30);
-    return Positioned(
-      left: left,
-      top: top,
-      width: w,
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onPanUpdate: (d) {
-          setState(() {
-            _dx = ((_dx * widget.canvasW + d.delta.dx) / widget.canvasW)
-                .clamp(0.0, 1.0 - widthFrac);
-            _dy = ((_dy * widget.canvasH + d.delta.dy) / widget.canvasH)
-                .clamp(0.0, 0.95);
-          });
-          _commit();
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: Dt.accent.withValues(alpha: 0.55),
-              width: 1,
-            ),
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(5),
-                child: widget.boxH > 0
-                    ? SizedBox(
-                        height: widget.boxH * _scale,
-                        width: double.infinity,
-                        child: widget.builder(context, _scale),
-                      )
-                    : widget.builder(context, _scale),
-              ),
-              Positioned(
-                right: -11,
-                bottom: -11,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanUpdate: (d) {
-                    setState(() {
-                      _scale = (_scale + d.delta.dx / 120)
-                          .clamp(0.5, 2.5);
-                    });
-                    _commit();
-                  },
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: const BoxDecoration(
-                      color: Dt.accent,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.open_in_full_rounded,
-                      size: 12,
-                      color: Colors.white,
-                    ),
+          backgroundColor: isDark ? AppColors.surface : Colors.white,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Refine slide ${index + 1}',
+              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
+          content: loading
+              ? const SizedBox(
+                  height: 48, child: Center(child: CircularProgressIndicator()))
+              : TextField(
+                  controller: ctrl,
+                  maxLines: 3,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: InputDecoration(
+                    hintText:
+                        'e.g. "make it more data-driven" or "add a comparison chart"',
+                    hintStyle: GoogleFonts.plusJakartaSans(
+                        fontSize: 13, color: Dt.textPlaceholder),
+                    isDense: true,
                   ),
                 ),
-              ),
-            ],
-          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dlgCtx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              icon: loading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(LucideIcons.sparkles, size: 16),
+              label: const Text('Refine'),
+              style: FilledButton.styleFrom(backgroundColor: Dt.accent),
+              onPressed: loading
+                  ? null
+                  : () {
+                      final instruction = ctrl.text.trim();
+                      if (instruction.isEmpty) return;
+                      isLoading.value = true;
+                      final nav = Navigator.of(dlgCtx);
+                      c.refineSlide(index, instruction).whenComplete(() {
+                        if (nav.mounted) nav.pop();
+                      });
+                    },
+            ),
+          ],
         ),
       ),
     );
   }
-}
-
-/// Draws a donut chart for the chart layout.
-class _DonutPainter extends CustomPainter {
-  final List<double> values;
-  final double total;
-  final List<Color> colors;
-  _DonutPainter(this.values, this.total, this.colors);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 4;
-    final paint = Paint()..style = PaintingStyle.stroke..strokeWidth = 14;
-    double start = -3.14159 / 2;
-    for (var i = 0; i < values.length && i < 6; i++) {
-      final sweep = total > 0 ? (values[i] / total) * 3.14159 * 2 : 0.0;
-      paint.color = colors[i % colors.length];
-      canvas.drawArc(Rect.fromCircle(center: center, radius: radius),
-          start, sweep.toDouble(), false, paint);
-      start += sweep;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-/// Draws a line chart with dots and area fill for the chart layout.
-class _LineChartPainter extends CustomPainter {
-  final List<Offset> points;
-  final List<Map<String, String>> items;
-  final List<double> nums;
-  _LineChartPainter(this.points, this.items, this.nums);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (points.isEmpty) return;
-    final linePaint = Paint()
-      ..color = Dt.accent
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final dotPaint = Paint()..color = Dt.accent..style = PaintingStyle.fill;
-    final areaPaint = Paint()
-      ..color = Dt.accent.withValues(alpha: 0.15)
-      ..style = PaintingStyle.fill;
-
-    // Draw area fill
-    final areaPath = Path()..moveTo(points.first.dx, size.height);
-    for (final p in points) {
-      areaPath.lineTo(p.dx, p.dy);
-    }
-    areaPath.lineTo(points.last.dx, size.height);
-    areaPath.close();
-    canvas.drawPath(areaPath, areaPaint);
-
-    // Draw line
-    final linePath = Path()..moveTo(points.first.dx, points.first.dy);
-    for (var i = 1; i < points.length; i++) {
-      linePath.lineTo(points[i].dx, points[i].dy);
-    }
-    canvas.drawPath(linePath, linePaint);
-
-    // Draw dots + labels
-    final tp = TextPainter(textDirection: TextDirection.ltr);
-    for (var i = 0; i < points.length; i++) {
-      canvas.drawCircle(points[i], 4, dotPaint);
-      // Value above dot
-      tp.text = TextSpan(
-          text: items[i]['value'] ?? '',
-          style: const TextStyle(
-              fontSize: 9, fontWeight: FontWeight.w700, color: Dt.accent));
-      tp.layout();
-      tp.paint(canvas, Offset(points[i].dx - tp.width / 2, points[i].dy - 16));
-      // Label below x-axis
-      tp.text = TextSpan(
-          text: items[i]['label'] ?? '',
-          style: const TextStyle(fontSize: 8.5, color: Color(0xFFB0ADA6)));
-      tp.layout();
-      tp.paint(
-          canvas, Offset(points[i].dx - tp.width / 2, size.height - 12));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
