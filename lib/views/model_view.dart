@@ -15,7 +15,6 @@ import 'explore_skills_mcp_tabs.dart';
 import 'explore/add_model_sheet.dart';
 import 'explore/local_model_card.dart';
 import 'explore/provider_cards.dart';
-import 'explore/toolkit_tab.dart';
 import 'gallery_view.dart';
 
 class ModelView extends GetView<ModelController> {
@@ -42,8 +41,7 @@ class ModelView extends GetView<ModelController> {
                 letterSpacing: -0.5)),
         actions: [
           Obx(() {
-            if (controller.exploreTab.value != 'hub' ||
-                controller.modelScope.value != 'local') {
+            if (controller.modelScope.value != 'local') {
               return const SizedBox.shrink();
             }
             return Row(
@@ -66,69 +64,28 @@ class ModelView extends GetView<ModelController> {
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-            child: _buildExploreTabs(context),
-          ),
           const SizedBox(height: 10),
           Expanded(
-            child: Obx(() {
-              if (controller.exploreTab.value == 'toolkit') {
-                return ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    buildToolkitTab(context),
-                  ],
-                );
-              }
-              return Column(children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildScopeToggle(context),
-                ),
-                const SizedBox(height: 14),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildActiveModelBanner(context),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: _buildHubList(context),
-                ),
-              ]);
-            }),
+            child: Column(children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildScopeToggle(context),
+              ),
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildActiveModelBanner(context),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: _buildHubList(context),
+              ),
+            ]),
           ),
         ],
       ),
     );
   }
-
-  /// Top-level Explore tabs: Model Hub (existing scopes) | Toolkit.
-  Widget _buildExploreTabs(BuildContext context) {
-    return Obx(() => SegmentedButton<String>(
-          segments: const [
-            ButtonSegment(
-              value: 'hub',
-              icon: Icon(LucideIcons.boxes, size: 16),
-              label: Text('Model Hub', style: TextStyle(fontSize: 13)),
-            ),
-            ButtonSegment(
-              value: 'toolkit',
-              icon: Icon(LucideIcons.wrench, size: 16),
-              label: Text('Toolkit', style: TextStyle(fontSize: 13)),
-            ),
-          ],
-          selected: {controller.exploreTab.value},
-          onSelectionChanged: (s) => controller.exploreTab.value = s.first,
-          style: const ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ));
-  }
-
-  /// Toolkit tab: Battle Arena + Slide Maker as widget cards with
-  /// descriptions (moved here from the chat ⋮ menu).
 
   Widget _buildHubList(BuildContext context) {
     return RefreshIndicator(

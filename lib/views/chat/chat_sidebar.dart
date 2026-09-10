@@ -395,7 +395,7 @@ class _ChatSidebarState extends State<ChatSidebar> {
         InkWell(
           onTap: () {
             Navigator.pop(context);
-            Get.find<HomeController>().changeTab(3);
+            Get.find<HomeController>().changeTab(4);
           },
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 12, 14),
@@ -425,7 +425,7 @@ class _ChatSidebarState extends State<ChatSidebar> {
                 tooltip: 'App Settings',
                 onPressed: () {
                   Navigator.pop(context);
-                  Get.find<HomeController>().changeTab(3);
+                  Get.find<HomeController>().changeTab(4);
                 },
                 icon: Icon(LucideIcons.settings,
                     size: 20,

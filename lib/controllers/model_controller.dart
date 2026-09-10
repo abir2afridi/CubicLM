@@ -53,8 +53,6 @@ class ModelController extends GetxController {
   final customModels = <AiModel>[].obs;
   final fileSizes = <String, int>{}.obs;
   final modelScope = 'local'.obs;
-  /// Explore top-level tab: hub (models/skills/mcp/gallery) or toolkit.
-  final exploreTab = 'hub'.obs;
   final localFilter = ''.obs;
   final importFileName = ''.obs;
   final importStatus = ''.obs;
