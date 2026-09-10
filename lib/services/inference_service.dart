@@ -470,7 +470,9 @@ class InferenceService extends GetxService {
         if (Get.isRegistered<DeviceInfoService>()) {
           final avail =
               Get.find<DeviceInfoService>().availableRamGB.value;
-          if (avail > 0 && avail < 2.0) {
+          if (avail > 0 && avail < 1.5) {
+            cappedCtx = 512;
+          } else if (avail > 0 && avail < 2.0) {
             cappedCtx = cappedCtx.clamp(512, 1024);
           } else if (avail > 0 && avail < 3.0) {
             cappedCtx = cappedCtx.clamp(512, 2048);

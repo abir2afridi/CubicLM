@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:llama_flutter_android/llama_flutter_android.dart';
 
 import '../controllers/settings_controller.dart';
+import 'device_info_service.dart';
 import 'inference_text.dart';
 import 'inference_types.dart';
 import 'package:get/get.dart';
@@ -101,6 +102,59 @@ class GgufEngine {
       total -= (trimmed.removeAt(0)['content']?.length ?? 0);
     }
     return trimmed;
+  }
+
+  /// Low-RAM load profile (pure logic, public for unit tests).
+  ///
+  /// Phones with <3GB free die when two GGUF models sit resident at once
+  /// (mmap page-in spike + compute buffers + KV while the old model's
+  /// pages are hot), so those loads evict every other resident first.
+  /// Thread counts are clamped down for the same reason: each extra
+  /// thread grows the native compute buffer.
+  static bool shouldEvictPoolForRam(double availGb) =>
+      availGb > 0 && availGb < 3.0;
+
+  static int clampThreadsForRam({
+    required int threads,
+    required double availGb,
+  }) {
+    if (availGb <= 0 || availGb >= 3.0) return threads;
+    final cap = availGb < 2.0 ? 2 : 3;
+    return threads <= cap ? threads : cap;
+  }
+
+  /// Halved context for the one-shot load retry (never below 512).
+  /// Returns [contextSize] unchanged when already minimal.
+  static int reducedContextForRetry(int contextSize) {
+    if (contextSize <= 512) return contextSize;
+    final halved = contextSize ~/ 2;
+    return halved < 512 ? 512 : halved;
+  }
+
+  double _availableRamGb() {
+    try {
+      if (Get.isRegistered<DeviceInfoService>()) {
+        return Get.find<DeviceInfoService>().availableRamGB.value;
+      }
+    } catch (_) {}
+    return 0;
+  }
+
+  /// Frees every resident GGUF model except [keepPath] so a low-RAM load
+  /// never coexists with another model's pages. Best effort only.
+  Future<void> _evictOtherResidents(String keepPath) async {
+    try {
+      final ctl = _controller ?? _sharedLlama;
+      final residents = await ctl.residentModels();
+      for (final p in residents) {
+        if (p != keepPath) {
+          try {
+            await ctl.freeByPath(p);
+            print('[Inference] Low-RAM load: evicted resident $p');
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
   }
 
   /// Frees the native slot and reloads the last GGUF model from scratch —
@@ -353,6 +407,22 @@ class GgufEngine {
           '[Inference] Tensor SoC + Gemma detected — forcing single-threaded inference');
     }
 
+    // ── Low-RAM profile: evict pool + clamp threads ──
+    // <3GB free: a second resident model plus this load's page-in spike
+    // is what kills the process on 4–6GB phones (instant death, no
+    // catch possible) — free the others BEFORE touching native memory.
+    final availGb = _availableRamGb();
+    if (shouldEvictPoolForRam(availGb)) {
+      await _evictOtherResidents(modelPath);
+    }
+    final clampedThreads =
+        clampThreadsForRam(threads: threads, availGb: availGb);
+    if (clampedThreads != threads) {
+      print(
+          '[Inference] Low-RAM load (${availGb.toStringAsFixed(1)}GB free) — threads $threads → $clampedThreads');
+    }
+    threads = clampedThreads;
+
     // ── Load Progress ──
     await _loadProgressSub?.cancel();
     _loadProgressSub = null;
@@ -368,23 +438,47 @@ class GgufEngine {
     // partway (OOM, corrupt file, GPU fallback) leaves a model resident that
     // Dart never saw succeed. dispose() therefore always frees natively, and
     // LlamaController.loadModel frees any resident model before loading.
-    await _controller!.loadModel(
-      modelPath: modelPath,
-      threads: threads,
-      contextSize: contextSize,
-      gpuLayers: gpuLayers,
-    );
+    var effCtx = contextSize;
+    var effThreads = threads;
+    try {
+      await _controller!.loadModel(
+        modelPath: modelPath,
+        threads: effThreads,
+        contextSize: effCtx,
+        gpuLayers: gpuLayers,
+      );
+    } catch (e) {
+      // One reduced-footprint retry before surfacing the error: evict the
+      // pool, halve the context, drop to 2 threads. A load that throws
+      // (e.g. "Failed to create context") is usually transient memory
+      // pressure, not a bad file — the RAM gate already blocked hopeless
+      // ones outright.
+      final retryCtx = reducedContextForRetry(effCtx);
+      final retryThreads = effThreads > 2 ? 2 : effThreads;
+      if (retryCtx >= effCtx && retryThreads >= effThreads) rethrow;
+      print(
+          '[Inference] Load failed ($e) — retrying once with ctx=$retryCtx, threads=$retryThreads after pool eviction.');
+      await _evictOtherResidents(modelPath);
+      await _controller!.loadModel(
+        modelPath: modelPath,
+        threads: retryThreads,
+        contextSize: retryCtx,
+        gpuLayers: gpuLayers,
+      );
+      effCtx = retryCtx;
+      effThreads = retryThreads;
+    }
     // Remember for hard-reset recovery (repeated native decode failures).
     _lastModelPath = modelPath;
-    _lastContextSize = contextSize;
+    _lastContextSize = effCtx;
     _lastDeviceTier = deviceTier;
     _lastIsTensor = isTensorSoC;
     _decodeFailStreak = 0;
 
     final accel = gpuLayers > 0
         ? 'GPU ($gpuLayers layers, $gpuNameStr)'
-        : 'CPU ($threads threads)';
-    print('[Inference] ✓ Model loaded: $accel, ctx=$contextSize');
+        : 'CPU ($effThreads threads)';
+    print('[Inference] ✓ Model loaded: $accel, ctx=$effCtx');
 
     return LoadResult(
       success: true,
