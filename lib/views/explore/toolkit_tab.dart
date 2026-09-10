@@ -6,6 +6,7 @@ import '../../core/colors.dart';
 import '../../theme/design_tokens.dart';
 import '../agent_ide_view.dart';
 import '../battle_arena_view.dart';
+import '../cubicdata/datasheet_home_view.dart';
 import '../slide_deck_view.dart';
 
 /// Explore Toolkit tab cards.
@@ -53,6 +54,16 @@ Widget buildToolkitTab(BuildContext context) {
         description:
             'Agent IDE: tell AI what to build — websites in any framework, live preview, console-error auto-fix, file explorer. Static + ESM runs on-device.',
         onTap: () => Get.to(() => const AgentIdeView()),
+      ),
+      const SizedBox(height: 10),
+      _toolkitCard(
+        context,
+        isDark,
+        icon: LucideIcons.tableProperties,
+        title: 'CubicDataSheet',
+        description:
+            'Personal sheets + docs workspace: formulas, cell locks with unlock mode, per-cell copy, notes and history. Stored on this device only.',
+        onTap: () => Get.to(() => const DataSheetHomeView()),
       ),
     ],
   );

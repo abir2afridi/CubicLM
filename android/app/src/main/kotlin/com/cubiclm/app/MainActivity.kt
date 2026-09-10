@@ -192,6 +192,42 @@ class MainActivity : FlutterFragmentActivity() {
                         }
                     }
                 }
+                "readVaultFile" -> {
+                    val name = call.argument<String>("name")
+                    val subfolder = sanitizeFilename(call.argument<String>("subfolder") ?: "DataSheet")
+                        .ifBlank { "DataSheet" }
+                    if (name.isNullOrBlank()) {
+                        result.error("INVALID_VAULT", "Vault file name is missing.", null)
+                        return@setMethodCallHandler
+                    }
+                    thread(name = "read-vault") {
+                        try {
+                            val bytes = readVaultFile(sanitizeFilename(name), subfolder)
+                            mainHandler.post { result.success(bytes) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("READ_FAILED", e.message ?: e.toString(), null) }
+                        }
+                    }
+                }
+                "writeVaultFile" -> {
+                    val name = call.argument<String>("name")
+                    val bytes = call.argument<ByteArray>("bytes")
+                    val mimeType = call.argument<String>("mimeType") ?: "application/json"
+                    val subfolder = sanitizeFilename(call.argument<String>("subfolder") ?: "DataSheet")
+                        .ifBlank { "DataSheet" }
+                    if (name.isNullOrBlank() || bytes == null) {
+                        result.error("INVALID_VAULT", "Vault file name or bytes are missing.", null)
+                        return@setMethodCallHandler
+                    }
+                    thread(name = "write-vault") {
+                        try {
+                            val displayPath = writeVaultFile(sanitizeFilename(name), bytes, mimeType, subfolder)
+                            mainHandler.post { result.success(displayPath) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("WRITE_FAILED", e.message ?: e.toString(), null) }
+                        }
+                    }
+                }
                 "downloadModelInApp" -> {
                     val url = call.argument<String>("url")
                     val filename = call.argument<String>("filename")
@@ -414,6 +450,100 @@ class MainActivity : FlutterFragmentActivity() {
             ?.substringAfterLast('/')
             ?.ifBlank { "Picked folder" }
             ?: "Picked folder"
+    }
+
+    /// CubicDataSheet vault file in Download/<subfolder> (MediaStore).
+    /// Reads update in place across reinstalls: entries created by this
+    /// package stay writable after reinstall (same package + signature),
+    /// so the vault survives app uninstall by design.
+    private fun findVaultUri(name: String, subfolder: String): android.net.Uri? {
+        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        } else {
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        }
+        val selection =
+            "${MediaStore.Downloads.DISPLAY_NAME}=? AND ${MediaStore.Downloads.RELATIVE_PATH} LIKE ?"
+        val args = arrayOf(name, "%${Environment.DIRECTORY_DOWNLOADS}/$subfolder%")
+        contentResolver.query(
+            collection,
+            arrayOf(MediaStore.Downloads._ID),
+            selection, args, null
+        )?.use { c ->
+            if (c.moveToFirst()) {
+                val id = c.getLong(0)
+                return android.net.Uri.withAppendedPath(collection, "$id")
+            }
+        }
+        return null
+    }
+
+    private fun readVaultFile(name: String, subfolder: String): ByteArray? {
+        val uri = findVaultUri(name, subfolder) ?: return null
+        contentResolver.openInputStream(uri)?.use { return it.readBytes() }
+        return null
+    }
+
+    private fun writeVaultFile(
+        name: String,
+        bytes: ByteArray,
+        mimeType: String,
+        subfolder: String,
+    ): String {
+        val existing = findVaultUri(name, subfolder)
+        if (existing != null) {
+            try {
+                contentResolver.openOutputStream(existing, "wt")?.use {
+                    it.write(bytes)
+                } ?: throw Exception("Could not open vault for update")
+                return "Download/$subfolder/$name"
+            } catch (_: Exception) {
+                try {
+                    contentResolver.delete(existing, null, null)
+                } catch (_: Exception) {
+                }
+            }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, name)
+                put(MediaStore.Downloads.MIME_TYPE, mimeType)
+                put(
+                    MediaStore.Downloads.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_DOWNLOADS}/$subfolder"
+                )
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val uri = contentResolver.insert(
+                MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                values
+            ) ?: throw Exception("MediaStore refused the vault file")
+            try {
+                contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                    ?: throw Exception("Could not open output stream")
+                values.clear()
+                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                contentResolver.update(uri, values, null, null)
+            } catch (e: Exception) {
+                try {
+                    contentResolver.delete(uri, null, null)
+                } catch (_: Exception) {
+                }
+                throw e
+            }
+        } else {
+            val dir = File(
+                Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS
+                ),
+                subfolder
+            )
+            if (!dir.exists() && !dir.mkdirs()) {
+                throw Exception("Could not create $subfolder")
+            }
+            File(dir, name).writeBytes(bytes)
+        }
+        return "Download/$subfolder/$name"
     }
 
     private fun restartApp() {
