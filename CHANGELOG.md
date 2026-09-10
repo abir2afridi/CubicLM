@@ -5,6 +5,19 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0+21] - 2026-09-10
+
+### Added
+- **Standalone Toolkit page** — Battle Arena and Slide Maker moved out of Model Hub into their own bottom-navigation destination (15-language label).
+- **Combined build-setup switcher** — Framework, Component Library and Design System as tabs in one sheet; the composer shows a single summary chip.
+
+### Fixed
+- **Low-RAM GGUF loads** — pool eviction below 3GB free, thread clamps, one reduced-footprint retry and a 512 ctx floor, so small models load on 4GB phones instead of killing the app.
+- **Model Hub GetX warning** — removed the empty outer observer left over from the Toolkit move.
+
+### Changed
+- **Runtime adapters split per framework** — static, Vite (incl. Vue 3), Next.js and generic Node validation plus dev-server args each live in their own file; shared source-hygiene checks stay common on purpose.
+
 ## [1.13.0+20] - 2026-09-10
 
 ### Added

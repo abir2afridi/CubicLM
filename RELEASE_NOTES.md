@@ -1,26 +1,21 @@
-# CubicLM v1.13.0 — Release Notes
+# CubicLM v1.14.0 — Release Notes
 
 ## Features
-- **Streaming upgrades**: granular thought/answer streaming, prompt templates, multi-select messages, live context-window bars for local and cloud.
-- **Asset browser + vision stabilization**: browse assets in-app, hardened image-input handling.
-- **Projects, artifacts & RAG**: project management, artifact versions, better retrieval in chat.
-- **Builder configuration**: guided agent-builder setup and project initialization.
+- **Standalone Toolkit page**: Battle Arena and Slide Maker moved out of Model Hub into their own bottom-navigation tab.
+- **Combined build-setup switcher**: Framework, Component Library and Design System as tabs in one sheet, with a single summary chip in the composer.
 
 ## Fixes
-- **GGUF load validation**: truncated/corrupt files are caught before native load (tensor-table validation + correct header offset).
-- **Chat crash guards**: artifact null-guard, sidebar init crash fixed.
-- **Preview layout**: resize-handle overflow and preview parent-data crash fixed.
-- **Vision error UX**: image sent to a non-vision model now shows a helpful message instead of a raw error.
-- **Build pins**: Gradle JVM pinned to Temurin 17, `dynamic_color` pinned to 1.8.1.
+- **Low-RAM GGUF loads**: pool eviction below 3GB free, thread clamps, one reduced retry and a 512 ctx floor — small models now load on 4GB phones.
+- **Model Hub GetX warning**: removed the empty observer left over from the Toolkit move.
 
 ## Performance
 - No perf changes in this release.
 
 ## Dependencies
-- `dynamic_color` pinned to 1.8.1 (1.9.0 breaks the Gradle build).
+- No dependency changes in this release.
 
 ## Breaking Changes
-- None.
+- None — bottom-nav order is now Chat · Explore · Toolkit · Nodes · Settings (desktop Ctrl+1..5 updated).
 
 ## Downloads
 - Android (arm64-v8a, armeabi-v7a, x86_64) APKs + Windows x64 ZIP + checksums below.
