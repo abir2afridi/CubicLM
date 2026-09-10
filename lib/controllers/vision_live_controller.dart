@@ -11,21 +11,20 @@ class VisionLiveController extends GetxController {
   final isLive = false.obs;
   Timer? _snapshotTimer;
   
-  @override
-  void onInit() {
-    super.onInit();
-    _initCamera();
-  }
-
   Future<void> _initCamera() async {
-    final cameras = await availableCameras();
-    if (cameras.isEmpty) return;
-    
-    cameraController = CameraController(cameras.first, ResolutionPreset.medium, enableAudio: false);
-    await cameraController!.initialize();
+    if (cameraController != null) return;
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return;
+      
+      cameraController = CameraController(cameras.first, ResolutionPreset.medium, enableAudio: false);
+      await cameraController!.initialize();
+    } catch (e) {
+      Get.find<AppLogService>().error('Live Vision camera init failed', details: e, category: LogCategory.chat);
+    }
   }
 
-  void toggleLive() {
+  Future<void> toggleLive() async {
     if (!isLive.value) {
       // Basic support check before starting
       final settings = Get.find<SettingsController>();
@@ -52,9 +51,12 @@ class VisionLiveController extends GetxController {
         }
       }
       
+      await _initCamera();
       _startSnapshotLoop();
     } else {
       _stopSnapshotLoop();
+      await cameraController?.dispose();
+      cameraController = null;
     }
     isLive.value = !isLive.value;
   }

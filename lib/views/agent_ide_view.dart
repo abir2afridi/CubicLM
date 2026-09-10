@@ -306,6 +306,82 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     );
   }
 
+
+
+  void _showAssetBrowser(BuildContext context, bool isDark) {
+    Get.dialog(
+      AlertDialog(
+        title: Text('builder_project_gallery'.tr),
+        content: SizedBox(
+          width: 600,
+          height: 400,
+          child: DefaultTabController(
+            length: 2,
+            child: Column(
+              children: [
+                const TabBar(
+                  tabs: [
+                    Tab(icon: Icon(LucideIcons.sparkles), text: 'Icons'),
+                    Tab(icon: Icon(LucideIcons.type), text: 'Fonts'),
+                  ],
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      // Icons Grid
+                      GridView.builder(
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 5,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
+                        itemCount: AssetsData.lucideIcons.length,
+                        itemBuilder: (context, i) {
+                          final name = AssetsData.lucideIcons[i];
+                          return InkWell(
+                            onTap: () {
+                              _askCtrl.text += ' icon:$name ';
+                              Get.back();
+                              _askFocus.requestFocus();
+                            },
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(LucideIcons.sparkles, size: 20),
+                                const SizedBox(height: 4),
+                                Text(name, style: const TextStyle(fontSize: 8), overflow: TextOverflow.ellipsis),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                      // Fonts List
+                      ListView.builder(
+                        itemCount: AssetsData.googleFonts.length,
+                        itemBuilder: (context, i) {
+                          final name = AssetsData.googleFonts[i];
+                          return ListTile(
+                            title: Text(name, style: GoogleFonts.getFont(name)),
+                            onTap: () {
+                              _askCtrl.text += ' font:$name ';
+                              Get.back();
+                              _askFocus.requestFocus();
+                            },
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showBrandIdentitySheet(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryCtrl = TextEditingController(text: c.brandIdentity['primaryColor'] ?? '#3B82F6');
@@ -716,9 +792,6 @@ class _AgentIdeViewState extends State<AgentIdeView> {
         ),
         body: Obx(() {
           final hasProject = c.project.value != null;
-          if (c.reviewingChanges.value) {
-            return DiffView(isDark: isDark);
-          }
           final wide = MediaQuery.of(context).size.width >= 900 && hasProject;
           if (wide) {
             return Row(children: [
@@ -861,79 +934,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
     );
   }
 
-  void _showAssetBrowser(BuildContext context, bool isDark) {
-    Get.dialog(
-      AlertDialog(
-        title: Text('builder_project_gallery'.tr),
-        content: SizedBox(
-          width: 600,
-          height: 400,
-          child: DefaultTabController(
-            length: 2,
-            child: Column(
-              children: [
-                const TabBar(
-                  tabs: [
-                    Tab(icon: Icon(LucideIcons.sparkles), text: 'Icons'),
-                    Tab(icon: Icon(LucideIcons.type), text: 'Fonts'),
-                  ],
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      // Icons Grid
-                      GridView.builder(
-                        padding: const EdgeInsets.all(16),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 5,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
-                        itemCount: AssetsData.lucideIcons.length,
-                        itemBuilder: (context, i) {
-                          final name = AssetsData.lucideIcons[i];
-                          return InkWell(
-                            onTap: () {
-                              _askCtrl.text += ' icon:$name ';
-                              Get.back();
-                              _askFocus.requestFocus();
-                            },
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(LucideIcons.sparkles, size: 20),
-                                const SizedBox(height: 4),
-                                Text(name, style: const TextStyle(fontSize: 8), overflow: TextOverflow.ellipsis),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                      // Fonts List
-                      ListView.builder(
-                        itemCount: AssetsData.googleFonts.length,
-                        itemBuilder: (context, i) {
-                          final name = AssetsData.googleFonts[i];
-                          return ListTile(
-                            title: Text(name, style: GoogleFonts.getFont(name)),
-                            onTap: () {
-                              _askCtrl.text += ' font:$name ';
-                              Get.back();
-                              _askFocus.requestFocus();
-                            },
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+
 
   void _showCommandPalette(BuildContext context, bool isDark) {
     final commands = [
@@ -1113,6 +1114,36 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.0,
                 color: Theme.of(context).hintColor)),
+        if (label == 'CHAT') ...[
+          const Spacer(),
+          Obx(() {
+            if (c.pendingChanges.isEmpty) return const SizedBox.shrink();
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () => c.pendingChanges.clear(),
+                  child: const Text('Discard', style: TextStyle(fontSize: 11, color: Colors.redAccent)),
+                ),
+                TextButton(
+                  onPressed: () => Get.to(() => DiffView(isDark: isDark, fullPage: true)),
+                  child: const Text('View', style: TextStyle(fontSize: 11)),
+                ),
+                const SizedBox(width: 4),
+                FilledButton(
+                  onPressed: () => c.applyPendingChanges(),
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: Dt.accent,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  child: const Text('Apply Changes', style: TextStyle(fontSize: 11)),
+                ),
+              ],
+            );
+          }),
+        ],
         if (trailing != null) ...[
           const SizedBox(width: 12),
           Expanded(child: trailing),
