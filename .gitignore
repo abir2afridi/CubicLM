@@ -109,5 +109,8 @@ cubiclm-v*-windows-*.zip
 checksums.sha256
 release-notes-*.md
 
+# Java heap dumps (local profiler/Gradle debug artifacts, never committed)
+*.hprof
+
 # Inno Setup build output (generated installer exe, never committed)
 windows/installer/Output/
