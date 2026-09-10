@@ -2498,15 +2498,11 @@ class AgentController extends GetxController {
       if (out.isEmpty) throw Exception('ZIP encoder returned nothing.');
       final stamp = DateTime.now().millisecondsSinceEpoch;
       final name = 'cubicagent_$stamp.zip';
-      final saved = await ExportFile.saveBytes(
+      await ExportFile.quickExport(
         bytes: Uint8List.fromList(out),
         fileName: name,
-        dialogTitle: 'Save project (.zip)',
         mimeType: 'application/zip',
       );
-      if (saved != null) {
-        AppSnackbar.showTop('Project saved', saved, logHistory: false);
-      }
     } catch (e) {
       AppSnackbar.showTop('prompt_export_failed'.tr, '$e');
     }

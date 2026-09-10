@@ -139,15 +139,13 @@ Steps:''';
             snackPosition: SnackPosition.BOTTOM);
         return;
       }
-      final saved = await ExportFile.saveText(
+      final saved = await ExportFile.quickExport(
         text: buf.toString(),
         fileName: 'cubiclm_task_$taskIdShort.sh',
-        dialogTitle: 'Save ADB plan (.sh)',
         mimeType: 'application/x-sh',
+        shareText: buf.toString(),
       );
-      if (saved == null) return; // user cancelled
-      Get.snackbar('Plan saved', saved,
-          snackPosition: SnackPosition.BOTTOM);
+      if (saved == null) return; // save failed (snackbar already shown)
       final updatedTask = task.copyWith(status: 'exported');
       _updateTask(updatedTask);
     } catch (e) {

@@ -780,19 +780,12 @@ class LogView extends StatelessWidget {
       );
       return;
     }
-    final saved = await ExportFile.saveText(
+    await ExportFile.quickExport(
       text: text,
       fileName: fileName,
-      dialogTitle: 'Save CubicLM logs',
       mimeType: 'text/plain',
+      shareText: text,
     );
-    if (saved == null) return; // dismissed / unavailable
-    AppSnackbar.showTop('Logs saved', saved,
-        icon: LucideIcons.checkCircle2,
-        type: 'success',
-        iconName: 'check',
-        duration: const Duration(seconds: 5),
-        logHistory: false);
   }
 
   Widget _catChip(BuildContext context, bool isDark,

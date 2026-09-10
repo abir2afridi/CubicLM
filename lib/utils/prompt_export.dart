@@ -35,45 +35,37 @@ class PromptExport {
       .trim()
       .replaceAll(RegExp(r'\s+'), '_');
 
-  /// Writes the prompt as a `.md` file straight to the device (system
-  /// Save dialog — no share sheet). Shows a snackbar instead of throwing,
+  /// Writes the prompt as a `.md` file into the app export folder (no
+  /// dialog) with a Share action. Shows a snackbar instead of throwing,
   /// so icon-button callers stay lean.
   static Future<void> shareAsMarkdown(String text, {String? baseName}) async {
     try {
       final name = buildMarkdownFileName(baseName ?? 'prompt');
-      final saved = await ExportFile.saveText(
+      await ExportFile.quickExport(
         text: text,
         fileName: name,
-        dialogTitle: 'Save Markdown',
         mimeType: 'text/markdown',
+        shareText: text,
       );
-      if (saved != null) {
-        Get.snackbar('Export saved', saved,
-            snackPosition: SnackPosition.BOTTOM);
-      }
     } catch (e) {
       Get.snackbar('prompt_export_failed'.tr, '$e',
           snackPosition: SnackPosition.BOTTOM);
     }
   }
 
-  /// Renders the prompt into a paginated PDF and saves it straight to the
-  /// device (system Save dialog — no share sheet).
+  /// Renders the prompt into a paginated PDF and saves it into the app
+  /// export folder (no dialog) with a Share action.
   /// Shows a snackbar instead of throwing, so icon-button callers stay lean.
   static Future<void> shareAsPdf(String text, {String? baseName}) async {
     try {
       final bytes = await buildPdfBytes(text);
       final name = buildPdfFileName(baseName ?? 'prompt');
-      final saved = await ExportFile.saveBytes(
+      await ExportFile.quickExport(
         bytes: bytes,
         fileName: name,
-        dialogTitle: 'Save PDF',
         mimeType: 'application/pdf',
+        shareText: text,
       );
-      if (saved != null) {
-        Get.snackbar('Export saved', saved,
-            snackPosition: SnackPosition.BOTTOM);
-      }
     } catch (e) {
       Get.snackbar('prompt_export_failed'.tr, '$e',
           snackPosition: SnackPosition.BOTTOM);
@@ -85,16 +77,12 @@ class PromptExport {
     try {
       final bytes = await _textChunkToPng(text);
       final name = '${_sanitize(baseName ?? 'prompt')}_${_stamp()}.png';
-      final saved = await ExportFile.saveBytes(
+      await ExportFile.quickExport(
         bytes: bytes,
         fileName: name,
-        dialogTitle: 'Save Image',
         mimeType: 'image/png',
+        shareText: text,
       );
-      if (saved != null) {
-        Get.snackbar('Export saved', saved,
-            snackPosition: SnackPosition.BOTTOM);
-      }
     } catch (e) {
       Get.snackbar('prompt_export_failed'.tr, '$e',
           snackPosition: SnackPosition.BOTTOM);

@@ -23,6 +23,7 @@ migrate_working_dir/
 # VS Code
 .history/
 docs+/
+DataSheet/
 error.txt
 #.vscode/
 

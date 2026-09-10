@@ -131,6 +131,17 @@ class AppConstants {
   static const String keyAutoBackupDays = 'auto_backup_days';
   static const String keyLastAutoBackup = 'last_auto_backup_ms';
 
+  // Export destination: subfolder under Downloads (Android) or Documents
+  // (desktop). Empty/missing = default 'CubicLM'. Desktop may also store
+  // a fully custom directory in keyExportCustomDir.
+  static const String keyExportSubfolder = 'export_subfolder';
+  static const String keyExportCustomDir = 'export_custom_dir';
+  static const String defaultExportSubfolder = 'CubicLM';
+  // System folder picker (Android SAF tree): persisted tree URI + the
+  // display name shown in Settings. Empty = default Download/CubicLM.
+  static const String keyExportTreeUri = 'export_tree_uri';
+  static const String keyExportTreeName = 'export_tree_name';
+
   // Offline outbox (queued prompts, FIFO, cap 20)
   static const String keyChatOutbox = 'chat_outbox';
 

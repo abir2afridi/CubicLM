@@ -18,6 +18,7 @@ import '../services/device_info_service.dart';
 import '../services/inference_service.dart';
 import '../services/download_service.dart';
 import '../services/local_image_service.dart';
+import '../utils/export_file.dart';
 import '../ffi/sd_ffi_bindings.dart';
 import 'package:sd_flutter_android/sd_flutter_android.dart';
 import '../services/skills/skill_injector.dart';
@@ -59,6 +60,10 @@ class SettingsController extends GetxController {
   // Observable settings
   final themeMode = ThemeMode.system.obs;
   final inferenceMode = 'local'.obs; // 'local' or 'cloud'
+  final exportSubfolder = AppConstants.defaultExportSubfolder.obs;
+  final exportCustomDir = ''.obs;
+  final exportTreeUri = ''.obs;
+  final exportTreeName = ''.obs;
   final cloudProvider = 'openrouter'.obs;
   final openaiKey = ''.obs;
   final anthropicKey = ''.obs;
@@ -317,6 +322,19 @@ class SettingsController extends GetxController {
     inferenceMode.value = _hive.getSetting(AppConstants.keyInferenceMode,
             defaultValue: 'local') ??
         'local';
+    exportSubfolder.value = _hive.getSetting(
+            AppConstants.keyExportSubfolder,
+            defaultValue: AppConstants.defaultExportSubfolder) ??
+        AppConstants.defaultExportSubfolder;
+    exportCustomDir.value =
+        _hive.getSetting(AppConstants.keyExportCustomDir, defaultValue: '') ??
+            '';
+    exportTreeUri.value =
+        _hive.getSetting(AppConstants.keyExportTreeUri, defaultValue: '') ??
+            '';
+    exportTreeName.value =
+        _hive.getSetting(AppConstants.keyExportTreeName, defaultValue: '') ??
+            '';
     cloudProvider.value = _hive.getSetting(AppConstants.keyCloudProvider,
             defaultValue: 'openrouter') ??
         'openrouter';
@@ -746,6 +764,44 @@ class SettingsController extends GetxController {
   Future<void> setInferenceMode(String mode) async {
     inferenceMode.value = mode;
     await _hive.setSetting(AppConstants.keyInferenceMode, mode);
+  }
+
+  /// Export subfolder under Downloads (Android) or Documents (desktop).
+  /// Sanitized; falls back to the default name when blank.
+  Future<void> setExportSubfolder(String v) async {
+    final clean = ExportFile.sanitizeExportSubfolder(v);
+    exportSubfolder.value =
+        clean.isEmpty ? AppConstants.defaultExportSubfolder : clean;
+    await _hive.setSetting(
+        AppConstants.keyExportSubfolder, exportSubfolder.value);
+  }
+
+  /// Fully custom export directory (desktop folder picker). Empty = default.
+  Future<void> setExportCustomDir(String v) async {
+    exportCustomDir.value = v.trim();
+    await _hive.setSetting(
+        AppConstants.keyExportCustomDir, exportCustomDir.value);
+  }
+
+  /// System-picked folder (Android SAF tree). Stored for every save.
+  Future<void> setExportTree(String uri, String name) async {
+    exportTreeUri.value = uri;
+    exportTreeName.value = name;
+    await _hive.setSetting(AppConstants.keyExportTreeUri, uri);
+    await _hive.setSetting(AppConstants.keyExportTreeName, name);
+  }
+
+  /// Back to Downloads/Documents + default subfolder name.
+  Future<void> resetExportDir() async {
+    exportSubfolder.value = AppConstants.defaultExportSubfolder;
+    exportCustomDir.value = '';
+    exportTreeUri.value = '';
+    exportTreeName.value = '';
+    await _hive.setSetting(
+        AppConstants.keyExportSubfolder, exportSubfolder.value);
+    await _hive.setSetting(AppConstants.keyExportCustomDir, '');
+    await _hive.setSetting(AppConstants.keyExportTreeUri, '');
+    await _hive.setSetting(AppConstants.keyExportTreeName, '');
   }
 
   Future<void> setCloudProvider(String provider) async {

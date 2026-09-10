@@ -372,15 +372,12 @@ class SlideDeckController extends GetxController {
     try {
       final html = deckToHtml(_deckTitle, slides.toList());
       final stamp = DateTime.now().millisecondsSinceEpoch;
-      final saved = await ExportFile.saveText(
+      await ExportFile.quickExport(
         text: html,
         fileName: 'cubiclm_slides_$stamp.html',
-        dialogTitle: 'Save slides (.html)',
         mimeType: 'text/html',
+        shareText: html,
       );
-      if (saved != null) {
-        AppSnackbar.showTop('Slides saved', saved, logHistory: false);
-      }
     } catch (e) {
       AppSnackbar.showTop('prompt_export_failed'.tr, '$e');
     }
@@ -413,16 +410,12 @@ class SlideDeckController extends GetxController {
     try {
       final bytes = await deckToPptx(_deckTitle, slides.toList());
       final stamp = DateTime.now().millisecondsSinceEpoch;
-      final saved = await ExportFile.saveBytes(
+      await ExportFile.quickExport(
         bytes: Uint8List.fromList(bytes),
         fileName: 'cubiclm_slides_$stamp.pptx',
-        dialogTitle: 'Save slides (.pptx)',
         mimeType:
             'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       );
-      if (saved != null) {
-        AppSnackbar.showTop('Slides saved', saved, logHistory: false);
-      }
     } catch (e) {
       AppSnackbar.showTop('prompt_export_failed'.tr, '$e');
     }

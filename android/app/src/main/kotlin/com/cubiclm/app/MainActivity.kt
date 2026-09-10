@@ -4,13 +4,17 @@ import android.app.AlertDialog
 import android.app.AlarmManager
 import android.app.DownloadManager
 import android.app.PendingIntent
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.Environment
+import android.provider.DocumentsContract
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -24,10 +28,12 @@ import org.json.JSONObject
 class MainActivity : FlutterFragmentActivity() {
     private val importChannelName = "com.cubiclm.app/model_import"
     private val importRequestCode = 4207
+    private val exportFolderRequestCode = 4208
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var importChannel: MethodChannel? = null
     private var pendingImportResult: MethodChannel.Result? = null
+    private var pendingExportFolderResult: MethodChannel.Result? = null
     private var pendingModelsDir: String? = null
     private var pendingSharedText: String? = null
     private val monitoredInAppDownloads = ConcurrentHashMap.newKeySet<Long>()
@@ -112,6 +118,78 @@ class MainActivity : FlutterFragmentActivity() {
                         }
                     } else {
                         result.error("INVALID_DOWNLOAD_ID", "Download ID is missing.", null)
+                    }
+                }
+                "saveBytesToDownloads" -> {
+                    val filename = call.argument<String>("filename")
+                    val bytes = call.argument<ByteArray>("bytes")
+                    val mimeType = call.argument<String>("mimeType") ?: "application/octet-stream"
+                    val subfolder = sanitizeFilename(call.argument<String>("subfolder") ?: "CubicLM")
+                        .ifBlank { "CubicLM" }
+                    if (filename.isNullOrBlank() || bytes == null) {
+                        result.error("INVALID_EXPORT", "Filename or bytes are missing.", null)
+                        return@setMethodCallHandler
+                    }
+                    thread(name = "save-export") {
+                        try {
+                            val displayPath = saveBytesToDownloads(sanitizeFilename(filename), bytes, mimeType, subfolder)
+                            mainHandler.post { result.success(displayPath) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("SAVE_FAILED", e.message ?: e.toString(), null) }
+                        }
+                    }
+                }
+                "pickExportFolder" -> {
+                    if (pendingExportFolderResult != null) {
+                        result.error("PICKER_BUSY", "A folder picker is already open.", null)
+                        return@setMethodCallHandler
+                    }
+                    pendingExportFolderResult = result
+                    try {
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                            addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                        }
+                        startActivityForResult(intent, exportFolderRequestCode)
+                    } catch (e: Exception) {
+                        pendingExportFolderResult = null
+                        result.error("NO_FILE_MANAGER", e.message ?: e.toString(), null)
+                    }
+                }
+                "checkTreeFolderAccess" -> {
+                    val treeUri = call.argument<String>("treeUri")
+                    if (treeUri.isNullOrBlank()) {
+                        result.success(false)
+                        return@setMethodCallHandler
+                    }
+                    try {
+                        val uri = Uri.parse(treeUri)
+                        val ok = contentResolver.persistedUriPermissions.any {
+                            it.uri == uri && it.isWritePermission
+                        }
+                        result.success(ok)
+                    } catch (_: Exception) {
+                        result.success(false)
+                    }
+                }
+                "saveBytesToTreeFolder" -> {
+                    val filename = call.argument<String>("filename")
+                    val bytes = call.argument<ByteArray>("bytes")
+                    val mimeType = call.argument<String>("mimeType") ?: "application/octet-stream"
+                    val treeUri = call.argument<String>("treeUri")
+                    if (filename.isNullOrBlank() || bytes == null || treeUri.isNullOrBlank()) {
+                        result.error("INVALID_EXPORT", "Filename, bytes or folder are missing.", null)
+                        return@setMethodCallHandler
+                    }
+                    thread(name = "save-export-tree") {
+                        try {
+                            val displayPath = saveBytesToTreeFolder(
+                                sanitizeFilename(filename), bytes, mimeType, Uri.parse(treeUri))
+                            mainHandler.post { result.success(displayPath) }
+                        } catch (e: Exception) {
+                            mainHandler.post { result.error("SAVE_FAILED", e.message ?: e.toString(), null) }
+                        }
                     }
                 }
                 "downloadModelInApp" -> {
@@ -238,6 +316,104 @@ class MainActivity : FlutterFragmentActivity() {
         } catch (e: Exception) {
             Log.w("CubicLM", "setSecureFlag failed: ${e.message}")
         }
+    }
+
+    /// Writes export bytes into Download/<subfolder> without any picker
+    /// dialog (MediaStore on API 29+, direct write below). No storage
+    /// permission needed on modern Android. Returns a display path.
+    private fun saveBytesToDownloads(
+        filename: String,
+        bytes: ByteArray,
+        mimeType: String,
+        subfolder: String,
+    ): String {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, filename)
+                put(MediaStore.Downloads.MIME_TYPE, mimeType)
+                put(
+                    MediaStore.Downloads.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_DOWNLOADS}/$subfolder"
+                )
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val uri = contentResolver.insert(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI, values
+            ) ?: throw Exception("MediaStore refused the file")
+            try {
+                contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                    ?: throw Exception("Could not open output stream")
+                values.clear()
+                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                contentResolver.update(uri, values, null, null)
+            } catch (e: Exception) {
+                try {
+                    contentResolver.delete(uri, null, null)
+                } catch (_: Exception) {
+                }
+                throw e
+            }
+        } else {
+            val dir = File(
+                Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS
+                ),
+                subfolder
+            )
+            if (!dir.exists() && !dir.mkdirs()) {
+                throw Exception("Could not create $subfolder")
+            }
+            File(dir, filename).writeBytes(bytes)
+        }
+        return "Download/$subfolder/$filename"
+    }
+
+    /// Writes export bytes into a user-picked Storage Access Framework
+    /// folder (ACTION_OPEN_DOCUMENT_TREE + persistable permission). Works
+    /// on every Android version with no storage permission. Returns a
+    /// display path for the success snackbar.
+    private fun saveBytesToTreeFolder(
+        filename: String,
+        bytes: ByteArray,
+        mimeType: String,
+        treeUri: android.net.Uri,
+    ): String {
+        val docUri = DocumentsContract.createDocument(
+            contentResolver, treeUri, mimeType, filename
+        ) ?: throw Exception("Could not create file in the picked folder")
+        try {
+            contentResolver.openOutputStream(docUri)?.use { it.write(bytes) }
+                ?: throw Exception("Could not open output stream")
+        } catch (e: Exception) {
+            try {
+                DocumentsContract.deleteDocument(contentResolver, docUri)
+            } catch (_: Exception) {
+            }
+            throw e
+        }
+        return "${treeDisplayName(treeUri)}/$filename"
+    }
+
+    /// Human name of a picked tree (e.g. "MyExports"), "Downloads" style
+    /// fallback when the provider won't say.
+    private fun treeDisplayName(treeUri: android.net.Uri): String {
+        try {
+            contentResolver.query(
+                treeUri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null, null, null
+            )?.use { c ->
+                if (c.moveToFirst()) {
+                    val name = c.getString(0)
+                    if (!name.isNullOrBlank()) return name
+                }
+            }
+        } catch (_: Exception) {
+        }
+        return treeUri.lastPathSegment
+            ?.substringAfterLast(':')
+            ?.substringAfterLast('/')
+            ?.ifBlank { "Picked folder" }
+            ?: "Picked folder"
     }
 
     private fun restartApp() {
@@ -539,6 +715,31 @@ class MainActivity : FlutterFragmentActivity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == exportFolderRequestCode) {
+            val pending = pendingExportFolderResult
+            pendingExportFolderResult = null
+            if (pending == null) return
+            if (resultCode != RESULT_OK || data?.data == null) {
+                pending.success(null)
+                return
+            }
+            val treeUri = data.data!!
+            try {
+                contentResolver.takePersistableUriPermission(
+                    treeUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (e: Exception) {
+                pending.error("PERMISSION_DENIED", e.message ?: e.toString(), null)
+                return
+            }
+            pending.success(mapOf(
+                "uri" to treeUri.toString(),
+                "name" to treeDisplayName(treeUri),
+            ))
+            return
+        }
         if (requestCode != importRequestCode) return
 
         if (resultCode != RESULT_OK || data?.data == null) {

@@ -223,14 +223,14 @@ Future<void> _doExport(BuildContext context, ChatSession session,
               subject: session.title);
           return;
         }
-        final saved = await ExportFile.saveBytes(
+        final saved = await ExportFile.quickExport(
           bytes: bytes,
           fileName: '$baseName.pdf',
-          dialogTitle: 'Save chat (.pdf)',
           mimeType: 'application/pdf',
+          shareText: buildMarkdownForSession(session, msgs),
+          shareSubject: session.title,
         );
-        if (saved == null) return; // user cancelled
-        Get.snackbar('Chat saved', saved, snackPosition: SnackPosition.BOTTOM);
+        if (saved == null) return; // save failed (snackbar already shown)
       } catch (_) {
         await Share.share(buildMarkdownForSession(session, msgs),
             subject: session.title);
@@ -277,14 +277,14 @@ Future<void> _doExport(BuildContext context, ChatSession session,
       return;
     }
     try {
-      final saved = await ExportFile.saveText(
+      final saved = await ExportFile.quickExport(
         text: body,
         fileName: fileName,
-        dialogTitle: 'Save chat (.${asTxt ? 'txt' : 'md'})',
         mimeType: mimeType,
+        shareText: body,
+        shareSubject: session.title,
       );
-      if (saved == null) return; // user cancelled
-      Get.snackbar('Chat saved', saved, snackPosition: SnackPosition.BOTTOM);
+      if (saved == null) return; // save failed (snackbar already shown)
     } catch (_) {
       await Share.share(body, subject: session.title);
     }

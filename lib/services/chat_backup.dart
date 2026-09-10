@@ -98,13 +98,12 @@ Future<String?> exportAllChats(
     }
 
     final stamp = DateTime.now().toIso8601String().split('T').first;
-    final saved = await ExportFile.saveText(
+    final saved = await ExportFile.saveTextToAppFolder(
       text: jsonStr,
       fileName: 'cubiclm_chat_backup_$stamp.json',
-      dialogTitle: 'Save CubicLM chat backup',
       mimeType: 'application/json',
     );
-    return saved == null ? 'cancelled' : null;
+    return saved == null ? 'error' : null;
   } catch (e) {
     Get.find<AppLogService>()
         .error('Backup export failed', details: e, category: LogCategory.chat);
@@ -112,20 +111,17 @@ Future<String?> exportAllChats(
   }
 }
 
-/// Desktop export: native save dialog writes the JSON directly to the
-/// path the user picks. Returns null on success, 'cancelled' when the
-/// user dismisses the dialog, 'error' on failure.
+/// Desktop export: writes the JSON into the configured export folder
+/// (Settings → Export folder). Returns null on success, 'error' on failure.
 Future<String?> _exportChatsDesktop(String jsonStr) async {
   try {
     final stamp = DateTime.now().toIso8601String().split('T').first;
-    final outPath = await FilePicker.saveFile(
-      dialogTitle: 'Save CubicLM chat backup',
+    final outPath = await ExportFile.saveTextToAppFolder(
+      text: jsonStr,
       fileName: 'cubiclm_chat_backup_$stamp.json',
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-      bytes: Uint8List.fromList(utf8.encode(jsonStr)),
+      mimeType: 'application/json',
     );
-    if (outPath == null) return 'cancelled';
+    if (outPath == null) return 'error';
     Get.snackbar(
       'Backup saved',
       outPath,
@@ -235,13 +231,12 @@ Future<String?> exportSettings(HiveService hive) async {
     final jsonStr = jsonEncode(payload);
     final stamp = DateTime.now().toIso8601String().split('T').first;
     final fileName = 'cubiclm_settings_$stamp.json';
-    final outPath = await ExportFile.saveText(
+    final outPath = await ExportFile.saveTextToAppFolder(
       text: jsonStr,
       fileName: fileName,
-      dialogTitle: 'Save CubicLM settings',
       mimeType: 'application/json',
     );
-    if (outPath == null) return 'cancelled';
+    if (outPath == null) return 'error';
     Get.find<AppLogService>().info('Settings exported',
         details: outPath, category: LogCategory.chat);
     return null;

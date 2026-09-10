@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
 import 'dart:ui';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +14,7 @@ import '../core/routes.dart';
 import '../core/colors.dart';
 import '../services/tts_service.dart';
 import '../utils/app_snackbar.dart';
+import '../utils/export_file.dart';
 import 'about_view.dart';
 import 'language_picker_view.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -208,6 +212,111 @@ class AppSettingsView extends GetView<SettingsController> {
             icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
       }
     } catch (_) {}
+  }
+
+  /// Export destination picker. Android opens the system file manager
+  /// (SAF tree picker: browse, create and select any folder); desktop
+  /// can rename the subfolder or pick any folder outright.
+  Future<void> _pickExportFolder(BuildContext context, bool isDark) async {
+    final s = controller;
+    final nameCtrl = TextEditingController(text: s.exportSubfolder.value);
+    final isDesktop = !Platform.isAndroid && !Platform.isIOS;
+    final isAndroid = Platform.isAndroid;
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1C1C1E) : Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Export folder'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Current:\n${ExportFile.exportLocationLabel()}',
+                  style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+              const SizedBox(height: 12),
+              if (isAndroid) ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(LucideIcons.folderOpen, size: 16),
+                    label: const Text('Choose folder…'),
+                    onPressed: () async {
+                      final picked =
+                          await ExportFile.pickExportFolder();
+                      if (picked != null) {
+                        await s.setExportTree(
+                            picked['uri']!, picked['name']!);
+                      }
+                      if (context.mounted) Navigator.pop(context);
+                    },
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                    'Opens the system file manager — browse, create or select any folder.',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 11, color: Dt.textSecondary)),
+              ] else ...[
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Folder name',
+                    hintText: 'CubicLM',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ],
+              if (isDesktop) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  icon: const Icon(LucideIcons.folderOpen, size: 16),
+                  label: const Text('Pick custom folder…'),
+                  onPressed: () async {
+                    try {
+                      final dir = await FilePicker.getDirectoryPath(
+                          dialogTitle: 'Export folder');
+                      if (dir != null && dir.isNotEmpty) {
+                        await s.setExportCustomDir(dir);
+                        if (context.mounted) Navigator.pop(context);
+                      }
+                    } catch (_) {}
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await s.resetExportDir();
+              if (context.mounted) Navigator.pop(context);
+            },
+            child: const Text('Reset'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          if (!isAndroid)
+            FilledButton(
+              onPressed: () async {
+                // A custom desktop dir wins while set; saving a name here
+                // clears it so the name actually takes effect.
+                await s.setExportCustomDir('');
+                await s.setExportSubfolder(nameCtrl.text);
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: const Text('Save'),
+            ),
+        ],
+      ),
+    );
+    nameCtrl.dispose();
   }
 
   Future<void> _importChats() async {
@@ -565,6 +674,24 @@ class AppSettingsView extends GetView<SettingsController> {
                   subtitle: 'Restore preferences (keys never transfer)',
                   onTap: () => _importSettings(),
                 ),
+                if (!kIsWeb)
+                  Obx(() {
+                    // Subscribe to the Rx prefs so the label refreshes
+                    // right after a change (the label itself reads Hive).
+                    controller.exportSubfolder.value;
+                    controller.exportCustomDir.value;
+                    controller.exportTreeUri.value;
+                    controller.exportTreeName.value;
+                    return _appleListTile(
+                      context,
+                      isDark,
+                      leading: const Icon(LucideIcons.folderOutput,
+                          size: 20, color: Dt.accent),
+                      title: 'Export folder',
+                      subtitle: ExportFile.exportLocationLabel(),
+                      onTap: () => _pickExportFolder(context, isDark),
+                    );
+                  }),
                 Obx(() {
                   final stats = Get.isRegistered<StatsService>()
                       ? Get.find<StatsService>()
