@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:flutter/painting.dart';
 import 'package:llama_flutter_android/llama_flutter_android.dart';
 
 import '../controllers/settings_controller.dart';
+import 'app_log_service.dart';
 import 'device_info_service.dart';
 import 'inference_text.dart';
 import 'inference_types.dart';
@@ -119,6 +121,8 @@ class GgufEngine {
     required double availGb,
   }) {
     if (availGb <= 0 || availGb >= 3.0) return threads;
+    // Below 1.5GB every thread's compute buffer matters: single thread.
+    if (availGb < 1.5) return threads <= 1 ? threads : 1;
     final cap = availGb < 2.0 ? 2 : 3;
     return threads <= cap ? threads : cap;
   }
@@ -142,7 +146,9 @@ class GgufEngine {
 
   /// Frees every resident GGUF model except [keepPath] so a low-RAM load
   /// never coexists with another model's pages. Best effort only.
-  Future<void> _evictOtherResidents(String keepPath) async {
+  /// Returns the number of evicted residents (for the flushed load log).
+  Future<int> _evictOtherResidents(String keepPath) async {
+    var evicted = 0;
     try {
       final ctl = _controller ?? _sharedLlama;
       final residents = await ctl.residentModels();
@@ -150,11 +156,13 @@ class GgufEngine {
         if (p != keepPath) {
           try {
             await ctl.freeByPath(p);
+            evicted++;
             print('[Inference] Low-RAM load: evicted resident $p');
           } catch (_) {}
         }
       }
     } catch (_) {}
+    return evicted;
   }
 
   /// Frees the native slot and reloads the last GGUF model from scratch —
@@ -412,8 +420,18 @@ class GgufEngine {
     // is what kills the process on 4–6GB phones (instant death, no
     // catch possible) — free the others BEFORE touching native memory.
     final availGb = _availableRamGb();
-    if (shouldEvictPoolForRam(availGb)) {
-      await _evictOtherResidents(modelPath);
+    final lowRam = shouldEvictPoolForRam(availGb);
+    var evicted = 0;
+    if (lowRam) {
+      evicted = await _evictOtherResidents(modelPath);
+    }
+    // Below 2GB free, also drop decoded-image caches: they can hold
+    // tens of MB of app RSS that the native load needs more urgently.
+    if (availGb > 0 && availGb < 2.0) {
+      try {
+        PaintingBinding.instance.imageCache.clear();
+        PaintingBinding.instance.imageCache.clearLiveImages();
+      } catch (_) {}
     }
     final clampedThreads =
         clampThreadsForRam(threads: threads, availGb: availGb);
@@ -422,6 +440,18 @@ class GgufEngine {
           '[Inference] Low-RAM load (${availGb.toStringAsFixed(1)}GB free) — threads $threads → $clampedThreads');
     }
     threads = clampedThreads;
+    // Flush the load profile to disk BEFORE the native call: if the
+    // process dies inside it, this is the post-mortem evidence of what
+    // the low-RAM path actually did (in-memory prints die with it).
+    try {
+      final log = Get.find<AppLogService>();
+      log.info(
+        '[Inference] Native load profile: ${availGb.toStringAsFixed(1)}GB free, '
+        'evicted=$evicted, threads=$threads, ctx=$contextSize, gpu=$gpuLayers',
+        category: LogCategory.model,
+      );
+      await log.flush();
+    } catch (_) {}
 
     // ── Load Progress ──
     await _loadProgressSub?.cancel();
@@ -459,6 +489,14 @@ class GgufEngine {
       print(
           '[Inference] Load failed ($e) — retrying once with ctx=$retryCtx, threads=$retryThreads after pool eviction.');
       await _evictOtherResidents(modelPath);
+      try {
+        final log = Get.find<AppLogService>();
+        log.info(
+          '[Inference] Retrying native load once: ctx=$retryCtx, threads=$retryThreads.',
+          category: LogCategory.model,
+        );
+        await log.flush();
+      } catch (_) {}
       await _controller!.loadModel(
         modelPath: modelPath,
         threads: retryThreads,

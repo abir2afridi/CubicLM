@@ -188,5 +188,32 @@ void main() {
           ),
           isFalse);
     });
+
+    test('tiny model passes on tight RAM (the 229MB / 1.1GB report)', () {
+      // 229MB file, 1.1GB free: 229×1.25 + KV + 256MB scaled reserve
+      // fits, so the load is attempted with the low-RAM profile.
+      expect(
+          ModelController.isRamInsufficient(
+            availableBytes: (1.1 * gb).round(),
+            fileBytes: 229 * 1024 * 1024,
+            kvBytes: 3 * 1024 * 1024,
+          ),
+          isFalse);
+    });
+  });
+
+  group('loadHeadroomBytes', () {
+    const gb = 1024 * 1024 * 1024;
+    const mb = 1024 * 1024;
+
+    test('tiny files get the 256MB minimum reserve', () {
+      expect(ModelController.loadHeadroomBytes(229 * mb), 256 * mb);
+      expect(ModelController.loadHeadroomBytes(0), gb);
+    });
+
+    test('reserve scales with file size up to 1GB', () {
+      expect(ModelController.loadHeadroomBytes(600 * mb), 600 * mb);
+      expect(ModelController.loadHeadroomBytes(2 * gb), gb);
+    });
   });
 }

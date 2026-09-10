@@ -9,6 +9,7 @@ import '../core/colors.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/design_tokens.dart';
 import '../services/usage_tracker_service.dart';
+import '../services/device_info_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import 'explore_skills_mcp_tabs.dart';
@@ -88,8 +89,18 @@ class ModelView extends GetView<ModelController> {
   }
 
   Widget _buildHubList(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: () async {
+    // RAM bar stays pinned above the list — it is NOT inside the
+    // scrollable ListView, so scrolling models never moves it.
+    return Column(children: [
+      Obx(() => controller.modelScope.value == 'local'
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: _buildRamStatusBar(context),
+            )
+          : const SizedBox.shrink()),
+      Expanded(
+        child: RefreshIndicator(
+          onRefresh: () async {
         if (controller.modelScope.value == 'local') {
           await controller.refreshDownloaded();
         }
@@ -162,7 +173,8 @@ class ModelView extends GetView<ModelController> {
               ],
             ],
           )),
-    );
+        ),
+      )]);
   }
 
   Widget _buildScopeToggle(BuildContext context) {
@@ -220,6 +232,216 @@ class ModelView extends GetView<ModelController> {
         ),
       );
     });
+  }
+
+  /// RAM status card for the Local tab: total RAM, a used-space bar,
+  /// free-space text, device tier, live refresh, and a rough "fits"
+  /// estimate so users can tell at a glance whether a model will load.
+  Widget _buildRamStatusBar(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    DeviceInfoService dev;
+    try {
+      dev = Get.find<DeviceInfoService>();
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
+    return Obx(() {
+      final total = dev.totalRamGB.value;
+      final avail = dev.availableRamGB.value;
+      if (total <= 0) return const SizedBox.shrink();
+      final used = (total - avail).clamp(0.0, total);
+      final pct = (used / total).clamp(0.0, 1.0);
+      final low = avail < 1.5;
+      final barColor = low
+          ? AppColors.warning
+          : avail < 3.0
+              ? AppColors.primary
+              : Dt.accent;
+      final tier = dev.deviceTier.value;
+      final tierLabel =
+          tier.isEmpty ? '' : '${tier[0].toUpperCase()}${tier.substring(1)}';
+      // Rough headroom math mirrors the load gate (file x1.25 plus a
+      // 256MB–1GB reserve scaled by file size). Smallest reserve here
+      // so the estimate stays optimistic for tiny models.
+      final roomMb = ((avail - 0.25) / 1.25 * 1024).round();
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surface : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.06)
+                : Colors.black.withValues(alpha: 0.06),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(LucideIcons.memoryStick, size: 15),
+              const SizedBox(width: 8),
+              Text('RAM Status',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12.5, fontWeight: FontWeight.w800)),
+              const Spacer(),
+              if (tierLabel.isNotEmpty)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Dt.accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(tierLabel,
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Dt.accent)),
+                ),
+              const SizedBox(width: 4),
+              InkWell(
+                onTap: () {
+                  try {
+                    dev.refreshMemoryInfo();
+                  } catch (_) {}
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(LucideIcons.refreshCw, size: 14),
+                ),
+              ),
+              InkWell(
+                onTap: () => _showRamInfoDialog(context,
+                    totalGb: total,
+                    availGb: avail,
+                    usedGb: used,
+                    roomMb: roomMb,
+                    tierLabel: tierLabel),
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(LucideIcons.info, size: 14),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                height: 8,
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.07),
+                child: FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: pct,
+                  child: Container(color: barColor),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(children: [
+              Text('${used.toStringAsFixed(1)} GB used',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).hintColor)),
+              const Spacer(),
+              Text(
+                  '${avail.toStringAsFixed(1)} GB free of ${total.toStringAsFixed(1)} GB',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: low ? AppColors.warning : null)),
+            ]),
+            if (roomMb > 0) ...[
+              const SizedBox(height: 4),
+              Text('Room for a model up to ≈$roomMb MB',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: Theme.of(context).hintColor)),
+            ] else ...[
+              const SizedBox(height: 4),
+              Text('Memory critically low — close other apps before loading',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.warning)),
+            ],
+          ],
+        ),
+      );
+    });
+  }
+
+  /// Explains every RAM Status row in plain language, using the user's
+  /// live numbers — including what "Room for ≈N MB" actually means.
+  void _showRamInfoDialog(
+    BuildContext context, {
+    required double totalGb,
+    required double availGb,
+    required double usedGb,
+    required int roomMb,
+    required String tierLabel,
+  }) {
+    final needForRoom =
+        roomMb > 0 ? (roomMb * 1.25 / 1024 + 0.25) : availGb;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('RAM Status'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ramInfoRow('Total RAM',
+                  '${totalGb.toStringAsFixed(1)} GB — your phone\'s full memory.'),
+              _ramInfoRow('Used',
+                  '${usedGb.toStringAsFixed(1)} GB — Android system plus all running apps.'),
+              _ramInfoRow('Free',
+                  '${availGb.toStringAsFixed(1)} GB — free right now and available for loading a model.'),
+              _ramInfoRow(
+                  roomMb > 0 ? 'Room for ≈$roomMb MB' : 'No room right now',
+                  roomMb > 0
+                      ? 'With your current free space, a model file up to ≈$roomMb MB should load. A model needs its file size × 1.25 as working space, plus a 256 MB–1 GB safety reserve (small models need less) — so ≈$roomMb MB needs about ${needForRoom.toStringAsFixed(1)} GB free.'
+                      : 'Free space is below the safety reserve, so no model can load safely yet. Close other apps, then tap refresh.'),
+              if (tierLabel.isNotEmpty)
+                _ramInfoRow('Tier: $tierLabel',
+                    'Your device class. Higher tiers can run bigger models with longer context windows.'),
+              _ramInfoRow('Tips',
+                  '• Close heavy apps before loading\n• Prefer smaller (Q4) models on low RAM\n• If a load is blocked, free space or pick a smaller file'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ramInfoRow(String title, String body) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(body,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5, height: 1.45)),
+        ],
+      ),
+    );
   }
 
   Widget _buildLocalActions(BuildContext context) {

@@ -541,6 +541,10 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
   }
 
   Future<void> _restorePersistedState() async {
+    // Version/device MUST resolve before the old-death report below:
+    // otherwise the persisted error is stamped "unknown" (PackageInfo
+    // hadn't finished when onInit fired it unawaited).
+    await _captureDeviceContext();
     await _loadPersistedLogs();
     await _loadPersistedUnresolved();
     await _loadPersistedCrashHistory();

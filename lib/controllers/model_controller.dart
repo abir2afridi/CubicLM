@@ -1210,13 +1210,26 @@ class ModelController extends GetxController {
   /// (mmap page pressure + transient dequant buffers + KV). The 1.25x file
   /// factor covers mmap page-cache pressure on low-RAM devices. Public
   /// for unit tests.
+  /// Safety reserve kept free for Android itself (LMK kills first when
+  /// the system runs dry). Scales with file size: a fixed 1GB reserve
+  /// needlessly blocks tiny models on small phones, while big models
+  /// still get the full gigabyte. Public for unit tests.
+  static int loadHeadroomBytes(int fileBytes) {
+    const gb = 1024 * 1024 * 1024;
+    const minHead = 256 * 1024 * 1024;
+    if (fileBytes <= 0) return gb;
+    if (fileBytes <= minHead) return minHead;
+    if (fileBytes >= gb) return gb;
+    return fileBytes;
+  }
+
   static bool isRamInsufficient({
     required int availableBytes,
     required int fileBytes,
     required int kvBytes,
   }) {
     if (availableBytes <= 0 || fileBytes <= 0) return false;
-    const headroomBytes = 1024 * 1024 * 1024;
+    final headroomBytes = loadHeadroomBytes(fileBytes);
     return availableBytes <
         (fileBytes * 1.25).round() + kvBytes + headroomBytes;
   }
@@ -1255,9 +1268,11 @@ class ModelController extends GetxController {
         )) {
       final needLabel = DownloadService.formatWholeMb(estimatedNeed);
       final ramLabel = DownloadService.formatWholeMb(availableBytes);
+      final headLabel = DownloadService.formatWholeMb(
+          loadHeadroomBytes(fileBytes));
       Get.snackbar(
         'Not enough free RAM',
-        '$filename needs ~$needLabel + 1GB headroom, but only $ramLabel is free. Close other apps or pick a smaller model.',
+        '$filename needs ~$needLabel + $headLabel reserve, but only $ramLabel is free. Close other apps or pick a smaller model.',
         duration: const Duration(seconds: 6),
       );
       return _ModelLoadAction.cancel;

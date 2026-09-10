@@ -22,6 +22,11 @@ void main() {
   });
 
   group('clampThreadsForRam', () {
+    test('single thread below 1.5GB free', () {
+      expect(GgufEngine.clampThreadsForRam(threads: 4, availGb: 1.1), 1);
+      expect(GgufEngine.clampThreadsForRam(threads: 1, availGb: 1.1), 1);
+    });
+
     test('caps at 2 threads below 2GB free', () {
       expect(
           GgufEngine.clampThreadsForRam(threads: 6, availGb: 1.5), 2);
