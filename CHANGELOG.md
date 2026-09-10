@@ -5,6 +5,16 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.1+22] - 2026-09-10
+
+### Fixed
+- **Tiny models on ~1GB free RAM** — load reserve now scales with file size (256MB–1GB) instead of a fixed 1GB, so a 229MB model is attempted at 1.1GB free; single-threaded loads, image-cache clearing and a 512 ctx floor below 1.5GB.
+- **Crash-report version stamp** — the previous-session death report now waits for version capture, so it shows the real build instead of "app unknown".
+- **Load-profile evidence** — eviction/thread/context decisions flush to disk before the native call for post-mortem diagnosis.
+
+### Added
+- **Sticky RAM status bar** — pinned above the Local model list (no longer scrolls away), with an info button explaining every row in plain language.
+
 ## [1.14.0+21] - 2026-09-10
 
 ### Added
