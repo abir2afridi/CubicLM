@@ -5,6 +5,24 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.0+20] - 2026-09-10
+
+### Added
+- **Streaming upgrades** — granular thought/answer streaming state, prompt template management, multi-select messages, live context-window progress bars for local and cloud modes.
+- **Asset browser + vision stabilization** — in-app asset browser, hardened vision controller for image input.
+- **Project management, artifacts & RAG** — project CRUD, artifact versions, enhanced retrieval support in chat.
+- **Builder configuration** — agent builder setup and project initialization flow.
+
+### Fixed
+- **GGUF load validation** — full tensor-table validation plus correct 24-byte header offset catch truncated/corrupt files before native mmap; certain-only quant table.
+- **Chat crash guards** — artifact panel null-guard, sidebar Rx init no longer fires setState during build.
+- **Preview layout** — AgentPreview resize-handle overflow and nested-Expanded parent-data crash fixed.
+- **Vision error UX** — sending an image to a non-vision model now explains the problem instead of dumping a raw 404.
+- **Build pins** — Gradle JVM pinned to C:/JDK17 (Temurin 17); `dynamic_color` pinned to 1.8.1.
+
+### Changed
+- Agent IDE toolbar reorganized with artifact safety; manual radio lists replaced by RadioGroup component.
+
 ## [1.12.0+19] - 2026-09-09
 
 ### Added
