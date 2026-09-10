@@ -84,6 +84,7 @@ class ChatView extends GetView<ChatController> {
                           child: ListView.builder(
                             controller: controller.scrollController,
                             padding: const EdgeInsets.only(top: 12, bottom: 12),
+                            // ignore: deprecated_member_use
                             cacheExtent: 1000,
                             physics: const BouncingScrollPhysics(
                                 parent: AlwaysScrollableScrollPhysics()),
