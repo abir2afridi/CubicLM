@@ -396,7 +396,12 @@ Java_com_write4me_llama_1flutter_1android_LlamaFlutterAndroidPlugin_nativeGenera
     }
     int& g_n_past = S->n_past;
 
-    // Clear memory from previous generation to start fresh
+    // NOTE: KV intentionally persists across calls here. The Dart layer
+    // re-sends the FULL history every turn and resets the session via
+    // nativeClearContext() before each generation, so each prompt is
+    // prefilled from position 0. Do NOT "optimize" by skipping callers'
+    // reset: decoding full history onto stale KV duplicates context and
+    // makes small models regurgitate their previous reply.
     const char* prompt_str = env->GetStringUTFChars(prompt, nullptr);
     g_stop_flag = false;
     

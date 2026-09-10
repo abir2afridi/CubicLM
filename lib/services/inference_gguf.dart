@@ -73,8 +73,10 @@ class GgufEngine {
     } catch (_) {}
   }
 
-  /// Pure decision for [_ensureContextRoom]: clear when the upcoming call
-  /// would push native KV past 90% of capacity. Public for unit tests.
+  /// Pure overflow predicate: true when the upcoming call would push
+  /// native KV past 90% of capacity. Retained as a tested utility
+  /// (sessions now reset every call via [_resetNativeSession]).
+  /// Public for unit tests.
   static bool needsContextClear({
     required int tokensUsed,
     required int contextSize,
@@ -191,35 +193,22 @@ class GgufEngine {
     }
   }
 
-  /// Clears the native KV session when the upcoming call would overflow
-  /// it. Dart re-sends the full history on every call, so dropping native
-  /// state loses nothing — the prefill recomputes from the messages above.
-  /// Without this, `llama_decode` fails with "Failed to decode prompt"
-  /// once cumulative tokens pass the context size, and every later call
-  /// fails the same way (no recovery).
-  Future<void> _ensureContextRoom(
-      List<ChatMessage> messages, int maxTokens) async {
+  /// Resets the native KV session before EVERY call (not just when full).
+  ///
+  /// The native layer never clears between calls: it decodes each new
+  /// prompt appended after the previous KV, while Dart re-sends the FULL
+  /// history every turn. Without this reset the model sees everything
+  /// twice (history + answer + history + answer + new message) and small
+  /// models collapse into regurgitating their previous reply verbatim.
+  /// Dart re-sends full history by design (edit/regenerate/branch rewrite
+  /// it arbitrarily), so dropping native state loses nothing — the
+  /// prefill recomputes exactly what was sent. Best effort: a failed
+  /// reset must never block generation.
+  Future<void> _resetNativeSession() async {
     try {
-      final info = await _controller?.getContextInfo();
-      if (info == null) return;
-      final ctxSize = info.contextSize;
-      if (ctxSize <= 0) return;
-      var chars = 0;
-      for (final m in messages) {
-        chars += m.content.length;
-      }
-      if (needsContextClear(
-        tokensUsed: info.tokensUsed,
-        contextSize: ctxSize,
-        promptChars: chars,
-        maxTokens: maxTokens,
-      )) {
-        print(
-            '[Inference] Context near-full (used=${info.tokensUsed}/$ctxSize) — clearing native session.');
-        await _controller?.clearContext();
-      }
+      await _controller?.clearContext();
     } catch (_) {
-      // Best effort only — a failed probe must never block generation.
+      // Best effort only — a failed reset must never block generation.
     }
   }
 
@@ -599,11 +588,14 @@ class GgufEngine {
       final messages = _buildChatMessages(
           prompt, history, systemPrompt,
           imagePath: imagePath);
-      // The native session keeps KV cache across calls but Dart re-sends
-      // the FULL history every time. Without a reset the cache grows until
-      // llama_decode fails ("Failed to decode prompt") and NEVER recovers.
-      // Pre-empt: clear the native session when this call would overflow.
-      await _ensureContextRoom(messages, maxTokens);
+      // Fresh native session for every call (see _resetNativeSession):
+      // the prefill below decodes exactly these messages from position 0.
+      await _resetNativeSession();
+      // Small on-device models tend to rehash their own previous answer
+      // on weak follow-ups ("then", "and?"). A gentle presence/frequency
+      // penalty plus a wider penalty window pushes novel phrasing without
+      // stiffening output; the user's repeat-penalty slider still applies
+      // on top via [r].
       stream = _controller!.generateChat(
         messages: messages,
         template: null,
@@ -613,7 +605,9 @@ class GgufEngine {
         topK: k,
         minP: 0.05,
         repeatPenalty: r,
-        repeatLastN: 64,
+        frequencyPenalty: 0.1,
+        presencePenalty: 0.2,
+        repeatLastN: 128,
       );
       print('[Inference] generateChat() started (${messages.length} messages)');
     } catch (e) {
@@ -632,7 +626,9 @@ class GgufEngine {
         topK: k,
         minP: 0.05,
         repeatPenalty: r,
-        repeatLastN: 64,
+        frequencyPenalty: 0.1,
+        presencePenalty: 0.2,
+        repeatLastN: 128,
       );
     }
 

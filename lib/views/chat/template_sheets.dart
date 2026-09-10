@@ -226,6 +226,19 @@ void showAddToChatSheet(
                     size: 18, color: Dt.textSecondary),
               ),
               const SizedBox(height: 10),
+              AppSheetRowCard(
+                leading:
+                    const AppIconCircle(icon: LucideIcons.layoutTemplate),
+                title: 'Prompt templates',
+                subtitle: 'Insert a saved prompt into the composer',
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  showTemplateSheet(context, isDark);
+                },
+                trailing: const Icon(LucideIcons.chevronRight,
+                    size: 18, color: Dt.textSecondary),
+              ),
+              const SizedBox(height: 10),
               Obx(() => AppSheetRowCard(
                     leading: const AppIconCircle(icon: LucideIcons.globe),
                     title: 'chat_web_access'.tr,

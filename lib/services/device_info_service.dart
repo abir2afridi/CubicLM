@@ -93,8 +93,13 @@ class DeviceInfoService extends GetxService {
 
   Future<void> refreshMemoryInfo() async {
     final info = await platform_info.getDeviceInfo();
-    totalRamGB.value = (info['totalRamGB'] as num).toDouble();
-    availableRamGB.value = (info['availableRamGB'] as num).toDouble();
+    // Never overwrite good readings with transient zeros: a hiccup in
+    // the native probe must not zero out RAM state (it hides the RAM
+    // card and, worse, poisons the load gate + eviction decisions).
+    final total = (info['totalRamGB'] as num?)?.toDouble() ?? 0;
+    if (total > 0) totalRamGB.value = total;
+    final avail = (info['availableRamGB'] as num?)?.toDouble() ?? -1;
+    if (avail > 0) availableRamGB.value = avail;
     isTensorSoC.value = (info['isTensorSoC'] as num? ?? 0.0) > 0.5;
     final rawIndex = (info['socFamily'] as num? ?? 8).toInt();
     final clamped = rawIndex < 0 ? 0 : (rawIndex > 8 ? 8 : rawIndex);

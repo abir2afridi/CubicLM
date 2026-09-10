@@ -467,12 +467,6 @@ Widget inputBar(BuildContext context, bool isDark) {
                       onTap: vision.toggleLive,
                     );
                   }),
-                  const SizedBox(width: 6),
-                  AppCircleButton(
-                    icon: LucideIcons.layoutTemplate,
-                    tooltip: 'Prompt templates',
-                    onTap: () => showTemplateSheet(context, isDark),
-                  ),
                   const Spacer(),
                   // Right cluster: mic (muted circle) + primary CTA (solid dark)
                   // Spacer pushes this cluster to the far right corner,
