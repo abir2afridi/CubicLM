@@ -15,6 +15,7 @@ import 'controllers/chat_controller.dart';
 import 'controllers/cloud_model_controller.dart';
 import 'controllers/server_controller.dart';
 import 'controllers/model_controller.dart';
+import 'controllers/vision_live_controller.dart';
 import 'core/theme.dart';
 import 'core/routes.dart';
 import 'services/hive_service.dart';
@@ -252,6 +253,7 @@ void main() {
           Get.find<CubicWebLogger>().init().then((_) {}, onError: (_) {}));
       Get.put(DownloadService());
       Get.put(LocalImageService());
+      Get.put(VisionLiveController());
       Get.put(ServerController(), permanent: true);
       Get.put(ModelController());
       // TTS — GetxService, async init deferred but instance available immediately.

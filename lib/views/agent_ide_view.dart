@@ -1784,21 +1784,19 @@ class _AgentIdeViewState extends State<AgentIdeView> {
                 fontSize: 13, color: Theme.of(context).hintColor)),
       );
     }
-    return Expanded(
-      child: Column(children: [
-        _previewDiagnosisCard(context, isDark),
-        if (working) _liveProgressPill(context, isDark, status),
-        Expanded(
-          child: AgentPreview(
-            url: url,
-            pickMode: c.elementPickMode.value,
-            onConsoleError: (e) => c.onConsoleError(e),
-            onElementPicked: (info) => c.onElementPicked(info),
-          ),
+    return Column(children: [
+      _previewDiagnosisCard(context, isDark),
+      if (working) _liveProgressPill(context, isDark, status),
+      Expanded(
+        child: AgentPreview(
+          url: url,
+          pickMode: c.elementPickMode.value,
+          onConsoleError: (e) => c.onConsoleError(e),
+          onElementPicked: (info) => c.onElementPicked(info),
         ),
-        _devToolsPane(context, isDark),
-      ]),
-    );
+      ),
+      _devToolsPane(context, isDark),
+    ]);
   }
 
   Widget _devToolsPane(BuildContext context, bool isDark) {

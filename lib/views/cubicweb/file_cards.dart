@@ -439,7 +439,7 @@ class LineNumberWrapper extends StatelessWidget {
     final lines = content.split('\n');
     final lineCount = lines.length;
     final lineDigits = lineCount.toString().length;
-    final gutterWidth = (lineDigits * 8.0) + 16.0;
+    final gutterWidth = (lineDigits * 8.0) + 32.0; // More room for numbers
     
     return SingleChildScrollView(
       controller: scrollController,
@@ -447,12 +447,12 @@ class LineNumberWrapper extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Line Numbers column
+          // Line Numbers column (Sticky-ish)
           Container(
             width: gutterWidth,
-            padding: const EdgeInsets.only(top: 12, right: 8),
+            padding: const EdgeInsets.only(top: 12, right: 12),
             decoration: BoxDecoration(
-              color: isDark ? Colors.black.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.02),
+              color: isDark ? const Color(0xFF0F0F14) : Colors.black.withValues(alpha: 0.03),
               border: Border(right: BorderSide(color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05))),
             ),
             child: Column(
@@ -472,10 +472,11 @@ class LineNumberWrapper extends StatelessWidget {
               }),
             ),
           ),
-          // Code content
+          // Code content with horizontal scroll
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 32), // More padding
               child: child,
             ),
           ),

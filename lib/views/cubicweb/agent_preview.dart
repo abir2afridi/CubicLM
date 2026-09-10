@@ -269,7 +269,7 @@ class _AgentPreviewState extends State<AgentPreview> {
                 Row(
                   children: [
                     Container(
-                      width: currentWidth,
+                      width: (currentWidth - 16).clamp(0.0, double.infinity),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         border: Border.all(color: isDark ? Colors.white10 : Dt.hairline),

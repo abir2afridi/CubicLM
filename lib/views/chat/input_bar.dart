@@ -457,17 +457,15 @@ Widget inputBar(BuildContext context, bool isDark) {
                     );
                   }),
                   const SizedBox(width: 6),
-                  Builder(builder: (context) {
-                    final vision = Get.put(VisionLiveController());
-                    return Obx(() {
-                      final enabled = vision.isLive.value;
-                      return AppCircleButton(
-                        icon: LucideIcons.video,
-                        tooltip: 'Live Vision (Snapshot Loop)',
-                        iconColor: enabled ? AppColors.error : null,
-                        onTap: vision.toggleLive,
-                      );
-                    });
+                  Obx(() {
+                    final vision = Get.find<VisionLiveController>();
+                    final enabled = vision.isLive.value;
+                    return AppCircleButton(
+                      icon: LucideIcons.video,
+                      tooltip: 'Live Vision (Snapshot Loop)',
+                      iconColor: enabled ? AppColors.error : null,
+                      onTap: vision.toggleLive,
+                    );
                   }),
                   const SizedBox(width: 6),
                   AppCircleButton(

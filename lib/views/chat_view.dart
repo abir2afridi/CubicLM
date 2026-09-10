@@ -13,7 +13,6 @@ import '../controllers/settings_controller.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../ffi/sd_ffi_bindings.dart';
-import '../utils/thought_parser.dart';
 import '../theme/design_tokens.dart';
 import '../widgets/chat_bubble.dart';
 import 'chat/chat_bars.dart';
@@ -52,159 +51,160 @@ class ChatView extends GetView<ChatController> {
               Obx(() => controller.findActive.value
                   ? findBar(context, isDark)
                   : const SizedBox.shrink()),
-              Expanded(child: Obx(() {
-                if (controller.currentSessionId.value.isEmpty ||
-                    controller.messages.isEmpty) {
-                  return emptyState(context, isDark);
-                }
-                final showArtifact = controller.showArtifactPanel.value;
-                final activeId = controller.activeArtifactId.value;
-                final artifact = activeId != null &&
-                        controller.artifacts.containsKey(activeId)
-                    ? controller.artifacts[activeId]
-                    : null;
+              Expanded(
+                child: RepaintBoundary(
+                  child: Obx(() {
+                    if (controller.currentSessionId.value.isEmpty ||
+                        controller.messages.isEmpty) {
+                      return emptyState(context, isDark);
+                    }
+                    final showArtifact = controller.showArtifactPanel.value;
+                    final activeId = controller.activeArtifactId.value;
+                    final artifact = activeId != null &&
+                            controller.artifacts.containsKey(activeId)
+                        ? controller.artifacts[activeId]
+                        : null;
 
-                // NOTE: this observer deliberately does NOT read
-                // streamingResponse — token flushes rebuild only the stream
-                // bubble's own Obx below, not the whole list + every
-                // MarkdownBody (was: full rebuild at ~25fps while streaming).
-                final streaming = controller.isStreaming.value;
-                final n = controller.messages.length;
+                    final streaming = controller.isStreaming.value;
+                    final n = controller.messages.length;
 
-                Widget chatStack = Stack(
-                  children: [
-                    NotificationListener<ScrollUpdateNotification>(
-                      onNotification: (note) {
-                        if (note.dragDetails != null && streaming) {
-                          if ((note.scrollDelta ?? 0) < 0) {
-                            controller.pauseStreamingFollow();
-                          } else {
-                            controller.resumeStreamingFollowIfNearBottom();
-                          }
-                        }
-                        return false;
-                      },
-                      child: ListView.builder(
-                        controller: controller.scrollController,
-                        padding: const EdgeInsets.only(top: 12, bottom: 12),
-                        // Perf: bubbles rebuild on content change anyway — no
-                        // need to keep every offscreen subtree alive.
-                        addAutomaticKeepAlives: false,
-                        addRepaintBoundaries: true,
-                        itemCount: n + (streaming ? 1 : 0),
-                        itemBuilder: (_, i) {
-                          if (i == n && streaming) {
-                            // Own observer: per-token rebuilds stay inside the
-                            // streaming bubble instead of the whole list.
-                            return Obx(() => _streamBubble(context,
-                                controller.streamingResponse.value, isDark));
-                          }
-                          final msg = controller.messages[i];
-                          // Date header: show when first message or different day than previous
-                          Widget? dateHeader;
-                          if (i == 0 ||
-                              !isSameDay(controller.messages[i - 1].timestamp,
-                                  msg.timestamp)) {
-                            dateHeader = dateChip(msg.timestamp, isDark);
-                          }
-                          final hasRevisions =
-                              msg.revisions != null && msg.revisions!.isNotEmpty;
-                          final bubble = ChatBubble(
-                            message: msg,
-                            onCopy: () {
-                              Clipboard.setData(ClipboardData(text: msg.content));
-                            },
-                            onRetry: () => controller.regenerateFromMessage(msg),
-                            onBranch: () => controller.branchNewChat(msg),
-                            onEdit: msg.role == 'user'
-                                ? () => showEditDialog(context, msg)
-                                : null,
-                            onDelete: () =>
-                                confirmDeleteMessage(context, msg, isDark),
-                            onPrevRevision: hasRevisions && msg.revisionIndex > 0
-                                ? () => controller.navigateRevision(msg, -1)
-                                : null,
-                            onNextRevision: hasRevisions &&
-                                    msg.revisionIndex < msg.revisions!.length - 1
-                                ? () => controller.navigateRevision(msg, 1)
-                                : null,
-                          );
-                          if (dateHeader != null) {
-                            return RepaintBoundary(
-                              key: controller.findKeyFor(msg.id),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  dateHeader,
-                                  selectableRow(context, msg, bubble, isDark)
-                                ],
-                              ),
-                            );
-                          }
-                          return RepaintBoundary(
-                              key: controller.findKeyFor(msg.id),
-                              child: selectableRow(context, msg, bubble, isDark));
-                        },
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 16,
-                      right: 16,
-                      child: Obx(() => AnimatedScale(
-                            scale: controller.showScrollToBottom.value ? 1.0 : 0.0,
-                            duration: const Duration(milliseconds: 200),
-                            curve: Curves.easeOutBack,
-                            child: Semantics(
-                              label: 'Scroll to bottom',
-                              button: true,
-                              child: FloatingActionButton.small(
-                                onPressed: controller.jumpToBottom,
-                                backgroundColor: isDark ? Dt.cardDark : Dt.card,
-                                foregroundColor: AppColors.primary,
-                                elevation: 4,
-                                child: const Icon(Icons.arrow_downward_rounded,
-                                    size: 20),
-                              ),
-                            ),
-                          )),
-                    ),
-                  ],
-                );
-
-                if (!showArtifact || artifact == null || artifact.isEmpty) {
-                  return chatStack;
-                }
-
-                return LayoutBuilder(builder: (context, constraints) {
-                  if (constraints.maxWidth > 900) {
-                    return Row(
+                    Widget chatStack = Stack(
                       children: [
-                        Expanded(flex: 1, child: chatStack),
-                        Expanded(
-                          flex: 1,
-                          child: ArtifactRenderer(
-                            id: controller.activeArtifactId.value!,
-                            versions: artifact,
-                            onClose: controller.closeArtifact,
+                        NotificationListener<ScrollUpdateNotification>(
+                          onNotification: (note) {
+                            if (note.dragDetails != null && streaming) {
+                              if ((note.scrollDelta ?? 0) < 0) {
+                                controller.pauseStreamingFollow();
+                              } else {
+                                controller.resumeStreamingFollowIfNearBottom();
+                              }
+                            }
+                            return false;
+                          },
+                          child: ListView.builder(
+                            controller: controller.scrollController,
+                            padding: const EdgeInsets.only(top: 12, bottom: 12),
+                            cacheExtent: 1000,
+                            physics: const BouncingScrollPhysics(
+                                parent: AlwaysScrollableScrollPhysics()),
+                            addAutomaticKeepAlives: false,
+                            addRepaintBoundaries: true,
+                            itemCount: n + (streaming ? 1 : 0),
+                            itemBuilder: (_, i) {
+                              if (i == n && streaming) {
+                                return _streamBubble(context, isDark);
+                              }
+                              final msg = controller.messages[i];
+                              Widget? dateHeader;
+                              if (i == 0 ||
+                                  !isSameDay(controller.messages[i - 1].timestamp,
+                                      msg.timestamp)) {
+                                dateHeader = dateChip(msg.timestamp, isDark);
+                              }
+                              final hasRevisions =
+                                  msg.revisions != null && msg.revisions!.isNotEmpty;
+                              final bubble = ChatBubble(
+                                message: msg,
+                                onCopy: () {
+                                  Clipboard.setData(ClipboardData(text: msg.content));
+                                },
+                                onRetry: () => controller.regenerateFromMessage(msg),
+                                onBranch: () => controller.branchNewChat(msg),
+                                onEdit: msg.role == 'user'
+                                    ? () => showEditDialog(context, msg)
+                                    : null,
+                                onDelete: () =>
+                                    confirmDeleteMessage(context, msg, isDark),
+                                onPrevRevision: hasRevisions && msg.revisionIndex > 0
+                                    ? () => controller.navigateRevision(msg, -1)
+                                    : null,
+                                onNextRevision: hasRevisions &&
+                                        msg.revisionIndex < msg.revisions!.length - 1
+                                    ? () => controller.navigateRevision(msg, 1)
+                                    : null,
+                              );
+
+                              Widget content = dateHeader != null
+                                  ? Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        dateHeader,
+                                        selectableRow(context, msg, bubble, isDark)
+                                      ],
+                                    )
+                                  : selectableRow(context, msg, bubble, isDark);
+
+                              return RepaintBoundary(
+                                key: controller.findKeyFor(msg.id),
+                                child: _MessageEntrance(
+                                  key: ValueKey('anim_${msg.id}'),
+                                  messageId: msg.id,
+                                  child: content,
+                                ),
+                              );
+                            },
                           ),
+                        ),
+                        Positioned(
+                          bottom: 16,
+                          right: 16,
+                          child: Obx(() => AnimatedScale(
+                                scale: controller.showScrollToBottom.value ? 1.0 : 0.0,
+                                duration: const Duration(milliseconds: 200),
+                                curve: Curves.easeOutBack,
+                                child: Semantics(
+                                  label: 'Scroll to bottom',
+                                  button: true,
+                                  child: FloatingActionButton.small(
+                                    onPressed: controller.jumpToBottom,
+                                    backgroundColor: isDark ? Dt.cardDark : Dt.card,
+                                    foregroundColor: AppColors.primary,
+                                    elevation: 4,
+                                    child: const Icon(Icons.arrow_downward_rounded,
+                                        size: 20),
+                                  ),
+                                ),
+                              )),
                         ),
                       ],
                     );
-                  }
-                  return Stack(
-                    children: [
-                      chatStack,
-                      Positioned.fill(
-                        child: ArtifactRenderer(
-                          id: controller.activeArtifactId.value!,
-                          versions: artifact,
-                          onClose: controller.closeArtifact,
-                        ),
-                      ),
-                    ],
-                  );
-                });
-              })),
+
+                    if (!showArtifact || artifact == null || artifact.isEmpty) {
+                      return chatStack;
+                    }
+
+                    return LayoutBuilder(builder: (context, constraints) {
+                      if (constraints.maxWidth > 900) {
+                        return Row(
+                          children: [
+                            Expanded(flex: 1, child: chatStack),
+                            Expanded(
+                              flex: 1,
+                              child: ArtifactRenderer(
+                                id: controller.activeArtifactId.value!,
+                                versions: artifact,
+                                onClose: controller.closeArtifact,
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                      return Stack(
+                        children: [
+                          chatStack,
+                          Positioned.fill(
+                            child: ArtifactRenderer(
+                              id: controller.activeArtifactId.value!,
+                              versions: artifact,
+                              onClose: controller.closeArtifact,
+                            ),
+                          ),
+                        ],
+                      );
+                    });
+                  }),
+                ),
+              ),
               Obx(() => controller.selectionMode.value
                   ? selectionBar(context, isDark)
                   : inputBar(context, isDark)),
@@ -225,11 +225,6 @@ class ChatView extends GetView<ChatController> {
     );
   }
 
-  // ── Multi-select ──
-
-  /// Long-press enters selection mode; tap toggles while active.
-  /// Normal taps pass through (bubble buttons keep working).
-
   PreferredSizeWidget _appBar(BuildContext context, bool isDark) {
     return AppBar(
       backgroundColor:
@@ -249,8 +244,6 @@ class ChatView extends GetView<ChatController> {
         final inf = Get.find<InferenceService>();
         final isLocal = settings.inferenceMode.value == 'local';
         final localImage = Get.find<LocalImageService>();
-        // A loaded image model counts as "ready" too — otherwise the dot shows
-        // the warning colour while an image engine is happily resident.
         final isLocalReady =
             inf.isModelLoaded.value || localImage.isModelLoaded.value;
         String model;
@@ -270,8 +263,6 @@ class ChatView extends GetView<ChatController> {
           }
           if (model.length > 20) model = '${model.substring(0, 20)}…';
         } else {
-          // Single source of truth for the cloud label, shared with the model
-          // switcher sheet so the two can't drift.
           model = settings.selectedCloudModelName;
           if (settings.cloudProvider.value == 'custom' && model.isNotEmpty) {
             model = '${settings.customCloudName.value}: $model';
@@ -336,9 +327,6 @@ class ChatView extends GetView<ChatController> {
       actions: [
         notificationBell(context, isDark),
         Obx(() {
-          // Always visible: Battle Arena needs no open chat. Session
-          // items disable gracefully on the empty state instead of
-          // hiding the whole menu (users couldn't find anything).
           final hasSession = controller.currentSessionId.value.isNotEmpty;
           final selecting = controller.selectionMode.value;
           final iconColor = isDark ? AppColors.textPrimary : Dt.iconDefault;
@@ -418,136 +406,147 @@ class ChatView extends GetView<ChatController> {
     await exportSession(context, session);
   }
 
-  // ── Streaming Bubble ──
-  Widget _streamBubble(BuildContext context, String text, bool isDark) {
+  static final md.ExtensionSet _eliteMdExtensionSet = md.ExtensionSet(
+    [
+      ...md.ExtensionSet.gitHubFlavored.blockSyntaxes,
+      LatexBlockSyntax(),
+    ],
+    [
+      ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes,
+      LatexInlineSyntax(),
+    ],
+  );
+
+  Widget _streamBubble(BuildContext context, bool isDark) {
     final attType = controller.streamingAttachmentType.value;
     final isImageGen = controller.imageGenTotal.value > 0;
-    final clean = cleanStream(text).trimLeft();
-    final parts = splitThoughtTags(clean);
-    final answer = parts.answer.trimLeft();
-    final hasText = parts.hasThought || hasPrintable(answer);
-
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: Container(
-          constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).size.width * 0.92),
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          // No card chrome — the response streams in place on the canvas,
-          // identical to how the finished message renders (Claude-style).
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            if (isImageGen)
-              ImageGenIndicator(controller: controller, isDark: isDark)
-            else if (!hasText)
-              _typingHint(context, isDark, attachmentType: attType)
-            else ...[
-              if (parts.hasThought)
-                ThoughtDisclosure(
-                    thought: parts.thought,
-                    isThinking: parts.isThinking,
-                    styleSheet: _thoughtMdCached(context, isDark)),
-              if (hasPrintable(answer))
-                Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Expanded(
-                      // Perf: full MarkdownBody (selectable spans + gesture
-                      // tree) rebuilt ~7x/sec while streaming is the main
-                      // jank source. Short answers keep markdown; long ones
-                      // (code dumps) stream as plain text in the same style
-                      // and get full markdown once saved. Selectable off
-                      // mid-stream — tap-hold selection works on the
-                      // finished bubble.
-                      child: RepaintBoundary(
-                          child: answer.length > 4000
-                              ? SelectableText(answer,
-                                  style: _streamMdCached(context, isDark).p)
-                              : MarkdownBody(
-                                  data: answer,
-                                  selectable: false,
-                                  styleSheet:
-                                      _streamMdCached(context, isDark),
-                                  builders: {
-                                    'latex': LatexElementBuilder(
-                                      textStyle: _streamMdCached(context, isDark).p,
-                                    ),
-                                  },
-                                  extensionSet: md.ExtensionSet(
-                                    [
-                                      ...md.ExtensionSet.gitHubFlavored.blockSyntaxes,
-                                      LatexBlockSyntax(),
-                                    ],
-                                    [
-                                      ...md.ExtensionSet.gitHubFlavored.inlineSyntaxes,
-                                      LatexInlineSyntax(),
+        child: RepaintBoundary(
+          child: Container(
+            constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.92),
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isImageGen)
+                  ImageGenIndicator(controller: controller, isDark: isDark)
+                else
+                  Obx(() {
+                    final thought = controller.streamingThought.value;
+                    final answer = controller.streamingAnswer.value;
+                    final isThinking = controller.streamingIsThinking.value;
+                    
+                    final hasThought = thought.trim().isNotEmpty;
+                    final hasAnswer = hasPrintable(answer);
+
+                    if (!hasThought && !hasAnswer) {
+                      return _typingHint(context, isDark, attachmentType: attType);
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (hasThought)
+                          ThoughtDisclosure(
+                              thought: thought,
+                              isThinking: isThinking,
+                              styleSheet: _thoughtMdCached(context, isDark)),
+                        if (hasAnswer)
+                          Row(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Expanded(
+                                    child: RepaintBoundary(
+                                        child: answer.length > 1500
+                                            ? SelectableText(answer,
+                                                style: _streamMdCached(context, isDark)
+                                                    .p)
+                                            : MarkdownBody(
+                                                data: answer,
+                                                selectable: false,
+                                                styleSheet:
+                                                    _streamMdCached(context, isDark),
+                                                builders: {
+                                                  'latex': LatexElementBuilder(
+                                                    textStyle:
+                                                        _streamMdCached(context, isDark)
+                                                            .p,
+                                                  ),
+                                                },
+                                                extensionSet: _eliteMdExtensionSet,
+                                              ))),
+                                const BlinkingCursor(color: Dt.accent),
+                              ]),
+                      ],
+                    );
+                  }),
+                if (!isImageGen)
+                  RepaintBoundary(
+                    child: Obx(() {
+                      final inf = Get.find<InferenceService>();
+                      final tps = inf.tokensPerSecond.value;
+                      final duration = controller.generationLiveDurationSecs.value;
+                      if (tps <= 0 && duration <= 0) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (tps > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text('${tps.toStringAsFixed(1)} tok/s',
+                                      style: GoogleFonts.plusJakartaSans(
+                                          fontSize: 10,
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w700)),
+                                ),
+                              if (tps > 0 && duration > 0) const SizedBox(width: 8),
+                              if (duration > 0)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withValues(alpha: 0.08),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const PulsingTimerDot(),
+                                      const SizedBox(width: 4),
+                                      Text('${duration}s',
+                                          style: GoogleFonts.plusJakartaSans(
+                                              fontSize: 10,
+                                              color: AppColors.primary,
+                                              fontWeight: FontWeight.w800)),
                                     ],
                                   ),
-                                ))),
-                  const BlinkingCursor(color: Dt.accent),
-                ]),
-            ],
-            if (hasText && !isImageGen)
-              Obx(() {
-                final inf = Get.find<InferenceService>();
-                final tps = inf.tokensPerSecond.value;
-                final duration = controller.generationLiveDurationSecs.value;
-                if (tps <= 0 && duration <= 0) {
-                  return const SizedBox.shrink();
-                }
-                return Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (tps > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text('${tps.toStringAsFixed(1)} tok/s',
-                                style: GoogleFonts.plusJakartaSans(
-                                    fontSize: 10,
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w700)),
-                          ),
-                        if (tps > 0 && duration > 0) const SizedBox(width: 8),
-                        if (duration > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const PulsingTimerDot(),
-                                const SizedBox(width: 4),
-                                Text('${duration}s',
-                                    style: GoogleFonts.plusJakartaSans(
-                                        fontSize: 10,
-                                        color: AppColors.primary,
-                                        fontWeight: FontWeight.w800)),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ));
-              }),
-          ]),
+                                ),
+                            ],
+                          ));
+                    }),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  // Stream-bubble stylesheets, memoized per (brightness, theme): the
-  // stream Obx rebuilds ~7x/sec and must not pay fromTheme + GoogleFonts
-  // per tick. Theme hash in the key self-invalidates on theme switch.
   static final Map<int, MarkdownStyleSheet> _streamMdCache = {};
   static final Map<int, MarkdownStyleSheet> _thoughtMdCache = {};
 
@@ -564,7 +563,6 @@ class ChatView extends GetView<ChatController> {
   MarkdownStyleSheet _streamMd(BuildContext c, bool isDark) {
     final clr = isDark ? AppColors.textPrimary : Dt.textPrimary;
     final muted = isDark ? AppColors.textSecondary : Dt.textSecondary;
-    // Same serif voice as the finished message — no font swap on completion.
     final base =
         GoogleFonts.sourceSerif4(fontSize: 15.5, color: clr, height: 1.6);
     return MarkdownStyleSheet.fromTheme(Theme.of(c)).copyWith(
@@ -622,8 +620,6 @@ class ChatView extends GetView<ChatController> {
       msg = 'Deep Searching...';
     }
 
-    // Thinking orbs — dotted orb cycling through random states with a
-    // shimmering status label (Working / Searching / Solving / …).
     final settings = Get.find<SettingsController>();
     OrbState? fixed = orbStateFromName(settings.orbChatAnim.value);
 
@@ -648,6 +644,69 @@ class ChatView extends GetView<ChatController> {
     ]);
   }
 
-  // ── Input Bar ──
-  // ── Helpers ──
+  static final Set<String> _animatedMessageIds = {};
+}
+
+class _MessageEntrance extends StatefulWidget {
+  final Widget child;
+  final String messageId;
+  const _MessageEntrance({super.key, required this.child, required this.messageId});
+
+  @override
+  State<_MessageEntrance> createState() => _MessageEntranceState();
+}
+
+class _MessageEntranceState extends State<_MessageEntrance>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _slide;
+  late final Animation<double> _fade;
+  bool _shouldAnimate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _shouldAnimate = !ChatView._animatedMessageIds.contains(widget.messageId);
+    
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _slide = Tween<double>(begin: 0.15, end: 0.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.7, curve: Curves.easeIn)),
+    );
+
+    if (_shouldAnimate) {
+      ChatView._animatedMessageIds.add(widget.messageId);
+      _controller.forward();
+    } else {
+      _controller.value = 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _fade.value,
+          child: Transform.translate(
+            offset: Offset(0, MediaQuery.of(context).size.height * _slide.value),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
 }

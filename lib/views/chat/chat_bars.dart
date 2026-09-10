@@ -242,39 +242,90 @@ Widget contextBar(BuildContext context, bool isDark) {
     final inf = Get.find<InferenceService>();
     final active =
         _c.currentSessionId.value.isNotEmpty && _c.messages.isNotEmpty;
-    if (!active || settings.inferenceMode.value != 'local') {
-      return const SizedBox.shrink();
-    }
-    final total = inf.contextTokensTotal.value > 0
-        ? inf.contextTokensTotal.value
-        : settings.contextSize.value;
-    final est = _c.messages.fold<int>(0, (s, m) => s + m.content.length);
-    final used = (inf.contextTokensUsed.value > 0
-            ? inf.contextTokensUsed.value
-            : (est / 4).ceil())
-        .clamp(0, total)
-        .toInt();
-    final pct = total == 0 ? 0.0 : (used / total).clamp(0.0, 1.0).toDouble();
-    final warn = pct >= 0.75;
-    final accent = warn ? AppColors.warning : AppColors.primary;
+    if (!active) return const SizedBox.shrink();
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
+    final isLocal = settings.inferenceMode.value == 'local';
+
+    if (isLocal) {
+      final total = inf.contextTokensTotal.value > 0
+          ? inf.contextTokensTotal.value
+          : settings.contextSize.value;
+      final est = _c.messages.fold<int>(0, (s, m) => s + m.content.length);
+      final used = (inf.contextTokensUsed.value > 0
+              ? inf.contextTokensUsed.value
+              : (est / 4).ceil())
+          .clamp(0, total)
+          .toInt();
+      final pct = total == 0 ? 0.0 : (used / total).clamp(0.0, 1.0).toDouble();
+      final warn = pct >= 0.8;
+      final accent = warn ? AppColors.warning : AppColors.primary;
+
+      return _buildModernBar(
+        context,
+        isDark,
+        icon: Icons.memory_rounded,
+        label: 'Local Context Window',
+        value: '${fmtK(used)} / ${fmtK(total)} tokens',
+        progress: pct,
+        accent: accent,
+      );
+    } else {
+      // Cloud Mode Usage
+      final totalChars =
+          _c.messages.fold<int>(0, (s, m) => s + m.content.length);
+      final sessionTokens = (totalChars / 4).ceil();
+      final providerId = settings.cloudProvider.value;
+      final providerName = providerId == 'custom'
+          ? settings.customCloudName.value
+          : providerId.capitalizeFirst ?? providerId;
+      final modelName = settings.selectedCloudModelName;
+
+      return _buildModernBar(
+        context,
+        isDark,
+        icon: Icons.cloud_done_rounded,
+        label: '$providerName · $modelName',
+        value: '${fmtK(sessionTokens)} session tokens',
+        accent: Dt.accent,
+      );
+    }
+  });
+}
+
+Widget _buildModernBar(
+  BuildContext context,
+  bool isDark, {
+  required IconData icon,
+  required String label,
+  required String value,
+  double? progress,
+  required Color accent,
+}) {
+  return Container(
+    margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    decoration: BoxDecoration(
+      color: isDark
+          ? Colors.white.withValues(alpha: 0.03)
+          : Colors.black.withValues(alpha: 0.02),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
         color: isDark
-            ? Colors.white.withValues(alpha: 0.04)
-            : Colors.black.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.05)
-              : Colors.black.withValues(alpha: 0.05),
-        ),
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.black.withValues(alpha: 0.04),
       ),
-      child: Row(children: [
-        Icon(Icons.query_stats_rounded, size: 14, color: accent),
-        const SizedBox(width: 8),
+    ),
+    child: Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: accent.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 14, color: accent),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -283,31 +334,43 @@ Widget contextBar(BuildContext context, bool isDark) {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('chat_context_usage'.tr,
+                  Flexible(
+                    child: Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                            fontSize: 11,
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.7)
+                                : Dt.textSecondary,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(value,
                       style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          color: Theme.of(context).hintColor,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.2)),
-                  Text('${fmtK(used)} / ${fmtK(total)} ${'chat_tokens'.tr}',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10,
-                          color: accent,
+                          fontSize: 11,
+                          color: isDark ? Colors.white : Dt.textPrimary,
                           fontWeight: FontWeight.w800)),
                 ],
               ),
-              const SizedBox(height: 6),
-              ClipRRect(
+              if (progress != null) ...[
+                const SizedBox(height: 8),
+                ClipRRect(
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(
-                      value: pct,
-                      backgroundColor: isDark ? Dt.cardDark : Dt.card,
-                      color: accent,
-                      minHeight: 3)),
+                    value: progress,
+                    backgroundColor: isDark
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : Colors.black.withValues(alpha: 0.05),
+                    color: accent,
+                    minHeight: 3.5,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
-      ]),
-    );
-  });
+      ],
+    ),
+  );
 }

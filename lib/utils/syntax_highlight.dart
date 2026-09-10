@@ -18,7 +18,7 @@ class SyntaxColors {
   static const tag = Color(0xFFF38BA8); // red/pink
   static const attr = Color(0xFFFAB387); // orange
   static const number = Color(0xFFF9E2AF); // yellow
-  static const punct = Color(0xFFBAC2DE); // gray text
+  static const punct = Color(0xFF89DCEB); // sky/cyan for brackets
   static const plain = Color(0xFFCDD6F4); // default text
   static const ghost = Color(0x66CDD6F4); // faint ghost text
 }
@@ -34,7 +34,7 @@ String _detectLang(String path) {
   if (p.endsWith('.dart')) return 'dart';
   if (p.endsWith('.py')) return 'python';
   if (p.endsWith('.json')) return 'json';
-  if (p.endsWith('.xml')) return 'xml';
+  if (p.endsWith('.xml') || p.endsWith('.svg')) return 'xml';
   if (p.endsWith('.md') || p.endsWith('.markdown')) return 'md';
   return 'text';
 }
@@ -63,33 +63,41 @@ List<SyntaxToken> _highlightHtml(String src) {
   final tokens = <SyntaxToken>[];
   final re = RegExp(
     r'(<!--[\s\S]*?-->)' // 1: comment
-    r'|(<\/?[a-zA-Z][\w-]*)' // 2: tag
-    r'|(\s+[a-zA-Z][\w-]*=)' // 3: attr name
-    r'|("([^"\\]|\\.)*")' // 4: double-quoted string
-    r"|('([^'\\]|\\.)*')" // 5: single-quoted string
-    r'|(>[^<]+)' // 6: text content
+    r'|(<[a-zA-Z][\w-]*)' // 2: tag start
+    r'|(<\/?[a-zA-Z][\w-]*>)' // 3: full tag
+    r'|(\s+[a-zA-Z][\w-]*=)' // 4: attr name
+    r'|("([^"\\]|\\.)*")' // 5: double-quoted string
+    r"|('([^'\\]|\\.)*')" // 6: single-quoted string
     r'|(\s+)', // 7: whitespace
     caseSensitive: false,
   );
+  
+  var lastIndex = 0;
   for (final m in re.allMatches(src)) {
+    if (m.start > lastIndex) {
+      tokens.add(SyntaxToken(src.substring(lastIndex, m.start), SyntaxColors.plain));
+    }
+    
     if (m.group(1) != null) {
       tokens.add(SyntaxToken(m.group(1)!, SyntaxColors.comment));
     } else if (m.group(2) != null) {
       tokens.add(SyntaxToken(m.group(2)!, SyntaxColors.tag));
     } else if (m.group(3) != null) {
-      tokens.add(SyntaxToken(m.group(3)!, SyntaxColors.attr));
+      tokens.add(SyntaxToken(m.group(3)!, SyntaxColors.tag));
     } else if (m.group(4) != null) {
-      tokens.add(SyntaxToken(m.group(4)!, SyntaxColors.string));
+      tokens.add(SyntaxToken(m.group(4)!, SyntaxColors.attr));
     } else if (m.group(5) != null) {
       tokens.add(SyntaxToken(m.group(5)!, SyntaxColors.string));
     } else if (m.group(6) != null) {
-      tokens.add(SyntaxToken(m.group(6)!, SyntaxColors.plain));
+      tokens.add(SyntaxToken(m.group(6)!, SyntaxColors.string));
     } else if (m.group(7) != null) {
       tokens.add(SyntaxToken(m.group(7)!, SyntaxColors.plain));
     }
+    lastIndex = m.end;
   }
-  if (tokens.isEmpty) {
-    tokens.add(SyntaxToken(src, SyntaxColors.plain));
+  
+  if (lastIndex < src.length) {
+    tokens.add(SyntaxToken(src.substring(lastIndex), SyntaxColors.plain));
   }
   return tokens;
 }
@@ -148,7 +156,7 @@ List<SyntaxToken> _highlightCode(String src, String lang) {
     kwPattern = r'\b(const|let|var|function|return|if|else|for|while|do|switch|case|'
         r'break|continue|new|this|class|extends|import|export|from|default|'
         r'try|catch|finally|throw|async|await|yield|typeof|instanceof|in|of|'
-        r'true|false|null|undefined|void|delete|super|static|get|set)\b';
+        r'true|false|null|undefined|void|delete|super|static|get|set|window|document|console)\b';
   } else if (lang == 'dart') {
     kwPattern = r'\b(abstract|as|assert|async|await|break|case|catch|class|const|continue|'
         r'covariant|default|deferred|do|dynamic|else|enum|export|extends|extension|'
@@ -173,33 +181,41 @@ List<SyntaxToken> _highlightCode(String src, String lang) {
     r"|('(\\.|[^'\\])*')" // 5: single string
     r'|(`(\\.|[^`])*`)' // 6: template string
     r'|(\b\d+\.?\d*([eE][+-]?\d+)?\b)' // 7: number
-    r'|([a-zA-Z_$][\w$]*\s*:)' // 8: object key
+    r'|(\s*[a-zA-Z_$][\w$]*\s*:)' // 8: object key
     r'|([{}();:,.\[\]=+\-<>&|!?])' // 9: punct
     r'|(\s+)', // 10: ws
     caseSensitive: false,
   );
+
+  var lastIndex = 0;
   for (final m in re.allMatches(src)) {
+    if (m.start > lastIndex) {
+      tokens.add(SyntaxToken(src.substring(lastIndex, m.start), SyntaxColors.plain));
+    }
+    
+    final fullMatch = m.group(0)!;
     if (m.group(1) != null || m.group(2) != null || m.group(3) != null) {
-      tokens.add(SyntaxToken(m.group(0)!, SyntaxColors.comment));
+      tokens.add(SyntaxToken(fullMatch, SyntaxColors.comment));
     } else if (m.group(4) != null || m.group(5) != null || m.group(6) != null) {
-      tokens.add(SyntaxToken(m.group(0)!, SyntaxColors.string));
+      tokens.add(SyntaxToken(fullMatch, SyntaxColors.string));
     } else if (m.group(7) != null) {
-      tokens.add(SyntaxToken(m.group(0)!, SyntaxColors.number));
+      tokens.add(SyntaxToken(fullMatch, SyntaxColors.number));
     } else {
-      final text = m.group(0)!;
-      if (kw.hasMatch(text)) {
-        tokens.add(SyntaxToken(text, SyntaxColors.keyword));
+      if (kw.hasMatch(fullMatch.trim())) {
+        tokens.add(SyntaxToken(fullMatch, SyntaxColors.keyword));
       } else if (m.group(8) != null) {
-        tokens.add(SyntaxToken(text, SyntaxColors.attr));
+        tokens.add(SyntaxToken(fullMatch, SyntaxColors.attr));
       } else if (m.group(9) != null) {
-        tokens.add(SyntaxToken(text, SyntaxColors.punct));
+        tokens.add(SyntaxToken(fullMatch, SyntaxColors.punct));
       } else {
-        tokens.add(SyntaxToken(text, SyntaxColors.plain));
+        tokens.add(SyntaxToken(fullMatch, SyntaxColors.plain));
       }
     }
+    lastIndex = m.end;
   }
-  if (tokens.isEmpty) {
-    tokens.add(SyntaxToken(src, SyntaxColors.plain));
+  
+  if (lastIndex < src.length) {
+    tokens.add(SyntaxToken(src.substring(lastIndex), SyntaxColors.plain));
   }
   return tokens;
 }
@@ -214,7 +230,13 @@ List<SyntaxToken> _highlightJson(String src) {
     r'|([{}[\]:,])' // 5: punct
     r'|(\s+)', // 6: ws
   );
+  
+  var lastIndex = 0;
   for (final m in re.allMatches(src)) {
+    if (m.start > lastIndex) {
+      tokens.add(SyntaxToken(src.substring(lastIndex, m.start), SyntaxColors.plain));
+    }
+    
     if (m.group(1) != null) {
       tokens.add(SyntaxToken(m.group(1)!, SyntaxColors.attr));
     } else if (m.group(2) != null) {
@@ -228,9 +250,11 @@ List<SyntaxToken> _highlightJson(String src) {
     } else if (m.group(6) != null) {
       tokens.add(SyntaxToken(m.group(6)!, SyntaxColors.plain));
     }
+    lastIndex = m.end;
   }
-  if (tokens.isEmpty) {
-    tokens.add(SyntaxToken(src, SyntaxColors.plain));
+  
+  if (lastIndex < src.length) {
+    tokens.add(SyntaxToken(src.substring(lastIndex), SyntaxColors.plain));
   }
   return tokens;
 }

@@ -333,8 +333,10 @@ class AgentWorkspaceService extends GetxService {
       if (!await dir.exists()) return [];
       final out = <String>[];
       await for (final e in dir.list(recursive: true, followLinks: false)) {
+        final rel = e.path.substring(dir.path.length + 1).replaceAll('\\', '/');
+        if (rel.startsWith('.') || rel.contains('/.')) continue;
         if (e is File) {
-          out.add(e.path.substring(dir.path.length + 1).replaceAll('\\', '/'));
+          out.add(rel);
         }
       }
       out.sort();

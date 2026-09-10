@@ -14,28 +14,27 @@ class ThoughtParts {
 }
 
 ThoughtParts splitThoughtTags(String text) {
-  final startExp = RegExp(r'<think>', caseSensitive: false);
-  final endExp = RegExp(r'</think>', caseSensitive: false);
-  final start = startExp.firstMatch(text);
+  final lower = text.toLowerCase();
+  final startIdx = lower.indexOf('<think>');
 
-  if (start == null) {
+  if (startIdx == -1) {
     return ThoughtParts(thought: '', answer: text, isThinking: false);
   }
 
-  final before = text.substring(0, start.start);
-  final afterStart = text.substring(start.end);
-  final end = endExp.firstMatch(afterStart);
+  final before = text.substring(0, startIdx);
+  final afterStartIdx = startIdx + 7; // Length of '<think>'
+  final endIdx = lower.indexOf('</think>', afterStartIdx);
 
-  if (end == null) {
+  if (endIdx == -1) {
     return ThoughtParts(
-      thought: afterStart,
+      thought: text.substring(afterStartIdx),
       answer: before,
       isThinking: true,
     );
   }
 
-  final thought = afterStart.substring(0, end.start);
-  final after = afterStart.substring(end.end);
+  final thought = text.substring(afterStartIdx, endIdx);
+  final after = text.substring(endIdx + 8); // Length of '</think>'
   final answer = '$before$after'.trimLeft();
 
   return ThoughtParts(

@@ -70,7 +70,10 @@ String? extractFilesJson(String raw) {
 List<WebFile> parseFiles(String raw, {void Function(String path)? onTruncated}) {
   final out = <WebFile>[];
   try {
-    final payload = extractFilesJson(raw);
+    // Strip <architecture> tags before searching for JSON
+    var cleanRaw = raw.replaceAll(RegExp(r'<architecture>[\s\S]*?</architecture>'), '').trim();
+    
+    final payload = extractFilesJson(cleanRaw);
     if (payload != null) {
       final decoded = jsonDecode(payload);
       final list = decoded is Map
@@ -355,8 +358,11 @@ Rules:
   const Navbar = () => ...
   </component>
 - Relative paths only; never absolute or external local files. CDN https links allowed.
+- FORMATTING: Always output pretty-printed code with proper indentation and newlines within the "content" string. Use "\\n" for newlines. NEVER output minified or single-line blocks of code.
 - Keep every file focused; valid JSON with \\n escapes handled correctly.
-- Valid JSON only inside the fence. No prose outside.''';
+- Valid JSON only inside the fence. No prose outside.
+- IMPORTANT: Ensure the JSON is valid and can be parsed. Do not include literal newlines inside the JSON string values. Only use "\\n" for line breaks.
+''';
 }
 
 String webRegenFilePrompt({

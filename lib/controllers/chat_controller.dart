@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/foundation.dart'
     show compute, kIsWeb, defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
@@ -68,6 +69,9 @@ class ChatController extends GetxController {
 
   // Real-time streaming state — the AI response as it's being generated
   final streamingResponse = ''.obs;
+  final streamingThought = ''.obs;
+  final streamingAnswer = ''.obs;
+  final streamingIsThinking = false.obs;
   final isStreaming = false.obs;
   final streamingAttachmentType = Rxn<String>();
   final generationStartTime = Rxn<DateTime>();
@@ -93,7 +97,12 @@ class ChatController extends GetxController {
   // Search Mode (Perplexity-style)
   final isSearchMode = false.obs;
 
+  // Prompt templates
+  static const _kTemplatesKey = 'prompt_templates_v1';
+  final promptTemplates = <Map<String, String>>[].obs;
+  bool _templatesLoaded = false;
   final templateSearchQuery = ''.obs;
+
   List<Map<String, String>> get filteredTemplates {
     final query = templateSearchQuery.value.toLowerCase();
     if (query.isEmpty) return promptTemplates;
@@ -104,6 +113,17 @@ class ChatController extends GetxController {
     }).toList();
   }
 
+  // Multi-select
+  final selectionMode = false.obs;
+  final selectedIds = <String>{}.obs;
+
+  // Side-by-side compare
+  Map<String, String>? _compareRef;
+  final compareLabel = ''.obs;
+
+  // Streaming draft
+  String? _draftMsgId;
+
   void openArtifact(String id, String content, {String? title, String? type}) {
     final version = {
       'title': title ?? 'Artifact',
@@ -113,7 +133,6 @@ class ChatController extends GetxController {
     };
 
     if (artifacts.containsKey(id)) {
-      // Check if content is different before adding a new version
       if (artifacts[id]!.last['content'] != content) {
         artifacts[id]!.add(version);
       }
@@ -147,9 +166,6 @@ class ChatController extends GetxController {
   final sttAvailable = false.obs;
   final _speech = stt.SpeechToText();
 
-  // ─── Hands-free voice mode ───
-  // Loop: listen → (final result) auto-send → reply → speak → listen.
-  // Built from existing pieces (toggleListening/sendMessage/TtsService).
   final voiceMode = false.obs;
   bool _voiceSpeaking = false;
   bool _voiceSendArmed = true;
@@ -210,7 +226,6 @@ class ChatController extends GetxController {
       _wasLoading = loading;
     }));
 
-    // Voice interruption: stop TTS if user starts speaking
     _voiceWorkers.add(ever<bool>(isListening, (listening) {
       if (voiceMode.value && listening && tts != null && tts.isSpeaking.value) {
         unawaited(tts.stop());
@@ -227,8 +242,6 @@ class ChatController extends GetxController {
     _voiceWorkers.clear();
   }
 
-  /// Speaks the latest assistant reply when a hands-free turn settles,
-  /// then the TTS watcher re-arms listening.
   Future<void> _onVoiceReplyReady() async {
     if (!voiceMode.value) return;
     if (_voiceStopQuiet) {
@@ -263,16 +276,13 @@ class ChatController extends GetxController {
   final composerFocusNode = FocusNode();
   final composerKeyboardFocusNode = FocusNode();
 
-  // ─── Find in open chat ───
   final findActive = false.obs;
   final findQuery = ''.obs;
-  final findMatches = <String>[].obs; // message ids, chronological
+  final findMatches = <String>[].obs;
   final findIndex = 0.obs;
   final findController = TextEditingController();
   final _findKeys = <String, GlobalKey>{};
 
-  /// Stable per-message key: doubles as the list identity key (state by
-  /// id, not position) and the find-jump anchor for ensureVisible.
   GlobalKey findKeyFor(String id) => _findKeys.putIfAbsent(id, GlobalKey.new);
 
   void toggleFind(bool open) {
@@ -291,9 +301,6 @@ class ChatController extends GetxController {
 
   int _findGen = 0;
 
-  /// Searches the loaded window, then pulls older pages (max 5) until a
-  /// hit or exhaustion — so find works beyond the newest 100 without
-  /// dumping the whole history into memory. Superseded flights abort.
   Future<void> _updateFindAsync(String q) async {
     final gen = ++_findGen;
     final needle = q.trim().toLowerCase();
@@ -345,14 +352,9 @@ class ChatController extends GetxController {
     } catch (_) {}
   }
 
-  /// Chat history drawer scaffold + its search field. Bound by ChatView;
-  /// lets desktop shortcuts (Ctrl+F) open the drawer and focus search
-  /// without a BuildContext.
   final chatScaffoldKey = GlobalKey<ScaffoldState>();
   final historySearchFocus = FocusNode();
 
-  /// Desktop shortcut (Ctrl+F): open the history drawer and focus its
-  /// search field so the user can immediately type.
   void openHistorySearch() {
     try {
       chatScaffoldKey.currentState?.openDrawer();
@@ -379,9 +381,7 @@ class ChatController extends GetxController {
     loadFolders();
     _initSpeech();
     _loadAutoBackupPrefs();
-    // Pick up Android share-target text (cold start).
     unawaited(checkSharedText());
-    // Silent scheduled backup, once per process (no-op unless enabled).
     if (!_autoBackupChecked) {
       _autoBackupChecked = true;
       unawaited(Future.delayed(
@@ -391,9 +391,6 @@ class ChatController extends GetxController {
 
   static bool _autoBackupChecked = false;
 
-  /// Pull text shared from other Android apps (ACTION_SEND → MainActivity
-  /// stash → getSharedText). Fills the composer and jumps to the chat tab.
-  /// No-op on other platforms; never throws.
   Future<void> checkSharedText() async {
     if (kIsWeb) return;
     try {
@@ -459,8 +456,6 @@ class ChatController extends GetxController {
         isListening.value = false;
         return;
       }
-      // Runtime mic permission first — without it initialize() fails
-      // silently and the user never sees a system dialog.
       if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
         var mic = await Permission.microphone.status;
         if (!mic.isGranted) {
@@ -479,7 +474,7 @@ class ChatController extends GetxController {
           );
           return;
         }
-        if (!mic.isGranted) return; // denied (not permanent) — stay silent
+        if (!mic.isGranted) return;
       }
       if (!sttAvailable.value) {
         try {
@@ -499,7 +494,6 @@ class ChatController extends GetxController {
         onResult: (result) {
           textController.text = result.recognizedWords;
           inputText.value = result.recognizedWords;
-          // Hands-free: final transcript auto-sends (once per utterance).
           if (voiceMode.value && result.finalResult) {
             final said = result.recognizedWords.trim();
             if (said.isNotEmpty && _voiceSendArmed && !isLoading.value) {
@@ -521,8 +515,6 @@ class ChatController extends GetxController {
     }
   }
 
-  /// Speech locale following the app language (mirrors TTS mapping).
-  /// Falls back to en-US when unknown or unset.
   String _sttLocaleId() {
     var code = 'en';
     try {
@@ -613,7 +605,6 @@ class ChatController extends GetxController {
   void deleteFolder(String id) {
     _hive.deleteFolder(id);
     folders.removeWhere((f) => f.id == id);
-    // Move chats to root
     for (var i = 0; i < sessions.length; i++) {
       if (sessions[i].folderId == id) {
         final updated = sessions[i].copyWith(folderId: null);
@@ -642,7 +633,6 @@ class ChatController extends GetxController {
   void deleteProject(String id) {
     _hive.deleteProject(id);
     projects.removeWhere((p) => p.id == id);
-    // Unlink chats
     for (var i = 0; i < sessions.length; i++) {
       if (sessions[i].projectId == id) {
         final updated = sessions[i].copyWith(projectId: null);
@@ -661,7 +651,6 @@ class ChatController extends GetxController {
     }
   }
 
-  /// Pinned sessions float to the top, then most-recently-updated first.
   int _sessionSort(ChatSession a, ChatSession b) {
     if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
     return b.updatedAt.compareTo(a.updatedAt);
@@ -677,8 +666,6 @@ class ChatController extends GetxController {
     sessions.sort(_sessionSort);
   }
 
-  /// Archived chats hide from the drawer (unless revealed). The open chat
-  /// stays open when archived — only the list filters it out.
   void toggleArchive(String sessionId) {
     final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
     if (session == null) return;
@@ -697,13 +684,9 @@ class ChatController extends GetxController {
     );
   }
 
-  /// Show/hide archived chats in the drawer list.
   final showArchived = false.obs;
-
   int get archivedCount => sessions.where((s) => s.archived).length;
 
-  /// Hidden chats: stronger hide — out of the drawer AND search hits
-  /// until revealed. The open chat stays open when hidden.
   void toggleHidden(String sessionId) {
     final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
     if (session == null) return;
@@ -722,14 +705,10 @@ class ChatController extends GetxController {
     );
   }
 
-  /// Show/hide hidden chats in the drawer list.
   final showHidden = false.obs;
-
   int get hiddenCount => sessions.where((s) => s.hidden).length;
 
-  /// Label/folder filter for the drawer ('' = all labels).
   final labelFilter = ''.obs;
-
   List<String> get chatLabels {
     final set = <String>{};
     for (final s in sessions) {
@@ -740,7 +719,6 @@ class ChatController extends GetxController {
     return out;
   }
 
-  /// Set (or clear with empty) a chat's label/folder.
   void setLabel(String sessionId, String label) {
     final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
     if (session == null) return;
@@ -751,7 +729,6 @@ class ChatController extends GetxController {
     sessions.sort(_sessionSort);
   }
 
-  /// Per-chat persona (system-prompt addition). Empty clears to global.
   void setPersona(String sessionId, String persona) {
     final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
     if (session == null) return;
@@ -761,7 +738,6 @@ class ChatController extends GetxController {
     if (idx >= 0) sessions[idx] = updated;
   }
 
-  /// Persona of the currently open chat ('' when none).
   String get currentPersona {
     if (currentSessionId.value.isEmpty) return '';
     return sessions
@@ -774,8 +750,6 @@ class ChatController extends GetxController {
     final id = _uuid.v4();
     final session = ChatSession(id: id, title: 'New Chat');
     _hive.saveSession(id, session.toMap());
-    // Sort (don't blind-insert at 0) so a new unpinned chat never jumps
-    // above pinned sessions until the next reload.
     sessions.add(session);
     sessions.sort(_sessionSort);
     openChat(id);
@@ -800,8 +774,6 @@ class ChatController extends GetxController {
     isLoadingOlder.value = false;
     toggleFind(false);
     _findKeys.clear();
-    // Windowed load: newest N messages only. Huge histories no longer
-    // parse + inflate all at once; older pages load on scroll-to-top.
     final raw = _hive.getMessagesForChatPaged(
       sessionId,
       limit: _chatPageSize,
@@ -809,9 +781,6 @@ class ChatController extends GetxController {
     messages.value = raw.map((m) => ChatMessage.fromMap(m)).toList()
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     hasOlderMessages.value = raw.length >= _chatPageSize;
-    // Warm image bytes off the critical path: async file reads (thread
-    // pool) so first scroll over an image doesn't stall on sync I/O in
-    // build. Fire-and-forget; bubbles render text immediately.
     unawaited(_preloadChatImages(sessionId, messages.toList()));
     final inference = Get.find<InferenceService>();
     if (inference.isModelLoaded.value) {
@@ -823,13 +792,10 @@ class ChatController extends GetxController {
       currentProjectId.value = opened.projectId;
       unawaited(_applySessionModel(opened));
     }
-    // Best-effort: send anything queued while offline for this chat.
     unawaited(_flushOutbox());
     _scrollToBottom(force: true);
   }
 
-  /// Gate for per-chat lock: authenticate first, then open unlocked.
-  /// Never throws; failed auth stays on the current chat.
   Future<void> _authThenOpen(String sessionId) async {
     try {
       final ok = await Get.find<SettingsController>()
@@ -845,7 +811,6 @@ class ChatController extends GetxController {
     } catch (_) {}
   }
 
-  /// Toggle the per-chat lock (title stays visible; content is gated).
   void toggleLocked(String sessionId) {
     final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
     if (session == null) return;
@@ -864,17 +829,10 @@ class ChatController extends GetxController {
     );
   }
 
-  /// Number of messages loaded per chat window page.
   static const int _chatPageSize = 100;
-
-  /// True when older messages may exist beyond the loaded window.
   final hasOlderMessages = false.obs;
-
-  /// True while a load-older page is in flight (re-entrancy guard).
   final isLoadingOlder = false.obs;
 
-  /// Prepends the next older page, preserving the visual scroll position.
-  /// No-op when everything is loaded or a load is already running.
   Future<void> loadOlderMessages() async {
     if (isLoadingOlder.value || !hasOlderMessages.value) return;
     if (currentSessionId.value.isEmpty) return;
@@ -892,14 +850,13 @@ class ChatController extends GetxController {
         limit: _chatPageSize,
         beforeTimestampMs: oldestMs,
       );
-      if (currentSessionId.value != sessionId) return; // switched mid-flight
+      if (currentSessionId.value != sessionId) return;
       if (raw.isEmpty) {
         hasOlderMessages.value = false;
         return;
       }
       final older = raw.map((m) => ChatMessage.fromMap(m)).toList()
         ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-      // De-dupe against the window edge (equal timestamps possible).
       final knownIds = messages.map((m) => m.id).toSet();
       older.removeWhere((m) => knownIds.contains(m.id));
       if (older.isEmpty) {
@@ -926,8 +883,6 @@ class ChatController extends GetxController {
     }
   }
 
-  /// Preloads image payloads for [msgs] without blocking. Skips anything
-  /// already cached and stops early if the user switched chats mid-flight.
   Future<void> _preloadChatImages(
       String sessionId, List<ChatMessage> msgs) async {
     for (final m in msgs) {
@@ -946,7 +901,6 @@ class ChatController extends GetxController {
     if (currentSessionId.value == sessionId && isLoading.value) {
       stopGenerating();
     }
-    // Snapshot for Undo (image files on disk are not restorable).
     final session = sessions.firstWhereOrNull((s) => s.id == sessionId);
     _trashSession = session;
     _trashMessages = session == null
@@ -981,7 +935,6 @@ class ChatController extends GetxController {
     }
   }
 
-  /// Restore the most recently deleted chat (5s UNDO window).
   Future<void> undoDeleteChat() async {
     final s = _trashSession;
     if (s == null) return;
@@ -1015,10 +968,6 @@ class ChatController extends GetxController {
 
   // ─── Backup & Restore ───────────────────────────
 
-  /// Import a previously exported CubicLM chat backup. Existing sessions
-  /// and messages are never overwritten — only new items are merged in.
-  /// Encrypted backups require [passphrase]: 'locked' when missing,
-  /// 'invalid' when wrong. Returns an error string, or null on success.
   Future<void> setAutoBackup(bool enabled, [int? days]) async {
     autoBackupEnabled.value = enabled;
     await _hive.setSetting(AppConstants.keyAutoBackupEnabled, enabled);
@@ -1039,9 +988,6 @@ class ChatController extends GetxController {
       if (files == null || files.isEmpty) return 'cancelled';
       final platformFile = files.first;
 
-      // NOTE: Uint8List.toString() yields "[123, 34, ...]" — never the file
-      // content. Decode picked bytes as UTF-8 explicitly, else a valid
-      // backup picked with withData:true always fails as 'invalid'.
       String? raw;
       if (platformFile.bytes != null && platformFile.bytes!.isNotEmpty) {
         try {
@@ -1081,8 +1027,6 @@ class ChatController extends GetxController {
       if (body is! Map<String, dynamic>) return 'invalid';
       final t = body['type'];
       final hasData = body['sessions'] is List || body['messages'] is List;
-      // Plain backups carry type 'chat_backup'; decrypted payloads and
-      // legacy files may omit it but must carry data.
       if (t != 'chat_backup' && !(t == null && hasData)) return 'invalid';
 
       final existingIds = sessions.map((s) => s.id).toSet();
@@ -1101,7 +1045,6 @@ class ChatController extends GetxController {
         }
       }
 
-      // Build the set of existing message keys to skip duplicates.
       final existingMessageKeys = _hive
           .getAllMessagesRaw()
           .map((m) => _messageKey(
@@ -1142,9 +1085,6 @@ class ChatController extends GetxController {
 
   Future<void> pickImage() async {
     try {
-      // image_picker ships no Windows/Linux/macOS implementation — a bare
-      // call throws MissingPluginException and crashes the attach flow.
-      // Route desktop gallery-picks through FilePicker instead.
       if (!kIsWeb &&
           (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
         await _pickImageDesktop();
@@ -1176,8 +1116,6 @@ class ChatController extends GetxController {
     }
   }
 
-  /// Desktop gallery-pick via the native file dialog. Resize/compress still
-  /// happens later in the shared send path (_resizeVisionImageBytes).
   Future<void> _pickImageDesktop() async {
     final picked = await FilePicker.pickFiles(
       type: FileType.image,
@@ -1200,7 +1138,6 @@ class ChatController extends GetxController {
   }
 
   Future<void> takePhoto() async {
-    // No camera capture on desktop — fail with guidance, not a plugin crash.
     if (!kIsWeb &&
         (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
       Get.snackbar('Camera Unavailable',
@@ -1290,7 +1227,6 @@ class ChatController extends GetxController {
 
     final model = modelName.toLowerCase();
 
-    // Known vision keywords in cloud model names
     final isVision = model.contains('vision') ||
         model.contains('-vl') ||
         model.contains('gpt-4o') ||
@@ -1307,17 +1243,13 @@ class ChatController extends GetxController {
         snackPosition: SnackPosition.TOP,
         duration: const Duration(seconds: 6),
         backgroundColor:
-            const Color(0xFFFF9500).withValues(alpha: 0.95), // Warning Orange
+            const Color(0xFFFF9500).withValues(alpha: 0.95),
         colorText: Colors.white,
         margin: const EdgeInsets.all(12),
       );
     }
   }
 
-  /// Local mode: only LiteRT vision sessions accept images on-device
-  /// today — GGUF has no mmproj loader, so attaching a picture to a GGUF
-  /// chat fails at generate time. Warn at attach time instead, while the
-  /// user can still switch to Cloud or load a vision .litertlm.
   void _checkLocalVisionSupport() {
     var ok = false;
     try {
@@ -1371,7 +1303,6 @@ class ChatController extends GetxController {
       final extension = name.split('.').last.toLowerCase();
       final fileType = _attachmentTypeForExtension(extension);
 
-      // Reject unsupported or extension-less files
       if (extension.isEmpty || (fileType == 'file' && extension != 'zip')) {
         Get.snackbar(
           'Unsupported file',
@@ -1411,7 +1342,6 @@ class ChatController extends GetxController {
         selectedFileContent.value = text;
       }
 
-      // Chunk for RAG if it's large (> 2000 chars)
       if (selectedFileContent.value != null && selectedFileContent.value!.length > 2000) {
         final vs = Get.find<VectorService>();
         selectedFileChunks.assignAll(vs.chunkText(selectedFileContent.value!));
@@ -1439,7 +1369,6 @@ class ChatController extends GetxController {
 
     if (tree.isNotEmpty) {
       buffer.writeln('Root Folders: ${tree.keys.join(', ')}');
-      // Limit detailed folder listing if too many
       if (tree.values.fold(0, (sum, set) => sum + set.length) < 20) {
         buffer.writeln('Subfolders: ${tree.values.expand((e) => e).join(', ')}');
       }
@@ -1458,8 +1387,6 @@ class ChatController extends GetxController {
     selectedFileSize.value = 0;
     selectedFileChunks.clear();
   }
-
-
 
   // ─── Send Message ───────────────────────────────
 
@@ -1486,13 +1413,10 @@ class ChatController extends GetxController {
         ? '$visibleText\n\nAttached file: $fileName\n```text\n$fileContent\n```'
         : visibleText;
 
-    // Create a session if none selected
     if (currentSessionId.value.isEmpty) {
       createNewChat();
     }
 
-    // Encode image to base64 for cloud API (transient, not persisted).
-    // base64 over MBs of pixels runs on a worker, not the UI thread.
     String? imgBase64 = imageBase64;
     if (imgBase64 == null && imagePath != null && !kIsWeb) {
       try {
@@ -1507,7 +1431,6 @@ class ChatController extends GetxController {
       persistedImagePath = await _persistImageFile(imagePath, userMsgId);
     }
 
-    // Add user message — store file path, not base64 (prevents Hive bloat)
     final userMsg = ChatMessage(
       id: userMsgId,
       chatId: currentSessionId.value,
@@ -1524,14 +1447,12 @@ class ChatController extends GetxController {
     messages.add(userMsg);
     _hive.saveMessage(userMsg.id, userMsg.toMap());
 
-    // Clear input preview
     textController.clear();
     inputText.value = '';
     clearImage(deleteFile: false);
     clearFile();
     _scrollToBottom(force: true);
 
-    // Update session title
     if (messages.where((m) => m.role == 'user').length == 1) {
       final title = visibleText.length > 40
           ? '${visibleText.substring(0, 40)}...'
@@ -1544,11 +1465,9 @@ class ChatController extends GetxController {
       if (idx >= 0) sessions[idx] = updated;
     }
 
-    // Flush any prompts queued while offline (FIFO, this chat first).
     await _flushOutbox();
     StatsService.tap(StatsService.eventChatSent);
 
-    // Generate AI Response
     await _generateAIResponse(
       prompt: effectiveText,
       imagePath: imagePath,
@@ -1558,8 +1477,6 @@ class ChatController extends GetxController {
     );
   }
 
-  /// History char budget ≈ 60% of the context window at ~4 chars/token,
-  /// leaving room for the system prompt, current turn and the response.
   int _historyCharBudget() {
     var ctx = AppConstants.defaultContextSize;
     try {
@@ -1571,20 +1488,13 @@ class ChatController extends GetxController {
     return (ctx * 0.6 * 4).toInt();
   }
 
-  /// Keeps the newest message (current turn) plus as many older turns as
-  /// fit [maxChars]. Pure logic lives in `lib/utils/history_budget.dart`
-  /// (unit-tested); this delegates so all call sites share semantics.
-  List<Map<String, String>> _fitHistoryToBudget(
-          List<Map<String, String>> history, int maxChars) =>
-      fitHistoryToBudget(history, maxChars);
-
   Future<bool> _generateAIResponse({
     required String prompt,
     String? imagePath,
     String? imgBase64,
     String? fileType,
     String? filePath,
-    int? insertAt, // Optional index to insert assistant message
+    int? insertAt,
   }) async {
     final generationId = ++_generationSerial;
     isLoading.value = true;
@@ -1592,7 +1502,12 @@ class ChatController extends GetxController {
     streamingAttachmentType.value =
         (imagePath != null || fileType == 'audio') ? fileType : null;
     streamingResponse.value = '';
+    streamingThought.value = '';
+    streamingAnswer.value = '';
+    streamingIsThinking.value = false;
     generationStartTime.value = DateTime.now();
+    
+    unawaited(HapticFeedback.mediumImpact());
     generationLiveDurationSecs.value = 0;
     _generationTimer?.cancel();
     _generationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
@@ -1603,64 +1518,213 @@ class ChatController extends GetxController {
     });
     _followStreaming = true;
     _scrollToBottom(force: true);
-    final tokenBuf = StringBuffer();
-    Timer? tokenFlushTimer;
-    // Adaptive flush: fast generators batch at ~3fps, slow ones stay at
-    // ~7fps so first tokens still appear instantly.
-    var flushMs = 150;
 
-    try {
-      DateTime? thoughtStartedAt;
-      int? thoughtDurationSeconds;
+    final List<String> displayQueue = [];
+    String fullResponse = '';
+    Timer? fluidTimer;
+    bool generationDone = false;
+    bool hasSeenThoughtTag = false;
+    DateTime? thoughtStartedAt;
+    int? thoughtDurationSeconds;
 
-      void trackThoughtTiming() {
-        final parts = splitThoughtTags(streamingResponse.value);
-        if (parts.hasThought && parts.isThinking && thoughtStartedAt == null) {
-          thoughtStartedAt = DateTime.now();
-        }
-        if (parts.hasThought &&
-            !parts.isThinking &&
-            thoughtStartedAt != null &&
-            thoughtDurationSeconds == null) {
-          thoughtDurationSeconds =
-              DateTime.now().difference(thoughtStartedAt!).inSeconds;
+    void trackThoughtTiming() {
+      final current = streamingResponse.value;
+      if (!hasSeenThoughtTag) {
+        if (current.contains('<think')) {
+          hasSeenThoughtTag = true;
+        } else {
+          streamingAnswer.value = current;
+          return;
         }
       }
+      
+      final parts = splitThoughtTags(current);
+      streamingThought.value = parts.thought;
+      streamingAnswer.value = parts.answer;
+      streamingIsThinking.value = parts.isThinking;
 
-      void flushTokens() {
-        if (tokenBuf.isNotEmpty) {
-          // Adapt BEFORE clearing: big batches mean a fast engine that
-          // would otherwise spam rebuilds.
-          flushMs = tokenBuf.length > 200 ? 300 : 150;
-          streamingResponse.value += tokenBuf.toString();
-          tokenBuf.clear();
+      if (thoughtDurationSeconds != null) return;
+      
+      if (parts.hasThought && parts.isThinking && thoughtStartedAt == null) {
+        thoughtStartedAt = DateTime.now();
+      }
+      if (parts.hasThought &&
+          !parts.isThinking &&
+          thoughtStartedAt != null) {
+        thoughtDurationSeconds =
+            DateTime.now().difference(thoughtStartedAt!).inSeconds;
+      }
+    }
+
+    Future<void> finalizeMessage({
+      required String rawResponse,
+      required List<WebSource> webSources,
+      required List<String> usedSkillNames,
+      required int? tps,
+      required int? thoughtDurationSeconds,
+      required List<Map<String, String>> history,
+      required String systemPrompt,
+    }) async {
+      if (generationId != _generationSerial) return;
+
+      final totalDurationMs = generationStartTime.value != null
+          ? DateTime.now().difference(generationStartTime.value!).inMilliseconds
+          : null;
+
+      final imageDurationMs = imageGenStartTime.value != null
+          ? DateTime.now().difference(imageGenStartTime.value!).inMilliseconds
+          : null;
+
+      _generationTimer?.cancel();
+      _generationTimer = null;
+      fluidTimer?.cancel();
+      
+      isStreaming.value = false;
+      streamingAttachmentType.value = null;
+      streamingResponse.value = '';
+      streamingThought.value = '';
+      streamingAnswer.value = '';
+      streamingIsThinking.value = false;
+      generationStartTime.value = null;
+      generationLiveDurationSecs.value = 0;
+      imageGenStep.value = 0;
+      imageGenTotal.value = 0;
+      imageGenDecoding.value = false;
+
+      String? outImageBase64;
+      String? outImagePath;
+      if (rawResponse.startsWith('[IMAGE_BASE64]')) {
+        outImageBase64 = rawResponse.substring('[IMAGE_BASE64]'.length);
+        rawResponse = 'Here is your generated image:';
+      }
+
+      final aiMsgId = _uuid.v4();
+      if (outImageBase64 != null && outImageBase64.isNotEmpty && !kIsWeb) {
+        try {
+          final bytes = base64Decode(outImageBase64);
+          outImagePath = await _persistImageBytes(bytes, aiMsgId);
+          if (outImagePath != null) outImageBase64 = null;
+        } catch (_) {}
+      }
+
+      final artifactsDetected = parseArtifacts(rawResponse);
+      final cleanContent = removeArtifacts(rawResponse);
+
+      final aiMsg = ChatMessage(
+        id: aiMsgId,
+        chatId: currentSessionId.value,
+        role: 'assistant',
+        content: cleanContent,
+        imageBase64: outImageBase64,
+        imagePath: outImagePath,
+        tokensPerSec: (tps != null && tps > 0) ? tps.toDouble() : null,
+        thoughtDurationSeconds: thoughtDurationSeconds,
+        imageGenDurationMs: imageDurationMs,
+        generationDurationMs: totalDurationMs,
+        webSources: webSources.isEmpty ? null : webSources,
+        usedSkills: usedSkillNames.isEmpty ? null : usedSkillNames,
+        artifacts: artifactsDetected.isEmpty ? null : artifactsDetected.map((e) => {
+          'id': e.id ?? _uuid.v4(),
+          'type': e.type ?? 'code',
+          'title': e.title ?? 'Artifact',
+          'content': e.content,
+        }).toList(),
+      );
+
+      if (insertAt != null && insertAt >= 0 && insertAt <= messages.length) {
+        messages.insert(insertAt, aiMsg);
+      } else {
+        messages.add(aiMsg);
+      }
+      _hive.saveMessage(aiMsg.id, aiMsg.toMap());
+      imageGenStartTime.value = null;
+
+      final session = sessions.firstWhereOrNull((s) => s.id == currentSessionId.value);
+      if (session != null) {
+        final updated = session.copyWith(lastMessage: aiMsg.content);
+        _hive.saveSession(updated.id, updated.toMap());
+        final idx = sessions.indexWhere((s) => s.id == updated.id);
+        if (idx >= 0) sessions[idx] = updated;
+      }
+      
+      unawaited(HapticFeedback.mediumImpact());
+      _dropStreamingDraft();
+
+      // One-shot compare: challenger answers the same prompt
+      if (_compareRef != null && outImageBase64 == null) {
+        await _runComparison(
+          prompt: prompt,
+          systemPrompt: systemPrompt,
+          history: history,
+        );
+      }
+
+      // ── Long-term Memory Extraction ──
+      unawaited(_extractMemories(prompt, rawResponse));
+      
+      isLoading.value = false;
+      _scrollToBottom();
+    }
+
+    void startFluidEngine({
+      required List<WebSource> webSources,
+      required List<String> usedSkillNames,
+      required List<Map<String, String>> history,
+      required String systemPrompt,
+    }) {
+      fluidTimer = Timer.periodic(const Duration(milliseconds: 25), (timer) {
+        if (displayQueue.isEmpty && generationDone) {
+          timer.cancel();
+          final inferenceMode = _hive.getSetting(AppConstants.keyInferenceMode, defaultValue: 'local') ?? 'local';
+          final tps = inferenceMode == 'local' ? Get.find<InferenceService>().tokensPerSecond.value.toInt() : null;
+          finalizeMessage(
+            rawResponse: fullResponse, // Uses outer scope fullResponse
+            webSources: webSources,
+            usedSkillNames: usedSkillNames,
+            tps: tps,
+            thoughtDurationSeconds: thoughtDurationSeconds,
+            history: history,
+            systemPrompt: systemPrompt,
+          );
+          return;
+        }
+
+        if (displayQueue.isNotEmpty) {
+          int burst = 1;
+          final qLen = displayQueue.length;
+          if (qLen > 400) {
+            burst = 15;
+          } else if (qLen > 150) {
+            burst = 8;
+          } else if (qLen > 50) {
+            burst = 4;
+          } else if (qLen > 15) {
+            burst = 2;
+          }
+
+          final toAdd = displayQueue.take(burst).join();
+          displayQueue.removeRange(0, min(burst, displayQueue.length));
+          
+          streamingResponse.value += toAdd;
           trackThoughtTiming();
           _scrollToBottom();
         }
-      }
+      });
+    }
 
-      void bufferToken(String t) {
-        tokenBuf.write(t);
-        // Coalesce flushes: 40ms rebuilt the entire list per flush.
-        tokenFlushTimer ??= Timer(Duration(milliseconds: flushMs), () {
-          flushTokens();
-          tokenFlushTimer = null;
-        });
+    void bufferToken(String t) {
+      for (var i = 0; i < t.length; i++) {
+        displayQueue.add(t[i]);
       }
+    }
 
+    try {
       final inferenceMode = _hive.getSetting(
             AppConstants.keyInferenceMode,
             defaultValue: 'local',
           ) ??
           'local';
 
-      String rawResponse;
-
-      // Build conversation history from storage, not the UI window: the
-      // visible list is paged (newest 100) and must not truncate model
-      // context. Cap at recent turns — engines slice to ≤16 anyway.
-      // Maps built straight from raw rows (same strings fromMap would
-      // parse — no round-trip needed for role/content).
       final storedForHistory = _hive.getMessagesForChatPaged(
         currentSessionId.value,
         limit: 40,
@@ -1677,15 +1741,13 @@ class ChatController extends GetxController {
           .where((e) => e['role'] == 'user' || e['role'] == 'assistant')
           .toList();
 
-      // ─── RAG: Smart Context Retrieval ───
       try {
         final vs = Get.find<VectorService>();
-        // 1. Apply RAG to current prompt
         if (prompt.contains('Attached file:') && prompt.length > 3000) {
           final contentMatch = RegExp(r'```text\n([\s\S]*?)\n```').firstMatch(prompt);
           if (contentMatch != null) {
             final full = contentMatch.group(1) ?? '';
-            final hits = vs.retrieve(prompt.split('\n\n').first, vs.chunkText(full));
+            final hits = await compute((String text) => vs.retrieve(prompt.split('\n\n').first, vs.chunkText(text)), full);
             if (hits.isNotEmpty) {
               prompt = prompt.replaceFirst(
                 RegExp(r'Attached file:.*?\n```text\n[\s\S]*?\n```'),
@@ -1694,7 +1756,7 @@ class ChatController extends GetxController {
             }
           }
         }
-        // 2. Apply RAG to history turns
+        
         for (var i = 0; i < history.length; i++) {
           final turn = history[i];
           final content = turn['content'] ?? '';
@@ -1702,7 +1764,7 @@ class ChatController extends GetxController {
             final contentMatch = RegExp(r'```text\n([\s\S]*?)\n```').firstMatch(content);
             if (contentMatch != null) {
               final full = contentMatch.group(1) ?? '';
-              final hits = vs.retrieve(prompt, vs.chunkText(full));
+              final hits = await compute((String text) => vs.retrieve(prompt, vs.chunkText(text)), full);
               if (hits.isNotEmpty) {
                 history[i] = {
                   'role': 'user',
@@ -1717,9 +1779,6 @@ class ChatController extends GetxController {
         }
       } catch (_) {}
 
-      // Fallback: if storage came back empty but the UI holds turns
-      // (write/query race or store hiccup), build from the visible list
-      // so the model never loses context silently.
       final uiTurns = messages
           .where((m) => m.role == 'user' || m.role == 'assistant')
           .length;
@@ -1739,18 +1798,12 @@ class ChatController extends GetxController {
         }).toList();
       }
 
-      // Token-budget trim: local models run on a small context window
-      // (≈4 chars/token, 60% reserved for history) so a long code answer
-      // must not overflow it and wipe context. Cloud models get a large
-      // budget (their windows are 32k+). Oversized turns are
-      // middle-truncated, never fully dropped.
       final preTrimTurns = history.length;
       final historyBudget =
           inferenceMode == 'local' ? _historyCharBudget() : 48000;
-      history = _fitHistoryToBudget(history, historyBudget);
+      
+      history = await compute((Map<String, dynamic> p) => fitHistoryToBudget(p['h'] as List<Map<String, String>>, p['b'] as int), {'h': history, 'b': historyBudget});
 
-      // Observability: what context the model actually receives (roles +
-      // sizes only, never content).
       try {
         final chars =
             history.fold<int>(0, (s, m) => s + (m['content'] ?? '').length);
@@ -1766,7 +1819,6 @@ class ChatController extends GetxController {
         );
       } catch (_) {}
 
-      // Skill relevance — only inject skills relevant to this prompt.
       final settingsForPrompt = Get.find<SettingsController>();
       final modelNameForPrompt = inferenceMode == 'local'
           ? Get.find<InferenceService>().loadedModelName.value
@@ -1776,7 +1828,6 @@ class ChatController extends GetxController {
           relevantSkills.map((s) => s.name).toList();
       var basePrompt =
           settingsForPrompt.baseSystemPromptForModel(modelNameForPrompt);
-      // Per-chat persona overrides tone per conversation (empty = global).
       final persona = currentPersona;
       if (persona.isNotEmpty) {
         basePrompt = '$basePrompt\n\n[Chat persona]\n$persona';
@@ -1787,8 +1838,6 @@ class ChatController extends GetxController {
           : '$basePrompt${SkillInjector.buildForSkills(relevantSkills)}',
     );
 
-      // Web access — fetch readable text for any URLs in the prompt so
-      // the model can reason over real page content.
       List<WebSource> webSources = [];
       try {
         final s = Get.find<SettingsController>();
@@ -1817,10 +1866,9 @@ class ChatController extends GetxController {
       } catch (_) {}
 
       final cloud = Get.find<CloudService>();
-
+      fullResponse = '';
 
       if (isSearchMode.value && cloud.isProviderConfigured('perplexity')) {
-        // ── Deep Search Mode (Perplexity Sonar Pro) ──
         final apiMessages = [
           {
             'role': 'system',
@@ -1831,6 +1879,12 @@ class ChatController extends GetxController {
           {'role': 'user', 'content': prompt},
         ];
 
+        startFluidEngine(
+          webSources: webSources,
+          usedSkillNames: usedSkillNames,
+          history: history,
+          systemPrompt: systemPromptForThisTurn,
+        );
         final buffer = StringBuffer();
         try {
           await for (final chunk in cloud.streamMessageAs(
@@ -1841,18 +1895,15 @@ class ChatController extends GetxController {
             buffer.write(chunk);
             bufferToken(chunk);
           }
-          rawResponse = buffer.toString();
+          fullResponse = buffer.toString();
         } catch (e) {
-          rawResponse = 'Search failed: $e';
+          fullResponse = 'Search failed: $e';
         }
-        flushTokens();
-        tokenFlushTimer?.cancel();
       } else if (inferenceMode == 'local') {
         final localImage = Get.find<LocalImageService>();
 
         if (localImage.isModelLoaded.value &&
             _isImageGenerationPrompt(prompt)) {
-          // Local image generation — only when prompt explicitly asks for image creation
           final settings = Get.find<SettingsController>();
           final imageNotifications =
               Get.find<ImageGenerationNotificationService>();
@@ -1914,24 +1965,27 @@ class ChatController extends GetxController {
             },
           );
 
-          final genDurationMs = imageGenStartTime.value != null
-              ? DateTime.now()
-                  .difference(imageGenStartTime.value!)
-                  .inMilliseconds
-              : null;
-
           if (pngBytes != null) {
-            await imageNotifications.complete(durationMs: genDurationMs ?? 0);
-            StatsService.tap(StatsService.eventImageGenerated);
-            rawResponse =
-                '[IMAGE_BASE64]${await compute(base64Encode, pngBytes)}';
+            fullResponse = '[IMAGE_BASE64]${await compute(base64Encode, pngBytes)}';
           } else {
-            await imageNotifications.failed();
-            rawResponse = '❌ Local image generation failed.';
+            fullResponse = '❌ Local image generation failed.';
           }
+          generationDone = true;
+          startFluidEngine(
+            webSources: webSources,
+            usedSkillNames: usedSkillNames,
+            history: history,
+            systemPrompt: systemPromptForThisTurn,
+          );
         } else {
+          startFluidEngine(
+          webSources: webSources,
+          usedSkillNames: usedSkillNames,
+          history: history,
+          systemPrompt: systemPromptForThisTurn,
+        );
           final inference = Get.find<InferenceService>();
-          rawResponse = await inference.generate(
+          fullResponse = await inference.generate(
             prompt: prompt,
             systemPrompt: systemPromptForThisTurn,
             conversationHistory: history,
@@ -1940,8 +1994,6 @@ class ChatController extends GetxController {
             audioPath: fileType == 'audio' ? filePath : null,
             onToken: bufferToken,
           );
-          flushTokens();
-          tokenFlushTimer?.cancel();
         }
       } else {
         final cloud = Get.find<CloudService>();
@@ -1950,156 +2002,38 @@ class ChatController extends GetxController {
           {'role': 'system', 'content': systemPromptForThisTurn},
           ...history,
         ];
-        rawResponse = await cloud.sendMessage(
+        
+        startFluidEngine(
+          webSources: webSources,
+          usedSkillNames: usedSkillNames,
+          history: history,
+          systemPrompt: systemPromptForThisTurn,
+        );
+        fullResponse = await cloud.sendMessage(
           messages: apiMessages,
           imageBase64: imgBase64,
           temperature: settings.temperature.value,
-          // Auto Tune: no output cap — let the model use its full native
-          // budget so long, detailed answers are never truncated.
           maxTokens:
               settings.autoTuneParams.value ? null : settings.maxTokens.value,
           onToken: bufferToken,
         );
-        flushTokens();
-        tokenFlushTimer?.cancel();
       }
 
-      if (thoughtStartedAt != null && thoughtDurationSeconds == null) {
-        thoughtDurationSeconds =
-            DateTime.now().difference(thoughtStartedAt!).inSeconds;
-      }
-
-      if (generationId != _generationSerial) {
-        tokenFlushTimer?.cancel();
-        tokenBuf.clear();
-        return true; // superseded by a newer generation — not a failure
-      }
-
-      final tps = inferenceMode == 'local'
-          ? Get.find<InferenceService>().tokensPerSecond.value
-          : null;
-
-      final totalDurationMs = generationStartTime.value != null
-          ? DateTime.now().difference(generationStartTime.value!).inMilliseconds
-          : null;
-
-      final imageDurationMs = imageGenStartTime.value != null
-          ? DateTime.now().difference(imageGenStartTime.value!).inMilliseconds
-          : null;
-
-      _generationTimer?.cancel();
-      _generationTimer = null;
-      tokenFlushTimer?.cancel();
-      tokenBuf.clear();
-      isStreaming.value = false;
-      streamingAttachmentType.value = null;
-      streamingResponse.value = '';
-      generationStartTime.value = null;
-      generationLiveDurationSecs.value = 0;
-      imageGenStep.value = 0;
-      imageGenTotal.value = 0;
-      imageGenDecoding.value = false;
-
-      String? outImageBase64;
-      String? outImagePath;
-      if (rawResponse.startsWith('[IMAGE_BASE64]')) {
-        outImageBase64 = rawResponse.substring('[IMAGE_BASE64]'.length);
-        rawResponse = 'Here is your generated image:';
-      }
-
-      final aiMsgId = _uuid.v4();
-      if (outImageBase64 != null && outImageBase64.isNotEmpty && !kIsWeb) {
-        try {
-          final bytes = base64Decode(outImageBase64);
-          outImagePath = await _persistImageBytes(bytes, aiMsgId);
-          if (outImagePath != null) outImageBase64 = null;
-        } catch (_) {}
-      }
-
-      final artifactsDetected = parseArtifacts(rawResponse);
-      final cleanContent = removeArtifacts(rawResponse);
-
-      final aiMsg = ChatMessage(
-        id: aiMsgId,
-        chatId: currentSessionId.value,
-        role: 'assistant',
-        content: cleanContent,
-        imageBase64: outImageBase64,
-        imagePath: outImagePath,
-        tokensPerSec: tps,
-        thoughtDurationSeconds: thoughtDurationSeconds,
-        imageGenDurationMs: imageDurationMs,
-        generationDurationMs: totalDurationMs,
-        webSources: webSources.isEmpty ? null : webSources,
-        usedSkills: usedSkillNames.isEmpty ? null : usedSkillNames,
-        artifacts: artifactsDetected.isEmpty
-            ? null
-            : artifactsDetected
-                .map((e) => {
-                      'id': e.id ?? _uuid.v4(),
-                      'type': e.type ?? 'code',
-                      'title': e.title ?? 'Artifact',
-                      'content': e.content,
-                    })
-                .toList(),
-      );
-
-      if (insertAt != null && insertAt >= 0 && insertAt <= messages.length) {
-        messages.insert(insertAt, aiMsg);
-      } else {
-        messages.add(aiMsg);
-      }
-      _hive.saveMessage(aiMsg.id, aiMsg.toMap());
-      imageGenStartTime.value = null;
-
-      final session =
-          sessions.firstWhereOrNull((s) => s.id == currentSessionId.value);
-      if (session != null) {
-        final updated = session.copyWith(lastMessage: aiMsg.content);
-        _hive.saveSession(updated.id, updated.toMap());
-        final idx = sessions.indexWhere((s) => s.id == updated.id);
-        if (idx >= 0) sessions[idx] = updated;
-      }
-      unawaited(HapticFeedback.mediumImpact());
-      // A pause-draft is superseded by the full answer — drop it so the
-      // chat doesn't show both the partial and the complete message.
-      _dropStreamingDraft();
-      // Background ping: the answer finished while the app is
-      // backgrounded — notify so the user knows to come back.
-      try {
-        final st = WidgetsBinding.instance.lifecycleState;
-        if (st == AppLifecycleState.paused ||
-            st == AppLifecycleState.hidden ||
-            st == AppLifecycleState.inactive) {
-          final answerPreview = splitThoughtTags(rawResponse).answer.trim();
-          unawaited(Get.find<ImageGenerationNotificationService>()
-              .notifyChatDone(
-                  answerPreview.isNotEmpty ? answerPreview : rawResponse));
-        }
-      } catch (_) {}
-      // One-shot compare: challenger answers the same prompt, then the
-      // primary setup is restored. Skipped for image generations.
-      if (_compareRef != null && outImageBase64 == null) {
-        await _runComparison(
-          prompt: prompt,
-          systemPrompt: systemPromptForThisTurn,
-          history: history,
-        );
-      }
-
-      // ── Long-term Memory Extraction ──
-      unawaited(_extractMemories(prompt, rawResponse));
+      generationDone = true;
+      return true;
     } catch (e) {
+      generationDone = true;
       if (generationId != _generationSerial) {
-        tokenFlushTimer?.cancel();
-        tokenBuf.clear();
-        return true; // stopped by the user — not a failure
+        fluidTimer?.cancel();
+        return true;
       }
-      tokenFlushTimer?.cancel();
-      tokenBuf.clear();
+      fluidTimer?.cancel();
       isStreaming.value = false;
       streamingAttachmentType.value = null;
       streamingResponse.value = '';
+      streamingThought.value = '';
+      streamingAnswer.value = '';
+      streamingIsThinking.value = false;
       imageGenStep.value = 0;
       imageGenTotal.value = 0;
       imageGenDecoding.value = false;
@@ -2118,8 +2052,6 @@ class ChatController extends GetxController {
       messages.add(errorMsg);
       _hive.saveMessage(errorMsg.id, errorMsg.toMap());
       unawaited(HapticFeedback.heavyImpact());
-      // Offline outbox: network failures queue for auto-send later
-      // (text/file prompts only — image bytes are transient).
       final queued = _isNetworkError(e) &&
           await _enqueueOutbox(
             prompt: prompt,
@@ -2135,16 +2067,9 @@ class ChatController extends GetxController {
       }
       return false;
     }
-
-    if (generationId == _generationSerial) {
-      isLoading.value = false;
-      _scrollToBottom();
-    }
-    return true;
   }
 
   Future<void> _extractMemories(String userMsg, String aiMsg) async {
-    // Simple heuristic-based extraction.
     final personalKeywords = [
       'my name is',
       'i live in',
@@ -2162,7 +2087,6 @@ class ChatController extends GetxController {
     for (final kw in personalKeywords) {
       if (lowerUser.contains(kw)) {
         final startIdx = lowerUser.indexOf(kw);
-        // Take a reasonable slice of the sentence
         var fact = userMsg.substring(startIdx).trim();
         final endIdx = fact.indexOf(RegExp(r'[.!?\n]'));
         if (endIdx != -1) {
@@ -2178,8 +2102,6 @@ class ChatController extends GetxController {
       }
     }
   }
-
-  // ─── Offline outbox (FIFO, cap 20, per-chat) ────
 
   bool _flushingOutbox = false;
   DateTime? _outboxBackoffUntil;
@@ -2216,9 +2138,6 @@ class ChatController extends GetxController {
     }
   }
 
-  /// Send queued prompts for the open chat, oldest first. Stops (with a
-  /// 2-minute backoff) on the first network failure so reopening chats
-  /// while offline doesn't spam error bubbles.
   Future<void> _flushOutbox() async {
     if (_flushingOutbox) return;
     final backoff = _outboxBackoffUntil;
@@ -2243,8 +2162,6 @@ class ChatController extends GetxController {
           filePath: e['filePath']?.toString(),
         );
         if (!ok) {
-          // Failed (and re-queued by the catch path if network) — back
-          // off instead of hammering every open/send while offline.
           _outboxBackoffUntil = DateTime.now().add(const Duration(minutes: 2));
           return;
         }
@@ -2257,7 +2174,6 @@ class ChatController extends GetxController {
 
   void stopGenerating() {
     if (!isLoading.value && !isStreaming.value) return;
-    // Hands-free: user-stopped turns stay quiet (no auto-speak/listen).
     _voiceStopQuiet = true;
     _voiceSpeaking = false;
     try {
@@ -2271,7 +2187,6 @@ class ChatController extends GetxController {
 
     if (partialResponse.isNotEmpty) {
       final tps = Get.find<InferenceService>().tokensPerSecond.value;
-      // A pause-draft (background save) is superseded by this stop-save.
       _dropStreamingDraft();
       _saveAssistantMessage(
         content: partialResponse,
@@ -2298,11 +2213,32 @@ class ChatController extends GetxController {
     Get.find<LocalImageService>().cancelGeneration();
   }
 
-  // ─── Prompt templates ─────────────────────────
-
-  static const _kTemplatesKey = 'prompt_templates_v1';
-  final promptTemplates = <Map<String, String>>[].obs;
-  bool _templatesLoaded = false;
+  void ensureTemplatesLoaded() {
+    if (_templatesLoaded) return;
+    _templatesLoaded = true;
+    try {
+      final raw = _hive.getSetting<String>(_kTemplatesKey);
+      if (raw == null || raw.isEmpty) {
+        promptTemplates.assignAll(_defaultTemplates());
+        unawaited(
+            _hive.setSetting(_kTemplatesKey, jsonEncode(promptTemplates)));
+      } else {
+        final list = (jsonDecode(raw) as List)
+            .whereType<Map>()
+            .map((m) => {
+                  'id': m['id']?.toString() ?? '',
+                  'name': m['name']?.toString() ?? '',
+                  'body': m['body']?.toString() ?? '',
+                  'builtin': m['builtin']?.toString() ?? '',
+                })
+            .where((m) => (m['name'] ?? '').isNotEmpty)
+            .toList();
+        promptTemplates.assignAll(list.isEmpty ? _defaultTemplates() : list);
+      }
+    } catch (_) {
+      promptTemplates.assignAll(_defaultTemplates());
+    }
+  }
 
   static List<Map<String, String>> _defaultTemplates() => const [
         {
@@ -2346,34 +2282,6 @@ class ChatController extends GetxController {
         },
       ];
 
-  void ensureTemplatesLoaded() {
-    if (_templatesLoaded) return;
-    _templatesLoaded = true;
-    try {
-      final raw = _hive.getSetting<String>(_kTemplatesKey);
-      if (raw == null || raw.isEmpty) {
-        promptTemplates.assignAll(_defaultTemplates());
-        unawaited(
-            _hive.setSetting(_kTemplatesKey, jsonEncode(promptTemplates)));
-      } else {
-        final list = (jsonDecode(raw) as List)
-            .whereType<Map>()
-            .map((m) => {
-                  'id': m['id']?.toString() ?? '',
-                  'name': m['name']?.toString() ?? '',
-                  'body': m['body']?.toString() ?? '',
-                  'builtin': m['builtin']?.toString() ?? '',
-                })
-            .where((m) => (m['name'] ?? '').isNotEmpty)
-            .toList();
-        promptTemplates.assignAll(list.isEmpty ? _defaultTemplates() : list);
-      }
-    } catch (_) {
-      promptTemplates.assignAll(_defaultTemplates());
-    }
-  }
-
-  /// Insert a template into the composer (appends, keeps existing text).
   void insertTemplate(String body) {
     final cur = textController.text;
     textController.text = cur.isEmpty ? body : '$cur\n$body';
@@ -2407,11 +2315,6 @@ class ChatController extends GetxController {
         _kTemplatesKey, jsonEncode(promptTemplates.toList()));
   }
 
-  // ─── Multi-select (bulk copy/share/delete) ────
-
-  final selectionMode = false.obs;
-  final selectedIds = <String>{}.obs;
-
   void toggleSelectionMode([bool? on]) {
     final next = on ?? !selectionMode.value;
     selectionMode.value = next;
@@ -2439,7 +2342,6 @@ class ChatController extends GetxController {
     toggleSelectionMode(false);
   }
 
-  /// Selected turns as markdown (for copy/share).
   String selectedAsMarkdown() {
     final sel = messages.where((m) => selectedIds.contains(m.id)).toList();
     final buf = StringBuffer();
@@ -2451,9 +2353,6 @@ class ChatController extends GetxController {
     return buf.toString().trim();
   }
 
-  // ─── Per-chat model pin ─────────────────────────
-
-  /// True when the open chat overrides the global inference mode/model.
   bool get chatHasModelPin {
     final sid = currentSessionId.value;
     if (sid.isEmpty) return false;
@@ -2461,7 +2360,6 @@ class ChatController extends GetxController {
     return s != null && s.modelMode.isNotEmpty;
   }
 
-  /// Short label of the pinned model for the header pill ('' = none).
   String get chatPinnedModelLabel {
     final sid = currentSessionId.value;
     if (sid.isEmpty) return '';
@@ -2479,7 +2377,6 @@ class ChatController extends GetxController {
     return label;
   }
 
-  /// Capture the CURRENT global mode+model into the open chat.
   Future<void> pinModelToChat() async {
     final sid = currentSessionId.value;
     if (sid.isEmpty) {
@@ -2529,7 +2426,6 @@ class ChatController extends GetxController {
         duration: const Duration(seconds: 2));
   }
 
-  /// Forget the override — the chat follows the global mode again.
   Future<void> clearChatModelPin() async {
     final sid = currentSessionId.value;
     if (sid.isEmpty) return;
@@ -2541,8 +2437,6 @@ class ChatController extends GetxController {
     await _hive.saveSession(updated.id, updated.toMap());
   }
 
-  /// Apply the session's pinned model after opening it. Never throws —
-  /// a missing local file just warns and keeps the global setup.
   Future<void> _applySessionModel(ChatSession s) async {
     if (s.modelMode.isEmpty) return;
     try {
@@ -2569,13 +2463,6 @@ class ChatController extends GetxController {
     } catch (_) {}
   }
 
-  // ─── Side-by-side compare ─────────────────────────
-
-  /// Challenger for the NEXT send only: {mode, provider, model}.
-  /// Cleared after the comparison runs (one-shot, never sticky).
-  Map<String, String>? _compareRef;
-  final compareLabel = ''.obs;
-
   void setCompareChallenger(String mode, String provider, String model) {
     _compareRef = {'mode': mode, 'provider': provider, 'model': model};
     compareLabel.value = mode == 'cloud'
@@ -2588,9 +2475,6 @@ class ChatController extends GetxController {
     compareLabel.value = '';
   }
 
-  /// Run the challenger on the same prompt+history AFTER the primary
-  /// answer is saved. Always restores the primary setup in finally so
-  /// the user's active model never silently changes.
   Future<void> _runComparison({
     required String prompt,
     required String systemPrompt,
@@ -2602,7 +2486,6 @@ class ChatController extends GetxController {
     if (ref == null) return;
     final chatId = currentSessionId.value;
     final settings = Get.find<SettingsController>();
-    // Capture primary BEFORE any switch.
     final primaryMode = settings.inferenceMode.value;
     final primaryProvider = settings.cloudProvider.value;
     final primaryCloudModel = settings.selectedCloudModelName;
@@ -2644,7 +2527,7 @@ class ChatController extends GetxController {
         );
       }
       if (answer.trim().isEmpty) throw Exception('empty challenger answer');
-      if (currentSessionId.value != chatId) return; // switched mid-compare
+      if (currentSessionId.value != chatId) return;
       final msg = ChatMessage(
         id: _uuid.v4(),
         chatId: chatId,
@@ -2659,7 +2542,6 @@ class ChatController extends GetxController {
       Get.snackbar('Compare failed', e.toString(),
           snackPosition: SnackPosition.BOTTOM);
     } finally {
-      // Restore primary setup no matter what.
       try {
         if (primaryMode == 'cloud') {
           final cmc = Get.find<CloudModelController>();
@@ -2683,10 +2565,6 @@ class ChatController extends GetxController {
     }
   }
 
-  /// Friendly error text for the chat bubble. Raw provider payloads
-  /// (OpenRouter 429 walls, HTML error pages) are unreadable in-chat —
-  /// the bubble gets the short version with a remedy, while the full
-  /// details stay in System Logs → Chat (logged by the caller).
   bool _isNetworkError(Object e) {
     final lower = e.toString().toLowerCase();
     return lower.contains('socketexception') ||
@@ -2700,6 +2578,13 @@ class ChatController extends GetxController {
   String _friendlyGenerationError(Object e) {
     final s = e.toString();
     final lower = s.toLowerCase();
+    if (lower.contains('no endpoints found that support image input') ||
+        lower.contains('does not support image') ||
+        lower.contains('vision is not supported')) {
+      return '🖼️ This model doesn\'t support image input.\n\n'
+          '• Switch to a vision model (e.g. GPT-4o, Claude, Gemini)\n'
+          '• Or remove the image and resend as text';
+    }
     final rateLimited = lower.contains('429') ||
         lower.contains('rate_limit') ||
         lower.contains('rate-limit') ||
@@ -2722,56 +2607,44 @@ class ChatController extends GetxController {
     return '❌ Error: $s';
   }
 
-  // ─── Edit / Regenerate / Branch ─────────────────────────
-
-  /// Edit a user message, saving the version history.
   void editMessage(ChatMessage msg, String newContent) {
     if (isLoading.value || isStreaming.value) return;
     if (msg.role != 'user') return;
     final idx = messages.indexWhere((m) => m.id == msg.id);
     if (idx < 0) return;
 
-    // Safety: Clear main input to prevent accidental double-send from background
     textController.clear();
     inputText.value = '';
 
-    // Grab current assistant reply if present
     String? currentAssistantResponse;
     if (idx + 1 < messages.length && messages[idx + 1].role == 'assistant') {
       currentAssistantResponse = messages[idx + 1].content;
     }
 
-    // Initialize or copy revisions list
     final allRevisions = List<Map<String, dynamic>>.from(msg.revisions ?? []);
 
-    // If this is the first edit, add the original version first
     if (allRevisions.isEmpty) {
       allRevisions.add({
         'content': msg.content,
         'response': currentAssistantResponse,
       });
     } else {
-      // Update the 'current' revision in the list before adding a new one
-      // because navigateRevision might have changed which one is 'active' in the UI
       allRevisions[msg.revisionIndex] = {
         'content': msg.content,
         'response': currentAssistantResponse,
       };
     }
 
-    // Add the NEW version to the end of the list
     allRevisions.add({
       'content': newContent,
-      'response': null, // Response will be generated
+      'response': null,
     });
 
-    // Remove old assistant reply from UI and Hive (it will be replaced by new generation)
     if (idx + 1 < messages.length && messages[idx + 1].role == 'assistant') {
       _hive.deleteMessage(messages[idx + 1].id);
       messages.removeAt(idx + 1);
     }
 
-    // Update user message to the new version
     final updated = ChatMessage(
       id: msg.id,
       chatId: msg.chatId,
@@ -2791,18 +2664,16 @@ class ChatController extends GetxController {
     messages[idx] = updated;
     _hive.saveMessage(updated.id, updated.toMap());
 
-    // Generate new AI Response
     _generateAIResponse(
       prompt: newContent,
       imagePath: msg.imagePath,
       imgBase64: msg.imageBase64,
       fileType: msg.fileType,
       filePath: msg.filePath,
-      insertAt: idx + 1, // Insert right after the edited user message
+      insertAt: idx + 1,
     );
   }
 
-  /// Navigate between different versions of a message.
   void navigateRevision(ChatMessage msg, int direction) {
     final revisions = msg.revisions;
     if (revisions == null || revisions.isEmpty) return;
@@ -2812,17 +2683,13 @@ class ChatController extends GetxController {
 
     var msgIdx = messages.indexWhere((m) => m.id == msg.id);
     if (msgIdx < 0) return;
-    // Window edge: the true adjacent reply may sit in an unloaded page.
-    // Pull older history first so messages[msgIdx + 1] is really the reply.
     if (msgIdx == 0 && hasOlderMessages.value) {
-      // Best-effort sync load (cheap: one page from Hive).
       unawaited(loadOlderMessages().then((_) {
         navigateRevision(msg, direction);
       }));
       return;
     }
 
-    // Current assistant response (if any) should be saved back to the current revision
     String? currentResponse;
     if (msgIdx + 1 < messages.length &&
         messages[msgIdx + 1].role == 'assistant') {
@@ -2835,12 +2702,10 @@ class ChatController extends GetxController {
       'response': currentResponse,
     };
 
-    // Get the target version
     final targetRevision = updatedRevisions[targetIdx];
     final targetContent = targetRevision['content'] as String;
     final targetResponse = targetRevision['response'] as String?;
 
-    // Update the user message in UI and Hive
     final updatedUser = ChatMessage(
       id: msg.id,
       chatId: msg.chatId,
@@ -2860,7 +2725,6 @@ class ChatController extends GetxController {
     messages[msgIdx] = updatedUser;
     _hive.saveMessage(updatedUser.id, updatedUser.toMap());
 
-    // Update or remove the assistant reply
     if (msgIdx + 1 < messages.length &&
         messages[msgIdx + 1].role == 'assistant') {
       if (targetResponse != null) {
@@ -2879,12 +2743,10 @@ class ChatController extends GetxController {
         messages[msgIdx + 1] = updatedAssistant;
         _hive.saveMessage(updatedAssistant.id, updatedAssistant.toMap());
       } else {
-        // This version has no response yet? (Shouldn't happen with current logic, but safe to handle)
         _hive.deleteMessage(messages[msgIdx + 1].id);
         messages.removeAt(msgIdx + 1);
       }
     } else if (targetResponse != null) {
-      // If assistant message was missing but we have a response in history, re-add it
       final aiMsg = ChatMessage(
         id: _uuid.v4(),
         chatId: msg.chatId,
@@ -2902,8 +2764,6 @@ class ChatController extends GetxController {
     if (isLoading.value || isStreaming.value) return;
     var idx = messages.indexWhere((m) => m.id == msg.id);
     if (idx < 0) return;
-    // Window edge: the preceding user message may sit in an unloaded
-    // page — load it first instead of regenerating against nothing.
     if (idx == 0 && hasOlderMessages.value) {
       unawaited(loadOlderMessages().then((_) {
         regenerateFromMessage(msg);
@@ -2914,24 +2774,21 @@ class ChatController extends GetxController {
     final userMsg = idx > 0 ? messages[idx - 1] : null;
     if (userMsg == null || userMsg.role != 'user') return;
 
-    // Safety: Clear main input
     textController.clear();
     inputText.value = '';
 
-    // Remove the old assistant message
     _hive.deleteMessage(msg.id);
     messages.removeAt(idx);
 
     _scrollToBottom(force: true);
 
-    // Trigger AI response without adding a new user message
     _generateAIResponse(
       prompt: userMsg.content,
       imagePath: userMsg.imagePath,
       imgBase64: userMsg.imageBase64,
       fileType: userMsg.fileType,
       filePath: userMsg.filePath,
-      insertAt: idx, // Insert where the old assistant message was
+      insertAt: idx,
     );
   }
 
@@ -2940,9 +2797,6 @@ class ChatController extends GetxController {
     final idx = messages.indexWhere((m) => m.id == msg.id);
     if (idx < 0) return;
 
-    // Capture history from storage, not the UI window: the visible list
-    // is paged and a windowed sublist would silently drop older context
-    // from the branch.
     final stored = _hive.getMessagesForChat(msg.chatId);
     final cutoff = msg.timestamp;
     final historyToCopy = stored.map((m) => ChatMessage.fromMap(m)).toList()
@@ -2982,22 +2836,15 @@ class ChatController extends GetxController {
     if (idx < 0) return;
     _hive.deleteMessage(msg.id);
     messages.removeAt(idx);
-    // Don't strand the user on an empty window while older pages exist.
     if (messages.isEmpty && hasOlderMessages.value) {
       unawaited(loadOlderMessages());
     }
   }
 
-  /// Persist the in-flight streaming text (e.g. OS kills the app or the
-  /// user backgrounds mid-answer). The id is tracked so the completion
-  /// path can drop the superseded draft instead of duplicating it.
-  String? _draftMsgId;
-
   void saveStreamingDraft() {
     if (!isStreaming.value) return;
     final text = streamingResponse.value.trim();
     if (text.isEmpty || currentSessionId.value.isEmpty) return;
-    // One draft max — replace the older (shorter) snapshot.
     _dropStreamingDraft();
     try {
       final aiMsg = ChatMessage(
@@ -3020,7 +2867,6 @@ class ChatController extends GetxController {
     } catch (_) {}
   }
 
-  /// Drop a previously saved pause-draft (superseded by full/partial save).
   void _dropStreamingDraft() {
     final id = _draftMsgId;
     _draftMsgId = null;
@@ -3065,11 +2911,7 @@ class ChatController extends GetxController {
     if (!scrollController.hasClients) return;
     final position = scrollController.position;
     final distanceFromBottom = position.maxScrollExtent - position.pixels;
-
-    // Show button if we are more than 200px away from bottom
     showScrollToBottom.value = distanceFromBottom > 200;
-
-    // Paged history: near the top edge, pull the next older page.
     if (position.pixels <= 240 &&
         hasOlderMessages.value &&
         !isLoadingOlder.value &&
@@ -3109,15 +2951,27 @@ class ChatController extends GetxController {
     if (!force && isStreaming.value && !_followStreaming) return;
     if (_scrollTimer?.isActive == true) return;
 
-    _scrollTimer = Timer(const Duration(milliseconds: 80), () {
+    final delay = isStreaming.value ? 24 : 32;
+
+    _scrollTimer = Timer(Duration(milliseconds: delay), () {
       if (!scrollController.hasClients) return;
       if (!force && isStreaming.value && !_followStreaming) return;
-      final target = scrollController.position.maxScrollExtent;
-      if ((target - scrollController.position.pixels).abs() < 8) return;
+      
+      final pos = scrollController.position;
+      final target = pos.maxScrollExtent;
+      final current = pos.pixels;
+      
+      if ((target - current).abs() < 4) {
+        if (target != current) scrollController.jumpTo(target);
+        return;
+      }
+
+      final duration = isStreaming.value ? 100 : 250;
+      
       scrollController.animateTo(
         target,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
+        duration: Duration(milliseconds: duration),
+        curve: isStreaming.value ? Curves.linear : Curves.easeOutCubic,
       );
     });
   }
@@ -3159,20 +3013,8 @@ class ChatController extends GetxController {
     const imageExtensions = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'heic'};
     const audioExtensions = {'mp3', 'm4a', 'wav', 'aac', 'ogg', 'flac'};
     const textExtensions = {
-      'txt',
-      'md',
-      'json',
-      'csv',
-      'log',
-      'yaml',
-      'yml',
-      'xml',
-      'dart',
-      'kt',
-      'java',
-      'js',
-      'ts',
-      'py',
+      'txt', 'md', 'json', 'csv', 'log', 'yaml', 'yml', 'xml',
+      'dart', 'kt', 'java', 'js', 'ts', 'py',
     };
     if (imageExtensions.contains(extension)) return 'image';
     if (audioExtensions.contains(extension)) return 'audio';
@@ -3202,7 +3044,6 @@ class ChatController extends GetxController {
   bool _isImageGenerationPrompt(String prompt) {
     final lower = prompt.toLowerCase().trim();
     if (lower.isEmpty) return false;
-    // Explicit prefixes always mean image generation.
     if (lower.startsWith('/image') ||
         lower.startsWith('/img') ||
         lower.startsWith('/draw') ||
@@ -3210,21 +3051,10 @@ class ChatController extends GetxController {
       return true;
     }
     const triggers = [
-      'generate image',
-      'create image',
-      'make image',
-      'generate a image',
-      'create a picture',
-      'generate a picture',
-      'make a picture',
-      'generate photo',
-      'create photo',
-      'draw a',
-      'draw an',
-      'painting of',
-      'illustration of',
-      'render image',
-      'generate picture',
+      'generate image', 'create image', 'make image', 'generate a image',
+      'create a picture', 'generate a picture', 'make a picture',
+      'generate photo', 'create photo', 'draw a', 'draw an',
+      'painting of', 'illustration of', 'render image', 'generate picture',
     ];
     if (triggers.any((t) => lower.contains(t))) return true;
     final hasImageWord = lower.contains('image') ||
@@ -3240,7 +3070,6 @@ class ChatController extends GetxController {
         lower.contains('paint') ||
         lower.contains('design');
     if (hasImageWord && hasAction) return true;
-    // Also catch simple "draw X" without article.
     if (lower.contains('draw ')) return true;
     return false;
   }
