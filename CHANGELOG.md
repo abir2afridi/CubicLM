@@ -5,6 +5,24 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0+23] - 2026-09-11
+
+### Added
+- **CubicDataSheet workspace (Toolkit)** — personal sheets + docs space: spreadsheet editor (formulas, 4-level cell locks with header unlock mode, per-cell copy, styles, checkboxes, notes/history, sheets tabs), document editor (8 block types, slash menu, outline, Markdown export), hybrid canvas (7 component types, prompt binding), file manager (folders, trash, dashboard, command palette + global search).
+- **Uninstall-safe vault** — one JSON vault file in public storage (MediaStore on Android, Documents on desktop) so data survives app uninstall; 2s debounced autosave.
+- **System folder picker for exports** — Settings → Export folder opens the Android file manager (browse/create/select any folder, persistable permission); exports save there directly with a Share action.
+- **Local anti-repetition tuning** — presence/frequency penalties plus a wider penalty window for on-device generations.
+- **Sticky RAM status bar** — pinned Local-tab header with live refresh and an info dialog explaining every row.
+
+### Fixed
+- **Follow-up repetition bug** — the native KV session now resets every turn so small models no longer regurgitate their previous reply; multi-turn input is exactly what was sent.
+- **Crash-report version stamp** — previous-session death reports show the real build instead of "app unknown".
+- **Transient-zero RAM guard** — native probe hiccups can no longer zero out RAM state (and poison the load gate).
+
+### Changed
+- **Low-RAM GGUF profile** — adaptive load reserve (256MB–1GB by file size), single-thread loads and image-cache clearing below 1.5–2GB free; flushed load-profile evidence for post-mortem logs.
+- **Prompt templates** live under the composer + button sheet.
+
 ## [1.14.1+22] - 2026-09-10
 
 ### Fixed

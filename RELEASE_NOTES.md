@@ -1,12 +1,14 @@
-# CubicLM v1.14.1 — Release Notes
-
-## Fixes
-- **Tiny models on ~1GB free RAM**: the load reserve now scales with file size (256MB–1GB) instead of a fixed 1GB — a 229MB model loads where it was previously blocked. Single-threaded loads, image-cache clearing and a 512 ctx floor below 1.5GB free.
-- **Crash-report version stamp**: previous-session death reports now show the real build instead of "app unknown".
-- **Load-profile evidence**: eviction/thread/context decisions are flushed to disk before the native call, so the next log shows exactly what the loader did.
+# CubicLM v1.15.0 — Release Notes
 
 ## Features
-- **Sticky RAM status bar**: pinned above the Local model list with an info button explaining every row (total/used/free, "room for", tier, tips).
+- **CubicDataSheet (Toolkit)**: personal sheets + docs workspace — spreadsheet editor with formulas, 4-level cell locks, per-cell copy and styles; document editor with slash commands and outline; hybrid canvas; file manager with folders, trash, dashboard and command palette. All data lives in one uninstall-safe vault file on your device.
+- **System folder picker for exports**: choose any folder from the Android file manager; exports save there directly with a Share action.
+- **Sticky RAM status bar**: live total/used/free display with an explainer dialog.
+- **Local anti-repetition tuning**: small on-device models stay on topic across follow-ups.
+
+## Fixes
+- **Follow-up repetition bug**: the native session resets every turn — no more verbatim repeats of the previous answer.
+- **Crash-report version stamp** and **transient-zero RAM guard**.
 
 ## Performance
 - No perf changes in this release.
