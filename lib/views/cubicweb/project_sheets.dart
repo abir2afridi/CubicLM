@@ -870,130 +870,109 @@ void showAddDialog(BuildContext context, bool isDark,
   );
 }
 
+/// Combined build-setup switcher: Framework | Component Library |
+/// Design System as three tabs in one sheet (was three separate sheets).
 void showFrameworkSheet(BuildContext context) {
+  const libraries = [
+    'Auto',
+    'shadcn/ui',
+    'Tailwind CSS',
+    'Lucide Icons',
+    'Material UI'
+  ];
+  const systems = ['Modern', 'Retro', 'Enterprise', 'Minimalist', 'Playful'];
   showModalBottomSheet(
     context: context,
+    isScrollControlled: true,
     builder: (_) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Framework',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 16, fontWeight: FontWeight.w800)),
+      child: DefaultTabController(
+        length: 3,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TabBar(
+              labelColor: Dt.accent,
+              unselectedLabelColor: Theme.of(context).hintColor,
+              indicatorColor: Dt.accent,
+              labelStyle:
+                  GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
+              tabs: const [
+                Tab(text: 'Framework'),
+                Tab(text: 'Component'),
+                Tab(text: 'Design'),
+              ],
             ),
-          ),
-          Obx(() => RadioGroup<String>(
-                groupValue: _c.framework.value,
-                onChanged: (v) {
-                  if (v != null) _c.framework.value = v;
-                  Navigator.pop(context);
-                },
-                child: Column(
-                  children: [
-                    for (final f in webFrameworks)
-                      RadioListTile<String>(
-                        dense: true,
-                        title: Text(f,
-                            style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                        value: f,
-                        activeColor: Dt.accent,
-                      ),
-                  ],
+            SizedBox(
+              height: 300,
+              child: TabBarView(
+                children: [
+                  SingleChildScrollView(
+                    child: Obx(() => _setupOptions(
+                          options: webFrameworks,
+                          selected: _c.framework.value,
+                          onChanged: (v) {
+                            if (v != null) _c.framework.value = v;
+                          },
+                        )),
+                  ),
+                  SingleChildScrollView(
+                    child: Obx(() => _setupOptions(
+                          options: libraries,
+                          selected: _c.selectedLibrary.value,
+                          onChanged: (v) {
+                            if (v != null) _c.selectedLibrary.value = v;
+                          },
+                        )),
+                  ),
+                  SingleChildScrollView(
+                    child: Obx(() => _setupOptions(
+                          options: systems,
+                          selected: _c.selectedDesignSystem.value,
+                          onChanged: (v) {
+                            if (v != null) _c.selectedDesignSystem.value = v;
+                          },
+                        )),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Done'),
                 ),
-              )),
-          const SizedBox(height: 12),
-        ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
       ),
     ),
   );
 }
 
-void showLibrarySheet(BuildContext context) {
-  final libraries = ['Auto', 'shadcn/ui', 'Tailwind CSS', 'Lucide Icons', 'Material UI'];
-  showModalBottomSheet(
-    context: context,
-    builder: (_) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Component Library',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 16, fontWeight: FontWeight.w800)),
-            ),
+Widget _setupOptions({
+  required List<String> options,
+  required String selected,
+  required ValueChanged<String?> onChanged,
+}) {
+  return RadioGroup<String>(
+    groupValue: selected,
+    onChanged: onChanged,
+    child: Column(
+      children: [
+        for (final o in options)
+          RadioListTile<String>(
+            dense: true,
+            title: Text(o,
+                style: GoogleFonts.plusJakartaSans(fontSize: 14)),
+            value: o,
+            activeColor: Dt.accent,
           ),
-          Obx(() => RadioGroup<String>(
-                groupValue: _c.selectedLibrary.value,
-                onChanged: (v) {
-                  if (v != null) _c.selectedLibrary.value = v;
-                  Navigator.pop(context);
-                },
-                child: Column(
-                  children: [
-                    for (final lib in libraries)
-                      RadioListTile<String>(
-                        dense: true,
-                        title: Text(lib,
-                            style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                        value: lib,
-                        activeColor: Dt.accent,
-                      ),
-                  ],
-                ),
-              )),
-          const SizedBox(height: 12),
-        ],
-      ),
-    ),
-  );
-}
-
-void showDesignSystemSheet(BuildContext context) {
-  final systems = ['Modern', 'Retro', 'Enterprise', 'Minimalist', 'Playful'];
-  showModalBottomSheet(
-    context: context,
-    builder: (_) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Design System',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 16, fontWeight: FontWeight.w800)),
-            ),
-          ),
-          Obx(() => RadioGroup<String>(
-                groupValue: _c.selectedDesignSystem.value,
-                onChanged: (v) {
-                  if (v != null) _c.selectedDesignSystem.value = v;
-                  Navigator.pop(context);
-                },
-                child: Column(
-                  children: [
-                    for (final ds in systems)
-                      RadioListTile<String>(
-                        dense: true,
-                        title: Text(ds,
-                            style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-                        value: ds,
-                        activeColor: Dt.accent,
-                      ),
-                  ],
-                ),
-              )),
-          const SizedBox(height: 12),
-        ],
-      ),
+      ],
     ),
   );
 }
