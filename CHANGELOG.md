@@ -5,6 +5,12 @@ All notable changes to CubicLM are documented here. This is the **single source 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.1+24] - 2026-09-11
+
+### Fixed
+- **Release-build GGUF load crash (SIGABRT)** — R8 keep rules for the llama plugin and `kotlin.jvm.functions.Function1.invoke`: release-only minification renamed the JNI progress callback (`NoSuchMethodError LK3/t;.invoke`), killing the app with no log. Debug builds never minify, which is why it never reproduced locally. Verified via `mapping.txt`.
+- **CI analyze gate** — scoped ignore for `cacheExtent` (renamed in newer SDKs; local toolchain stays 3.38.7).
+
 ## [1.15.0+23] - 2026-09-11
 
 ### Added
