@@ -13,6 +13,7 @@ import '../services/cubicweb/cubicweb_logger.dart';
 import '../services/runtime/cli_manager.dart';
 import '../services/runtime/project_detector.dart';
 import 'system_logs_view.dart';
+import '../services/app_log_service.dart';
 import 'cubicweb/agent_preview.dart';
 import 'cubicweb/chat_cards.dart';
 import 'cubicweb/file_cards.dart';
@@ -61,6 +62,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
   @override
   void initState() {
     super.initState();
+    AppLogService.trackScreen('CubicWeb Builder');
     c = Get.isRegistered<AgentController>()
         ? Get.find<AgentController>()
         : Get.put(AgentController());
@@ -455,6 +457,7 @@ class _AgentIdeViewState extends State<AgentIdeView> {
 
   @override
   void dispose() {
+    AppLogService.untrackScreen('CubicWeb Builder');
     _promptCtrl.dispose();
     _askCtrl.dispose();
     _askFocus.dispose();

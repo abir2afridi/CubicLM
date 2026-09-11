@@ -12,6 +12,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../services/cubicdata/controller.dart';
 import '../../services/cubicdata/models.dart';
+import '../../services/app_log_service.dart';
 import '../../theme/design_tokens.dart';
 import '../../utils/export_file.dart';
 import 'datasheet_home_view.dart';
@@ -34,7 +35,14 @@ class _DocEditorViewState extends State<DocEditorView> {
   String? _slashFor;
 
   @override
+  void initState() {
+    super.initState();
+    AppLogService.trackScreen('DataSheet Doc');
+  }
+
+  @override
   void dispose() {
+    AppLogService.untrackScreen('DataSheet Doc');
     _scroll.dispose();
     for (final c in _ctrls.values) {
       c.dispose();

@@ -39,11 +39,17 @@ class AppLogEntry {
   final String? details;
   final LogCategory category;
 
+  /// Screen open when an ERROR/WARNING was logged ('' for info/debug or
+  /// unknown). Excluded from dedup identity on purpose: the same failure
+  /// on two screens is still one row, showing its first screen.
+  final String screen;
+
   AppLogEntry({
     required this.level,
     required this.message,
     this.details,
     this.category = LogCategory.system,
+    this.screen = '',
     DateTime? timestamp,
     DateTime? lastAt,
     this.count = 1,
@@ -76,6 +82,7 @@ class AppLogEntry {
         'm': message,
         'd': details,
         'c': category.name,
+        if (screen.isNotEmpty) 's': screen,
       };
 
   factory AppLogEntry.fromJson(Map<String, dynamic> j) {
@@ -91,6 +98,7 @@ class AppLogEntry {
         (e) => e.name == j['c'],
         orElse: () => LogCategory.system,
       ),
+      screen: j['s'] as String? ?? '',
     );
   }
 
@@ -121,6 +129,7 @@ class AppLogEntry {
         ..write(')');
     }
     buffer.write(': ${scrubExportSecrets(message)}');
+    if (screen.isNotEmpty) buffer.write('  [screen=$screen]');
     if (details != null && details!.trim().isNotEmpty) {
       buffer.write('\n${scrubExportSecrets(details!)}');
     }
@@ -173,6 +182,75 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
   final searchQuery = ''.obs;
   final selectedCategory = Rxn<LogCategory>();
   final selectedLevel = 'ALL'.obs;
+
+  /// Open-screen stack for diagnostics: tabs reset it, pushed editors
+  /// push/pop in initState/dispose. Plain strings (no Rx, no widgets)
+  /// so logging from anywhere — including build phase — stays safe.
+  /// The top entry stamps every ERROR/WARNING row with its screen.
+  final List<String> _screenStack = [];
+  final List<String> _screenTrail = [];
+
+  /// Screen considered open right now ('' when unknown).
+  String get currentScreen =>
+      _screenStack.isEmpty ? '' : _screenStack.last;
+
+  /// Recent screens, newest first (max 8), for health exports.
+  List<String> get screenTrail => List.unmodifiable(_screenTrail);
+
+  /// Bottom-tab switch: tabs aren't pushed routes, so they reset the
+  /// stack instead of pushing.
+  void setTabScreen(String label) {
+    _screenStack
+      ..clear()
+      ..add(label);
+    _noteTrail(label);
+  }
+
+  /// Pushed editor/view opened.
+  void pushScreen(String label) {
+    if (label.isEmpty) return;
+    _screenStack.add(label);
+    if (_screenStack.length > 12) {
+      _screenStack.removeRange(0, _screenStack.length - 12);
+    }
+    _noteTrail(label);
+  }
+
+  /// Pushed editor/view closed. Never throws; mismatched pops just
+  /// remove the top entry when it matches.
+  void popScreen([String? label]) {
+    if (_screenStack.isEmpty) return;
+    if (label == null || _screenStack.last == label) {
+      _screenStack.removeLast();
+    }
+  }
+
+  void _noteTrail(String label) {
+    _screenTrail.remove(label);
+    _screenTrail.insert(0, label);
+    if (_screenTrail.length > 8) {
+      _screenTrail.removeRange(8, _screenTrail.length);
+    }
+  }
+
+  /// One-line screen tracking for views (no import needed beyond Get,
+  /// which callers already have). Safe before init and after dispose.
+  static void trackScreen(String label) {
+    try {
+      if (Get.isRegistered<AppLogService>()) {
+        Get.find<AppLogService>().pushScreen(label);
+      }
+    } catch (_) {}
+  }
+
+  /// Matches [trackScreen]; call from dispose().
+  static void untrackScreen([String? label]) {
+    try {
+      if (Get.isRegistered<AppLogService>()) {
+        Get.find<AppLogService>().popScreen(label);
+      }
+    } catch (_) {}
+  }
   File? _logFile;
   static const int _maxEntries = 500;
   static const int _persistBatch = 25;
@@ -500,6 +578,9 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
         'device': _deviceSummary,
       });
       unresolvedErrorMeta = '$_appVersion • $_deviceSummary';
+      if (entry.screen.isNotEmpty) {
+        unresolvedErrorMeta = "$unresolvedErrorMeta • ${entry.screen}";
+      }
       // ignore: avoid_slow_async_io
       f.writeAsStringSync(payload, flush: true);
     } catch (_) {}
@@ -537,6 +618,7 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
         if (decoded['appVersion'] is String)
           decoded['appVersion'] as String,
         if (decoded['device'] is String) decoded['device'] as String,
+        if (decoded['s'] is String) decoded['s'] as String,
       ].join(' • ');
       // Surface the previous session's unfixed issue at the very top of the
       // live list so it is visible immediately on the next launch.
@@ -546,6 +628,7 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
           message: '[Previous session] ${entry.message}',
           details: entry.details,
           category: entry.category,
+          screen: entry.screen,
           timestamp: entry.timestamp,
           lastAt: entry.lastAt,
           count: entry.count,
@@ -670,6 +753,10 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
       message: message,
       details: detailsStr,
       category: category,
+      // Signal rows carry the open screen so a pasted log pinpoints
+      // WHERE it happened (overflow reports without this are unfixable).
+      // Info/debug stay blank to keep the buffer lean.
+      screen: (level == 'ERROR' || level == 'WARNING') ? currentScreen : '',
     );
     _pendingEntries.insert(0, entry);
 
@@ -850,6 +937,12 @@ class AppLogService extends GetxService with WidgetsBindingObserver {
     buf.writeln('=== CubicLM System Health ===');
     buf.writeln('Total rows: ${entries.length}');
     buf.writeln('Errors: $errorCount  |  Warnings: $warningCount');
+    if (currentScreen.isNotEmpty) {
+      buf.writeln('Screen now: $currentScreen');
+    }
+    if (_screenTrail.length > 1) {
+      buf.writeln('Recent screens: ${_screenTrail.take(5).join(' ← ')}');
+    }
     if (uniqueErrorCount != errorCount) {
       buf.writeln('(unique error rows: $uniqueErrorCount)');
     }

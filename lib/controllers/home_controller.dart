@@ -19,10 +19,26 @@ class HomeController extends GetxController {
   final currentTab = 0.obs;
   bool _resumeDialogShown = false;
 
+  static const _tabScreens = [
+    'Chat',
+    'Explore',
+    'Toolkit',
+    'Nodes',
+    'Settings',
+  ];
+
   void changeTab(int index) {
     if (currentTab.value != index) {
       HapticFeedback.lightImpact();
       currentTab.value = index;
+    }
+    // Tabs reset (not push) the diagnostic screen stack.
+    if (index >= 0 && index < _tabScreens.length) {
+      try {
+        if (Get.isRegistered<AppLogService>()) {
+          Get.find<AppLogService>().setTabScreen(_tabScreens[index]);
+        }
+      } catch (_) {}
     }
   }
 

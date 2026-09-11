@@ -12,6 +12,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../services/cubicdata/controller.dart';
 import '../../services/cubicdata/models.dart';
+import '../../services/app_log_service.dart';
 import '../../theme/design_tokens.dart';
 import 'datasheet_home_view.dart';
 
@@ -34,7 +35,14 @@ class _HybridEditorViewState extends State<HybridEditorView> {
   String? _copiedFeedback;
 
   @override
+  void initState() {
+    super.initState();
+    AppLogService.trackScreen('DataSheet Hybrid');
+  }
+
+  @override
   void dispose() {
+    AppLogService.untrackScreen('DataSheet Hybrid');
     for (final c in _titleCtrls.values) {
       c.dispose();
     }

@@ -15,6 +15,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../services/cubicdata/controller.dart';
 import '../../services/cubicdata/models.dart';
+import '../../services/app_log_service.dart';
 import '../../theme/design_tokens.dart';
 import 'dashboard_view.dart';
 import 'doc_view.dart';
@@ -39,6 +40,18 @@ class DataSheetHomeView extends StatefulWidget {
 
 class _DataSheetHomeViewState extends State<DataSheetHomeView> {
   final _expanded = <String>{};
+
+  @override
+  void initState() {
+    super.initState();
+    AppLogService.trackScreen('DataSheet');
+  }
+
+  @override
+  void dispose() {
+    AppLogService.untrackScreen('DataSheet');
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

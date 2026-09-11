@@ -13,6 +13,7 @@ import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../theme/design_tokens.dart';
 import '../utils/slide_deck.dart';
+import '../services/app_log_service.dart';
 import '../widgets/slide_source_selector.dart';
 import 'slides/slide_charts.dart';
 import 'slides/slide_dialogs.dart';
@@ -48,6 +49,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
   @override
   void initState() {
     super.initState();
+    AppLogService.trackScreen('Slide Maker');
     c = Get.isRegistered<SlideDeckController>()
         ? Get.find<SlideDeckController>()
         : Get.put(SlideDeckController());
@@ -56,6 +58,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
 
   @override
   void dispose() {
+    AppLogService.untrackScreen('Slide Maker');
     _pageCtrl.dispose();
     _topicCtrl.dispose();
     super.dispose();

@@ -12,6 +12,7 @@ import '../services/tts_service.dart';
 import '../theme/design_tokens.dart';
 import '../utils/prompt_export.dart';
 import '../utils/thought_parser.dart';
+import '../services/app_log_service.dart';
 import '../widgets/code_block.dart';
 
 /// Battle Arena: race up to 4 cloud models on one prompt with a live
@@ -30,6 +31,7 @@ class _BattleArenaViewState extends State<BattleArenaView> {
   @override
   void initState() {
     super.initState();
+    AppLogService.trackScreen('Battle Arena');
     c = Get.isRegistered<BattleArenaController>()
         ? Get.find<BattleArenaController>()
         : Get.put(BattleArenaController());
@@ -38,6 +40,7 @@ class _BattleArenaViewState extends State<BattleArenaView> {
 
   @override
   void dispose() {
+    AppLogService.untrackScreen('Battle Arena');
     _promptCtrl.dispose();
     super.dispose();
   }

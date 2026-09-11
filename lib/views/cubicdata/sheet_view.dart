@@ -13,6 +13,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../services/cubicdata/controller.dart';
 import '../../services/cubicdata/formulas.dart';
+import '../../services/app_log_service.dart';
 import '../../services/cubicdata/models.dart';
 import '../../core/colors.dart';
 import '../../theme/design_tokens.dart';
@@ -49,7 +50,14 @@ class _SheetEditorViewState extends State<SheetEditorView> {
   static const _headerWidth = 40.0;
 
   @override
+  void initState() {
+    super.initState();
+    AppLogService.trackScreen('DataSheet Sheet');
+  }
+
+  @override
   void dispose() {
+    AppLogService.untrackScreen('DataSheet Sheet');
     _hScroll.dispose();
     _vHeadScroll.dispose();
     for (final c in _rowCtrls) {
