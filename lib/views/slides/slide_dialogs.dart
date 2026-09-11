@@ -159,6 +159,16 @@ void showEditDialog(BuildContext context, bool isDark, int index, Slide s) {
                   alignLabelWithHint: true,
                   isDense: true),
             ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: TextEditingController(text: s.speakerNotes),
+              maxLines: 3,
+              onChanged: (v) => s.speakerNotes = v,
+              decoration: const InputDecoration(
+                  labelText: 'Full Presenter Script',
+                  alignLabelWithHint: true,
+                  isDense: true),
+            ),
           ]),
         ),
         actions: [

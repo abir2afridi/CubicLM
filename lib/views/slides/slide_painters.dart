@@ -65,10 +65,15 @@ class FreeBoxState extends State<FreeBox> {
         behavior: HitTestBehavior.translucent,
         onPanUpdate: (d) {
           setState(() {
-            _dx = ((_dx * widget.canvasW + d.delta.dx) / widget.canvasW)
-                .clamp(0.0, 1.0 - widthFrac);
-            _dy = ((_dy * widget.canvasH + d.delta.dy) / widget.canvasH)
-                .clamp(0.0, 0.95);
+            var newX = (_dx * widget.canvasW + d.delta.dx) / widget.canvasW;
+            var newY = (_dy * widget.canvasH + d.delta.dy) / widget.canvasH;
+            
+            // Snap to 5% grid
+            newX = (newX * 20).round() / 20.0;
+            newY = (newY * 20).round() / 20.0;
+
+            _dx = newX.clamp(0.0, 1.0 - widthFrac);
+            _dy = newY.clamp(0.0, 0.95);
           });
           _commit();
         },
@@ -210,6 +215,78 @@ class LineChartPainter extends CustomPainter {
           style: const TextStyle(fontSize: 8.5, color: Color(0xFFB0ADA6)));
       tp.layout();
       tp.paint(canvas, Offset(points[i].dx - tp.width / 2, size.height - 12));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Simple flowchart diagram painter for "Gemma Level" slides.
+class DiagramPainter extends CustomPainter {
+  final String mermaid;
+  final bool isDark;
+  DiagramPainter(this.mermaid, this.isDark);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Dt.accent
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    final fillPaint = Paint()
+      ..color = Dt.accent.withValues(alpha: 0.1)
+      ..style = PaintingStyle.fill;
+
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+
+    final w = size.width;
+    final h = size.height;
+
+    void drawNode(String text, double x, double y, {bool diamond = false}) {
+      if (diamond) {
+        final path = Path()
+          ..moveTo(x, y - 25)
+          ..lineTo(x + 45, y)
+          ..lineTo(x, y + 25)
+          ..lineTo(x - 45, y)
+          ..close();
+        canvas.drawPath(path, fillPaint);
+        canvas.drawPath(path, paint);
+      } else {
+        final rect = Rect.fromCenter(center: Offset(x, y), width: 90, height: 40);
+        canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(8)), fillPaint);
+        canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(8)), paint);
+      }
+
+      tp.text = TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: isDark ? Colors.white : Colors.black,
+        ),
+      );
+      tp.layout(maxWidth: 80);
+      tp.paint(canvas, Offset(x - tp.width / 2, y - tp.height / 2));
+    }
+
+    if (mermaid.contains('-->') || mermaid.contains('graph')) {
+      drawNode("Input Data", w * 0.5, h * 0.15);
+      drawNode("Decision?", w * 0.5, h * 0.45, diamond: true);
+      drawNode("Success Path", w * 0.25, h * 0.8);
+      drawNode("Failure Path", w * 0.75, h * 0.8);
+
+      canvas.drawLine(Offset(w * 0.5, h * 0.15 + 20), Offset(w * 0.5, h * 0.45 - 25), paint);
+      canvas.drawLine(Offset(w * 0.5 - 22, h * 0.45 + 12), Offset(w * 0.25 + 10, h * 0.8 - 20), paint);
+      canvas.drawLine(Offset(w * 0.5 + 22, h * 0.45 + 12), Offset(w * 0.75 - 10, h * 0.8 - 20), paint);
+    } else {
+      drawNode("Start", w * 0.2, h * 0.5);
+      drawNode("Process", w * 0.5, h * 0.5);
+      drawNode("End", w * 0.8, h * 0.5);
+      canvas.drawLine(Offset(w * 0.2 + 45, h * 0.5), Offset(w * 0.5 - 45, h * 0.5), paint);
+      canvas.drawLine(Offset(w * 0.5 + 45, h * 0.5), Offset(w * 0.8 - 45, h * 0.5), paint);
     }
   }
 

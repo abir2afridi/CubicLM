@@ -202,6 +202,52 @@ void main() {
     });
   });
 
+  group('ramGateDecision', () {
+    test('strict on refuses insufficient loads', () {
+      expect(
+          ModelController.ramGateDecision(
+            strict: true,
+            insufficient: true,
+            criticallyLow: true,
+          ),
+          RamGateDecision.hardBlock);
+    });
+
+    test('strict off degrades refusal to risky confirmation', () {
+      expect(
+          ModelController.ramGateDecision(
+            strict: false,
+            insufficient: true,
+            criticallyLow: true,
+          ),
+          RamGateDecision.riskyConfirm);
+    });
+
+    test('warning tier is identical in both modes', () {
+      for (final strict in [true, false]) {
+        expect(
+            ModelController.ramGateDecision(
+              strict: strict,
+              insufficient: false,
+              criticallyLow: true,
+            ),
+            RamGateDecision.warnDialog);
+      }
+    });
+
+    test('roomy phones load straight away in both modes', () {
+      for (final strict in [true, false]) {
+        expect(
+            ModelController.ramGateDecision(
+              strict: strict,
+              insufficient: false,
+              criticallyLow: false,
+            ),
+            RamGateDecision.allow);
+      }
+    });
+  });
+
   group('loadHeadroomBytes', () {
     const gb = 1024 * 1024 * 1024;
     const mb = 1024 * 1024;
@@ -214,6 +260,51 @@ void main() {
     test('reserve scales with file size up to 1GB', () {
       expect(ModelController.loadHeadroomBytes(600 * mb), 600 * mb);
       expect(ModelController.loadHeadroomBytes(2 * gb), gb);
+    });
+  });
+
+  group('ramFitFor', () {
+    const gb = 1024 * 1024 * 1024;
+
+    test('roomy phone fits', () {
+      expect(
+          ModelController.ramFitFor(
+            fileBytes: 691 * 1024 * 1024,
+            kvBytes: 5 * 1024 * 1024,
+            availableBytes: (4.7 * gb).round(),
+          ),
+          RamFit.fits);
+    });
+
+    test('warn tier shows tight', () {
+      // Passes the hard math but under 768MB free: warning dialog first.
+      expect(
+          ModelController.ramFitFor(
+            fileBytes: 146 * 1024 * 1024,
+            kvBytes: 100 * 1024 * 1024,
+            availableBytes: 700 * 1024 * 1024,
+          ),
+          RamFit.tight);
+    });
+
+    test('hopeless load shows blocked', () {
+      expect(
+          ModelController.ramFitFor(
+            fileBytes: 3 * gb,
+            kvBytes: 300 * 1024 * 1024,
+            availableBytes: (1.2 * gb).round(),
+          ),
+          RamFit.blocked);
+    });
+
+    test('unmeasurable never blocks the card', () {
+      expect(
+          ModelController.ramFitFor(
+            fileBytes: 0,
+            kvBytes: 0,
+            availableBytes: 0,
+          ),
+          RamFit.fits);
     });
   });
 }

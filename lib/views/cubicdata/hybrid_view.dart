@@ -95,7 +95,24 @@ class _HybridEditorViewState extends State<HybridEditorView> {
     });
   }
 
+  /// Drops cached text controllers of a deleted block/tab so they
+  /// don't leak for the rest of the session.
+  void _dropBlockCtrls(HybridBlock b) {
+    _titleCtrls.remove(b.id)?.dispose();
+    final prefix = '${b.id}|';
+    final dead =
+        _textCtrls.keys.where((k) => k.startsWith(prefix)).toList();
+    for (final k in dead) {
+      _textCtrls.remove(k)?.dispose();
+    }
+    for (final tab in b.descriptionTabs ?? const []) {
+      _textCtrls.remove('${tab.id}|title')?.dispose();
+      _textCtrls.remove('${tab.id}|content')?.dispose();
+    }
+  }
+
   void _deleteBlock(SmartFile f, HybridBlock b, int index) {
+    _dropBlockCtrls(b);
     if (b.title.trim().isEmpty) {
       f.hybridBlocks!.removeAt(index);
       _persist(f, 'Deleted block');
@@ -814,6 +831,41 @@ class _HybridEditorViewState extends State<HybridEditorView> {
     );
   }
 
+  void _deleteTab(SmartFile f, HybridBlock b,
+      List<HybridDescriptionTab> tabs, int active) {
+    final tab = tabs[active];
+    void remove() {
+      tabs.removeAt(active);
+      _textCtrls.remove('${tab.id}|title')?.dispose();
+      _textCtrls.remove('${tab.id}|content')?.dispose();
+      final cur = (_activeTab[b.id] ?? 0).clamp(0, tabs.length);
+      _activeTab[b.id] = tabs.isEmpty ? 0 : (cur >= tabs.length ? tabs.length - 1 : cur);
+      _persist(f, 'Deleted tab');
+      setState(() {});
+    }
+
+    if (tab.title.trim().isEmpty && tab.content.trim().isEmpty) {
+      remove();
+      return;
+    }
+    Get.dialog(AlertDialog(
+      title: const Text('Delete tab?'),
+      content: Text(
+          '"${tab.title.isEmpty ? 'Tab ${active + 1}' : tab.title}" and its content will be removed.'),
+      actions: [
+        TextButton(
+            onPressed: () => Get.back(), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () {
+            Get.back();
+            remove();
+          },
+          child: const Text('Delete'),
+        ),
+      ],
+    ));
+  }
+
   Widget _descTabs(SmartFile f, HybridBlock b) {
     b.descriptionTabs ??= [];
     final tabs = b.descriptionTabs!;
@@ -849,6 +901,13 @@ class _HybridEditorViewState extends State<HybridEditorView> {
                 setState(() {});
               },
             ),
+            if (tabs.isNotEmpty && active < tabs.length)
+              IconButton(
+                tooltip: 'Delete active tab',
+                icon: const Icon(LucideIcons.trash2, size: 15),
+                onPressed: () =>
+                    _deleteTab(f, b, tabs, active),
+              ),
           ]),
         ),
         if (tabs.isNotEmpty && active < tabs.length) ...[

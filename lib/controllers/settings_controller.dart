@@ -64,6 +64,7 @@ class SettingsController extends GetxController {
   final exportCustomDir = ''.obs;
   final exportTreeUri = ''.obs;
   final exportTreeName = ''.obs;
+  final strictRamGuard = true.obs;
   final cloudProvider = 'openrouter'.obs;
   final openaiKey = ''.obs;
   final anthropicKey = ''.obs;
@@ -335,6 +336,9 @@ class SettingsController extends GetxController {
     exportTreeName.value =
         _hive.getSetting(AppConstants.keyExportTreeName, defaultValue: '') ??
             '';
+    strictRamGuard.value =
+        _hive.getSetting(AppConstants.keyStrictRamGuard, defaultValue: true) ??
+            true;
     cloudProvider.value = _hive.getSetting(AppConstants.keyCloudProvider,
             defaultValue: 'openrouter') ??
         'openrouter';
@@ -764,6 +768,14 @@ class SettingsController extends GetxController {
   Future<void> setInferenceMode(String mode) async {
     inferenceMode.value = mode;
     await _hive.setSetting(AppConstants.keyInferenceMode, mode);
+  }
+
+  /// Strict RAM guard: blocks loads that would almost surely die
+  /// natively. Power users may switch it off (with an explicit warning
+  /// in the UI); blocked loads then become confirmed risky loads.
+  Future<void> setStrictRamGuard(bool v) async {
+    strictRamGuard.value = v;
+    await _hive.setSetting(AppConstants.keyStrictRamGuard, v);
   }
 
   /// Export subfolder under Downloads (Android) or Documents (desktop).

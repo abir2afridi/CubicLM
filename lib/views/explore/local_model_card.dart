@@ -3,9 +3,11 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../controllers/model_controller.dart';
+import '../../controllers/settings_controller.dart';
 import '../../core/colors.dart';
 import '../../models/ai_model.dart';
 import '../../services/app_log_service.dart';
+import '../../services/device_info_service.dart';
 import '../../services/download_service.dart';
 import '../../services/inference_service.dart';
 import '../../services/local_image_service.dart';
@@ -17,11 +19,78 @@ import 'provider_cards.dart';
 
 ModelController get _c => Get.find<ModelController>();
 
+/// Live fit dot from the same math as the load gate, so the card never
+/// disagrees with what tapping Load does: green loads straight away,
+/// amber warns first, red is refused (or asks first with the guard off).
+/// Hidden while RAM/file size is unmeasurable.
+Widget _ramFitDot(BuildContext context, AiModel model) {
+  int fileBytes = 0;
+  try {
+    fileBytes = _c.fileSizes[model.filename] ?? 0;
+  } catch (_) {}
+  if (fileBytes <= 0) return const SizedBox.shrink();
+  return Obx(() {
+    double availGb = 0;
+    int kvBytes = 0;
+    try {
+      if (Get.isRegistered<DeviceInfoService>()) {
+        final dev = Get.find<DeviceInfoService>();
+        availGb = dev.availableRamGB.value;
+        if (Get.isRegistered<SettingsController>()) {
+          kvBytes = dev.estimatedKvBytes(
+              Get.find<SettingsController>().effectiveContextSize);
+        }
+      }
+    } catch (_) {}
+    if (availGb <= 0) return const SizedBox.shrink();
+    final fit = ModelController.ramFitFor(
+      fileBytes: fileBytes,
+      kvBytes: kvBytes,
+      availableBytes: (availGb * 1024 * 1024 * 1024).round(),
+    );
+    final color = fit == RamFit.fits
+        ? AppColors.success
+        : fit == RamFit.tight
+            ? AppColors.warning
+            : AppColors.error;
+    final label = fit == RamFit.fits
+        ? 'Fits in RAM'
+        : fit == RamFit.tight
+            ? 'Tight fit'
+            : 'No room';
+    return Tooltip(
+      message: fit == RamFit.fits
+          ? 'Should load with current free RAM'
+          : fit == RamFit.tight
+              ? 'May warn about low memory before loading'
+              : 'Blocked by the RAM guard — free memory or allow risky loads in Settings',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.firaCode(
+              fontSize: 10,
+              color: color,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  });
+}
+
 /// Load guarded end-to-end: any Dart-side throw (even before the first
 /// await) becomes a persisted log row + snackbar instead of a silent
 /// zone error. Native kills are covered by the load breadcrumb.
-Future<void> _guardedLoad(String filename) async {
-  try {
+Future<void> _guardedLoad(String filename) async {  try {
     await _c.loadModel(filename);
   } catch (e) {
     try {
@@ -297,6 +366,9 @@ Widget buildModelCard(BuildContext context, AiModel model) {
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
+                            const SizedBox(width: 8),
+                            if (isDownloaded)
+                              _ramFitDot(context, model),
                           ],
                         ),
                         // Quant picker — only for catalog entries that

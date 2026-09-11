@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../controllers/slide_deck_controller.dart';
 import '../controllers/settings_controller.dart';
 import '../core/colors.dart';
@@ -12,8 +13,10 @@ import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../theme/design_tokens.dart';
 import '../utils/slide_deck.dart';
+import '../widgets/slide_source_selector.dart';
 import 'slides/slide_charts.dart';
 import 'slides/slide_dialogs.dart';
+import 'slides/slide_outline_view.dart';
 import 'slides/slide_painters.dart';
 import '../widgets/app_ui.dart';
 import '../widgets/model_switcher_sheet.dart';
@@ -34,6 +37,9 @@ class _SlideDeckViewState extends State<SlideDeckView> {
   final _topicCtrl = TextEditingController();
   final _pageCtrl = PageController();
   int _page = 0;
+
+  final _stt = stt.SpeechToText();
+  bool _isListening = false;
 
   /// Viewer mode: ppt (dark 4:3 stage) · docs (light paper flow) ·
   /// pdf (light A4 portrait page). View-only; exports unchanged.
@@ -176,6 +182,10 @@ class _SlideDeckViewState extends State<SlideDeckView> {
           ],
         );
       }),
+      // Outline Sheet
+      bottomSheet: Obx(() => c.showingOutline.value
+          ? SlideOutlineView()
+          : const SizedBox.shrink()),
     );
   }
 
@@ -213,27 +223,48 @@ class _SlideDeckViewState extends State<SlideDeckView> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-            child: TextField(
-              controller: _topicCtrl,
-              enabled: !c.generating.value,
-              maxLines: 4,
-              minLines: 1,
-              onChanged: (v) => c.topic.value = v,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 16, height: 1.35, fontWeight: FontWeight.w500),
-              decoration: InputDecoration(
-                hintText: 'e.g. How photosynthesis works (class 8)',
-                hintStyle: GoogleFonts.plusJakartaSans(
-                    fontSize: 16, color: Dt.textPlaceholder),
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
-                isDense: true,
-                fillColor: Colors.transparent,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _topicCtrl,
+                    enabled: !c.generating.value,
+                    maxLines: 4,
+                    minLines: 1,
+                    onChanged: (v) => c.topic.value = v,
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16, height: 1.35, fontWeight: FontWeight.w500),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. How photosynthesis works (class 8)',
+                      hintStyle: GoogleFonts.plusJakartaSans(
+                          fontSize: 16, color: Dt.textPlaceholder),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                      isDense: true,
+                      fillColor: Colors.transparent,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(_isListening ? LucideIcons.mic : LucideIcons.micOff,
+                      color: _isListening ? Dt.accent : Dt.textSecondary),
+                  onPressed: _toggleSpeech,
+                ),
+              ],
             ),
+          ),
+          // Source Selector
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Obx(() => SlideSourceSelector(
+                  selectedFile: c.sourceFile.value,
+                  useResearch: c.useResearch.value,
+                  onFileSelected: c.setSourceFile,
+                  onResearchToggled: (v) => c.useResearch.value = v,
+                )),
           ),
           const SizedBox(height: 4),
           // Row 1: model pill … generate CTA (always fits 360dp).
@@ -455,6 +486,87 @@ class _SlideDeckViewState extends State<SlideDeckView> {
     );
   }
 
+  void _toggleSpeech() async {
+    if (!_isListening) {
+      bool available = await _stt.initialize();
+      if (available) {
+        setState(() => _isListening = true);
+        _stt.listen(onResult: (val) {
+          setState(() {
+            _topicCtrl.text = val.recognizedWords;
+            c.topic.value = val.recognizedWords;
+          });
+        });
+      }
+    } else {
+      setState(() => _isListening = false);
+      _stt.stop();
+    }
+  }
+
+  void _showThemePicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Slide Deck Theme',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              children: [
+                _themeColorPill('Modern', '#d97757'),
+                _themeColorPill('Forest', '#4ade80'),
+                _themeColorPill('Ocean', '#60a5fa'),
+                _themeColorPill('Royal', '#a78bfa'),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _themeColorPill(String name, String color) {
+    final hex = int.parse(color.replaceAll('#', '0xFF'));
+    return InkWell(
+      onTap: () {
+        c.theme.value = SlideDeckTheme(
+          name: name,
+          primaryColor: color,
+          secondaryColor: '#ffffff',
+          backgroundColor: '#14141c',
+          textColor: '#f2f0ea',
+          accentColor: color,
+          fontHeading: 'Plus Jakarta Sans',
+          fontBody: 'Plus Jakarta Sans',
+        );
+        Navigator.pop(context);
+      },
+      child: Column(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Color(hex),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 2),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(name, style: const TextStyle(fontSize: 10)),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickTemplate(String templateName) async {
     if (_topicCtrl.text.trim().isEmpty) {
       _topicCtrl.text =
@@ -521,6 +633,11 @@ class _SlideDeckViewState extends State<SlideDeckView> {
         ),
       ),
       const SizedBox(width: 6),
+      IconButton(
+        tooltip: 'Theme settings',
+        icon: const Icon(LucideIcons.settings2, size: 18),
+        onPressed: () => _showThemePicker(context),
+      ),
       IconButton(
         tooltip: 'Add blank slide',
         icon: const Icon(LucideIcons.plus, size: 18),
@@ -665,6 +782,20 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                     fontWeight: FontWeight.w800,
                     letterSpacing: 1.2,
                     color: Dt.accent)),
+            if (s.speakerNotes.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              const Tooltip(
+                message: 'Has speaker notes',
+                child: Icon(LucideIcons.mic, size: 12, color: Dt.accent),
+              ),
+            ],
+            if (s.citations.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              const Tooltip(
+                message: 'Has citations',
+                child: Icon(LucideIcons.scroll, size: 12, color: Dt.accent),
+              ),
+            ],
             const Spacer(),
             if (busy)
               const SizedBox(
@@ -706,6 +837,24 @@ class _SlideDeckViewState extends State<SlideDeckView> {
           const SizedBox(height: 10),
           // WYSIWYG canvas — how the slide actually looks (4:3 stage).
           _slideCanvas(context, index, s, _viewMode),
+          if (s.citations.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: s.citations
+                    .map((c) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ActionChip(
+                            label: Text(c.source, style: const TextStyle(fontSize: 10)),
+                            padding: EdgeInsets.zero,
+                            onPressed: () {},
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
           if (s.notes.trim().isNotEmpty) ...[
             const SizedBox(height: 8),
             Text('Notes: ${s.notes.trim()}',
@@ -1182,6 +1331,29 @@ class _SlideDeckViewState extends State<SlideDeckView> {
 
       case 'chart':
         return chartContent(s);
+
+      case 'diagram':
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                s.title.isEmpty ? 'Process Flow' : s.title,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: CustomPaint(
+                  painter: DiagramPainter(s.diagram ?? '', true),
+                  size: Size.infinite,
+                ),
+              ),
+            ],
+          ),
+        );
 
       default:
         return Column(

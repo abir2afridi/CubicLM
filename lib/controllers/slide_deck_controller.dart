@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -8,8 +9,12 @@ import 'package:path_provider/path_provider.dart';
 import '../controllers/settings_controller.dart';
 import '../services/app_log_service.dart';
 import '../services/cloud_service.dart';
+import '../services/cubicdata/controller.dart';
+import '../services/cubicdata/models.dart';
+import '../services/document_extractor_service.dart';
 import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
+import '../services/web_fetch_service.dart';
 import '../utils/app_snackbar.dart';
 import '../utils/export_file.dart';
 import '../utils/prompt_export.dart';
@@ -17,13 +22,6 @@ import '../utils/slide_deck.dart';
 import '../utils/slide_pptx.dart';
 
 /// Slide Maker: AI generates a structured deck from a topic.
-/// Same engine rules as chat (local resident model or active cloud
-/// setup). Image-capable setups can render per-slide visuals; otherwise
-/// every visual slide keeps a proper placeholder box with its prompt.
-///
-/// Supports 8 presentation styles, 8 slide layout types, pre-built
-/// templates, smart single-slide regeneration, and export to Markdown,
-/// PDF, HTML, and PowerPoint (.pptx).
 class SlideDeckController extends GetxController {
   static const styles = [
     'Professional',
@@ -43,7 +41,24 @@ class SlideDeckController extends GetxController {
   final audience = ''.obs;
   final slideCount = 6.obs;
   final slides = <Slide>[].obs;
+  final outline = <SlideOutline>[].obs;
+  final theme = SlideDeckTheme(
+    name: 'Modern Terracotta',
+    primaryColor: '#d97757',
+    secondaryColor: '#4ade80',
+    backgroundColor: '#14141c',
+    textColor: '#f2f0ea',
+    accentColor: '#d97757',
+    fontHeading: 'Plus Jakarta Sans',
+    fontBody: 'Plus Jakarta Sans',
+  ).obs;
+
   final generating = false.obs;
+  final showingOutline = false.obs;
+  final useResearch = false.obs;
+  final selectedDataSheetId = RxnString();
+  final sourceFile = Rxn<File>();
+
   final regenIndex = (-1).obs; // -1 = whole deck, else slide index
   final imageBusyIndex = (-1).obs;
   final lastError = RxnString();
@@ -54,28 +69,72 @@ class SlideDeckController extends GetxController {
     slideCount.value = v.clamp(minSlides, maxSlides);
   }
 
-  Future<void> generate() async {
+  void setSourceFile(File? f) {
+    sourceFile.value = f;
+  }
+
+  Future<void> generateOutline() async {
     final t = topic.value.trim();
     if (t.isEmpty || generating.value) return;
     generating.value = true;
-    regenIndex.value = -1;
     lastError.value = null;
     try {
+      String context = '';
+      if (sourceFile.value != null) {
+        final ext = sourceFile.value!.path.split('.').last;
+        context = await DocumentExtractorService.extractText(
+            sourceFile.value!.path, ext);
+      }
+      if (selectedDataSheetId.value != null) {
+        final ds = Get.find<CubicDataController>().byId(selectedDataSheetId.value!);
+        if (ds != null) {
+          context += '\n--- DataSheet: ${ds.name} ---\n${_extractDataSheetText(ds)}';
+        }
+      }
+      if (useResearch.value) {
+        final result = await WebFetchService.augmentWithSources(t);
+        context += result.augmentedText;
+      }
+
       final raw = await _ask(
-        prompt: 'Create a ${slideCount.value}-slide presentation about: $t',
+        prompt: 'Create an outline for a ${slideCount.value}-slide presentation about: $t\n\n'
+            '${context.isNotEmpty ? "Use this context:\n$context" : ""}',
+        system: outlineSystemPrompt(count: slideCount.value, topic: t),
+      );
+      final parsed = parseOutline(raw);
+      if (parsed.isNotEmpty) {
+        outline.assignAll(parsed);
+        showingOutline.value = true;
+      } else if (raw.trim().isNotEmpty) {
+        lastError.value = 'Failed to parse outline JSON.';
+      }
+    } catch (e) {
+      lastError.value = '$e';
+      _log('Outline generation failed', e);
+    } finally {
+      generating.value = false;
+    }
+  }
+
+  Future<void> generateFromOutline() async {
+    if (outline.isEmpty || generating.value) return;
+    generating.value = true;
+    lastError.value = null;
+    try {
+      final t = topic.value.trim();
+      final outlineJson = jsonEncode(outline.map((e) => e.toMap()).toList());
+
+      final raw = await _ask(
+        prompt: 'Create a ${outline.length}-slide presentation about: $t\n\n'
+            'Follow this outline strictly:\n$outlineJson',
         system: slideSystemPrompt(
-            count: slideCount.value,
+            count: outline.length,
             style: style.value,
             audience: audience.value),
       );
       final parsed = parseSlides(raw);
       slides.assignAll(parsed);
-      if (parsed.length == 1 &&
-          parsed.first.title == 'Untitled' &&
-          raw.trim().isNotEmpty) {
-        lastError.value =
-            'The model did not follow the slide format — showing raw text as one slide. Try Regenerate.';
-      }
+      showingOutline.value = false;
     } catch (e) {
       lastError.value = '$e';
       _log('Deck generation failed', e);
@@ -84,8 +143,44 @@ class SlideDeckController extends GetxController {
     }
   }
 
+  Future<void> generateDirectly() async {
+    final t = topic.value.trim();
+    if (t.isEmpty || generating.value) return;
+    generating.value = true;
+    regenIndex.value = -1;
+    lastError.value = null;
+    try {
+      String context = '';
+      if (sourceFile.value != null) {
+        final ext = sourceFile.value!.path.split('.').last;
+        context = await DocumentExtractorService.extractText(
+            sourceFile.value!.path, ext);
+      }
+
+      final raw = await _ask(
+        prompt: 'Create a ${slideCount.value}-slide presentation about: $t\n\n'
+            '${context.isNotEmpty ? "Use this context:\n$context" : ""}',
+        system: slideSystemPrompt(
+            count: slideCount.value,
+            style: style.value,
+            audience: audience.value),
+      );
+      final parsed = parseSlides(raw);
+      slides.assignAll(parsed);
+    } catch (e) {
+      lastError.value = '$e';
+      _log('Deck generation failed', e);
+    } finally {
+      generating.value = false;
+    }
+  }
+
+  Future<void> generate() async {
+    // Default to outline workflow for Gemma level
+    await generateOutline();
+  }
+
   /// Regenerate one slide in place (keeps the rest of the deck).
-  /// Passes adjacent slide context so the replacement fits the flow.
   Future<void> regenerateSlide(int index) async {
     if (generating.value ||
         index < 0 ||
@@ -126,8 +221,7 @@ class SlideDeckController extends GetxController {
     }
   }
 
-  /// AI-powered slide refinement: user describes a change, AI rewrites
-  /// that single slide to match the request while keeping deck context.
+  /// AI-powered slide refinement.
   Future<void> refineSlide(int index, String instruction) async {
     if (generating.value ||
         index < 0 ||
@@ -170,9 +264,7 @@ class SlideDeckController extends GetxController {
     }
   }
 
-  /// One-click restyle: regenerate all slides with a new [newStyle] while
-  /// keeping the same topic and slide count. Content is rewritten to match
-  /// the new tone; layouts may change for better fit.
+  /// One-click restyle.
   Future<void> restyleDeck(String newStyle) async {
     if (generating.value || topic.value.trim().isEmpty || slides.isEmpty) return;
     generating.value = true;
@@ -181,7 +273,6 @@ class SlideDeckController extends GetxController {
     final oldStyle = style.value;
     style.value = newStyle;
     try {
-      // Build a compact summary of current content for the AI to preserve
       final contentSummary = StringBuffer();
       for (var i = 0; i < slides.length; i++) {
         final s = slides[i];
@@ -201,7 +292,6 @@ class SlideDeckController extends GetxController {
       );
       final parsed = parseSlides(raw);
       if (parsed.length == slides.length) {
-        // Preserve images from the old deck
         for (var i = 0; i < parsed.length; i++) {
           parsed[i].imageBytes = slides[i].imageBytes;
         }
@@ -219,8 +309,6 @@ class SlideDeckController extends GetxController {
       generating.value = false;
     }
   }
-
-  // ── Manual editing ──
 
   void applyEdit(int index,
       {required String title,
@@ -287,10 +375,10 @@ class SlideDeckController extends GetxController {
 
   void clearDeck() {
     slides.clear();
+    outline.clear();
+    showingOutline.value = false;
     lastError.value = null;
   }
-
-  // ── Slide images (local SD when loaded) ──
 
   bool get canGenerateImages {
     try {
@@ -324,14 +412,10 @@ class SlideDeckController extends GetxController {
         s.imageBytes = bytes;
         slides.refresh();
       } else {
-        AppSnackbar.showTop(
-          'Image failed',
-          'The image engine returned nothing. Try again.',
-          logHistory: false,
-        );
+        AppSnackbar.showTop('Image failed', 'The image engine returned nothing.');
       }
     } catch (e) {
-      AppSnackbar.showTop('Image failed', '$e', logHistory: false);
+      AppSnackbar.showTop('Image failed', '$e');
       _log('Slide image failed', e);
     } finally {
       imageBusyIndex.value = -1;
@@ -341,12 +425,9 @@ class SlideDeckController extends GetxController {
   void _hintNoImageEngine() {
     AppSnackbar.showTop(
       'No image engine',
-      'Load a Stable Diffusion model (Explore → Local) to render slide images. Text + placeholders work meanwhile.',
-      logHistory: false,
+      'Load a Stable Diffusion model to render slide images.',
     );
   }
-
-  // ── Export ──
 
   String get _deckTitle =>
       topic.value.trim().isEmpty ? 'Untitled deck' : topic.value.trim();
@@ -370,7 +451,7 @@ class SlideDeckController extends GetxController {
   Future<void> exportHtml() async {
     if (slides.isEmpty) return;
     try {
-      final html = deckToHtml(_deckTitle, slides.toList());
+      final html = deckToHtml(_deckTitle, slides.toList(), theme: theme.value);
       final stamp = DateTime.now().millisecondsSinceEpoch;
       await ExportFile.quickExport(
         text: html,
@@ -383,32 +464,27 @@ class SlideDeckController extends GetxController {
     }
   }
 
-  /// Write the deck HTML and open it in the system browser — the exact
-  /// exported render ( closest to a Docs/Slides preview without leaving
-  /// the share flow).
   Future<void> previewInBrowser() async {
     if (slides.isEmpty) return;
     try {
-      final html = deckToHtml(_deckTitle, slides.toList());
+      final html = deckToHtml(_deckTitle, slides.toList(), theme: theme.value);
       final dir = await getTemporaryDirectory();
       final stamp = DateTime.now().millisecondsSinceEpoch;
       final file = File('${dir.path}/cubiclm_slides_$stamp.html');
       await file.writeAsString(html, flush: true);
       final result = await OpenFile.open(file.path);
       if (result.type != ResultType.done) {
-        AppSnackbar.showTop('Cannot open',
-            result.message.isNotEmpty ? result.message : 'No browser found.');
+        AppSnackbar.showTop('Cannot open', 'No browser found.');
       }
     } catch (e) {
       AppSnackbar.showTop('prompt_export_failed'.tr, '$e');
     }
   }
 
-  /// Export as PowerPoint (.pptx) — builds an OpenXML zip archive.
   Future<void> exportPptx() async {
     if (slides.isEmpty) return;
     try {
-      final bytes = await deckToPptx(_deckTitle, slides.toList());
+      final bytes = await deckToPptx(_deckTitle, slides.toList(), theme: theme.value);
       final stamp = DateTime.now().millisecondsSinceEpoch;
       await ExportFile.quickExport(
         bytes: Uint8List.fromList(bytes),
@@ -421,11 +497,112 @@ class SlideDeckController extends GetxController {
     }
   }
 
-  // ── Slide Templates ──
+  static const templates = SlideDeckControllerTemplates.templates;
 
-  /// Pre-built deck skeletons the user can pick before AI generation.
-  /// Each template defines the skeleton slides (title + layout) that
-  /// the AI then fills with content for the user's topic.
+  Future<void> generateFromTemplate(String templateName) async {
+    final skeleton = templates[templateName];
+    if (skeleton == null) return;
+    final t = topic.value.trim();
+    if (t.isEmpty || generating.value) return;
+    generating.value = true;
+    lastError.value = null;
+    slideCount.value = skeleton.length;
+    try {
+      final structureHint = skeleton
+          .asMap()
+          .entries
+          .map((e) =>
+              'Slide ${e.key + 1}: "${e.value['title']}" (layout: ${e.value['layout']})')
+          .join('\n');
+      final raw = await _ask(
+        prompt: 'Create a ${skeleton.length}-slide presentation about: $t\n\n'
+            'Follow this exact slide structure:\n$structureHint',
+        system: slideSystemPrompt(
+            count: skeleton.length,
+            style: style.value,
+            audience: audience.value),
+      );
+      final parsed = parseSlides(raw);
+      slides.assignAll(parsed);
+    } catch (e) {
+      lastError.value = '$e';
+      _log('Template generation failed', e);
+    } finally {
+      generating.value = false;
+    }
+  }
+
+  Future<void> changeSlideLayout(int index, String newLayout) async {
+    if (index < 0 || index >= slides.length) return;
+    slides[index].layout = newLayout;
+    slides.refresh();
+  }
+
+  Future<String> _ask({required String prompt, required String system}) async {
+    final settings = Get.find<SettingsController>();
+    final buf = StringBuffer();
+    if (settings.inferenceMode.value == 'cloud') {
+      final cloud = Get.find<CloudService>();
+      await for (final chunk in cloud.streamMessage(
+        [
+          {'role': 'system', 'content': system},
+          {'role': 'user', 'content': prompt},
+        ],
+        temperature: settings.temperature.value,
+        maxTokens:
+            settings.autoTuneParams.value ? null : settings.maxTokens.value,
+      )) {
+        buf.write(chunk);
+      }
+      return buf.toString().trim();
+    }
+    final inference = Get.find<InferenceService>();
+    if (!inference.isModelLoaded.value) {
+      throw Exception('No local model loaded.');
+    }
+    await inference.generate(
+      prompt: prompt,
+      systemPrompt: system,
+      source: 'slides',
+      onToken: buf.write,
+    );
+    return buf.toString().trim();
+  }
+
+  void _log(String message, Object e) {
+    try {
+      Get.find<AppLogService>().warning(
+        message,
+        details: '$e',
+        category: LogCategory.chat,
+      );
+    } catch (_) {}
+  }
+
+  String _extractDataSheetText(SmartFile ds) {
+    final buf = StringBuffer();
+    if (ds.sheets != null) {
+      for (final s in ds.sheets!) {
+        buf.writeln('Sheet: ${s.name}');
+        s.cells.forEach((k, v) {
+          if (v.value.isNotEmpty) buf.writeln('$k: ${v.value}');
+        });
+      }
+    }
+    if (ds.hybridBlocks != null) {
+      for (final b in ds.hybridBlocks!) {
+        buf.writeln('Block: ${b.title} (${b.type})');
+        if (b.docContent != null) buf.writeln(b.docContent);
+        b.spreadsheetCells?.forEach((k, v) {
+          if (v.value.isNotEmpty) buf.writeln('$k: ${v.value}');
+        });
+      }
+    }
+    return buf.toString();
+  }
+}
+
+class SlideDeckControllerTemplates {
   static const templates = <String, List<Map<String, String>>>{
     '📚 Lesson Plan': [
       {'title': 'Topic & Objectives', 'layout': 'title'},
@@ -469,102 +646,4 @@ class SlideDeckController extends GetxController {
       {'title': 'Moral / Takeaway', 'layout': 'summary'},
     ],
   };
-
-  /// Generate a deck from a pre-built template. The template defines
-  /// slide structure; AI fills content for the user's topic.
-  Future<void> generateFromTemplate(String templateName) async {
-    final skeleton = templates[templateName];
-    if (skeleton == null) return;
-    final t = topic.value.trim();
-    if (t.isEmpty || generating.value) return;
-    generating.value = true;
-    regenIndex.value = -1;
-    lastError.value = null;
-    slideCount.value = skeleton.length;
-    try {
-      final structureHint = skeleton
-          .asMap()
-          .entries
-          .map((e) =>
-              'Slide ${e.key + 1}: "${e.value['title']}" (layout: ${e.value['layout']})')
-          .join('\n');
-      final raw = await _ask(
-        prompt: 'Create a ${skeleton.length}-slide presentation about: $t\n\n'
-            'Follow this exact slide structure:\n$structureHint',
-        system: slideSystemPrompt(
-            count: skeleton.length,
-            style: style.value,
-            audience: audience.value),
-      );
-      final parsed = parseSlides(raw);
-      slides.assignAll(parsed);
-      if (parsed.length == 1 &&
-          parsed.first.title == 'Untitled' &&
-          raw.trim().isNotEmpty) {
-        lastError.value =
-            'The model did not follow the slide format — showing raw text as one slide. Try Regenerate.';
-      }
-    } catch (e) {
-      lastError.value = '$e';
-      _log('Template generation failed', e);
-    } finally {
-      generating.value = false;
-    }
-  }
-
-  /// Quick-action: change a slide's layout and optionally regenerate
-  /// its content to fit the new layout.
-  Future<void> changeSlideLayout(int index, String newLayout) async {
-    if (index < 0 || index >= slides.length) return;
-    slides[index].layout = newLayout;
-    slides.refresh();
-  }
-
-  // ── Engine (same rules as chat) ──
-
-  Future<String> _ask({required String prompt, required String system}) async {
-    final settings = Get.find<SettingsController>();
-    final buf = StringBuffer();
-    if (settings.inferenceMode.value == 'cloud') {
-      final cloud = Get.find<CloudService>();
-      await for (final chunk in cloud.streamMessage(
-        [
-          {'role': 'system', 'content': system},
-          {'role': 'user', 'content': prompt},
-        ],
-        temperature: settings.temperature.value,
-        maxTokens:
-            settings.autoTuneParams.value ? null : settings.maxTokens.value,
-      )) {
-        buf.write(chunk);
-      }
-      final out = buf.toString().trim();
-      if (out.isEmpty) throw Exception('The model returned nothing.');
-      return out;
-    }
-    final inference = Get.find<InferenceService>();
-    if (!inference.isModelLoaded.value) {
-      throw Exception(
-          'No local model loaded — load one in Explore → Local, or switch to Cloud mode.');
-    }
-    await inference.generate(
-      prompt: prompt,
-      systemPrompt: system,
-      source: 'slides',
-      onToken: buf.write,
-    );
-    final out = buf.toString().trim();
-    if (out.isEmpty) throw Exception('The model returned nothing.');
-    return out;
-  }
-
-  void _log(String message, Object e) {
-    try {
-      Get.find<AppLogService>().warning(
-        message,
-        details: '$e',
-        category: LogCategory.chat,
-      );
-    } catch (_) {}
-  }
 }

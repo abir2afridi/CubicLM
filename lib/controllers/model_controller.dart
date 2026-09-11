@@ -22,7 +22,16 @@ import '../models/ai_model.dart';
 import '../core/constants.dart';
 import 'settings_controller.dart';
 
-enum _ModelLoadAction { cancel, continueLoad }
+enum ModelLoadAction { cancel, continueLoad }
+
+/// RAM-gate outcome: allow silently, show the low-memory warning, refuse
+/// outright, or ask for an explicit risky override (strict guard off).
+enum RamGateDecision { allow, warnDialog, hardBlock, riskyConfirm }
+
+/// Proactive fit verdict shown on model cards (strict-guard view):
+/// fits = loads straight away, tight = warning dialog first,
+/// blocked = refused without the guard override.
+enum RamFit { fits, tight, blocked }
 
 class ModelController extends GetxController {
   final DownloadService _download = Get.find<DownloadService>();
@@ -876,12 +885,12 @@ class ModelController extends GetxController {
       );
       return;
     }
-    final loadAction = await _confirmModelLoadSafety(
+    final loadAction = await confirmLoadSafety(
       filename: filename,
       fileBytes: fileBytes,
       isLiteRt: isLiteRt,
     );
-    if (loadAction == _ModelLoadAction.cancel) return;
+    if (loadAction == ModelLoadAction.cancel) return;
     if (isLiteRt && !await _confirmLiteRtGpuWarning()) return;
 
     // Switching models mid-reply is allowed: stop the in-flight generation
@@ -950,6 +959,9 @@ class ModelController extends GetxController {
         modelName: filename,
         modelRuntime: model?.runtime,
         enableLiteRtVision: model == null ? false : isVisionModel(model),
+        // Already gated above (confirmLoadSafety with dialogs) — the
+        // service-level gate below is for ungated callers only.
+        skipGate: true,
       );
       if (_inference.isModelLoaded.value) {
         final fallbackToText = result.toLowerCase().contains('text-only');
@@ -1234,7 +1246,97 @@ class ModelController extends GetxController {
         (fileBytes * 1.25).round() + kvBytes + headroomBytes;
   }
 
-  Future<_ModelLoadAction> _confirmModelLoadSafety({
+  /// Pure gate decision so the strict/override matrix stays unit-tested:
+  /// a would-be hard block degrades to an explicit risky confirmation
+  /// when the user switched the strict guard off. Pure for unit tests.
+  static RamGateDecision ramGateDecision({
+    required bool strict,
+    required bool insufficient,
+    required bool criticallyLow,
+  }) {
+    if (insufficient) {
+      return strict ? RamGateDecision.hardBlock : RamGateDecision.riskyConfirm;
+    }
+    if (criticallyLow) return RamGateDecision.warnDialog;
+    return RamGateDecision.allow;
+  }
+
+  /// Card-level fit verdict from the same math as the load gate, so the
+  /// dot on a model card never disagrees with what tapping Load does.
+  /// Pure for unit tests.
+  static RamFit ramFitFor({
+    required int fileBytes,
+    required int kvBytes,
+    required int availableBytes,
+  }) {
+    if (availableBytes <= 0 || fileBytes <= 0) return RamFit.fits;
+    switch (ramGateDecision(
+      strict: true,
+      insufficient: isRamInsufficient(
+        availableBytes: availableBytes,
+        fileBytes: fileBytes,
+        kvBytes: kvBytes,
+      ),
+      // Same two clauses as the gate's isCriticallyLow.
+      criticallyLow: availableBytes < fileBytes + kvBytes ||
+          availableBytes < lowMemoryBytes,
+    )) {
+      case RamGateDecision.allow:
+        return RamFit.fits;
+      case RamGateDecision.warnDialog:
+        return RamFit.tight;
+      case RamGateDecision.hardBlock:
+      case RamGateDecision.riskyConfirm:
+        return RamFit.blocked;
+    }
+  }
+
+  /// Explicit risky-load confirmation for power users with the strict
+  /// guard OFF. The loader still applies its full low-RAM profile
+  /// (pool eviction, minimal threads/context), but the OS may still
+  /// kill the app mid-load — the user accepts that here, knowingly.
+  Future<bool> _confirmRiskyLoad({
+    required String filename,
+    required int availableBytes,
+    required int estimatedNeed,
+  }) async {
+    final needLabel = DownloadService.formatWholeMb(estimatedNeed);
+    final ramLabel = DownloadService.formatWholeMb(availableBytes);
+    final confirmed = await Get.dialog<bool>(
+      AlertDialog(
+        title: const Text('Load anyway? (risky)'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(filename),
+            const SizedBox(height: 12),
+            Text('Needs ~$needLabel, free: $ramLabel.'),
+            const SizedBox(height: 12),
+            const Text(
+              'Strict RAM guard is OFF. Android may close the app during '
+              'this load. The loader will still free other models first '
+              'and use minimal threads and context to maximize the odds.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(result: false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () => Get.back(result: true),
+            child: const Text('Load anyway'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
+  }
+
+  Future<ModelLoadAction> confirmLoadSafety({
     required String filename,
     required int fileBytes,
     required bool isLiteRt,
@@ -1256,31 +1358,53 @@ class ModelController extends GetxController {
         (availableBytes < estimatedNeed || _isLowMemoryBytes(availableBytes));
 
     // Hard block: not enough RAM for file (×1.25 mmap pressure) + KV
-    // cache + 1GB OS headroom. The native loader aborts (instant app
+    // cache + scaled headroom. The native loader aborts (instant app
     // death, no catch possible) — offering "Load anyway" here is a crash
-    // button, so refuse outright.
+    // button, so refuse outright. With the strict guard OFF (power
+    // users), degrade to an explicit risky confirmation instead: the
+    // loader still evicts the pool and uses minimal threads/context.
     final kvBytes = (estimatedNeed - fileBytes).clamp(0, 1 << 62);
-    if (hasMeasuredMemory &&
+    final insufficient = hasMeasuredMemory &&
         isRamInsufficient(
           availableBytes: availableBytes,
           fileBytes: fileBytes,
           kvBytes: kvBytes,
-        )) {
+        );
+    bool strict = true;
+    try {
+      if (Get.isRegistered<SettingsController>()) {
+        strict = Get.find<SettingsController>().strictRamGuard.value;
+      }
+    } catch (_) {}
+    final decision = ramGateDecision(
+      strict: strict,
+      insufficient: insufficient,
+      criticallyLow: isCriticallyLow,
+    );
+    if (decision == RamGateDecision.hardBlock) {
       final needLabel = DownloadService.formatWholeMb(estimatedNeed);
       final ramLabel = DownloadService.formatWholeMb(availableBytes);
       final headLabel = DownloadService.formatWholeMb(
           loadHeadroomBytes(fileBytes));
       Get.snackbar(
         'Not enough free RAM',
-        '$filename needs ~$needLabel + $headLabel reserve, but only $ramLabel is free. Close other apps or pick a smaller model.',
+        '$filename needs ~$needLabel + $headLabel reserve, but only $ramLabel is free. Close other apps, pick a smaller model — or allow risky loads in Settings (Strict RAM guard).',
         duration: const Duration(seconds: 6),
       );
-      return _ModelLoadAction.cancel;
+      return ModelLoadAction.cancel;
+    }
+    if (decision == RamGateDecision.riskyConfirm) {
+      final ok = await _confirmRiskyLoad(
+        filename: filename,
+        availableBytes: availableBytes,
+        estimatedNeed: estimatedNeed,
+      );
+      return ok ? ModelLoadAction.continueLoad : ModelLoadAction.cancel;
     }
 
     // Enough headroom (or nothing measurable to warn about) — load straight
     // away. Any resident model is freed by InferenceService.loadModel.
-    if (!isCriticallyLow) return _ModelLoadAction.continueLoad;
+    if (decision == RamGateDecision.allow) return ModelLoadAction.continueLoad;
 
     final modelLabel = fileBytes > 0
         ? DownloadService.formatWholeMb(fileBytes)
@@ -1297,7 +1421,7 @@ class ModelController extends GetxController {
                 ? 'Image model'
                 : 'Local model';
 
-    final result = await Get.dialog<_ModelLoadAction>(
+    final result = await Get.dialog<ModelLoadAction>(
       AlertDialog(
         title: const Text('Restart recommended'),
         content: Column(
@@ -1317,12 +1441,12 @@ class ModelController extends GetxController {
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(result: _ModelLoadAction.cancel),
+            onPressed: () => Get.back(result: ModelLoadAction.cancel),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
-              Get.back(result: _ModelLoadAction.cancel);
+              Get.back(result: ModelLoadAction.cancel);
               try {
                 await _androidImportChannel.invokeMethod('restartApp');
               } catch (_) {
@@ -1334,7 +1458,7 @@ class ModelController extends GetxController {
           ElevatedButton(
             onPressed: () async {
               await _refreshAvailableRamGb();
-              Get.back(result: _ModelLoadAction.continueLoad);
+              Get.back(result: ModelLoadAction.continueLoad);
             },
             child: const Text('Load anyway'),
           ),
@@ -1342,7 +1466,7 @@ class ModelController extends GetxController {
       ),
       barrierDismissible: false,
     );
-    return result ?? _ModelLoadAction.cancel;
+    return result ?? ModelLoadAction.cancel;
   }
 
   Future<bool> _confirmLiteRtGpuWarning() async {
@@ -1386,7 +1510,11 @@ class ModelController extends GetxController {
     return false;
   }
 
-  bool _isLowMemoryBytes(int bytes) => bytes < 768 * 1024 * 1024;
+  /// Below this free RAM the low-memory warning always fires, even when
+  /// the hard math passes (shared by the gate and the card verdict).
+  static const int lowMemoryBytes = 768 * 1024 * 1024;
+
+  bool _isLowMemoryBytes(int bytes) => bytes < lowMemoryBytes;
 
   Future<double> _refreshAvailableRamGb() async {
     try {

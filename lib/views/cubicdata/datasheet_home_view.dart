@@ -73,6 +73,11 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
             icon: const Icon(LucideIcons.folderPlus, size: 20),
             onPressed: () => _newFolder(),
           ),
+          IconButton(
+            tooltip: 'About CubicDataSheet',
+            icon: const Icon(LucideIcons.info, size: 20),
+            onPressed: () => _showAbout(context),
+          ),
           Obx(() => c.trash.isEmpty
               ? const SizedBox.shrink()
               : IconButton(
@@ -360,6 +365,22 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
       }
       c.files.refresh();
       c.folders.refresh();
+      // Never dangle: entries pointing at folders that were not
+      // imported (or don't exist) fall back to root, otherwise they
+      // would vanish from the tree.
+      final folderIds = c.folders.map((fo) => fo.id).toSet();
+      for (final fo in c.folders) {
+        if (fo.parentId != null && !folderIds.contains(fo.parentId)) {
+          fo.parentId = null;
+        }
+      }
+      for (final f in c.files) {
+        if (f.folderId != null && !folderIds.contains(f.folderId)) {
+          f.folderId = null;
+        }
+      }
+      c.files.refresh();
+      c.folders.refresh();
       c.log('edit',
           'Imported vault: $filesIn files, $foldersIn folders ($skipped skipped)');
       c.scheduleSave();
@@ -371,6 +392,57 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
       Get.snackbar('Import failed', '$e',
           snackPosition: SnackPosition.BOTTOM);
     }
+  }
+
+  void _showAbout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('CubicDataSheet'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _aboutRow('What is this?',
+                  'Your personal sheets and docs space: spreadsheets with formulas, documents, and hybrid canvases.'),
+              _aboutRow('Where is my data?',
+                  'One vault file in Download/CubicLM/DataSheet. It stays on your device even if the app is uninstalled — import it back anytime with the upload button above.'),
+              _aboutRow('Cell locks',
+                  'Lock levels Soft, Protected, Vault (password) and Permanent (RESTORE phrase). Turn on Unlock mode in a sheet header to unlock.'),
+              _aboutRow('Copy anything',
+                  'Every selected cell offers Plain, Formula, Markdown and JSON copy. The dashboard keeps a clipboard cache with re-copy.'),
+              _aboutRow('Find everything',
+                  'Use the search button for fuzzy search across files, cells, formulas, notes and docs — or type > for commands.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _aboutRow(String title, String body) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(body,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5, height: 1.45)),
+        ],
+      ),
+    );
   }
 
   void _openFile(SmartFile file) {    switch (file.type) {

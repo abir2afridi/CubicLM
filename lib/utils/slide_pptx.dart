@@ -4,8 +4,12 @@ import 'package:xml/xml.dart';
 import 'slide_deck.dart';
 
 /// Generates a valid .pptx (OpenXML) file from a list of slides.
-Future<List<int>> deckToPptx(String topic, List<Slide> slides) async {
+Future<List<int>> deckToPptx(String topic, List<Slide> slides, {SlideDeckTheme? theme}) async {
   final archive = Archive();
+
+  final primaryHex = (theme?.primaryColor ?? 'D97757').replaceAll('#', '');
+  final bgHex = (theme?.backgroundColor ?? '23232F').replaceAll('#', '');
+  final textHex = (theme?.textColor ?? 'F2F0EA').replaceAll('#', '');
 
   // 1. [Content_Types].xml
   final contentTypesXml = _buildContentTypes(slides);
@@ -24,11 +28,11 @@ Future<List<int>> deckToPptx(String topic, List<Slide> slides) async {
   archive.addFile(ArchiveFile('ppt/_rels/presentation.xml.rels', presentationRelsXml.length, presentationRelsXml));
 
   // 5. ppt/theme/theme1.xml
-  final themeXml = _buildTheme();
+  final themeXml = _buildTheme(primaryHex, bgHex, textHex);
   archive.addFile(ArchiveFile('ppt/theme/theme1.xml', themeXml.length, themeXml));
 
   // 6. ppt/slideMasters/slideMaster1.xml and rels
-  final slideMasterXml = _buildSlideMaster();
+  final slideMasterXml = _buildSlideMaster(bgHex);
   archive.addFile(ArchiveFile('ppt/slideMasters/slideMaster1.xml', slideMasterXml.length, slideMasterXml));
   final slideMasterRelsXml = _buildSlideMasterRels();
   archive.addFile(ArchiveFile('ppt/slideMasters/_rels/slideMaster1.xml.rels', slideMasterRelsXml.length, slideMasterRelsXml));
@@ -160,25 +164,24 @@ List<int> _buildPresentationRels(List<Slide> slides) {
   return _utf8(builder.buildDocument().toXmlString(pretty: false));
 }
 
-List<int> _buildTheme() {
-  // A minimal valid theme with the specified colors:
-  // D97757 (terracotta accent), dark background 23232f, white text F2F0EA
-  const xml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+List<int> _buildTheme(String primary, String bg, String text) {
+  // A minimal valid theme with the specified colors
+  final xml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="CubicLM Theme">
   <a:themeElements>
     <a:clrScheme name="CubicLM">
       <a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>
       <a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>
-      <a:dk2><a:srgbClr val="F2F0EA"/></a:dk2>
-      <a:lt2><a:srgbClr val="23232F"/></a:lt2>
-      <a:accent1><a:srgbClr val="D97757"/></a:accent1>
-      <a:accent2><a:srgbClr val="D97757"/></a:accent2>
-      <a:accent3><a:srgbClr val="D97757"/></a:accent3>
-      <a:accent4><a:srgbClr val="D97757"/></a:accent4>
-      <a:accent5><a:srgbClr val="D97757"/></a:accent5>
-      <a:accent6><a:srgbClr val="D97757"/></a:accent6>
-      <a:hlink><a:srgbClr val="D97757"/></a:hlink>
-      <a:folHlink><a:srgbClr val="D97757"/></a:folHlink>
+      <a:dk2><a:srgbClr val="$text"/></a:dk2>
+      <a:lt2><a:srgbClr val="$bg"/></a:lt2>
+      <a:accent1><a:srgbClr val="$primary"/></a:accent1>
+      <a:accent2><a:srgbClr val="$primary"/></a:accent2>
+      <a:accent3><a:srgbClr val="$primary"/></a:accent3>
+      <a:accent4><a:srgbClr val="$primary"/></a:accent4>
+      <a:accent5><a:srgbClr val="$primary"/></a:accent5>
+      <a:accent6><a:srgbClr val="$primary"/></a:accent6>
+      <a:hlink><a:srgbClr val="$primary"/></a:hlink>
+      <a:folHlink><a:srgbClr val="$primary"/></a:folHlink>
     </a:clrScheme>
     <a:fontScheme name="Office"><a:majorFont><a:latin typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/></a:minorFont></a:fontScheme>
     <a:fmtScheme name="Office"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme>
@@ -188,13 +191,13 @@ List<int> _buildTheme() {
   return _utf8(xml);
 }
 
-List<int> _buildSlideMaster() {
-  const xml = '''<?xml version="1.0" encoding="UTF-8"?>
+List<int> _buildSlideMaster(String bg) {
+  final xml = '''<?xml version="1.0" encoding="UTF-8"?>
 <p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
   <p:cSld>
     <p:bg>
       <p:bgPr>
-        <a:solidFill><a:srgbClr val="23232F"/></a:solidFill>
+        <a:solidFill><a:srgbClr val="$bg"/></a:solidFill>
         <a:effectLst/>
       </p:bgPr>
     </p:bg>

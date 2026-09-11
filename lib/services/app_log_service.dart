@@ -106,6 +106,9 @@ class AppLogEntry {
 
   /// Export rendering: one full body no matter how many repeats, with a
   /// `×N · first … · last …` header so pastes stay compact and readable.
+  /// Secrets are scrubbed here (single choke point for every export,
+  /// share and per-row copy) — the live in-app list keeps full fidelity
+  /// for debugging, but nothing pasted to GitHub/chat can leak a key.
   String formatForExport() {
     final buffer = StringBuffer()
       ..write('[${timestamp.toIso8601String()}] ')
@@ -117,12 +120,34 @@ class AppLogEntry {
         ..write(', last ${lastAt.toIso8601String()}')
         ..write(')');
     }
-    buffer.write(': $message');
+    buffer.write(': ${scrubExportSecrets(message)}');
     if (details != null && details!.trim().isNotEmpty) {
-      buffer.write('\n$details');
+      buffer.write('\n${scrubExportSecrets(details!)}');
     }
     return buffer.toString();
   }
+}
+
+/// Scrubs secrets from log text before it leaves the device (exports,
+/// shares, per-row copies, GitHub pastes). Pure and unit-tested.
+/// Covers query-string keys (?key=), bearer tokens and known vendor
+/// key prefixes. Deliberately NOT applied to the live list — local
+/// debugging keeps full fidelity.
+String scrubExportSecrets(String s) {
+  var out = s.replaceAllMapped(
+    RegExp(r'([?&]key=)[^&\s]+'),
+    (m) => '${m.group(1)}***',
+  );
+  out = out.replaceAllMapped(
+    RegExp(r'(Bearer )[^\s;,}"]+'),
+    (m) => '${m.group(1)}***',
+  );
+  out = out.replaceAllMapped(
+    RegExp(
+        r'\b(sk-ant-[A-Za-z0-9_\-]+|sk-proj-[A-Za-z0-9_\-]+|AIza[A-Za-z0-9_\-]+|xai-[A-Za-z0-9_\-]+|gsk_[A-Za-z0-9_\-]+)'),
+    (_) => '***',
+  );
+  return out;
 }
 
 class CrashPattern {

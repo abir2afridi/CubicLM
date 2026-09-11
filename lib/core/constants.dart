@@ -142,6 +142,11 @@ class AppConstants {
   static const String keyExportTreeUri = 'export_tree_uri';
   static const String keyExportTreeName = 'export_tree_name';
 
+  // Strict RAM guard: when on (default), loads that would almost surely
+  // die natively are refused outright; when off, they degrade to an
+  // explicit risky-load confirmation instead.
+  static const String keyStrictRamGuard = 'strict_ram_guard';
+
   // Offline outbox (queued prompts, FIFO, cap 20)
   static const String keyChatOutbox = 'chat_outbox';
 

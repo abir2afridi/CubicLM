@@ -22,6 +22,7 @@ import 'services/hive_service.dart';
 import 'services/secure_key_store.dart';
 import 'services/inference_service.dart';
 import 'services/cloud_service.dart';
+import 'services/cubicdata/controller.dart';
 import 'services/download_service.dart';
 import 'services/device_info_service.dart';
 import 'services/local_image_service.dart';
@@ -256,6 +257,9 @@ void main() {
       Get.put(VisionLiveController());
       Get.put(ServerController(), permanent: true);
       Get.put(ModelController());
+      // DataSheet vault: SlideSourceSelector (slide maker) reads it without
+      // ever opening the DataSheet home, so it must exist from startup.
+      Get.put(CubicDataController());
       // TTS — GetxService, async init deferred but instance available immediately.
       Get.put(TtsService());
       unawaited(Get.find<TtsService>().init().then((_) {}, onError: (_) {}));

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show File, FileMode, RandomAccessFile;
 import 'dart:typed_data';
 import 'package:get/get.dart';
+import '../controllers/model_controller.dart';
 import 'hive_service.dart';
 import 'inference_types.dart';
 import '../core/constants.dart';
@@ -309,6 +310,10 @@ class InferenceService extends GetxService {
     String? modelName,
     String? modelRuntime,
     bool enableLiteRtVision = false,
+    // ModelController pre-gates with dialogs and passes true; every
+    // other caller (boot resume, context reload, cloud switch-back)
+    // is gated here so no path can reach the native loader unchecked.
+    bool skipGate = false,
   }) async {
     if (!supportsLocalInference) {
       return 'ERROR: Local inference is not available on this platform. Use Cloud mode.';
@@ -443,6 +448,26 @@ class InferenceService extends GetxService {
       // slot, so other resident models stay loaded. LiteRT is single-session:
       // a litert→litert swap still needs the old one freed first, but a
       // llama→litert switch keeps the GGUF pool resident for instant return.
+      // Service-level RAM gate: ModelController pre-gates its own loads
+      // (skipGate), but boot-resume, context-size reload and cloud
+      // switch-back call here directly — a file bigger than free RAM dies
+      // natively with no catch, so every path is checked.
+      if (!skipGate && Get.isRegistered<ModelController>()) {
+        int fileBytes = 0;
+        try {
+          fileBytes = modelFile.lengthSync();
+        } catch (_) {}
+        final gateName = modelName ?? modelPath.split('/').last;
+        final action =
+            await Get.find<ModelController>().confirmLoadSafety(
+          filename: gateName,
+          fileBytes: fileBytes,
+          isLiteRt: isLiteRt,
+        );
+        if (action != ModelLoadAction.continueLoad) {
+          return 'ERROR: Not enough free RAM to load "$gateName". Close other apps or pick a smaller model.';
+        }
+      }
       final previousRuntime = loadedModelRuntime.value;
       if (isLiteRt && previousRuntime == 'litert') {
         await unloadModel();

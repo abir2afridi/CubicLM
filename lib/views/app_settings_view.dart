@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../controllers/settings_controller.dart';
 import '../controllers/chat_controller.dart';
 import '../services/chat_backup.dart';
+import '../services/device_info_service.dart';
 import '../services/hive_service.dart';
 import '../services/stats_service.dart';
 import '../core/routes.dart';
@@ -212,6 +213,139 @@ class AppSettingsView extends GetView<SettingsController> {
             icon: LucideIcons.alertTriangle, type: 'error', iconName: 'alert');
       }
     } catch (_) {}
+  }
+
+  /// Explains the Strict RAM guard with live numbers: what it blocks,
+  /// how the dynamic reserve works, and what turning it off means.
+  void _showRamGuardInfo(BuildContext context) {
+    double total = 0;
+    double avail = 0;
+    try {
+      if (Get.isRegistered<DeviceInfoService>()) {
+        final dev = Get.find<DeviceInfoService>();
+        total = dev.totalRamGB.value;
+        avail = dev.availableRamGB.value;
+      }
+    } catch (_) {}
+    final roomMb =
+        avail > 0 ? ((avail - 0.25) / 1.25 * 1024).round() : 0;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Strict RAM guard'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _infoRow('What it does',
+                  'Before loading a local model, the app estimates file × 1.25 working space plus context cache. If free RAM cannot cover it, the load is a near-certain native crash — with no error message possible.'),
+              _infoRow('Dynamic reserve',
+                  'The safety reserve scales with file size (256 MB for tiny models up to 1 GB for huge ones) instead of a fixed 1 GB, so small models are not blocked needlessly.'),
+              if (avail > 0)
+                _infoRow('Right now',
+                    '${avail.toStringAsFixed(1)} GB free of ${total.toStringAsFixed(1)} GB — room for a model up to ≈$roomMb MB.'),
+              _infoRow('When off',
+                  'Blocked loads ask "Load anyway?" instead of refusing. The loader still frees other models first and uses minimal threads and context — but Android may still close the app mid-load.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(String title, String body) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(body,
+              style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12.5, height: 1.45)),
+        ],
+      ),
+    );
+  }
+
+  /// Strict-guard toggle with an explicit warning on disable: turning
+  /// it off converts would-be refusals into confirmed risky loads, and
+  /// the OS may still kill the app mid-load. The switch only flips
+  /// after the user accepts that.
+  Future<void> _setStrictRamGuard(BuildContext context, bool v) async {
+    if (v) {
+      await controller.setStrictRamGuard(true);
+      return;
+    }
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Turn off Strict RAM guard?'),
+        content: const Text(
+          'Blocked model loads will ask to proceed anyway instead of '
+          'being refused. Android may close CubicLM mid-load if memory '
+          'runs out — the loader still minimizes footprint first, but '
+          'there is no guarantee.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep it on'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('I accept the risk'),
+          ),
+        ],
+      ),
+    );
+    if (accepted == true && context.mounted) {
+      await controller.setStrictRamGuard(false);
+    }
+  }
+
+  /// Explains where exports go: default folder, custom picks, and why
+  /// files survive app uninstall.
+  void _showExportFolderInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Export folder'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _infoRow('Default',
+                  'Every export saves straight into Download/CubicLM — no folder picker every time.'),
+              _infoRow('Custom folder',
+                  'Choose folder opens the system file manager: browse, create or select any folder once. The app remembers it (permission survives reboot). Reset returns to the default.'),
+              _infoRow('Uninstall-safe',
+                  'Files in Download stay on your device even if CubicLM is uninstalled.'),
+              _infoRow('Share',
+                  'Every export notice has a Share button to send the file to Drive, chat apps or email.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Export destination picker. Android opens the system file manager
@@ -675,6 +809,35 @@ class AppSettingsView extends GetView<SettingsController> {
                   onTap: () => _importSettings(),
                 ),
                 if (!kIsWeb)
+                  Obx(() => _appleListTile(
+                        context,
+                        isDark,
+                        leading: const Icon(LucideIcons.shieldCheck,
+                            size: 20, color: Dt.accent),
+                        title: 'Strict RAM guard',
+                        subtitle: controller.strictRamGuard.value
+                            ? 'On — risky loads are blocked'
+                            : 'Off — blocked loads ask first (crash risk)',
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'How this works',
+                              icon: const Icon(LucideIcons.info, size: 19),
+                              onPressed: () =>
+                                  _showRamGuardInfo(context),
+                            ),
+                            Switch.adaptive(
+                              value: controller.strictRamGuard.value,
+                              activeThumbColor: Dt.accent,
+                              onChanged: (v) =>
+                                  _setStrictRamGuard(context, v),
+                            ),
+                          ],
+                        ),
+                        onTap: () => _showRamGuardInfo(context),
+                      )),
+                if (!kIsWeb)
                   Obx(() {
                     // Subscribe to the Rx prefs so the label refreshes
                     // right after a change (the label itself reads Hive).
@@ -689,6 +852,12 @@ class AppSettingsView extends GetView<SettingsController> {
                           size: 20, color: Dt.accent),
                       title: 'Export folder',
                       subtitle: ExportFile.exportLocationLabel(),
+                      trailing: IconButton(
+                        tooltip: 'How this works',
+                        icon: const Icon(LucideIcons.info, size: 19),
+                        onPressed: () =>
+                            _showExportFolderInfo(context),
+                      ),
                       onTap: () => _pickExportFolder(context, isDark),
                     );
                   }),

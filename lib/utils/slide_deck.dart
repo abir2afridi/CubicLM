@@ -17,7 +17,7 @@ class Slide {
   String subtitle;
   List<String> points;
   String
-      layout; // title | bullets | image | quote | comparison | stats | timeline | summary | chart
+      layout; // title | bullets | image | quote | comparison | stats | timeline | summary | chart | diagram
   String imagePrompt;
   String notes;
   List<int>? imageBytes;
@@ -28,6 +28,15 @@ class Slide {
 
   /// Chart data: { "type": "bar|donut|line", "items": [{"label": "...", "value": "42"}] }
   Map<String, dynamic> chartData;
+
+  /// Diagram data: Mermaid syntax string.
+  String? diagram;
+
+  /// Citations for the data in the slide.
+  List<Citation> citations;
+
+  /// Speaker notes for the presenter.
+  String speakerNotes;
 
   /// Freehand layout mode: boxes move/scale freely on the canvas.
   /// Offsets are fractions of canvas size (0.05 = 5% right/down).
@@ -54,6 +63,9 @@ class Slide {
     List<List<String>>? columns,
     List<Map<String, String>>? stats,
     Map<String, dynamic>? chartData,
+    this.diagram,
+    List<Citation>? citations,
+    this.speakerNotes = '',
     this.freeLayout = false,
     this.tDx = 0,
     this.tDy = 0,
@@ -68,6 +80,7 @@ class Slide {
         columns = columns ?? [],
         stats = stats ?? [],
         chartData = chartData ?? {},
+        citations = citations ?? [],
         layout = _normLayout(layout),
         imagePrompt = imagePrompt ?? '',
         notes = notes ?? '';
@@ -83,7 +96,8 @@ class Slide {
       'stats',
       'timeline',
       'summary',
-      'chart'
+      'chart',
+      'diagram'
     };
     if (valid.contains(v)) return v;
     return 'bullets';
@@ -112,6 +126,13 @@ class Slide {
       chart = Map<String, dynamic>.from(m['chartData'] as Map);
     }
 
+    List<Citation> cits = [];
+    if (m['citations'] is List) {
+      for (final c in (m['citations'] as List)) {
+        if (c is Map) cits.add(Citation.fromMap(c));
+      }
+    }
+
     return Slide(
       title: (m['title'] ?? '').toString(),
       subtitle: (m['subtitle'] ?? '').toString(),
@@ -125,6 +146,9 @@ class Slide {
       columns: cols,
       stats: sts,
       chartData: chart,
+      diagram: (m['diagram'] ?? '').toString(),
+      citations: cits,
+      speakerNotes: (m['speakerNotes'] ?? '').toString(),
     );
   }
 
@@ -139,9 +163,103 @@ class Slide {
         'columns': columns,
         'stats': stats,
         'chartData': chartData,
+        'diagram': diagram,
+        'citations': citations.map((e) => e.toMap()).toList(),
+        'speakerNotes': speakerNotes,
       };
 
   bool get wantsImage => layout == 'image' || imagePrompt.trim().isNotEmpty;
+}
+
+class Citation {
+  final String source;
+  final String? url;
+
+  Citation({required this.source, this.url});
+
+  factory Citation.fromMap(Map m) => Citation(
+        source: (m['source'] ?? '').toString(),
+        url: m['url']?.toString(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'source': source,
+        'url': url,
+      };
+}
+
+class SlideOutline {
+  String title;
+  String description;
+  String layout;
+  List<String> keyPoints;
+
+  SlideOutline({
+    required this.title,
+    this.description = '',
+    this.layout = 'bullets',
+    List<String>? keyPoints,
+  }) : keyPoints = keyPoints ?? [];
+
+  factory SlideOutline.fromMap(Map m) => SlideOutline(
+        title: (m['title'] ?? '').toString(),
+        description: (m['description'] ?? '').toString(),
+        layout: (m['layout'] ?? 'bullets').toString(),
+        keyPoints: (m['keyPoints'] is List)
+            ? (m['keyPoints'] as List).map((e) => e.toString()).toList()
+            : [],
+      );
+
+  Map<String, dynamic> toMap() => {
+        'title': title,
+        'description': description,
+        'layout': layout,
+        'keyPoints': keyPoints,
+      };
+}
+
+class SlideDeckTheme {
+  final String name;
+  final String primaryColor;
+  final String secondaryColor;
+  final String backgroundColor;
+  final String textColor;
+  final String accentColor;
+  final String fontHeading;
+  final String fontBody;
+
+  SlideDeckTheme({
+    required this.name,
+    required this.primaryColor,
+    required this.secondaryColor,
+    required this.backgroundColor,
+    required this.textColor,
+    required this.accentColor,
+    required this.fontHeading,
+    required this.fontBody,
+  });
+
+  factory SlideDeckTheme.fromMap(Map m) => SlideDeckTheme(
+        name: (m['name'] ?? 'Modern').toString(),
+        primaryColor: (m['primaryColor'] ?? '#d97757').toString(),
+        secondaryColor: (m['secondaryColor'] ?? '#4ade80').toString(),
+        backgroundColor: (m['backgroundColor'] ?? '#14141c').toString(),
+        textColor: (m['textColor'] ?? '#f2f0ea').toString(),
+        accentColor: (m['accentColor'] ?? '#d97757').toString(),
+        fontHeading: (m['fontHeading'] ?? 'Plus Jakarta Sans').toString(),
+        fontBody: (m['fontBody'] ?? 'Plus Jakarta Sans').toString(),
+      );
+
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'primaryColor': primaryColor,
+        'secondaryColor': secondaryColor,
+        'backgroundColor': backgroundColor,
+        'textColor': textColor,
+        'accentColor': accentColor,
+        'fontHeading': fontHeading,
+        'fontBody': fontBody,
+      };
 }
 
 /// Extract the fenced ```slides (or ```json holding "slides") payload.
@@ -168,7 +286,7 @@ String? extractSlidesJson(String raw) {
 
 /// Parse model output into slides. Never throws, never empty on valid-ish
 /// input (falls back to one slide with the raw text).
-List<Slide> parseSlides(String raw) {
+List<Slide> parseSlides(String raw, {SlideDeckTheme? outTheme}) {
   var text = raw.replaceAll(RegExp(r'<think>[\s\S]*?</think>'), '').trim();
   final out = <Slide>[];
   try {
@@ -185,6 +303,9 @@ List<Slide> parseSlides(String raw) {
         }
       }
       final decoded = jsonDecode(payload);
+      if (decoded is Map && decoded['theme'] is Map && outTheme != null) {
+        // Potentially update theme if needed, but here we just note it
+      }
       final list = decoded is Map
           ? decoded['slides']
           : (decoded is List ? decoded : null);
@@ -267,6 +388,50 @@ List<Slide> _parseMarkdownSlides(String raw) {
 
 /// System prompt for deck generation. [count] slides, [style] tone,
 /// [audience] optional target audience (e.g. "investors", "students").
+List<SlideOutline> parseOutline(String raw) {
+  var text = raw.replaceAll(RegExp(r'<think>[\s\S]*?</think>'), '').trim();
+  final out = <SlideOutline>[];
+  try {
+    String? payload = extractSlidesJson(text);
+    if (payload != null) {
+      final decoded = jsonDecode(payload);
+      final list = decoded is Map
+          ? decoded['outline']
+          : (decoded is List ? decoded : null);
+      if (list is List) {
+        for (final s in list.whereType<Map>()) {
+          out.add(SlideOutline.fromMap(s));
+        }
+      }
+    }
+  } catch (_) {}
+  return out;
+}
+
+String outlineSystemPrompt({required int count, required String topic}) {
+  return '''You are a presentation architect. Create a $count-slide outline for a deck about: $topic.
+Output EXACTLY one fenced block containing JSON and nothing else.
+
+```slides
+{
+  "outline": [
+    {
+      "title": "Introduction to Quantum Computing",
+      "description": "Hook the audience and define the scope.",
+      "layout": "title",
+      "keyPoints": ["What is a qubit?", "Why traditional computers fail"]
+    },
+    {
+      "title": "Quantum Superposition",
+      "description": "Explain the core concept using a coin analogy.",
+      "layout": "bullets",
+      "keyPoints": ["Being in two states at once", "Measurement collapses state"]
+    }
+  ]
+}
+```''';
+}
+
 String slideSystemPrompt(
     {required int count, required String style, String audience = ''}) {
   final audienceHint =
@@ -276,6 +441,12 @@ If the topic is non-English, generate ALL content in that language, but keep JSO
 
 ```slides
 {
+  "theme": {
+    "name": "Modern Terracotta",
+    "primaryColor": "#d97757",
+    "backgroundColor": "#14141c",
+    "textColor": "#f2f0ea"
+  },
   "slides": [
     {
       "title": "Welcome to the Future",
@@ -283,14 +454,22 @@ If the topic is non-English, generate ALL content in that language, but keep JSO
       "points": [],
       "layout": "title",
       "imagePrompt": "A futuristic city skyline at dawn with flying cars, neon lights, cyberpunk style",
-      "notes": "Welcome the audience and set the stage."
+      "notes": "Welcome the audience and set the stage.",
+      "speakerNotes": "Start by introducing the goal of this session. Use an energetic tone."
     },
     {
       "title": "Why It Matters",
       "points": ["Automation saves 40% of manual work", "Data-driven decisions increase revenue 2.5×", "Creative AI tools reduce production time by 70%"],
       "layout": "bullets",
       "imagePrompt": "A glowing brain connected to a circuit board",
-      "notes": "Focus on concrete numbers — never vague claims."
+      "notes": "Focus on concrete numbers — never vague claims.",
+      "citations": [{"source": "Gartner 2024 AI Report", "url": "https://gartner.com/ai"}]
+    },
+    {
+      "title": "Process Flow",
+      "layout": "diagram",
+      "diagram": "graph TD\\n  A[Input] --> B{Process}\\n  B -->|Valid| C[Output]\\n  B -->|Invalid| D[Error]",
+      "notes": "Visualize the logical flow of information."
     },
     {
       "title": "Market Size & Growth",
@@ -328,20 +507,21 @@ If the topic is non-English, generate ALL content in that language, but keep JSO
 
 Rules — follow ALL of these:
 1. Produce EXACTLY $count slides. No more, no fewer.
-2. Layouts available: title, bullets, image, quote, comparison, stats, timeline, summary, chart.
+2. Layouts available: title, bullets, image, quote, comparison, stats, timeline, summary, chart, diagram.
 3. First slide MUST be layout "title". Last slide MUST be "summary".
 4. VARY layouts — use at least 4 different types across the deck. Never repeat the same layout twice in a row.
-5. Use "quote" for key insights or inspirational moments (fill "quoteAuthor").
-6. Use "comparison" when contrasting ideas (fill "columns" with exactly 2 lists).
-7. Use "stats" when presenting 2-4 key numbers (fill "stats" with {"value": "...", "label": "..."}).
-8. Use "chart" for data trends (fill "chartData" with {"type": "bar|donut|line", "items": [{"label": "...", "value": "42"}]}). Max 6 items per chart. Values MUST be numeric-parseable (e.g. "42", "12B", "\$5M" — never "twelve" or "a lot").
-9. Use "timeline" for chronological or step-by-step content.
-10. EVERY content slide MUST include "imagePrompt" (one vivid sentence for AI image generation).
-11. Bullet points: max 15 words each. Use SPECIFIC numbers, percentages, and real-world data — never vague claims.
-12. "notes" is a one-sentence speaker note for each slide.
-13. Tone/style: $style.
-14. Think like a consultant — structure ideas as Problem → Solution → Evidence → Impact.
-15. Valid JSON only inside the fence. No prose outside. Do not output markdown outside the fence.''';
+5. Use "diagram" for logical flows, architecture, or cycles using Mermaid syntax (graph, sequence, state, pie, etc.).
+6. Use "quote" for key insights or inspirational moments (fill "quoteAuthor").
+7. Use "comparison" when contrasting ideas (fill "columns" with exactly 2 lists).
+8. Use "stats" when presenting 2-4 key numbers (fill "stats" with {"value": "...", "label": "..."}).
+9. Use "chart" for data trends (fill "chartData" with {"type": "bar|donut|line", "items": [{"label": "...", "value": "42"}]}). Max 6 items per chart. Values MUST be numeric-parseable (e.g. "42", "12B", "\$5M" — never "twelve" or "a lot").
+10. Use "timeline" for chronological or step-by-step content.
+11. EVERY content slide MUST include "imagePrompt" (one vivid sentence for AI image generation).
+12. Bullet points: max 15 words each. Use SPECIFIC numbers, percentages, and real-world data — never vague claims.
+13. "notes" is a short summary; "speakerNotes" is the actual script for the presenter.
+14. Add "citations" whenever providing specific data or quotes.
+15. Think like a consultant — structure ideas as Problem → Solution → Evidence → Impact.
+16. Valid JSON only inside the fence. No prose outside. Do not output markdown outside the fence.''';
 }
 
 /// Single-slide regeneration user prompt.
@@ -549,11 +729,15 @@ String _freeSlideHtml(Slide s) {
 }
 
 /// Deck → standalone styled HTML presentation (export + preview).
-String deckToHtml(String topic, List<Slide> slides) {
+String deckToHtml(String topic, List<Slide> slides, {SlideDeckTheme? theme}) {
   String esc(String s) => s
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;');
+
+  final primary = theme?.primaryColor ?? '#d97757';
+  final bg = theme?.backgroundColor ?? '#14141c';
+  final fg = theme?.textColor ?? '#f2f0ea';
 
   String img(Slide s) {
     if (s.imageBytes != null && s.imageBytes!.isNotEmpty) {
@@ -573,7 +757,7 @@ String deckToHtml(String topic, List<Slide> slides) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(topic)}</title>
 <style>
-:root { color-scheme: light dark; --accent: #d97757; --bg: #14141c; --fg: #f2f0ea; --muted: #6a675f; }
+:root { color-scheme: light dark; --accent: $primary; --bg: $bg; --fg: $fg; --muted: #6a675f; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--fg); overflow: hidden; }
 #slides-container { position: relative; width: 100vw; height: 100vh; }
@@ -593,6 +777,18 @@ ul li::before { content: '▸'; position: absolute; left: 0; color: var(--accent
 .num { position: fixed; right: 24px; bottom: 20px; color: var(--muted); font-size: 14px; z-index: 100; transition: opacity 0.3s; }
 .fullscreen .num { opacity: 0; }
 #progress-bar { position: fixed; bottom: 0; left: 0; height: 4px; background: var(--accent); z-index: 100; transition: width 0.3s ease; }
+
+/* Presenter Mode */
+#presenter-view { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 1000; display: none; grid-template-columns: 2fr 1fr; grid-template-rows: 2fr 1fr; gap: 10px; padding: 10px; }
+#presenter-view.active { display: grid; }
+.pv-box { background: #1a1a24; border-radius: 8px; border: 1px solid #333; overflow: hidden; position: relative; }
+.pv-header { background: #2a2a35; padding: 8px 12px; font-size: 12px; font-weight: bold; color: var(--accent); border-bottom: 1px solid #333; display: flex; justify-content: space-between; }
+.pv-content { padding: 15px; overflow-y: auto; height: calc(100% - 35px); }
+.pv-current { grid-row: 1 / 2; grid-column: 1 / 2; }
+.pv-next { grid-row: 2 / 3; grid-column: 1 / 2; }
+.pv-notes { grid-row: 1 / 3; grid-column: 2 / 3; font-size: 18px; line-height: 1.6; color: #eee; }
+.pv-timer { font-family: monospace; font-size: 24px; color: #fff; }
+#pv-current-frame, #pv-next-frame { width: 100%; height: 100%; border: none; transform: scale(1); transform-origin: top left; }
 
 /* Layout specific styles */
 .layout-quote { text-align: center; }
@@ -703,9 +899,27 @@ ul li::before { content: '▸'; position: absolute; left: 0; color: var(--accent
     buf.writeln('</section>');
   }
 
+  // Pre-generate notes for Presenter Mode
+  final notesJson = jsonEncode(slides.map((s) => s.speakerNotes.isNotEmpty ? s.speakerNotes : s.notes).toList());
+
   buf.writeln('''
 </div>
 <div class="num" id="counter">1 / ${slides.length}</div>
+
+<div id="presenter-view">
+  <div class="pv-box pv-current">
+    <div class="pv-header">CURRENT SLIDE <span id="pv-num">1</span></div>
+    <div class="pv-content" id="pv-current-content"></div>
+  </div>
+  <div class="pv-box pv-next">
+    <div class="pv-header">NEXT SLIDE</div>
+    <div class="pv-content" id="pv-next-content"></div>
+  </div>
+  <div class="pv-box pv-notes">
+    <div class="pv-header">SPEAKER NOTES <span class="pv-timer" id="timer">00:00</span></div>
+    <div class="pv-content" id="pv-notes-content"></div>
+  </div>
+</div>
 
 <script>
   let currentSlide = 0;
@@ -713,69 +927,81 @@ ul li::before { content: '▸'; position: absolute; left: 0; color: var(--accent
   const totalSlides = slides.length;
   const progressBar = document.getElementById('progress-bar');
   const counter = document.getElementById('counter');
+  const speakerNotes = $notesJson;
   
+  let startTime = Date.now();
+  setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+    const s = (elapsed % 60).toString().padStart(2, '0');
+    document.getElementById('timer').innerText = m + ':' + s;
+  }, 1000);
+
   function showSlide(index) {
     if (index < 0) index = 0;
     if (index >= totalSlides) index = totalSlides - 1;
     currentSlide = index;
     
     slides.forEach((s, i) => {
-      if (i === currentSlide) {
-        s.classList.add('active');
-      } else {
-        s.classList.remove('active');
-    }
-  });
-
-  // Touch / swipe support for mobile
-  let touchStartX = 0;
-  let touchStartY = 0;
-  document.addEventListener('touchstart', (e) => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-  }, { passive: true });
-  document.addEventListener('touchend', (e) => {
-    const dx = e.changedTouches[0].clientX - touchStartX;
-    const dy = e.changedTouches[0].clientY - touchStartY;
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
-      if (dx < 0) showSlide(currentSlide + 1);
-      else showSlide(currentSlide - 1);
-    }
-  }, { passive: true });
-
+      s.classList.toggle('active', i === currentSlide);
+    });
     
     progressBar.style.width = ((currentSlide + 1) / totalSlides * 100) + '%';
     counter.innerText = (currentSlide + 1) + ' / ' + totalSlides;
+    
+    // Update Presenter View
+    const pv = document.getElementById('presenter-view');
+    if (pv.classList.contains('active')) {
+      document.getElementById('pv-num').innerText = (currentSlide + 1);
+      document.getElementById('pv-current-content').innerHTML = slides[currentSlide].innerHTML;
+      document.getElementById('pv-notes-content').innerText = speakerNotes[currentSlide] || "No notes for this slide.";
+      
+      const nextIdx = currentSlide + 1;
+      if (nextIdx < totalSlides) {
+        document.getElementById('pv-next-content').innerHTML = slides[nextIdx].innerHTML;
+      } else {
+        document.getElementById('pv-next-content').innerHTML = "<h3>End of presentation</h3>";
+      }
+    }
   }
   
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowRight' || e.key === 'Space' || e.key === 'Enter') {
+    const key = e.key.toLowerCase();
+    if (key === 'arrowright' || key === ' ' || key === 'enter') {
       showSlide(currentSlide + 1);
-    } else if (e.key === 'ArrowLeft' || e.key === 'Backspace') {
+    } else if (key === 'arrowleft' || key === 'backspace') {
       showSlide(currentSlide - 1);
-    } else if (e.key === 'f' || e.key === 'F') {
+    } else if (key === 'f') {
       if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(err => {});
+        document.documentElement.requestFullscreen().catch(() => {});
         document.body.classList.add('fullscreen');
       } else {
         document.exitFullscreen();
         document.body.classList.remove('fullscreen');
       }
-    } else if (e.key === 'Escape') {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-        document.body.classList.remove('fullscreen');
+    } else if (key === 'p') {
+      const pv = document.getElementById('presenter-view');
+      pv.classList.toggle('active');
+      if (pv.classList.contains('active')) {
+        showSlide(currentSlide);
       }
+    } else if (key === 'escape') {
+      if (document.fullscreenElement) document.exitFullscreen();
+      document.getElementById('presenter-view').classList.remove('active');
     }
   });
-  
-  document.addEventListener('fullscreenchange', () => {
-    if (!document.fullscreenElement) {
-      document.body.classList.remove('fullscreen');
+
+  // Touch / swipe support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => touchStartX = e.touches[0].clientX, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) {
+      if (dx < 0) showSlide(currentSlide + 1);
+      else showSlide(currentSlide - 1);
     }
-  });
+  }, { passive: true });
   
-  // Initialize
   showSlide(0);
 </script>
 </body></html>''');

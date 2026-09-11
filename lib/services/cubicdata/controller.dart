@@ -423,7 +423,11 @@ class CubicDataController extends GetxController
   void moveFile(String id, String? folderId) {
     final f = byId(id);
     if (f == null) return;
-    f.folderId = folderId;
+    // Never dangle: unknown folders would hide the file from the tree.
+    f.folderId =
+        folderId != null && folders.any((fo) => fo.id == folderId)
+            ? folderId
+            : null;
     f.touch();
     files.refresh();
     scheduleSave();
@@ -465,11 +469,14 @@ class CubicDataController extends GetxController
       if (item.type == 'file') {
         final f =
             SmartFile.fromJson(Map<String, dynamic>.from(item.payload));
-        // New id avoids collisions; keep the name.
+        // New id avoids collisions; keep the name. A missing parent
+        // folder would hide the file, so fall back to root.
+        final parentOk = item.originalParentId != null &&
+            folders.any((fo) => fo.id == item.originalParentId);
         final restored = SmartFile(
           id: newId('f_'),
           name: f.name,
-          folderId: item.originalParentId,
+          folderId: parentOk ? item.originalParentId : null,
           type: f.type,
           tags: f.tags,
           isFavorite: f.isFavorite,
@@ -542,9 +549,14 @@ class CubicDataController extends GetxController
     final idx = folders.indexWhere((f) => f.id == id);
     if (idx < 0) return;
     final folder = folders.removeAt(idx);
-    // Files inside move back to root so nothing is lost silently.
+    // Files inside move back up one level so nothing is lost silently.
     for (final f in files) {
       if (f.folderId == id) f.folderId = folder.parentId;
+    }
+    // Child folders reparent the same way — otherwise whole subtrees
+    // would vanish from the tree (dangling parent ids are invisible).
+    for (final fo in folders) {
+      if (fo.parentId == id) fo.parentId = folder.parentId;
     }
     trash.insert(
       0,
@@ -559,6 +571,7 @@ class CubicDataController extends GetxController
       ),
     );
     files.refresh();
+    folders.refresh();
     scheduleSave();
   }
 

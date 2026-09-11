@@ -890,6 +890,13 @@ void showFrameworkSheet(BuildContext context) {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+              child: Text(
+                'Framework, library and design shape every AI build.',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
             TabBar(
               labelColor: Dt.accent,
               unselectedLabelColor: Theme.of(context).hintColor,
