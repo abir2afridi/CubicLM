@@ -7,6 +7,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:uuid/uuid.dart';
 
@@ -49,7 +50,8 @@ class ClipboardEntry {
       );
 }
 
-class CubicDataController extends GetxController {
+class CubicDataController extends GetxController
+    with WidgetsBindingObserver {
   static const _uuid = Uuid();
   static String newId(String prefix) =>
       '$prefix${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}${_uuid.v4().substring(0, 4)}';
@@ -70,13 +72,33 @@ class CubicDataController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    try {
+      WidgetsBinding.instance.addObserver(this);
+    } catch (_) {}
     unawaited(load());
   }
 
   @override
   void onClose() {
     _saveTimer?.cancel();
+    // Fire-and-forget: the OS may kill us mid-flush, but lifecycle-pause
+    // (below) already saved. Never leave a pending debounce unsaved.
+    unawaited(saveNow());
+    try {
+      WidgetsBinding.instance.removeObserver(this);
+    } catch (_) {}
     super.onClose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Backgrounding is the last reliable moment: flush the vault so a
+    // subsequent kill loses nothing (debounce alone would drop it).
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.inactive) {
+      unawaited(saveNow());
+    }
   }
 
   Future<void> load() async {
@@ -84,8 +106,14 @@ class CubicDataController extends GetxController {
       final raw = await CubicVaultStore.load();
       if (raw != null) {
         _readVault(raw);
+        print(
+            '[DataSheet] Vault loaded: ${files.length} files, ${folders.length} folders, ${trash.length} trashed.');
+      } else {
+        print('[DataSheet] No vault file on disk yet (fresh start).');
       }
-    } catch (_) {}
+    } catch (e) {
+      print('[DataSheet] Vault load failed: $e');
+    }
     loaded.value = true;
   }
 
@@ -211,26 +239,33 @@ class CubicDataController extends GetxController {
   }
 
   // ── Files ──
-
   SmartFile createFile(WorkspaceType type, String name, {String? folderId}) {
+    final trimmed = name.trim().isEmpty ? 'Untitled' : name.trim();
     final now = DateTime.now().millisecondsSinceEpoch;
     final file = SmartFile(
       id: newId('f_'),
-      name: name.trim().isEmpty ? 'Untitled' : name.trim(),
+      name: trimmed,
       folderId: folderId,
       type: type,
+      tags: const ['quick'],
       createdAt: now,
       updatedAt: now,
     );
     switch (type) {
       case WorkspaceType.spreadsheet:
-        final sheet = SheetData(id: newId('sh_'), name: 'Sheet1');
+        final sheet = SheetData(id: newId('sh_'), name: 'Grid Workspace Pivot');
+        sheet.cells['A1'] = CellData(value: 'Initialized workspace: $trimmed');
         file.sheets = [sheet];
         file.activeSheetId = sheet.id;
         break;
       case WorkspaceType.document:
         file.docBlocks = [
-          DocumentBlock(id: newId('blk_'), type: 'paragraph')
+          DocumentBlock(
+              id: newId('blk_'), type: 'heading1', content: trimmed),
+          DocumentBlock(
+              id: newId('blk_'),
+              type: 'paragraph',
+              content: 'Begin writing. Type \'/\' to trigger block templates.'),
         ];
         break;
       case WorkspaceType.hybrid:
@@ -248,6 +283,105 @@ class CubicDataController extends GetxController {
       if (f.id == id) return f;
     }
     return null;
+  }
+
+  /// Builds one hybrid block with the DataSheet web seed content for
+  /// [type] (spreadsheet sample table, checklist items, prompt template…).
+  /// With [archetype] true, uses the new-file archetype seeds instead
+  /// (e.g. a 20×8 "Start here" mini sheet). Shared by the append menu
+  /// and the new-file archetypes so seeds never diverge.
+  static HybridBlock buildHybridBlock(String type, String title,
+      {bool archetype = false}) {
+    final b = HybridBlock(id: newId('hy_'), type: type, title: title);
+    if (archetype) {
+      switch (type) {
+        case 'spreadsheet':
+          b.rows = 20;
+          b.cols = 8;
+          b.spreadsheetCells = {
+            'A1': CellData(value: 'Start here'),
+          };
+          break;
+        case 'code':
+          b.codeLanguage = 'javascript';
+          b.docContent = '// Write your script here\n';
+          break;
+        case 'checklist':
+          b.checklistItems = [
+            HybridChecklistItem(id: newId('ci_'), text: 'First task'),
+          ];
+          break;
+        case 'prompt':
+          b.promptTemplate = 'Write your prompt here...';
+          b.descriptionTabs = [];
+          break;
+        case 'reference':
+          b.referenceUrl = 'https://';
+          break;
+        case 'multi':
+          b.docContent = 'Add modules using the Append button below';
+          break;
+        default:
+          break;
+      }
+      return b;
+    }
+    switch (type) {
+      case 'spreadsheet':
+        b.rows = 5;
+        b.cols = 5;
+        b.spreadsheetCells = {
+          'A1': CellData(value: 'Label'),
+          'B1': CellData(value: 'Weight'),
+          'A2': CellData(value: 'Hardware'),
+          'B2': CellData(value: '350'),
+          'A3': CellData(value: 'Software'),
+          'B3': CellData(value: '120'),
+          'A4': CellData(value: 'Total'),
+          'B4': CellData(value: '470'),
+        };
+        break;
+      case 'document':
+        b.docContent = 'Type workspace instructions or references...';
+        break;
+      case 'code':
+        b.codeLanguage = 'typescript';
+        b.docContent = 'const endpoint = \'/api/configure\';';
+        break;
+      case 'checklist':
+        b.checklistItems = [
+          HybridChecklistItem(id: newId('ci_'), text: 'Review this file'),
+          HybridChecklistItem(
+              id: newId('ci_'), text: 'Draft the outline', done: true),
+        ];
+        break;
+      case 'prompt':
+        b.promptTemplate = 'Draft an outline about: \$PROMPTVAR';
+        b.descriptionTabs = [];
+        break;
+      case 'reference':
+        b.referenceUrl = 'https://';
+        b.docContent = 'Private notes about this link';
+        break;
+    }
+    return b;
+  }
+
+  /// Creates a hybrid file pre-seeded with one block — the "Micro
+  /// Spreadsheet" style archetypes from the new-file dialog. The seed
+  /// block carries the file name as its title, like the web app.
+  SmartFile createHybridWith(String blockType, String name,
+      {String? folderId}) {
+    final trimmed = name.trim().isEmpty ? 'Untitled' : name.trim();
+    final file =
+        createFile(WorkspaceType.hybrid, trimmed, folderId: folderId);
+    file.hybridBlocks = [
+      buildHybridBlock(blockType, trimmed, archetype: true)
+    ];
+    file.touch();
+    files.refresh();
+    scheduleSave();
+    return file;
   }
 
   void renameFile(String id, String name) {

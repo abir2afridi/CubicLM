@@ -347,7 +347,7 @@ class _DocEditorViewState extends State<DocEditorView> {
                   decoration: b.type == 'code_block'
                       ? BoxDecoration(
                           color: Colors.black,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(4),
                         )
                       : null,
                   child: KeyboardListener(
@@ -400,7 +400,7 @@ class _DocEditorViewState extends State<DocEditorView> {
   Widget _gutter(SmartFile f, DocumentBlock b, int index) {
     return InkWell(
       onTap: () => _blockMenu(f, b, index),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(4),
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Icon(LucideIcons.gripVertical,
@@ -487,7 +487,7 @@ class _DocEditorViewState extends State<DocEditorView> {
       margin: const EdgeInsets.only(top: 4, left: 28),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(color: Theme.of(context).dividerColor),
         boxShadow: const [
           BoxShadow(color: Colors.black26, blurRadius: 12)

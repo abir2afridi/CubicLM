@@ -4,7 +4,11 @@
 /// spreadsheet-first so every listed file always opens.
 library;
 
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -58,6 +62,11 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
             icon: const Icon(LucideIcons.layoutDashboard, size: 20),
             onPressed: () =>
                 Get.to(() => const DataSheetDashboardView()),
+          ),
+          IconButton(
+            tooltip: 'Import vault JSON',
+            icon: const Icon(LucideIcons.upload, size: 20),
+            onPressed: () => _importVault(),
           ),
           IconButton(
             tooltip: 'New folder',
@@ -115,7 +124,7 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Dt.accent.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(4),
               ),
               child:
                   const Icon(LucideIcons.tableProperties, size: 44),
@@ -156,7 +165,7 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
           open ? _expanded.remove(folder.id) : _expanded.add(folder.id);
         }),
         onLongPress: () => _folderMenu(folder),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: EdgeInsets.fromLTRB(12.0 + depth * 16, 10, 12, 10),
           child: Row(children: [
@@ -191,7 +200,7 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
     return InkWell(
       onTap: () => _openFile(file),
       onLongPress: () => _fileMenu(file),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(4),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(children: [
@@ -199,7 +208,7 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
               color: _fileColor(file.type).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(11),
+              borderRadius: BorderRadius.circular(4),
             ),
             child: Icon(_fileIcon(file.type),
                 size: 18, color: _fileColor(file.type)),
@@ -285,8 +294,86 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
     return '$n sheet${n == 1 ? '' : 's'} · $cells cells';
   }
 
-  void _openFile(SmartFile file) {
-    switch (file.type) {
+  /// Imports a vault JSON (e.g. an orphaned cubicdatasheet_vault.json
+  /// found in device storage): merges folders + files by id, skipping
+  /// duplicates. Trash/activity are not imported.
+  Future<void> _importVault() async {
+    final c = datasheetController();
+    try {
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (picked == null || picked.files.isEmpty) return;
+      final bytes = picked.files.first.bytes;
+      if (bytes == null || bytes.isEmpty) {
+        Get.snackbar('Import failed', 'Could not read the file.',
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is! Map<String, dynamic>) {
+        Get.snackbar('Import failed', 'Not a CubicDataSheet vault file.',
+            snackPosition: SnackPosition.BOTTOM);
+        return;
+      }
+      final knownFiles = c.files.map((f) => f.id).toSet();
+      final knownFolders = c.folders.map((f) => f.id).toSet();
+      var filesIn = 0;
+      var foldersIn = 0;
+      var skipped = 0;
+      if (decoded['folders'] is List) {
+        for (final e in (decoded['folders'] as List)) {
+          if (e is! Map) continue;
+          try {
+            final fo =
+                Folder.fromJson(Map<String, dynamic>.from(e));
+            if (fo.id.isEmpty || knownFolders.contains(fo.id)) {
+              skipped++;
+              continue;
+            }
+            knownFolders.add(fo.id);
+            c.folders.add(fo);
+            foldersIn++;
+          } catch (_) {
+            skipped++;
+          }
+        }
+      }
+      if (decoded['files'] is List) {
+        for (final e in (decoded['files'] as List)) {
+          if (e is! Map) continue;
+          try {
+            final f =
+                SmartFile.fromJson(Map<String, dynamic>.from(e));
+            if (f.id.isEmpty || knownFiles.contains(f.id)) {
+              skipped++;
+              continue;
+            }
+            knownFiles.add(f.id);
+            c.files.add(f);
+            filesIn++;
+          } catch (_) {
+            skipped++;
+          }
+        }
+      }
+      c.files.refresh();
+      c.folders.refresh();
+      c.log('edit',
+          'Imported vault: $filesIn files, $foldersIn folders ($skipped skipped)');
+      c.scheduleSave();
+      Get.snackbar('Import done',
+          '$filesIn files, $foldersIn folders ($skipped skipped).',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 4));
+    } catch (e) {
+      Get.snackbar('Import failed', '$e',
+          snackPosition: SnackPosition.BOTTOM);
+    }
+  }
+
+  void _openFile(SmartFile file) {    switch (file.type) {
       case WorkspaceType.spreadsheet:
         Get.to(() => SheetEditorView(fileId: file.id));
         break;
@@ -300,6 +387,20 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
   }
 
   void _newSheet(BuildContext context) {
+    // 8 new-file archetypes with the exact web names: plain types plus
+    // hybrid files pre-seeded with one starter block.
+    const archetypes = [
+      ('spreadsheet', '', 'Grid Spreadsheet', LucideIcons.tableProperties),
+      ('document', '', 'Document Memo Notes', LucideIcons.fileText),
+      ('hybrid', 'spreadsheet', 'Micro Spreadsheet',
+          LucideIcons.tableProperties),
+      ('hybrid', 'code', 'Developer Script File', LucideIcons.code),
+      ('hybrid', 'checklist', 'Bento Task Checker', LucideIcons.listChecks),
+      ('hybrid', 'prompt', 'Automated Prompt File',
+          LucideIcons.terminalSquare),
+      ('hybrid', 'reference', 'Reference URL link', LucideIcons.link),
+      ('hybrid', 'multi', 'Multi Module Canvas', LucideIcons.layoutGrid),
+    ];
     Get.bottomSheet(SafeArea(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -315,65 +416,91 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
                 style:
                     TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
           ),
-          _menuTile(LucideIcons.tableProperties, 'Spreadsheet', () {
-            Get.back();
-            _nameAndCreate(context, WorkspaceType.spreadsheet, null);
-          }),
-          _menuTile(LucideIcons.fileText, 'Document', () {
-            Get.back();
-            _nameAndCreate(context, WorkspaceType.document, null);
-          }),
-          _menuTile(LucideIcons.layoutGrid, 'Hybrid canvas', () {
-            Get.back();
-            _nameAndCreate(context, WorkspaceType.hybrid, null);
-          }),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            childAspectRatio: 3.4,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            children: [
+              for (final a in archetypes)
+                InkWell(
+                  onTap: () {
+                    Get.back();
+                    _nameAndCreate(context, a.$1, a.$2, null);
+                  },
+                  borderRadius: BorderRadius.circular(4),
+                  child: Container(
+                    margin: const EdgeInsets.all(4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                          color: Theme.of(context)
+                              .hintColor
+                              .withValues(alpha: 0.25)),
+                    ),
+                    child: Row(children: [
+                      Icon(a.$4, size: 16, color: Dt.accent),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(a.$3,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12)),
+                      ),
+                    ]),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
         ]),
       ),
     ));
   }
 
   void _nameAndCreate(
-      BuildContext context, WorkspaceType type, String? folderId) {
+      BuildContext context, String kind, String seed, String? folderId) {
     final nameCtrl = TextEditingController();
     Get.dialog(AlertDialog(
-      title: Text('New ${_typeLabel(type)}'),
+      title: const Text('Name your file'),
       content: TextField(
         controller: nameCtrl,
         autofocus: true,
         decoration: const InputDecoration(
-            hintText: 'Name', isDense: true),
+            hintText: 'Budget 2026', isDense: true),
         onSubmitted: (_) =>
-            _createAndOpen(nameCtrl.text, type, folderId),
+            _createAndOpen(nameCtrl.text, kind, seed, folderId),
       ),
       actions: [
         TextButton(
             onPressed: () => Get.back(), child: const Text('Cancel')),
         FilledButton(
           onPressed: () =>
-              _createAndOpen(nameCtrl.text, type, folderId),
+              _createAndOpen(nameCtrl.text, kind, seed, folderId),
           child: const Text('Create'),
         ),
       ],
     ));
   }
 
-  String _typeLabel(WorkspaceType type) {
-    switch (type) {
-      case WorkspaceType.spreadsheet:
-        return 'spreadsheet';
-      case WorkspaceType.document:
-        return 'document';
-      case WorkspaceType.hybrid:
-        return 'hybrid canvas';
+  void _createAndOpen(
+      String name, String kind, String seed, String? folderId) {
+    final c = datasheetController();
+    final fileName = name.trim().isEmpty ? 'Untitled' : name.trim();
+    final SmartFile file;
+    if (kind == 'hybrid') {
+      file = c.createHybridWith(seed, fileName, folderId: folderId);
+    } else {
+      file = c.createFile(
+        kind == 'document'
+            ? WorkspaceType.document
+            : WorkspaceType.spreadsheet,
+        fileName,
+        folderId: folderId,
+      );
     }
-  }
-
-  void _createAndOpen(String name, WorkspaceType type, String? folderId) {
-    final file = datasheetController().createFile(
-      type,
-      name.trim().isEmpty ? 'Untitled' : name.trim(),
-      folderId: folderId,
-    );
     Get.back();
     _openFile(file);
   }
@@ -446,16 +573,90 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
             Get.back();
             _moveFile(file);
           }),
-          _menuTile(LucideIcons.trash2, 'Delete', () {
-            c.deleteFile(file.id);
+          _menuTile(LucideIcons.tags, 'Edit tags', () {
             Get.back();
-            Get.snackbar('Moved to trash', file.name,
-                snackPosition: SnackPosition.BOTTOM,
-                duration: const Duration(seconds: 3));
+            _editTags(file);
+          }),
+          _menuTile(LucideIcons.trash2, 'Delete', () {
+            Get.back();
+            _confirmDeleteFile(file);
           }),
         ]),
       ),
     ));
+  }
+
+  /// Delete file only after typing its exact name (web parity), with
+  /// a copy button so long names need no retyping.
+  void _confirmDeleteFile(SmartFile file) {
+    final confirmCtrl = TextEditingController();
+    var copied = false;
+    Get.dialog(AlertDialog(
+      title: const Text('Delete file?',
+          style: TextStyle(color: Colors.red)),
+      content: StatefulBuilder(
+        builder: (ctx, setState) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(
+                child: Text('Type "${file.name}" to confirm deletion.',
+                    style: const TextStyle(fontSize: 13)),
+              ),
+              IconButton(
+                tooltip: 'Copy name',
+                icon: Icon(
+                    copied ? LucideIcons.check : LucideIcons.copy,
+                    size: 15,
+                    color: copied ? Colors.green : null),
+                onPressed: () async {
+                  await Clipboard.setData(
+                      ClipboardData(text: file.name));
+                  setState(() => copied = true);
+                },
+              ),
+            ]),
+            const SizedBox(height: 8),
+            TextField(
+              controller: confirmCtrl,
+              autofocus: true,
+              decoration: InputDecoration(
+                  hintText: file.name, isDense: true),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) =>
+                  _tryDeleteFile(file, confirmCtrl.text),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Get.back(), child: const Text('Cancel')),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: confirmCtrl.text.trim() == file.name.trim()
+                ? Colors.red
+                : Colors.grey,
+          ),
+          onPressed: () => _tryDeleteFile(file, confirmCtrl.text),
+          child: const Text('Delete'),
+        ),
+      ],
+    ));
+  }
+
+  void _tryDeleteFile(SmartFile file, String typed) {
+    if (typed.trim() != file.name.trim()) {
+      Get.snackbar('No match', 'Type the exact file name.',
+          snackPosition: SnackPosition.BOTTOM);
+      return;
+    }
+    datasheetController().deleteFile(file.id);
+    Get.back();
+    Get.snackbar('Moved to trash', file.name,
+        snackPosition: SnackPosition.BOTTOM,
+        duration: const Duration(seconds: 3));
   }
 
   void _renameFile(SmartFile file) {
@@ -508,6 +709,36 @@ class _DataSheetHomeViewState extends State<DataSheetHomeView> {
             }),
         ]),
       ),
+    ));
+  }
+
+  void _editTags(SmartFile file) {
+    final tagCtrl = TextEditingController(text: file.tags.join(', '));
+    Get.dialog(AlertDialog(
+      title: const Text('Tags (comma separated)'),
+      content: TextField(
+        controller: tagCtrl,
+        autofocus: true,
+        decoration: const InputDecoration(
+            hintText: 'finance, 2026', isDense: true),
+        onSubmitted: (_) {
+          datasheetController().setTags(
+              file.id, tagCtrl.text.split(','));
+          Get.back();
+        },
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Get.back(), child: const Text('Cancel')),
+        FilledButton(
+          onPressed: () {
+            datasheetController()
+                .setTags(file.id, tagCtrl.text.split(','));
+            Get.back();
+          },
+          child: const Text('Save'),
+        ),
+      ],
     ));
   }
 

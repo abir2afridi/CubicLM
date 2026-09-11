@@ -117,7 +117,7 @@ class DataSheetDashboardView extends StatelessWidget {
                   isDark,
                   InkWell(
                     onTap: () => _openFile(f),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(4),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6),
                       child: Row(children: [
@@ -193,7 +193,7 @@ class DataSheetDashboardView extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: _activityColor(a.type)
                             .withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(a.type,
                           style: GoogleFonts.plusJakartaSans(
@@ -263,7 +263,7 @@ class DataSheetDashboardView extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(
             color: isDark ? Colors.white10 : Dt.hairline),
       ),
@@ -278,7 +278,7 @@ class DataSheetDashboardView extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(
               color: isDark ? Colors.white10 : Dt.hairline),
         ),

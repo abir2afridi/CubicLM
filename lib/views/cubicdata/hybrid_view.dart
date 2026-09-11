@@ -83,9 +83,12 @@ class _HybridEditorViewState extends State<HybridEditorView> {
   /// activity-log spam (structural ops use saveFile instead).
   void _typeSaved() => _c.scheduleSave();
 
-  void _copy(String text, String what) async {
+  void _copy(String text, String what, {String? logDetail}) async {
     await Clipboard.setData(ClipboardData(text: text));
     _c.pushClipboard(content: text, type: what, fileName: _file?.name);
+    if (logDetail != null) {
+      _c.log('copy', logDetail, fileId: _file?.id, fileName: _file?.name);
+    }
     setState(() => _copiedFeedback = '$what copied!');
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (mounted) setState(() => _copiedFeedback = null);
@@ -100,29 +103,60 @@ class _HybridEditorViewState extends State<HybridEditorView> {
       return;
     }
     final confirmCtrl = TextEditingController();
+    var copied = false;
     Get.dialog(AlertDialog(
-      title: const Text('Delete block?'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('Type the title "${b.title}" to confirm.'),
-        const SizedBox(height: 8),
-        TextField(
-          controller: confirmCtrl,
-          autofocus: true,
-          decoration: const InputDecoration(isDense: true),
-          onSubmitted: (v) {
-            if (v.trim() == b.title.trim()) {
-              f.hybridBlocks!.removeAt(index);
-              _persist(f, 'Deleted block');
-              Get.back();
-              setState(() {});
-            }
-          },
+      title: const Text('Delete block?',
+          style: TextStyle(color: Colors.red)),
+      content: StatefulBuilder(
+        builder: (ctx, setState) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Expanded(
+                child: Text('Type "${b.title}" to confirm deletion.',
+                    style: const TextStyle(fontSize: 13)),
+              ),
+              IconButton(
+                tooltip: 'Copy title',
+                icon: Icon(
+                    copied ? LucideIcons.check : LucideIcons.copy,
+                    size: 15,
+                    color: copied ? Colors.green : null),
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: b.title));
+                  setState(() => copied = true);
+                },
+              ),
+            ]),
+            const SizedBox(height: 8),
+            TextField(
+              controller: confirmCtrl,
+              autofocus: true,
+              decoration: InputDecoration(
+                  hintText: b.title, isDense: true),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (v) {
+                if (v.trim() == b.title.trim()) {
+                  f.hybridBlocks!.removeAt(index);
+                  _persist(f, 'Deleted block');
+                  Get.back();
+                  this.setState(() {});
+                }
+              },
+            ),
+          ],
         ),
-      ]),
+      ),
       actions: [
         TextButton(
             onPressed: () => Get.back(), child: const Text('Cancel')),
         FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: confirmCtrl.text.trim() == b.title.trim()
+                ? Colors.red
+                : Colors.grey,
+          ),
           onPressed: () {
             if (confirmCtrl.text.trim() == b.title.trim()) {
               f.hybridBlocks!.removeAt(index);
@@ -181,39 +215,7 @@ class _HybridEditorViewState extends State<HybridEditorView> {
 
   void _appendBlock(SmartFile f, String type, String title) {
     f.hybridBlocks ??= [];
-    final b = HybridBlock(
-      id: CubicDataController.newId('hy_'),
-      type: type,
-      title: title,
-    );
-    switch (type) {
-      case 'spreadsheet':
-        b.rows = 5;
-        b.cols = 5;
-        b.spreadsheetCells = {
-          'A1': CellData(value: 'Label'),
-          'B1': CellData(value: 'Weight'),
-        };
-        break;
-      case 'document':
-        b.docContent = '';
-        break;
-      case 'code':
-        b.codeLanguage = 'typescript';
-        b.docContent = '';
-        break;
-      case 'checklist':
-        b.checklistItems = [];
-        break;
-      case 'prompt':
-        b.promptTemplate = 'Draft a \$PROMPTVAR outline';
-        b.descriptionTabs = [];
-        break;
-      case 'reference':
-        b.referenceUrl = '';
-        b.docContent = '';
-        break;
-    }
+    final b = CubicDataController.buildHybridBlock(type, title);
     f.hybridBlocks!.add(b);
     _persist(f, 'Added $title block');
     setState(() {});
@@ -299,7 +301,7 @@ class _HybridEditorViewState extends State<HybridEditorView> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1C1C1E) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(4),
         border: Border.all(
             color: isDark ? Colors.white10 : Dt.hairline),
       ),
@@ -313,7 +315,7 @@ class _HybridEditorViewState extends State<HybridEditorView> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: Dt.accent.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(4),
               ),
               child: Text('${index + 1}',
                   style: GoogleFonts.plusJakartaSans(
@@ -344,7 +346,7 @@ class _HybridEditorViewState extends State<HybridEditorView> {
                   horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: _typeColor(b.type).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(4),
               ),
               child: Text(b.type,
                   style: GoogleFonts.plusJakartaSans(
@@ -352,6 +354,36 @@ class _HybridEditorViewState extends State<HybridEditorView> {
                       fontWeight: FontWeight.w700,
                       color: _typeColor(b.type))),
             ),
+            if (b.type == 'prompt') ...[
+              IconButton(
+                tooltip: b.locked ? 'Unlock' : 'Lock',
+                icon: Icon(
+                    b.locked ? LucideIcons.lock : LucideIcons.unlock,
+                    size: 15,
+                    color: b.locked ? Colors.red : null),
+                onPressed: () {
+                  b.locked = !b.locked;
+                  _persist(
+                      f, b.locked ? 'Locked prompt' : 'Unlocked prompt');
+                  setState(() {});
+                },
+              ),
+              IconButton(
+                tooltip: 'Paste from clipboard',
+                icon: const Icon(LucideIcons.clipboardPaste, size: 15),
+                onPressed: () async {
+                  if (b.locked) return;
+                  final data =
+                      await Clipboard.getData(Clipboard.kTextPlain);
+                  final text = data?.text ?? '';
+                  if (text.isEmpty) return;
+                  b.promptTemplate = (b.promptTemplate ?? '') + text;
+                  _textCtrls.remove('${b.id}|prompt');
+                  _persist(f, 'Pasted into prompt');
+                  setState(() {});
+                },
+              ),
+            ],
             IconButton(
               tooltip: 'Delete block',
               icon: const Icon(LucideIcons.trash2, size: 16),
@@ -359,8 +391,9 @@ class _HybridEditorViewState extends State<HybridEditorView> {
             ),
           ]),
           const SizedBox(height: 8),
-          _blockBody(f, b, isDark),
           _descTabs(f, b),
+          const SizedBox(height: 8),
+          _blockBody(f, b, isDark),
         ],
       ),
     );
@@ -412,7 +445,7 @@ class _HybridEditorViewState extends State<HybridEditorView> {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: Colors.black,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(4),
               ),
               child: _plainArea(
                 cacheKey: '${b.id}|code',
@@ -476,10 +509,13 @@ class _HybridEditorViewState extends State<HybridEditorView> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Theme.of(context).hintColor.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(4),
           ),
-          child: const Text('Multi canvas — compose freely in code blocks.',
-              style: TextStyle(fontSize: 12)),
+          child: Text(
+              (b.docContent != null && b.docContent!.isNotEmpty)
+                  ? b.docContent!
+                  : 'Multi canvas — compose freely in code blocks.',
+              style: const TextStyle(fontSize: 12)),
         );
     }
   }
@@ -491,11 +527,13 @@ class _HybridEditorViewState extends State<HybridEditorView> {
     required bool readOnly,
     required ValueChanged<String> onChanged,
     bool mono = false,
+    int? minLines,
   }) {
     return TextField(
       controller: _textOf(cacheKey, initial),
       readOnly: readOnly,
       maxLines: null,
+      minLines: minLines,
       style: mono
           ? const TextStyle(
               fontFamily: 'monospace', fontSize: 12.5, height: 1.5)
@@ -509,55 +547,101 @@ class _HybridEditorViewState extends State<HybridEditorView> {
     );
   }
 
+  /// Mini spreadsheet — mirrors the web table: header row (A–E) +
+  /// numbered rows, 96px columns, 10px centered mono cells.
   Widget _miniSheet(SmartFile f, HybridBlock b, bool isDark) {
     final rows = b.rows ?? 5;
     final cols = b.cols ?? 5;
     b.spreadsheetCells ??= {};
-    final line = isDark ? Colors.white10 : Dt.hairline;
+    const colW = 96.0;
+    final headerBg =
+        isDark ? Colors.black.withValues(alpha: 0.35) : const Color(0xFFF1F1F4);
+    final headerText = isDark
+        ? const Color(0xFF059669)
+        : Theme.of(context).hintColor;
+    final cellText = isDark ? const Color(0xFF34D399) : Colors.black87;
+    final border =
+        isDark ? const Color(0xFF022C22) : const Color(0xFFE0E0E0);
+    final rowNumBg =
+        isDark ? Colors.black.withValues(alpha: 0.2) : const Color(0xFFF7F7F9);
+    final rowNumText =
+        isDark ? const Color(0xFF047857) : Theme.of(context).hintColor;
+
+    Widget frame(Widget child, {bool header = false}) {
+      return Container(
+        width: colW,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: header ? headerBg : null,
+          border: Border.all(color: border, width: 0.5),
+        ),
+        child: child,
+      );
+    }
+
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            const SizedBox(width: 30),
+            Container(
+              width: 32,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              decoration: BoxDecoration(
+                color: headerBg,
+                border: Border.all(color: border, width: 0.5),
+              ),
+            ),
             for (var c = 0; c < cols; c++)
-              Container(
-                width: 84,
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                alignment: Alignment.center,
-                child: Text(String.fromCharCode(65 + c),
-                    style: const TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.w700)),
+              frame(
+                Text(String.fromCharCode(65 + c),
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: headerText)),
+                header: true,
               ),
           ]),
           for (var r = 0; r < rows; r++)
             Row(children: [
-              SizedBox(
-                width: 30,
+              Container(
+                width: 32,
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: rowNumBg,
+                  border: Border.all(color: border, width: 0.5),
+                ),
                 child: Text('${r + 1}',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.w700)),
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: rowNumText)),
               ),
               for (var c = 0; c < cols; c++)
-                Container(
-                  width: 84,
-                  decoration: BoxDecoration(
-                      border: Border.all(color: line, width: 0.5)),
-                  child: Builder(builder: (_) {
-                    final addr =
-                        '${String.fromCharCode(65 + c)}${r + 1}';
-                    return TextField(
-                      controller: _textOf(
-                          '${b.id}|$addr',
+                Builder(builder: (_) {
+                  final addr =
+                      '${String.fromCharCode(65 + c)}${r + 1}';
+                  return Container(
+                    width: colW,
+                    decoration: BoxDecoration(
+                        border:
+                            Border.all(color: border, width: 0.5)),
+                    child: TextField(
+                      controller: _textOf('${b.id}|$addr',
                           b.spreadsheetCells![addr]?.value ?? ''),
-                      style: const TextStyle(fontSize: 12),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 10,
+                          color: cellText),
                       decoration: const InputDecoration(
                         border: InputBorder.none,
                         isDense: true,
                         contentPadding: EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 8),
+                            horizontal: 4, vertical: 7),
                       ),
                       onChanged: (v) {
                         final cell = b.spreadsheetCells!
@@ -565,9 +649,9 @@ class _HybridEditorViewState extends State<HybridEditorView> {
                         cell.value = v;
                         _typeSaved();
                       },
-                    );
-                  }),
-                ),
+                    ),
+                  );
+                }),
             ]),
         ],
       ),
@@ -651,72 +735,81 @@ class _HybridEditorViewState extends State<HybridEditorView> {
     final rendered = bound.isEmpty
         ? (b.promptTemplate ?? '')
         : (b.promptTemplate ?? '').replaceAll('\$PROMPTVAR', bound);
+    final copiedNow = _copiedFeedback == 'Prompt copied!';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(children: [
-          Expanded(
-            child: Text(
-              b.locked ? 'Locked' : 'Template (use \$PROMPTVAR)',
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 11, color: Theme.of(context).hintColor),
-            ),
-          ),
-          InkWell(
-            onTap: () {
-              b.locked = !b.locked;
-              _persist(f, b.locked ? 'Locked prompt' : 'Unlocked prompt');
-              setState(() {});
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: Icon(
-                  b.locked ? LucideIcons.lock : LucideIcons.unlock,
-                  size: 15,
-                  color: b.locked ? Colors.orange : null),
-            ),
-          ),
-          OutlinedButton.icon(
-            icon: const Icon(LucideIcons.copy, size: 14),
-            label: const Text('Copy'),
-            onPressed: () => _copy(rendered, 'Prompt'),
-          ),
-        ]),
+        Text('Prompt Frame template',
+            style: GoogleFonts.plusJakartaSans(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+                color: const Color(0xFF00FFCC))),
         const SizedBox(height: 6),
-        _plainArea(
-          cacheKey: '${b.id}|prompt',
-          initial: b.promptTemplate ?? '',
-          hint: 'Prompt template…',
-          readOnly: b.locked,
-          mono: true,
-          onChanged: (v) {
-            if (b.locked) return;
-            b.promptTemplate = v;
-            _typeSaved();
-          },
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+                color: Theme.of(context)
+                    .hintColor
+                    .withValues(alpha: 0.35)),
+          ),
+          child: _plainArea(
+            cacheKey: '${b.id}|prompt',
+            initial: b.promptTemplate ?? '',
+            hint: 'Prompt template…',
+            readOnly: b.locked,
+            mono: true,
+            minLines: 6,
+            onChanged: (v) {
+              if (b.locked) return;
+              b.promptTemplate = v;
+              _typeSaved();
+            },
+          ),
         ),
         const SizedBox(height: 8),
-        TextField(
-          decoration: const InputDecoration(
-            hintText: 'Bind value for \$PROMPTVAR…',
-            border: OutlineInputBorder(),
-            isDense: true,
-          ),
-          onChanged: (v) => setState(() => _bindings[b.id] = v),
-        ),
-        if (bound.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Dt.accent.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(8),
+        Row(children: [
+          const Text('BIND_VAR (\$PROMPTVAR):',
+              style: TextStyle(
+                  fontSize: 10, fontWeight: FontWeight.w700)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SizedBox(
+              height: 32,
+              child: TextField(
+                decoration: const InputDecoration(
+                  hintText: 'Insert parameter e.g., \'React forms\'…',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                ),
+                style: const TextStyle(
+                    fontFamily: 'monospace', fontSize: 12),
+                onChanged: (v) =>
+                    setState(() => _bindings[b.id] = v),
+              ),
             ),
-            child: Text(rendered,
-                style: const TextStyle(fontSize: 12.5, height: 1.5)),
           ),
-        ],
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 32,
+            child: FilledButton.tonalIcon(
+              icon: Icon(
+                  copiedNow ? LucideIcons.check : LucideIcons.copy,
+                  size: 12),
+              label: Text(copiedNow ? 'COPIED' : 'COPY FORMAT',
+                  style: const TextStyle(fontSize: 10)),
+              onPressed: () {
+                _copy(rendered, 'Prompt',
+                    logDetail: 'Evaluated prompt and copied');
+              },
+            ),
+          ),
+        ]),
       ],
     );
   }

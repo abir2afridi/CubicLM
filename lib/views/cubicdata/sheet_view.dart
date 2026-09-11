@@ -627,7 +627,7 @@ class _SheetEditorViewState extends State<SheetEditorView> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: Dt.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(sel ?? '—',
                     style: GoogleFonts.plusJakartaSans(
@@ -777,12 +777,12 @@ class _SheetEditorViewState extends State<SheetEditorView> {
       VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(4),
       child: Container(
         padding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(
               color: Theme.of(context).hintColor.withValues(alpha: 0.3)),
         ),
@@ -830,7 +830,7 @@ class _SheetEditorViewState extends State<SheetEditorView> {
           margin: const EdgeInsets.only(right: 6),
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(4),
             border: Border.all(
                 color: active
                     ? Dt.accent
@@ -905,14 +905,14 @@ class _SheetEditorViewState extends State<SheetEditorView> {
       padding: const EdgeInsets.only(right: 6),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(4),
         child: Container(
           padding: const EdgeInsets.all(7),
           decoration: BoxDecoration(
             color: active
                 ? Dt.accent.withValues(alpha: 0.2)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(4),
             border: Border.all(
                 color: Theme.of(context)
                     .hintColor
