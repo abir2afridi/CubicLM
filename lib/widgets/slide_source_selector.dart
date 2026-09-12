@@ -54,7 +54,7 @@ class SlideSourceSelector extends StatelessWidget {
                     Text(
                       selectedFile != null
                           ? selectedFile!.path.split('/').last
-                          : 'Add Source (PDF/Docx)',
+                          : 'Add Source (PDF/Docx/Pptx)',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -144,7 +144,7 @@ class SlideSourceSelector extends StatelessWidget {
   Future<void> _pickFile() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['pdf', 'docx', 'txt', 'md'],
+      allowedExtensions: ['pdf', 'docx', 'txt', 'md', 'pptx'],
     );
     if (result != null && result.files.single.path != null) {
       onFileSelected(File(result.files.single.path!));

@@ -72,6 +72,7 @@ class AppConstants {
   static const String keyGlobalSystemPrompt = 'global_system_prompt';
   static const String keyAutoTuneParams = 'auto_tune_params';
   static const String keyWebFetchEnabled = 'web_fetch_enabled';
+  static const String keyAdblockEnabled = 'adblock_enabled';
   static const String keyComposerUpsellDismissed =
       'composer_upsell_dismissed';
   static const String keyLocalModelPath = 'local_model_path';

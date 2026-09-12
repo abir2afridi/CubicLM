@@ -55,15 +55,15 @@ dependencies:
   markdown: ^7.2.2
 
   # Utils
-  uuid: ^4.5.0
-  intl: ^0.19.0
+  uuid: ^4.6.0
+  intl: ^0.20.0
   crypto: ^3.0.0
 
   # Background / Boot Persistence
   flutter_background_service: ^5.0.5
-  flutter_local_notifications: ^17.0.0
+  flutter_local_notifications: ^22.0.0
   file_picker: ^11.0.2
-  image: ^4.8.0
+  image: ^4.9.0
   flutter_litert_lm:
     path: local_plugins/flutter_litert_lm
   gal: ^2.3.2
@@ -114,3 +114,4 @@ flutter:
     - assets/
     - assets/icons/
     - assets/skills/
+    - assets/adblock_hosts.txt

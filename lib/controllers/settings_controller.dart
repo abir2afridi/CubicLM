@@ -135,6 +135,9 @@ class SettingsController extends GetxController {
   /// Web access: when on, URLs found in the user's message are fetched
   /// and their readable text is added to the model's context.
   final webFetchEnabled = true.obs;
+  /// Privacy ad-block for the CubicWeb Browser (static host list,
+  /// in-memory only). Persisted as a plain bool pref — no history DB.
+  final adblockEnabled = true.obs;
   /// Dismissible upsell pill shown inside the composer card.
   final composerUpsellDismissed = false.obs;
   final liteRtPerformanceMode = AppConstants.defaultLiteRtPerformanceMode.obs;
@@ -454,6 +457,10 @@ class SettingsController extends GetxController {
         true;
     webFetchEnabled.value = _hive.getSetting<bool>(
             AppConstants.keyWebFetchEnabled,
+            defaultValue: true) ??
+        true;
+    adblockEnabled.value = _hive.getSetting<bool>(
+            AppConstants.keyAdblockEnabled,
             defaultValue: true) ??
         true;
     composerUpsellDismissed.value = _hive.getSetting<bool>(
@@ -1446,6 +1453,11 @@ class SettingsController extends GetxController {
   Future<void> setWebFetchEnabled(bool enabled) async {
     webFetchEnabled.value = enabled;
     await _hive.setSetting(AppConstants.keyWebFetchEnabled, enabled);
+  }
+
+  Future<void> setAdblockEnabled(bool enabled) async {
+    adblockEnabled.value = enabled;
+    await _hive.setSetting(AppConstants.keyAdblockEnabled, enabled);
   }
 
   Future<void> dismissComposerUpsell() async {

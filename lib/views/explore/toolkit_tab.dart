@@ -7,6 +7,7 @@ import '../../theme/design_tokens.dart';
 import '../agent_ide_view.dart';
 import '../battle_arena_view.dart';
 import '../cubicdata/datasheet_home_view.dart';
+import '../cubicweb/browser_view.dart';
 import '../slide_deck_view.dart';
 
 /// Explore Toolkit tab cards.
@@ -64,6 +65,16 @@ Widget buildToolkitTab(BuildContext context) {
         description:
             'Personal sheets + docs workspace: formulas, cell locks with unlock mode, per-cell copy, notes and history. Stored on this device only.',
         onTap: () => Get.to(() => const DataSheetHomeView()),
+      ),
+      const SizedBox(height: 10),
+      _toolkitCard(
+        context,
+        isDark,
+        icon: LucideIcons.globe,
+        title: 'CubicWeb Browser',
+        description:
+            'Private in-app browser: ads and trackers blocked from a built-in list, no history saved. Extract any page into chat for the local model.',
+        onTap: () => Get.to(() => const BrowserView()),
       ),
     ],
   );

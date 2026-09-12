@@ -19,6 +19,8 @@ class FreeBox extends StatefulWidget {
   final double boxH;
   final Widget Function(BuildContext, double scale) builder;
   final void Function(double dx, double dy, double scale) onCommit;
+  /// False in Present mode: boxes render statically (no drag, no handles).
+  final bool enabled;
 
   const FreeBox({
     super.key,
@@ -30,6 +32,7 @@ class FreeBox extends StatefulWidget {
     required this.builder,
     required this.onCommit,
     this.boxH = 0,
+    this.enabled = true,
   });
 
   @override
@@ -63,27 +66,33 @@ class FreeBoxState extends State<FreeBox> {
       width: w,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onPanUpdate: (d) {
-          setState(() {
-            var newX = (_dx * widget.canvasW + d.delta.dx) / widget.canvasW;
-            var newY = (_dy * widget.canvasH + d.delta.dy) / widget.canvasH;
-            
-            // Snap to 5% grid
-            newX = (newX * 20).round() / 20.0;
-            newY = (newY * 20).round() / 20.0;
+        onPanUpdate: widget.enabled
+            ? (d) {
+                setState(() {
+                  var newX =
+                      (_dx * widget.canvasW + d.delta.dx) / widget.canvasW;
+                  var newY =
+                      (_dy * widget.canvasH + d.delta.dy) / widget.canvasH;
 
-            _dx = newX.clamp(0.0, 1.0 - widthFrac);
-            _dy = newY.clamp(0.0, 0.95);
-          });
-          _commit();
-        },
+                  // Snap to 5% grid
+                  newX = (newX * 20).round() / 20.0;
+                  newY = (newY * 20).round() / 20.0;
+
+                  _dx = newX.clamp(0.0, 1.0 - widthFrac);
+                  _dy = newY.clamp(0.0, 0.95);
+                });
+                _commit();
+              }
+            : null,
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: Dt.accent.withValues(alpha: 0.55),
-              width: 1,
-            ),
+            border: widget.enabled
+                ? Border.all(
+                    color: Dt.accent.withValues(alpha: 0.55),
+                    width: 1,
+                  )
+                : null,
           ),
           child: Stack(
             clipBehavior: Clip.none,
@@ -98,17 +107,18 @@ class FreeBoxState extends State<FreeBox> {
                       )
                     : widget.builder(context, _scale),
               ),
-              Positioned(
-                right: -11,
-                bottom: -11,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onPanUpdate: (d) {
-                    setState(() {
-                      _scale = (_scale + d.delta.dx / 120).clamp(0.5, 2.5);
-                    });
-                    _commit();
-                  },
+              if (widget.enabled)
+                Positioned(
+                  right: -11,
+                  bottom: -11,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onPanUpdate: (d) {
+                      setState(() {
+                        _scale = (_scale + d.delta.dx / 120).clamp(0.5, 2.5);
+                      });
+                      _commit();
+                    },
                   child: Container(
                     width: 22,
                     height: 22,
@@ -165,21 +175,23 @@ class LineChartPainter extends CustomPainter {
   final List<Offset> points;
   final List<Map<String, String>> items;
   final List<double> nums;
-  LineChartPainter(this.points, this.items, this.nums);
+  final Color line;
+  LineChartPainter(this.points, this.items, this.nums,
+      [this.line = Dt.accent]);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (points.isEmpty) return;
     final linePaint = Paint()
-      ..color = Dt.accent
+      ..color = line
       ..strokeWidth = 2.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
     final dotPaint = Paint()
-      ..color = Dt.accent
+      ..color = line
       ..style = PaintingStyle.fill;
     final areaPaint = Paint()
-      ..color = Dt.accent.withValues(alpha: 0.15)
+      ..color = line.withValues(alpha: 0.15)
       ..style = PaintingStyle.fill;
 
     // Draw area fill

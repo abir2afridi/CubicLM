@@ -72,6 +72,8 @@ class ToolkitView extends StatelessWidget {
                   'Describe a website and the agent builds it with live preview.'),
               _toolkitInfoRow('CubicDataSheet',
                   'Personal sheets and docs workspace stored only on this device.'),
+              _toolkitInfoRow('CubicWeb Browser',
+                  'Private browser with built-in ad-block and no history; extract pages into chat.'),
             ],
           ),
         ),

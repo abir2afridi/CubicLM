@@ -417,6 +417,28 @@ class ChatController extends GetxController {
     } catch (_) {}
   }
 
+  /// Insert browser-extracted page text into the composer for review.
+  /// Same pattern as [checkSharedText]: never auto-sends, jumps to Chat.
+  void insertBrowserExtract(String title, String url, String text) {
+    final clean = text.trim();
+    if (clean.isEmpty) return;
+    if (currentSessionId.value.isEmpty) createNewChat();
+    final header = title.trim().isEmpty ? url : '${title.trim()} ($url)';
+    final block = '[Web page: $header]\n$clean';
+    final cur = textController.text;
+    textController.text = cur.isEmpty ? block : '$cur\n\n$block';
+    try {
+      textController.selection =
+          TextSelection.collapsed(offset: textController.text.length);
+    } catch (_) {}
+    inputText.value = textController.text;
+    try {
+      if (Get.isRegistered<HomeController>()) {
+        Get.find<HomeController>().changeTab(0);
+      }
+    } catch (_) {}
+  }
+
   final autoBackupEnabled = false.obs;
   final autoBackupDays = 7.obs;
   static const List<int> autoBackupDayOptions = [1, 3, 7, 14, 30];

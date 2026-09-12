@@ -45,11 +45,17 @@ Future<List<int>> deckToPptx(String topic, List<Slide> slides, {SlideDeckTheme? 
 
   // 8. Slides, Notes, and Media
   int imageIdCounter = 1;
+  int? logoMediaId;
+  if (theme?.logoBytes != null && theme!.logoBytes!.isNotEmpty) {
+    logoMediaId = imageIdCounter++;
+    archive.addFile(ArchiveFile('ppt/media/image$logoMediaId.png', theme.logoBytes!.length, theme.logoBytes!));
+  }
+
   for (int i = 0; i < slides.length; i++) {
     final slide = slides[i];
     final slideId = i + 1;
     bool hasNotes = slide.notes.isNotEmpty;
-    bool hasImage = slide.imageBytes != null;
+    bool hasImage = slide.imageBytes != null && slide.imageBytes!.isNotEmpty;
     int? currentImageId;
 
     if (hasImage) {
@@ -58,10 +64,10 @@ Future<List<int>> deckToPptx(String topic, List<Slide> slides, {SlideDeckTheme? 
       archive.addFile(ArchiveFile('ppt/media/image$currentImageId.png', imageBytes.length, imageBytes));
     }
 
-    final slideXml = _buildSlide(slide, currentImageId);
+    final slideXml = _buildSlide(slide, currentImageId, hasLogo: logoMediaId != null);
     archive.addFile(ArchiveFile('ppt/slides/slide$slideId.xml', slideXml.length, slideXml));
 
-    final slideRelsXml = _buildSlideRels(hasNotes: hasNotes, imageId: currentImageId, slideId: slideId);
+    final slideRelsXml = _buildSlideRels(hasNotes: hasNotes, imageId: currentImageId, slideId: slideId, logoMediaId: logoMediaId);
     archive.addFile(ArchiveFile('ppt/slides/_rels/slide$slideId.xml.rels', slideRelsXml.length, slideRelsXml));
 
     if (hasNotes) {
@@ -351,7 +357,7 @@ String _imageRect(int id, int imageRId, int x, int y, int cx, int cy) {
 ''';
 }
 
-List<int> _buildSlide(Slide slide, int? imageId) {
+List<int> _buildSlide(Slide slide, int? imageId, {bool hasLogo = false}) {
   final buffer = StringBuffer();
   buffer.write('''<?xml version="1.0" encoding="UTF-8"?>
 <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
@@ -366,6 +372,13 @@ List<int> _buildSlide(Slide slide, int? imageId) {
   const cxW = 12192000;
   const cyH = 6858000;
   const margin = 800000;
+
+  if (hasLogo) {
+    // The logo will be at a specific rId. We'll handle rId assignment in _buildSlideRels.
+    // Let's assume logo is rId4 or similar if others are present.
+    // To be safe, we'll use a high rId like rId10 for the logo if it exists.
+    buffer.write(_imageRect(spId++, 10, cxW - 1200000, 200000, 1000000, 400000));
+  }
 
   switch (slide.layout) {
     case 'title':
@@ -492,7 +505,83 @@ List<int> _buildSlide(Slide slide, int? imageId) {
   return _utf8(buffer.toString());
 }
 
-List<int> _buildSlideRels({required bool hasNotes, required int? imageId, required int slideId}) {
+/// Import: parse a .pptx byte buffer into slides (text + speaker notes).
+/// Layout is heuristic (title-only -> title, else bullets) so any deck —
+/// ours or PowerPoint's — becomes an editable starting point for Restyle /
+/// regen. Images are skipped on purpose (binary blobs don't survive the
+/// text model round-trip). Never throws: garbage yields an empty list.
+List<Slide> parsePptx(List<int> bytes) {
+  final out = <Slide>[];
+  try {
+    if (bytes.length < 4 || bytes[0] != 0x50 || bytes[1] != 0x4B) {
+      return out; // not a zip
+    }
+    final archive = ZipDecoder().decodeBytes(bytes);
+    final slideFiles =
+        archive.files
+            .where((f) =>
+                RegExp(r'^ppt/slides/slide(\d+)\.xml$').hasMatch(f.name))
+            .toList()
+          ..sort((a, b) =>
+              _pptxSlideNumber(a.name).compareTo(_pptxSlideNumber(b.name)));
+    if (slideFiles.isEmpty) return out;
+    for (final f in slideFiles) {
+      final xmlStr =
+          utf8.decode(f.content as List<int>, allowMalformed: true);
+      final texts = _pptxTexts(xmlStr)
+          .map((t) => t.trim())
+          .where((t) => t.isNotEmpty)
+          .toList();
+      if (texts.isEmpty) continue;
+      out.add(Slide(
+        title: texts.first,
+        points: texts.skip(1).toList(),
+        layout: texts.length <= 1 ? 'title' : 'bullets',
+        speakerNotes: _pptxNotes(archive, _pptxSlideNumber(f.name)),
+      ));
+    }
+  } catch (_) {}
+  return out;
+}
+
+int _pptxSlideNumber(String name) {
+  final m = RegExp(r'slide(\d+)\.xml$').firstMatch(name);
+  return int.tryParse(m?.group(1) ?? '') ?? 0;
+}
+
+/// All <a:t> runs in document order (namespace-agnostic).
+List<String> _pptxTexts(String xmlStr) {
+  return RegExp(r'<a:t>([^<]*)</a:t>')
+      .allMatches(xmlStr)
+      .map((m) => _unescapeXml(m.group(1) ?? ''))
+      .toList();
+}
+
+String _unescapeXml(String s) => s
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&amp;', '&')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&apos;', "'");
+
+/// Speaker notes for slide [n] (ppt/notesSlides/notesSlideN.xml), '' if none.
+String _pptxNotes(Archive archive, int n) {
+  try {
+    final f = archive.files.firstWhere(
+      (e) => e.name == 'ppt/notesSlides/notesSlide$n.xml',
+      orElse: () => throw StateError('no notes'),
+    );
+    final xmlStr = utf8.decode(f.content as List<int>, allowMalformed: true);
+    return _pptxTexts(xmlStr)
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .join('\n');
+  } catch (_) {
+    return '';
+  }
+}
+
+List<int> _buildSlideRels({required bool hasNotes, required int? imageId, required int slideId, int? logoMediaId}) {
   final builder = XmlBuilder();
   builder.processing('xml', 'version="1.0" encoding="UTF-8"');
   builder.element('Relationships', namespaces: {'http://schemas.openxmlformats.org/package/2006/relationships': ''}, nest: () {
@@ -511,6 +600,13 @@ List<int> _buildSlideRels({required bool hasNotes, required int? imageId, requir
         'Id': 'rId$nextId', 
         'Type': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide', 
         'Target': '../notesSlides/notesSlide$slideId.xml'
+      });
+    }
+    if (logoMediaId != null) {
+      builder.element('Relationship', attributes: {
+        'Id': 'rId10', 
+        'Type': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', 
+        'Target': '../media/image$logoMediaId.png'
       });
     }
   });

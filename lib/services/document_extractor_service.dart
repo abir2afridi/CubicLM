@@ -6,6 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:xml/xml.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import '../utils/slide_pptx.dart';
+
 class DocumentChunk {
   final String text;
   final int pageNumber;
@@ -58,6 +60,8 @@ class DocumentExtractorService {
         return _extractPdf(path);
       case 'docx':
         return _extractDocx(path);
+      case 'pptx':
+        return _extractPptx(path);
       case 'txt':
       case 'md':
       case 'json':
@@ -89,6 +93,25 @@ class DocumentExtractorService {
   static Future<String> _extractDocx(String path) async {
     final bytes = await File(path).readAsBytes();
     return compute(_extractDocxBytes, bytes);
+  }
+
+  /// Slide text as "Slide N: title\n- point" lines (notes appended).
+  static Future<String> _extractPptx(String path) async {
+    final bytes = await File(path).readAsBytes();
+    final slides = parsePptx(bytes);
+    final buf = StringBuffer();
+    for (var i = 0; i < slides.length; i++) {
+      final s = slides[i];
+      buf.writeln('Slide ${i + 1}: ${s.title}');
+      for (final p in s.points) {
+        buf.writeln('- $p');
+      }
+      if (s.speakerNotes.trim().isNotEmpty) {
+        buf.writeln('Notes: ${s.speakerNotes.trim()}');
+      }
+      buf.writeln();
+    }
+    return buf.toString().trim();
   }
 
   static Future<List<DocumentChunk>> extractZip(String path) async {

@@ -4,11 +4,16 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/design_tokens.dart';
 import '../../utils/slide_deck.dart';
+import '../../utils/slide_palette.dart';
 import 'slide_painters.dart';
 
 /// Chart renderers (bar/donut/line) + layout-aware body widgets.
 /// Extracted from views/slide_deck_view.dart.
-Widget chartContent(Slide s) {
+///
+/// [pal] re-skins charts to the active deck theme. Null keeps the legacy
+/// dark-terracotta look (existing callers/tests unaffected).
+Widget chartContent(Slide s, [SlidePalette? pal]) {
+  pal ??= SlidePalette.fromTheme(SlideThemePresets.byName('Modern Terracotta'));
   final data = s.chartData;
   if (data.isEmpty) {
     // Fallback to bullets if chartData missing
@@ -21,7 +26,7 @@ Widget chartContent(Slide s) {
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
-                color: Colors.white)),
+                color: pal.title)),
         const SizedBox(height: 6),
         for (final p in s.points.take(4))
           Padding(
@@ -30,7 +35,7 @@ Widget chartContent(Slide s) {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.plusJakartaSans(
-                    fontSize: 10.5, color: const Color(0xFFD8D5CF))),
+                    fontSize: 10.5, color: pal.body)),
           ),
       ],
     );
@@ -57,7 +62,7 @@ Widget chartContent(Slide s) {
             style: GoogleFonts.plusJakartaSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
-                color: Colors.white)),
+                color: pal.title)),
       ],
     );
   }
@@ -70,17 +75,18 @@ Widget chartContent(Slide s) {
   final maxVal = nums.isEmpty ? 1.0 : nums.reduce((a, b) => a > b ? a : b);
 
   if (chartType == 'donut') {
-    return donutChart(s.title, items, nums);
+    return donutChart(s.title, items, nums, pal: pal);
   }
   if (chartType == 'line') {
-    return lineChart(s.title, items, nums, maxVal);
+    return lineChart(s.title, items, nums, maxVal, pal: pal);
   }
   // Default: bar chart
-  return barChart(s.title, items, nums, maxVal);
+  return barChart(s.title, items, nums, maxVal, pal: pal);
 }
 
 Widget barChart(String title, List<Map<String, String>> items,
-    List<double> nums, double maxVal) {
+    List<double> nums, double maxVal,
+    {required SlidePalette pal}) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -107,7 +113,7 @@ Widget barChart(String title, List<Map<String, String>> items,
                           style: GoogleFonts.plusJakartaSans(
                               fontSize: 9,
                               fontWeight: FontWeight.w700,
-                              color: Dt.accent)),
+                              color: pal.accent)),
                       const SizedBox(height: 3),
                       Container(
                         height: maxVal > 0 ? (nums[i] / maxVal) * 120 : 4,
@@ -116,8 +122,8 @@ Widget barChart(String title, List<Map<String, String>> items,
                               begin: Alignment.bottomCenter,
                               end: Alignment.topCenter,
                               colors: [
-                                Dt.accent,
-                                Dt.accent.withValues(alpha: 0.5)
+                                pal.accent,
+                                pal.accent.withValues(alpha: 0.5)
                               ]),
                           borderRadius: BorderRadius.circular(4),
                         ),
@@ -128,7 +134,7 @@ Widget barChart(String title, List<Map<String, String>> items,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
                           style: GoogleFonts.plusJakartaSans(
-                              fontSize: 8.5, color: const Color(0xFFB0ADA6))),
+                              fontSize: 8.5, color: pal.muted)),
                     ],
                   ),
                 ),
@@ -141,11 +147,12 @@ Widget barChart(String title, List<Map<String, String>> items,
 }
 
 Widget donutChart(
-    String title, List<Map<String, String>> items, List<double> nums) {
+    String title, List<Map<String, String>> items, List<double> nums,
+    {required SlidePalette pal}) {
   final total = nums.isEmpty ? 1.0 : nums.fold(0.0, (a, b) => a + b);
   final colors = [
-    Dt.accent,
-    const Color(0xFF4ADE80),
+    pal.accent,
+    pal.secondary,
     const Color(0xFF60A5FA),
     const Color(0xFFFBBF24),
     const Color(0xFFF87171),
@@ -158,7 +165,7 @@ Widget donutChart(
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.plusJakartaSans(
-              fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+              fontSize: 15, fontWeight: FontWeight.w800, color: pal.title)),
       const SizedBox(height: 8),
       Expanded(
         child: Row(
@@ -186,7 +193,7 @@ Widget donutChart(
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.plusJakartaSans(
-                                fontSize: 10, color: const Color(0xFFD8D5CF)),
+                                fontSize: 10, color: pal.body),
                           ),
                         ),
                       ]),
@@ -210,7 +217,8 @@ Widget donutChart(
 }
 
 Widget lineChart(String title, List<Map<String, String>> items,
-    List<double> nums, double maxVal) {
+    List<double> nums, double maxVal,
+    {required SlidePalette pal}) {
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
@@ -218,7 +226,7 @@ Widget lineChart(String title, List<Map<String, String>> items,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.plusJakartaSans(
-              fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white)),
+              fontSize: 15, fontWeight: FontWeight.w800, color: pal.title)),
       const SizedBox(height: 10),
       Expanded(
         child: LayoutBuilder(builder: (_, cons) {
@@ -233,7 +241,7 @@ Widget lineChart(String title, List<Map<String, String>> items,
           return Stack(children: [
             CustomPaint(
               size: Size(w, h),
-              painter: LineChartPainter(pts, items, nums),
+              painter: LineChartPainter(pts, items, nums, pal.accent),
             ),
           ]);
         }),

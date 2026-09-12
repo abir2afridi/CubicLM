@@ -23,7 +23,7 @@ class ImageGenerationNotificationService {
     if (_initialized) return;
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
-    await _notifications.initialize(settings);
+    await _notifications.initialize(settings: settings);
     await _notifications
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
@@ -130,10 +130,10 @@ class ImageGenerationNotificationService {
   Future<void> complete({required int durationMs}) async {
     if (!Platform.isAndroid) return;
     await _notifications.show(
-      _progressNotificationId,
-      'Image ready',
-      'Generation finished in ${_formatDuration(durationMs)}.',
-      const NotificationDetails(
+      id: _progressNotificationId,
+      title: 'Image ready',
+      body: 'Generation finished in ${_formatDuration(durationMs)}.',
+      notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
           _channelName,
@@ -150,10 +150,10 @@ class ImageGenerationNotificationService {
   Future<void> failed() async {
     if (!Platform.isAndroid) return;
     await _notifications.show(
-      _progressNotificationId,
-      'Image generation failed',
-      'Open CubicLM to check the error and try again.',
-      const NotificationDetails(
+      id: _progressNotificationId,
+      title: 'Image generation failed',
+      body: 'Open CubicLM to check the error and try again.',
+      notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
           _channelName,
@@ -169,8 +169,8 @@ class ImageGenerationNotificationService {
 
   Future<void> cancel() async {
     if (!Platform.isAndroid) return;
-    await _notifications.cancel(_progressNotificationId);
-    await _notifications.cancel(_foregroundNotificationId);
+    await _notifications.cancel(id: _progressNotificationId);
+    await _notifications.cancel(id: _foregroundNotificationId);
     FlutterBackgroundService().invoke('stopService');
   }
 
@@ -191,10 +191,10 @@ class ImageGenerationNotificationService {
       try {
         await init();
         await _notifications.show(
-          _chatDoneNotificationId,
-          'CubicLM — answer ready',
-          body,
-          const NotificationDetails(
+          id: _chatDoneNotificationId,
+          title: 'CubicLM — answer ready',
+          body: body,
+          notificationDetails: const NotificationDetails(
             android: AndroidNotificationDetails(
               _channelId,
               _channelName,
@@ -229,10 +229,10 @@ class ImageGenerationNotificationService {
     required bool indeterminate,
   }) async {
     await _notifications.show(
-      _foregroundNotificationId,
-      title,
-      body,
-      NotificationDetails(
+      id: _foregroundNotificationId,
+      title: title,
+      body: body,
+      notificationDetails: NotificationDetails(
         android: AndroidNotificationDetails(
           _channelId,
           _channelName,

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -13,12 +14,14 @@ import '../services/inference_service.dart';
 import '../services/local_image_service.dart';
 import '../theme/design_tokens.dart';
 import '../utils/slide_deck.dart';
+import '../utils/slide_palette.dart';
 import '../services/app_log_service.dart';
 import '../widgets/slide_source_selector.dart';
 import 'slides/slide_charts.dart';
+import 'slides/slide_canvas.dart';
 import 'slides/slide_dialogs.dart';
 import 'slides/slide_outline_view.dart';
-import 'slides/slide_painters.dart';
+import 'slides/slide_present_view.dart';
 import '../widgets/app_ui.dart';
 import '../widgets/model_switcher_sheet.dart';
 
@@ -73,23 +76,89 @@ class _SlideDeckViewState extends State<SlideDeckView> {
             style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800)),
         actions: [
           Obx(() => c.hasDeck
-              ? PopupMenuButton<String>(
-                  tooltip: 'Export deck',
-                  icon: Icon(LucideIcons.share2,
-                      color: isDark ? AppColors.textPrimary : Dt.iconDefault),
-                  onSelected: (v) {
-                    if (v == 'md') c.exportMarkdown();
-                    if (v == 'pdf') c.exportPdf();
-                    if (v == 'html') c.exportHtml();
-                    if (v == 'pptx') c.exportPptx();
-                    if (v == 'preview') c.previewInBrowser();
-                  },
-                  itemBuilder: (_) => [
-                    _exportItem('preview', 'Preview in browser'),
-                    _exportItem('pptx', 'PowerPoint (.pptx)'),
-                    _exportItem('pdf', 'PDF document'),
-                    _exportItem('html', 'Web slides (.html)'),
-                    _exportItem('md', 'Markdown (.md)'),
+              ? Row(
+                  children: [
+                    // Adaptive Content: Resize
+                    _miniBtn(context, LucideIcons.scaling, 'Resize deck',
+                        () => _showResizeDialog(context)),
+                    const SizedBox(width: 4),
+                    // TOC generation
+                    _miniBtn(context, LucideIcons.list, 'Generate TOC',
+                        c.generateTOC),
+                    const SizedBox(width: 4),
+                    // One-click restyle button
+                    PopupMenuButton<String>(
+                      tooltip: 'Restyle deck',
+                      enabled: !c.generating.value,
+                      onSelected: (v) => c.restyleDeck(v),
+                      icon: const Icon(LucideIcons.palette, size: 20),
+                      itemBuilder: (_) => [
+                        for (final s in SlideDeckController.styles)
+                          PopupMenuItem(
+                            value: s,
+                            child: Text(s,
+                                style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: 'Theme settings',
+                      icon: const Icon(LucideIcons.settings2, size: 20),
+                      onPressed: () => _showThemePicker(context),
+                    ),
+                    const SizedBox(width: 4),
+                    PopupMenuButton<String>(
+                      tooltip: 'AI Tools',
+                      icon: const Icon(LucideIcons.sparkles, size: 20),
+                      onSelected: (v) {
+                        if (v == 'polish') c.polishDesign();
+                        if (v == 'translate') _showTranslateDialog(context);
+                        if (v == 'live') _showLiveDataDialog(context);
+                        if (v == 'url') _showUrlDialog(context);
+                        if (v == 'audit') c.auditDeck();
+                      },
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                            value: 'polish', child: Text('Polish Design')),
+                        const PopupMenuItem(
+                            value: 'translate', child: Text('Translate Deck')),
+                        const PopupMenuItem(
+                            value: 'live', child: Text('Inject Live Data')),
+                        const PopupMenuItem(
+                            value: 'url', child: Text('Generate from URL')),
+                        const PopupMenuItem(
+                            value: 'audit', child: Text('Audit Deck')),
+                      ],
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: 'Clear deck',
+                      icon: Icon(LucideIcons.trash2,
+                          size: 20,
+                          color: AppColors.error.withValues(alpha: 0.8)),
+                      onPressed: c.clearDeck,
+                    ),
+                    const SizedBox(width: 4),
+                    PopupMenuButton<String>(
+                      tooltip: 'Export deck',
+                      icon: Icon(LucideIcons.share2,
+                          color: isDark ? AppColors.textPrimary : Dt.iconDefault),
+                      onSelected: (v) {
+                        if (v == 'md') c.exportMarkdown();
+                        if (v == 'pdf') c.exportPdf();
+                        if (v == 'html') c.exportHtml();
+                        if (v == 'pptx') c.exportPptx();
+                        if (v == 'preview') c.previewInBrowser();
+                      },
+                      itemBuilder: (_) => [
+                        _exportItem('preview', 'Preview in browser'),
+                        _exportItem('pptx', 'PowerPoint (.pptx)'),
+                        _exportItem('pdf', 'PDF document'),
+                        _exportItem('html', 'Web slides (.html)'),
+                        _exportItem('md', 'Markdown (.md)'),
+                      ],
+                    ),
                   ],
                 )
               : const SizedBox.shrink()),
@@ -306,11 +375,16 @@ class _SlideDeckViewState extends State<SlideDeckView> {
             children: [
               Flexible(child: Obx(() => _stylePill(context, isDark))),
               const SizedBox(width: 6),
+              Flexible(child: Obx(() => _visualStylePill(context, isDark))),
+              const SizedBox(width: 6),
               Flexible(child: Obx(() => _countStepper(context, isDark))),
               const Spacer(),
               Flexible(child: Obx(() => _audiencePill(context, isDark))),
             ],
           ),
+          const SizedBox(height: 6),
+          // Vision input
+          Obx(() => _visionPill(context, isDark)),
         ],
       ),
     );
@@ -489,6 +563,118 @@ class _SlideDeckViewState extends State<SlideDeckView> {
     );
   }
 
+  Widget _visualStylePill(BuildContext context, bool isDark) {
+    return PopupMenuButton<String>(
+      enabled: !c.generating.value,
+      tooltip: 'Visual style',
+      initialValue: c.visualStyle.value,
+      onSelected: (v) => c.visualStyle.value = v,
+      itemBuilder: (_) => [
+        for (final s in SlideDeckController.visualStyles)
+          PopupMenuItem(
+            value: s,
+            child: Text(s, style: GoogleFonts.plusJakartaSans(fontSize: 13)),
+          ),
+      ],
+      child: Container(
+        height: Dt.pillHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: c.visualStyle.value != 'Professional'
+              ? Dt.accent.withValues(alpha: 0.12)
+              : Dt.pillMuted,
+          borderRadius: BorderRadius.circular(Dt.pillHeight),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.palette,
+                size: 13,
+                color: c.visualStyle.value != 'Professional' ? Dt.accent : Dt.textSecondary),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                c.visualStyle.value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: c.visualStyle.value != 'Professional' ? Dt.accent : Dt.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _visionPill(BuildContext context, bool isDark) {
+    final hasImg = c.inputImage.value != null;
+    return InkWell(
+      onTap: c.generating.value ? null : _pickInputImage,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: hasImg ? Dt.accent.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: hasImg ? Border.all(color: Dt.accent.withValues(alpha: 0.3)) : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(hasImg ? LucideIcons.badgeCheck : LucideIcons.imagePlus,
+                size: 14, color: hasImg ? Dt.accent : Dt.textSecondary),
+            const SizedBox(width: 6),
+            Text(
+              hasImg ? 'Sketch/Photo attached' : 'Attach Sketch for Vision',
+              style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: hasImg ? Dt.accent : Dt.textSecondary),
+            ),
+            if (hasImg) ...[
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: () => c.inputImage.value = null,
+                child: const Icon(LucideIcons.x, size: 14, color: AppColors.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickInputImage() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+            leading: const Icon(LucideIcons.image),
+            title: const Text('Gallery'),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+          ListTile(
+            leading: const Icon(LucideIcons.camera),
+            title: const Text('Camera'),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+        ]),
+      ),
+    );
+    if (source == null) return;
+    try {
+      final file = await ImagePicker().pickImage(source: source);
+      if (file != null) {
+        c.inputImage.value = File(file.path);
+      }
+    } catch (_) {}
+  }
+
   void _toggleSpeech() async {
     if (!_isListening) {
       bool available = await _stt.initialize();
@@ -510,6 +696,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
   void _showThemePicker(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -519,14 +706,52 @@ class _SlideDeckViewState extends State<SlideDeckView> {
             Text('Slide Deck Theme',
                 style: GoogleFonts.plusJakartaSans(
                     fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text('Instant — no AI re-generate, content untouched.',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 11.5, color: Theme.of(context).hintColor)),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
+            Obx(() => Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final t in SlideThemePresets.all)
+                      _themePresetCard(ctx, t,
+                          selected: c.theme.value.name == t.name),
+                  ],
+                )),
+            const Divider(height: 24),
+            Text('Brand Kit',
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                _themeColorPill('Modern', '#d97757'),
-                _themeColorPill('Forest', '#4ade80'),
-                _themeColorPill('Ocean', '#60a5fa'),
-                _themeColorPill('Royal', '#a78bfa'),
+                Obx(() => Container(
+                  width: 50,
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: Dt.pillMuted,
+                    borderRadius: BorderRadius.circular(8),
+                    image: c.theme.value.logoBytes != null
+                        ? DecorationImage(image: MemoryImage(Uint8List.fromList(c.theme.value.logoBytes!)))
+                        : null,
+                  ),
+                  child: c.theme.value.logoBytes == null
+                      ? const Icon(LucideIcons.image, size: 20)
+                      : null,
+                )),
+                const SizedBox(width: 12),
+                TextButton.icon(
+                  onPressed: _pickLogo,
+                  icon: const Icon(LucideIcons.upload, size: 16),
+                  label: const Text('Upload Logo'),
+                ),
+                if (c.theme.value.logoBytes != null)
+                  IconButton(
+                    onPressed: () => _updateTheme(logo: []),
+                    icon: const Icon(LucideIcons.trash2, size: 16, color: AppColors.error),
+                  ),
               ],
             ),
             const SizedBox(height: 16),
@@ -536,36 +761,191 @@ class _SlideDeckViewState extends State<SlideDeckView> {
     );
   }
 
-  Widget _themeColorPill(String name, String color) {
-    final hex = int.parse(color.replaceAll('#', '0xFF'));
+  Future<void> _pickLogo() async {
+    try {
+      final file = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (file != null) {
+        final bytes = await file.readAsBytes();
+        _updateTheme(logo: bytes.toList());
+      }
+    } catch (_) {}
+  }
+
+  void _showTranslateDialog(BuildContext context) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Translate Deck'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(hintText: 'Target language (e.g. Spanish, Bengali)'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              if (ctrl.text.isNotEmpty) {
+                c.translateDeck(ctrl.text);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Translate'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLiveDataDialog(BuildContext context) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Inject Live Data'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(hintText: 'What to find? (e.g. Apple stock price)'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              if (ctrl.text.isNotEmpty) {
+                c.injectLiveData(ctrl.text);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Inject'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUrlDialog(BuildContext context) {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Generate from URL'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(hintText: 'https://example.com/article'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              if (ctrl.text.isNotEmpty) {
+                c.generateFromUrl(ctrl.text);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Generate'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _updateTheme({List<int>? logo}) {
+    final old = c.theme.value;
+    c.theme.value = SlideDeckTheme(
+      name: old.name,
+      primaryColor: old.primaryColor,
+      secondaryColor: old.secondaryColor,
+      backgroundColor: old.backgroundColor,
+      textColor: old.textColor,
+      accentColor: old.accentColor,
+      fontHeading: old.fontHeading,
+      fontBody: old.fontBody,
+      logoBytes: logo ?? old.logoBytes,
+    );
+  }
+
+  void _showResizeDialog(BuildContext context) {
+    final ctrl = TextEditingController(text: '${c.slides.length}');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Resize Deck'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Enter target slide count (AI will merge/split slides):'),
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(hintText: 'e.g. 5'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final count = int.tryParse(ctrl.text);
+              if (count != null && count >= 3 && count <= 20) {
+                c.resizeDeck(count);
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Resize'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _themePresetCard(
+      BuildContext sheetCtx, SlideDeckTheme t, {required bool selected}) {
+    final pal = SlidePalette.fromTheme(t);
     return InkWell(
       onTap: () {
-        c.theme.value = SlideDeckTheme(
-          name: name,
-          primaryColor: color,
-          secondaryColor: '#ffffff',
-          backgroundColor: '#14141c',
-          textColor: '#f2f0ea',
-          accentColor: color,
-          fontHeading: 'Plus Jakarta Sans',
-          fontBody: 'Plus Jakarta Sans',
-        );
-        Navigator.pop(context);
+        c.applyThemePreset(t.name);
+        Navigator.pop(sheetCtx);
       },
-      child: Column(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Color(hex),
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-            ),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 96,
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? Dt.accent : Theme.of(context).dividerColor,
+            width: selected ? 2 : 1,
           ),
-          const SizedBox(height: 4),
-          Text(name, style: const TextStyle(fontSize: 10)),
-        ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 44,
+              decoration: BoxDecoration(
+                color: pal.bg,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Theme.of(context).dividerColor),
+              ),
+              child: Center(
+                child: Container(
+                  width: 40,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: pal.accent,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(t.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 10.5, fontWeight: FontWeight.w700)),
+          ],
+        ),
       ),
     );
   }
@@ -606,40 +986,14 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               fontWeight: FontWeight.w800,
               color: Theme.of(context).hintColor)),
       const Spacer(),
-      // One-click restyle button
-      PopupMenuButton<String>(
-        tooltip: 'Restyle deck',
-        enabled: !c.generating.value,
-        onSelected: (v) => c.restyleDeck(v),
-        itemBuilder: (_) => [
-          for (final s in SlideDeckController.styles)
-            PopupMenuItem(
-              value: s,
-              child: Text(s, style: GoogleFonts.plusJakartaSans(fontSize: 13)),
-            ),
-        ],
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: Dt.accent.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(LucideIcons.palette, size: 14, color: Dt.accent),
-            const SizedBox(width: 4),
-            Text('Restyle',
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: Dt.accent)),
-          ]),
-        ),
-      ),
-      const SizedBox(width: 6),
       IconButton(
-        tooltip: 'Theme settings',
-        icon: const Icon(LucideIcons.settings2, size: 18),
-        onPressed: () => _showThemePicker(context),
+        tooltip: 'Present fullscreen',
+        icon: const Icon(LucideIcons.play, size: 18),
+        onPressed: () => Get.to(() => SlidePresentView(
+              slides: c.slides.toList(),
+              theme: c.theme.value,
+              initialIndex: _page.clamp(0, c.slides.length - 1),
+            )),
       ),
       IconButton(
         tooltip: 'Add blank slide',
@@ -649,12 +1003,6 @@ class _SlideDeckViewState extends State<SlideDeckView> {
           _page = c.slides.length - 1;
           if (_pageCtrl.hasClients) _pageCtrl.jumpToPage(_page);
         },
-      ),
-      IconButton(
-        tooltip: 'Clear deck',
-        icon: Icon(LucideIcons.trash2,
-            size: 18, color: AppColors.error.withValues(alpha: 0.8)),
-        onPressed: c.clearDeck,
       ),
     ]);
   }
@@ -814,6 +1162,17 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                   color: s.freeLayout ? Dt.accent : null),
               _miniBtn(context, LucideIcons.refreshCw, 'Regenerate this slide',
                   () => c.regenerateSlide(index)),
+              PopupMenuButton<String>(
+                tooltip: 'Transform layout',
+                icon: const Icon(LucideIcons.layout, size: 16, color: Dt.textSecondary),
+                onSelected: (v) => c.transformLayout(index, v),
+                itemBuilder: (_) => [
+                  const PopupMenuItem(value: 'cards', child: Text('Feature Cards')),
+                  const PopupMenuItem(value: 'gallery', child: Text('Image Gallery')),
+                  const PopupMenuItem(value: 'stats', child: Text('Key Stats')),
+                  const PopupMenuItem(value: 'timeline', child: Text('Timeline')),
+                ],
+              ),
               _miniBtn(context, LucideIcons.sparkles, 'AI refine',
                   () => showRefineDialog(context, isDark, index)),
               _miniBtn(
@@ -887,524 +1246,17 @@ class _SlideDeckViewState extends State<SlideDeckView> {
   }
 
   Widget _pptCanvas(BuildContext context, int index, Slide s) {
-    final hasImage = s.imageBytes != null && s.imageBytes!.isNotEmpty;
-    final showPoints = s.points.take(4).toList();
-    final hidden = s.points.length - showPoints.length;
+    // Touch the observable so one-click theme presets rebuild the canvas.
+    final pal = SlidePalette.fromTheme(c.theme.value);
     return AspectRatio(
       aspectRatio: 4 / 3,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF23232f), Color(0xFF101016)],
-          ),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: s.freeLayout
-            ? LayoutBuilder(
-                builder: (_, cons) => _freeStack(
-                  context,
-                  s,
-                  cons.maxWidth,
-                  cons.maxHeight,
-                  titleColor: Colors.white,
-                  bodyColor: const Color(0xFFD8D5CF),
-                  titleBase: 17,
-                  bodyBase: 11.5,
-                ),
-              )
-            : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                if (hasImage)
-                  SizedBox(
-                    height: 110,
-                    child: Image.memory(
-                      Uint8List.fromList(s.imageBytes!),
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox(height: 110),
-                    ),
-                  )
-                else if (s.wantsImage)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: Dt.accent.withValues(alpha: 0.12),
-                      border: const Border(
-                        bottom: BorderSide(color: Dt.accent, width: 1),
-                      ),
-                    ),
-                    child: Row(children: [
-                      const Icon(LucideIcons.imagePlus,
-                          size: 13, color: Dt.accent),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          s.imagePrompt.trim().isEmpty
-                              ? 'IMAGE SPACE'
-                              : s.imagePrompt.trim(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w600,
-                              color: const Color(0xFFE8B4A0)),
-                        ),
-                      ),
-                    ]),
-                  ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-                    child: Stack(
-                      children: [
-                        _pptContentByLayout(s, index, showPoints, hidden),
-                        Align(
-                          alignment: Alignment.bottomRight,
-                          child: Text('${index + 1}',
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w800,
-                                  color: const Color(0xFF6E6B65))),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ]),
+      child: SlideCanvas(
+        slide: s,
+        index: index,
+        pal: pal,
+        logoBytes: c.theme.value.logoBytes,
       ),
     );
-  }
-
-  Widget _pptContentByLayout(
-      Slide s, int index, List<String> showPoints, int hidden) {
-    switch (s.layout) {
-      case 'title':
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                s.title.isEmpty ? 'Untitled' : s.title,
-                textAlign: TextAlign.center,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 19,
-                    fontWeight: FontWeight.w800,
-                    height: 1.25,
-                    color: Colors.white),
-              ),
-              if (s.subtitle.isNotEmpty || showPoints.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Container(
-                    width: 36,
-                    height: 2.5,
-                    decoration: BoxDecoration(
-                        color: Dt.accent,
-                        borderRadius: BorderRadius.circular(2))),
-                const SizedBox(height: 8),
-                Text(
-                  s.subtitle.isNotEmpty ? s.subtitle : showPoints.first,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: const Color(0xFFD8D5CF)),
-                ),
-              ],
-            ],
-          ),
-        );
-
-      case 'quote':
-        final quoteText = s.points.isNotEmpty ? s.points.first : s.title;
-        final author = s.quoteAuthor.isNotEmpty
-            ? s.quoteAuthor
-            : (s.points.length > 1 ? s.points[1] : '');
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Icon(LucideIcons.quote, size: 24, color: Dt.accent),
-              const SizedBox(height: 8),
-              Text(
-                '"$quoteText"',
-                textAlign: TextAlign.center,
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 14.5,
-                    fontStyle: FontStyle.italic,
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
-                    color: Colors.white),
-              ),
-              if (author.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  '— $author',
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: Dt.accent),
-                ),
-              ],
-            ],
-          ),
-        );
-
-      case 'stats':
-        final statsItems = s.stats.isNotEmpty
-            ? s.stats
-            : s.points.take(3).map((p) {
-                final match =
-                    RegExp(r'^([\d%+\$\.\s\w]+)[:\-–]\s*(.+)$').firstMatch(p);
-                if (match != null) {
-                  return {
-                    'value': match.group(1)!.trim(),
-                    'label': match.group(2)!.trim()
-                  };
-                }
-                return {'value': '•', 'label': p};
-              }).toList();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              s.title.isEmpty ? 'Key Statistics' : s.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Row(
-                children: [
-                  for (final item in statsItems.take(3))
-                    Expanded(
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 2.5),
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.04),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                              color: Dt.accent.withValues(alpha: 0.3)),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              item['value'] ?? '',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w900,
-                                  color: Dt.accent),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              item['label'] ?? '',
-                              maxLines: 2,
-                              textAlign: TextAlign.center,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.plusJakartaSans(
-                                  fontSize: 9.5,
-                                  color: const Color(0xFFD8D5CF)),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ],
-        );
-
-      case 'comparison':
-        final col1 = s.columns.isNotEmpty
-            ? s.columns[0]
-            : s.points.take((s.points.length / 2).ceil()).toList();
-        final col2 = s.columns.length > 1
-            ? s.columns[1]
-            : s.points.skip((s.points.length / 2).ceil()).toList();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              s.title.isEmpty ? 'Comparison' : s.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white),
-            ),
-            const SizedBox(height: 6),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.03),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.08)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final p in col1.take(3))
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 3),
-                              child: Text('• $p',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 10,
-                                      color: const Color(0xFFD8D5CF))),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Dt.accent.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                            color: Dt.accent.withValues(alpha: 0.25)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final p in col2.take(3))
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 3),
-                              child: Text('✓ $p',
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.plusJakartaSans(
-                                      fontSize: 10,
-                                      color: const Color(0xFFE8B4A0))),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-
-      case 'timeline':
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              s.title.isEmpty ? 'Timeline' : s.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white),
-            ),
-            const SizedBox(height: 6),
-            for (var i = 0; i < showPoints.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 16,
-                      height: 16,
-                      alignment: Alignment.center,
-                      decoration: const BoxDecoration(
-                        color: Dt.accent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        '${i + 1}',
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        showPoints[i],
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
-                            fontSize: 10.5, color: const Color(0xFFD8D5CF)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            if (hidden > 0)
-              Text('+$hidden more steps',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF8E8B85))),
-          ],
-        );
-
-      case 'summary':
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(LucideIcons.checkCircle2,
-                    size: 15, color: Dt.accent),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    s.title.isEmpty ? 'Key Takeaways' : s.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            for (final p in showPoints)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('✓ ',
-                        style: TextStyle(
-                            color: Dt.accent,
-                            fontWeight: FontWeight.w900,
-                            fontSize: 10.5)),
-                    Expanded(
-                      child: Text(p,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 10.5,
-                              height: 1.35,
-                              color: const Color(0xFFD8D5CF))),
-                    ),
-                  ],
-                ),
-              ),
-            if (hidden > 0)
-              Text('+$hidden more',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF8E8B85))),
-          ],
-        );
-
-      case 'chart':
-        return chartContent(s);
-
-      case 'diagram':
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                s.title.isEmpty ? 'Process Flow' : s.title,
-                style: GoogleFonts.plusJakartaSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white),
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: CustomPaint(
-                  painter: DiagramPainter(s.diagram ?? '', true),
-                  size: Size.infinite,
-                ),
-              ),
-            ],
-          ),
-        );
-
-      default:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              s.title.isEmpty ? 'Untitled' : s.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.plusJakartaSans(
-                  fontSize: 16.5,
-                  fontWeight: FontWeight.w800,
-                  height: 1.2,
-                  color: Colors.white),
-            ),
-            const SizedBox(height: 6),
-            for (final p in showPoints)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('▸ ',
-                        style: TextStyle(
-                            color: Dt.accent,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 11)),
-                    Expanded(
-                      child: Text(p,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.plusJakartaSans(
-                              fontSize: 11,
-                              height: 1.35,
-                              color: const Color(0xFFD8D5CF))),
-                    ),
-                  ],
-                ),
-              ),
-            if (hidden > 0)
-              Text('+$hidden more',
-                  style: GoogleFonts.plusJakartaSans(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFF8E8B85))),
-          ],
-        );
-    }
   }
 
   /// Pure-Flutter chart renderer: bar, donut, or line from chartData.
@@ -1501,7 +1353,7 @@ class _SlideDeckViewState extends State<SlideDeckView> {
             Expanded(
               child: s.freeLayout
                   ? LayoutBuilder(
-                      builder: (_, cons) => _freeStack(
+                      builder: (_, cons) => SlideCanvas.freeStack(
                         context,
                         s,
                         cons.maxWidth,
@@ -1538,25 +1390,35 @@ class _SlideDeckViewState extends State<SlideDeckView> {
   /// Image generate/retry row under the canvas (full editor lives here;
   /// the canvas only previews).
   Widget _imageControls(BuildContext context, int index, Slide s) {
-    final hasImage = s.imageBytes != null && s.imageBytes!.isNotEmpty;
+    final hasImage = (s.imageBytes != null && s.imageBytes!.isNotEmpty) || (s.imageUrl != null && s.imageUrl!.isNotEmpty);
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
-        if (s.wantsImage || hasImage)
+        if (s.wantsImage || hasImage) ...[
           _chipButton(
             context,
             icon: hasImage ? LucideIcons.refreshCw : LucideIcons.sparkles,
             label: hasImage
-                ? 'Regenerate image'
+                ? 'Regenerate AI image'
                 : (c.canGenerateImages
-                    ? 'Generate image'
-                    : 'No image engine — load SD model'),
+                    ? 'Generate AI image'
+                    : 'No AI image engine'),
             busy: c.imageBusyIndex.value == index,
             onTap: c.imageBusyIndex.value == index
                 ? null
                 : () => c.generateSlideImage(index),
           ),
+          _chipButton(
+            context,
+            icon: LucideIcons.search,
+            label: 'Find Stock Photo',
+            busy: c.stockImageBusyIndex.value == index,
+            onTap: c.stockImageBusyIndex.value == index
+                ? null
+                : () => c.findStockImage(index),
+          ),
+        ],
         _chipButton(
           context,
           icon: LucideIcons.imagePlus,
@@ -1623,110 +1485,6 @@ class _SlideDeckViewState extends State<SlideDeckView> {
       c.slides.refresh();
     } catch (_) {}
   }
-
-  /// Free-layout stack shared by PPT + PDF canvas: title / body / image
-  /// boxes positioned by fractional offsets, draggable + scalable.
-  Widget _freeStack(
-    BuildContext context,
-    Slide s,
-    double w,
-    double h, {
-    required Color titleColor,
-    required Color bodyColor,
-    required double titleBase,
-    required double bodyBase,
-  }) {
-    final hasImage = s.imageBytes != null && s.imageBytes!.isNotEmpty;
-    return Stack(children: [
-      FreeBox(
-        dx: s.tDx,
-        dy: s.tDy,
-        scale: s.tS,
-        canvasW: w,
-        canvasH: h,
-        onCommit: (dx, dy, sc) {
-          s.tDx = dx;
-          s.tDy = dy;
-          s.tS = sc;
-        },
-        builder: (_, sc) => Text(
-          s.title.isEmpty ? 'Untitled' : s.title,
-          style: GoogleFonts.plusJakartaSans(
-              fontSize: titleBase * sc,
-              fontWeight: FontWeight.w800,
-              height: 1.2,
-              color: titleColor),
-        ),
-      ),
-      FreeBox(
-        dx: s.bDx,
-        dy: s.bDy,
-        scale: s.bS,
-        canvasW: w,
-        canvasH: h,
-        onCommit: (dx, dy, sc) {
-          s.bDx = dx;
-          s.bDy = dy;
-          s.bS = sc;
-        },
-        builder: (_, sc) => Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final p in s.points.take(6))
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: Text('▸ $p',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: bodyBase * sc,
-                          height: 1.35,
-                          color: bodyColor)),
-                ),
-            ]),
-      ),
-      if (hasImage || s.wantsImage)
-        FreeBox(
-          dx: s.iDx,
-          dy: s.iDy,
-          scale: s.iS,
-          canvasW: w,
-          canvasH: h,
-          boxH: 84,
-          onCommit: (dx, dy, sc) {
-            s.iDx = dx;
-            s.iDy = dy;
-            s.iS = sc;
-          },
-          builder: (_, sc) => hasImage
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
-                    Uint8List.fromList(s.imageBytes!),
-                    height: 84 * sc,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                  ),
-                )
-              : Container(
-                  height: 52 * sc,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Dt.accent, width: 1),
-                    color: Dt.accent.withValues(alpha: 0.1),
-                  ),
-                  child: Text('IMAGE',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 10 * sc,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                          color: Dt.accent)),
-                ),
-        ),
-    ]);
-  }
-
   Widget _miniBtn(
       BuildContext context, IconData icon, String tip, VoidCallback? onTap,
       {Color? color}) {
