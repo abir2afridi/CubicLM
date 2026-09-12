@@ -1,9 +1,11 @@
 import 'dart:async';
-import 'dart:io' show Platform, Directory;
+import 'dart:io' show Platform, Directory, File;
 
 import 'package:flutter_litert_lm/flutter_litert_lm.dart';
+import 'package:get/get.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'app_log_service.dart';
 import 'inference_text.dart';
 import 'inference_types.dart';
 
@@ -201,6 +203,9 @@ class LiteRtEngine {
     bool completed = false;
     bool hasVisibleOutput = false;
     var tokenCount = 0;
+    // One fresh-conversation retry for executor invoke failures
+    // (mirrors the GGUF hard-reload philosophy).
+    bool retried = false;
 
     void finish(String result) {
       if (!completed && !_disposed) {
@@ -216,6 +221,19 @@ class LiteRtEngine {
 
     if ((imagePath != null && imagePath.isNotEmpty) ||
         (audioPath != null && audioPath.isNotEmpty)) {
+      // A missing/empty attachment fails natively with an opaque
+      // "failed to invoke" — catch it here with a clear message.
+      for (final p in [imagePath, audioPath]) {
+        if (p == null || p.isEmpty) continue;
+        var ok = false;
+        try {
+          final f = File(p);
+          ok = f.existsSync() && f.lengthSync() > 0;
+        } catch (_) {}
+        if (!ok) {
+          return 'ERROR: Attached file is missing or empty ($p). Re-attach it and try again.';
+        }
+      }
       final contents = <LiteLmContent>[
         LiteLmContent.text(prompt),
         if (imagePath != null && imagePath.isNotEmpty)
@@ -256,9 +274,31 @@ class LiteRtEngine {
               '[Inference] LiteRT-LM multimodal stream done - $tokenCount chunks');
           finish(buffer.toString());
         },
-        onError: (error) {
-          print('[Inference] LiteRT-LM multimodal stream error: $error');
-          finish('ERROR: LiteRT-LM multimodal generation failed - $error');
+        onError: (error) async {
+          _logLiteRtError('LiteRT-LM multimodal stream error', error);
+          final msg = error.toString();
+          if (!retried && isInvokeFailure(msg)) {
+            retried = true;
+            try {
+              await resetConversation();
+            } catch (_) {}
+            print(
+                '[Inference] LiteRT-LM invoke failed — fresh conversation retry.');
+            finish(await _generateLiteRt(
+              prompt: prompt,
+              conversationHistory: conversationHistory,
+              systemPrompt: systemPrompt,
+              maxTokens: maxTokens,
+              temperature: temperature,
+              topP: topP,
+              topK: topK,
+              imagePath: imagePath,
+              audioPath: audioPath,
+              onToken: onToken,
+            ));
+            return;
+          }
+          finish(_friendlyInvokeError(msg, multimodal: true));
         },
       );
 
@@ -310,7 +350,7 @@ class LiteRtEngine {
         finish(buffer.toString());
       },
       onError: (error) {
-        print('[Inference] LiteRT-LM stream error: $error');
+        _logLiteRtError('LiteRT-LM stream error', error);
         finish('ERROR: LiteRT-LM generation failed - $error');
       },
     );
@@ -332,6 +372,45 @@ class LiteRtEngine {
 
     return completer.future;
   }
+
+  /// True for native executor invoke failures (Status 13 / JNI
+  /// exception): the session is usually poisoned, so the caller retries
+  /// once with a fresh conversation. Public for unit tests.
+  static bool isInvokeFailure(String message) =>
+      message.contains('invoke the compiled model') ||
+      message.contains('Status Code: 13') ||
+      message.contains('LiteRtLmJniException');
+
+  /// User-facing text for a failed generation. Invoke failures get
+  /// guidance (RAM pressure is the usual cause on phones) instead of a
+  /// raw native dump.
+  static String friendlyInvokeError(String raw, {bool multimodal = false}) {
+    if (isInvokeFailure(raw)) {
+      return 'ERROR: The model ran out of working memory mid-generation'
+          '${multimodal ? ' (images need much more RAM)' : ''}. '
+          'Close other apps, try again${multimodal ? ' without the image' : ''}, '
+          'or use a smaller model.';
+    }
+    return 'ERROR: LiteRT-LM ${multimodal ? 'multimodal ' : ''}generation failed - $raw';
+  }
+
+  /// print for logcat/console plus a real ERROR row so stream failures
+  /// count in health, persist across kills and carry the open screen.
+  void _logLiteRtError(String message, Object error) {
+    print('[Inference] $message: $error');
+    try {
+      if (Get.isRegistered<AppLogService>()) {
+        Get.find<AppLogService>().error(
+          '[Inference] $message',
+          details: error.toString(),
+          category: LogCategory.model,
+        );
+      }
+    } catch (_) {}
+  }
+
+  String _friendlyInvokeError(String raw, {required bool multimodal}) =>
+      friendlyInvokeError(raw, multimodal: multimodal);
 
   Future<void> _ensureLiteRtConversation({
     required String prompt,

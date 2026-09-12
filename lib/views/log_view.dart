@@ -784,7 +784,8 @@ class LogView extends StatelessWidget {
       text: text,
       fileName: fileName,
       mimeType: 'text/plain',
-      shareText: text,
+      // File only: sharing the whole log again as message text would
+      // duplicate the attachment on every target app.
     );
   }
 
