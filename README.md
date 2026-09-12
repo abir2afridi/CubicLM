@@ -4,11 +4,11 @@
 <!--                          HERO HEADER                                    -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 
-<img src="assets/icons/CubicLM.png" alt="CubicLM" width="120" />
+<img src="assets/icons/CubicLM.png" alt="CubicLM" width="190" />
 
-# CubicLM
+## CubicLM
 
-### 📱⚡ The Cross-Platform AI Chat Powerhouse
+### The Cross-Platform AI Chat Powerhouse
 
 **Run LLMs locally on your Android device** via GPU-accelerated **llama.cpp** 🦙 & Google's **LiteRT-LM** ⚡<br/>
 **Connect to 23+ cloud providers** ☁️ · **Extend with Skills** 🧩 · **Built-in OpenAI-compatible API** 🔌
@@ -89,7 +89,8 @@
 
 <div align="center">
 
-## 🎯 What is CubicLM?
+## <img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/target/target2.gif" width="120" /> 
+## What is CubicLM?
 
 </div>
 
@@ -128,7 +129,8 @@
 
 <div align="center">
 
-## 📥 Download — `v1.12.0`
+## <img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/download/installing-updates.gif" width="120" /> 
+## Download — `v1.12.0`
 
 > 🎉 **Latest release** · Build date: current · [View full changelog →](CHANGELOG.md)
 
@@ -146,35 +148,35 @@
 </thead>
 <tbody>
 <tr>
-<td align="center">🤖</td>
+<td align="center"><img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/android/android.png" width="120" /></td>
 <td><b>Android</b><br/><sub>arm64-v8a · modern phones</sub></td>
 <td><code>cubiclm-v1.12.0-arm64-v8a.apk</code></td>
 <td align="right"><b>62 MB</b></td>
 <td align="center"><a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.12.0/cubiclm-v1.12.0-arm64-v8a.apk"><img src="https://img.shields.io/badge/⬇_GET-FF4D00?style=for-the-badge&logo=android&logoColor=white" alt="Download"/></a></td>
 </tr>
 <tr>
-<td align="center">🤖</td>
+<td align="center"><img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/android/android.png" width="120" /></td>
 <td><b>Android</b><br/><sub>armeabi-v7a · older devices</sub></td>
 <td><code>cubiclm-v1.12.0-armeabi-v7a.apk</code></td>
 <td align="right"><b>16 MB</b></td>
 <td align="center"><a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.12.0/cubiclm-v1.12.0-armeabi-v7a.apk"><img src="https://img.shields.io/badge/⬇_GET-FF4D00?style=for-the-badge&logo=android&logoColor=white" alt="Download"/></a></td>
 </tr>
 <tr>
-<td align="center">🤖</td>
+<td align="center"><img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/android/android.png" width="120" /></td>
 <td><b>Android</b><br/><sub>x86_64 · emulators, tablets</sub></td>
 <td><code>cubiclm-v1.12.0-x86_64.apk</code></td>
 <td align="right"><b>28 MB</b></td>
 <td align="center"><a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.12.0/cubiclm-v1.12.0-x86_64.apk"><img src="https://img.shields.io/badge/⬇_GET-FF4D00?style=for-the-badge&logo=android&logoColor=white" alt="Download"/></a></td>
 </tr>
 <tr>
-<td align="center">🪟</td>
+<td align="center"><img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/windows/windows%20(2).png" width="120" /></td>
 <td><b>Windows</b><br/><sub>x64 · requires WebView2</sub></td>
 <td><code>cubiclm-v1.12.0-windows-x64.zip</code><br/><sub>unzip & run <code>cubiclm.exe</code></sub></td>
 <td align="right"><b>17 MB</b></td>
 <td align="center"><a href="https://github.com/abir2afridi/CubicLM/releases/download/v1.12.0/cubiclm-v1.12.0-windows-x64.zip"><img src="https://img.shields.io/badge/⬇_GET-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download"/></a></td>
 </tr>
 <tr>
-<td align="center">🔒</td>
+<td align="center"><img src="https://github.com/abir2afridi/abir2afridi/blob/main/lock.png" width="120" /></td>
 <td><b>Checksums</b><br/><sub>SHA-256 verification</sub></td>
 <td><code>checksums.sha256</code></td>
 <td align="right">—</td>
@@ -206,59 +208,374 @@
 
 <div align="center">
 
-## 📚 Navigation
+<div align="center">
+
+<br/>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- ░░ SECTION HEADER ░░                                                -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<img src="https://img.shields.io/badge/📚-DOCUMENTATION%20MAP-FF4D00?style=for-the-badge&labelColor=0d1117&logo=readthedocs&logoColor=white" alt="Docs"/>
+
+<h2>🧭 Navigation</h2>
+
+**<sub>Everything you need — organized into <b>3 zones</b> · <b>23 sections</b> · <b>instant jump</b></sub>**
+
+<br/>
+
+<!-- ─── Quick Jump Bar ─── -->
+
+<a href="#-what-is-cubiclm"><img src="https://img.shields.io/badge/🎯_Intro-FF4D00?style=flat-square&labelColor=0d1117" alt="Intro"/></a>
+<a href="#-download--v1120"><img src="https://img.shields.io/badge/📥_Download-FF4D00?style=flat-square&labelColor=0d1117" alt="Download"/></a>
+<a href="#-features"><img src="https://img.shields.io/badge/✨_Features-8b5cf6?style=flat-square&labelColor=0d1117" alt="Features"/></a>
+<a href="#-supported-models"><img src="https://img.shields.io/badge/🤖_Models-22c55e?style=flat-square&labelColor=0d1117" alt="Models"/></a>
+<a href="#-getting-started"><img src="https://img.shields.io/badge/🚀_Setup-3b82f6?style=flat-square&labelColor=0d1117" alt="Setup"/></a>
+<a href="#-frequently-asked-questions"><img src="https://img.shields.io/badge/❓_FAQ-facc15?style=flat-square&labelColor=0d1117" alt="FAQ"/></a>
+
+<br/><br/>
 
 </div>
 
-<table>
+---
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- ░░ 3-ZONE GRID ░░                                                   -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<table width="100%">
+<tbody>
 <tr>
+
+<!-- ╔═══════════════════════════════════════════════════════════════╗ -->
+<!-- ║  ZONE 1 · CORE                                                 ║ -->
+<!-- ╚═══════════════════════════════════════════════════════════════╝ -->
+
 <td width="33.33%" valign="top">
 
-### 🎯 Core
-- [🎯 What is CubicLM?](#-what-is-cubiclm)
-- [📥 Download](#-download--v1120)
-- [✨ Features](#-features)
-  - [🧠 Local AI Inference](#-local-ai-inference)
-  - [🎛️ Inference Parameters](#️-inference-parameters-nodes--config)
-  - [🚀 Startup & Onboarding](#-startup-onboarding--splash)
-  - [🌐 Web Access](#-web-access-independent-chat)
-  - [🧠 Chat Context Memory](#-chat-context-memory-follow-ups-dont-get-lost)
-  - [☁️ Cloud Providers](#️-cloud-ai-providers)
-- [🤖 Supported Models](#-supported-models)
+<br/>
+
+<div align="center">
+
+<img src="https://img.shields.io/badge/●_ZONE_1-CORE-FF4D00?style=for-the-badge&labelColor=0d1117" alt="Core"/>
+
+<sub><b>🎯 Start here · Features · Models</b></sub>
+
+</div>
+
+<br/>
+
+**<kbd>①</kbd> &nbsp; 🎯 Introduction**
+
+> *Get to know CubicLM*
+
+| | |
+| :---: | :--- |
+| 🎯 | [What is CubicLM?](#-what-is-cubiclm) |
+| 📥 | [Download — v1.12.0](#-download--v1120) |
+
+<br/>
+
+**<kbd>②</kbd> &nbsp; ✨ Core Features**
+
+> *What makes it powerful*
+
+| | |
+| :---: | :--- |
+| 🧠 | [Local AI Inference](#-local-ai-inference) |
+| 🎛️ | [Inference Parameters](#️-inference-parameters-nodes--config) |
+| 🚀 | [Startup & Onboarding](#-startup-onboarding--splash) |
+| 🌐 | [Web Access](#-web-access-independent-chat) |
+| 🧠 | [Chat Context Memory](#-chat-context-memory-follow-ups-dont-get-lost) |
+| ☁️ | [Cloud Providers](#️-cloud-ai-providers) |
+
+<br/>
+
+**<kbd>③</kbd> &nbsp; 🤖 Model Catalog**
+
+> *18+ ready-to-run models*
+
+| | |
+| :---: | :--- |
+| ⚡ | [LiteRT-LM Models](#-supported-models) |
+| 🐫 | [GGUF Models](#-supported-models) |
+| 🎨 | [Image Generation](#-supported-models) |
+| 📊 | [Selection Guide](#-supported-models) |
+
+<br/>
+
+<div align="center">
+
+<img src="https://img.shields.io/badge/📍_START_HERE-1_→_2_→_3-FF4D00?style=for-the-badge&labelColor=0d1117" alt="Start"/>
+
+</div>
 
 </td>
+
+<!-- ╔═══════════════════════════════════════════════════════════════╗ -->
+<!-- ║  ZONE 2 · EXTENSIONS                                           ║ -->
+<!-- ╚═══════════════════════════════════════════════════════════════╝ -->
+
 <td width="33.33%" valign="top">
 
-### 🧩 Extensions
-- [🧩 Skills](#-skills--offline-instruction-extensions)
-- [🔌 MCP Server](#-custom-mcp-server--single-remote-connection-no-marketplace)
-- [🔌 Built-in API](#-built-in-openai-compatible-api-server)
-- [🌐 CubicWeb Builder](#-cubicweb-builder-toolkit--v1120)
-- [🖥️ Multi-Platform](#️-universal-multi-platform--one-codebase-three-shells)
-- [🩺 System Diagnostics](#-system-diagnostics-nodes--config--system-logs)
-- [🎨 Theming & UX](#-theming--ux-deep-dive)
+<br/>
+
+<div align="center">
+
+<img src="https://img.shields.io/badge/●_ZONE_2-EXTENSIONS-8b5cf6?style=for-the-badge&labelColor=0d1117" alt="Extensions"/>
+
+<sub><b>🧩 Power features · Integrations</b></sub>
+
+</div>
+
+<br/>
+
+**<kbd>④</kbd> &nbsp; 🧩 Extend & Integrate**
+
+> *Add new capabilities*
+
+| | |
+| :---: | :--- |
+| 🧩 | [Skills System](#-skills--offline-instruction-extensions) |
+| 🔌 | [MCP Server](#-custom-mcp-server--single-remote-connection-no-marketplace) |
+| 🔌 | [Built-in API](#-built-in-openai-compatible-api-server) |
+
+<br/>
+
+**<kbd>⑤</kbd> &nbsp; 🌐 Build & Deploy**
+
+> *Create & ship apps*
+
+| | |
+| :---: | :--- |
+| 🌐 | [CubicWeb Builder](#-cubicweb-builder-toolkit--v1120) |
+| 🖥️ | [Multi-Platform](#️-universal-multi-platform--one-codebase-three-shells) |
+| 🔄 | [Model Switcher](#-universal-multi-platform--one-codebase-three-shells) |
+
+<br/>
+
+**<kbd>⑥</kbd> &nbsp; 🩺 Monitor & Design**
+
+> *Debug & beautify*
+
+| | |
+| :---: | :--- |
+| 🩺 | [System Diagnostics](#-system-diagnostics-nodes--config--system-logs) |
+| 🎨 | [Theming & UX](#-theming--ux-deep-dive) |
+| 🔮 | [Thinking Orbs](#-theming--ux-deep-dive) |
+
+<br/>
+
+<div align="center">
+
+<img src="https://img.shields.io/badge/⚡_POWER_USER-Advanced_Features-8b5cf6?style=for-the-badge&labelColor=0d1117" alt="Power"/>
+
+</div>
 
 </td>
+
+<!-- ╔═══════════════════════════════════════════════════════════════╗ -->
+<!-- ║  ZONE 3 · REFERENCE                                            ║ -->
+<!-- ╚═══════════════════════════════════════════════════════════════╝ -->
+
 <td width="33.33%" valign="top">
 
-### 📖 Reference
-- [🛠️ Tech Stack](#-tech-stack)
-- [📂 Project Structure](#-project-structure)
-- [📋 Requirements](#-requirements)
-- [🚀 Getting Started](#-getting-started)
-- [⚙️ Configuration](#️-configuration)
-- [🔐 Security & Privacy](#-security--privacy)
-- [❓ FAQ](#-frequently-asked-questions)
-- [🐛 Troubleshooting](#-troubleshooting)
-- [🗺️ Roadmap](#️-roadmap)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
+<br/>
+
+<div align="center">
+
+<img src="https://img.shields.io/badge/●_ZONE_3-REFERENCE-3b82f6?style=for-the-badge&labelColor=0d1117" alt="Reference"/>
+
+<sub><b>📖 Docs · Setup · Community</b></sub>
+
+</div>
+
+<br/>
+
+**<kbd>⑦</kbd> &nbsp; 🛠️ Technical Docs**
+
+> *Under the hood*
+
+| | |
+| :---: | :--- |
+| 🛠️ | [Tech Stack](#-tech-stack) |
+| 📂 | [Project Structure](#-project-structure) |
+| 📋 | [Requirements](#-requirements) |
+
+<br/>
+
+**<kbd>⑧</kbd> &nbsp; 🚀 Build & Configure**
+
+> *From clone to release*
+
+| | |
+| :---: | :--- |
+| 🚀 | [Getting Started](#-getting-started) |
+| ⚙️ | [Configuration](#️-configuration) |
+| 🔐 | [Security & Privacy](#-security--privacy) |
+
+<br/>
+
+**<kbd>⑨</kbd> &nbsp; 💬 Help & Community**
+
+> *Support & contribution*
+
+| | |
+| :---: | :--- |
+| ❓ | [FAQ](#-frequently-asked-questions) |
+| 🐛 | [Troubleshooting](#-troubleshooting) |
+| 🗺️ | [Roadmap](#️-roadmap) |
+| 🤝 | [Contributing](#-contributing) |
+| 💖 | [Acknowledgments](#-acknowledgments) |
+| 📄 | [License](#-license) |
+
+<br/>
+
+<div align="center">
+
+<img src="https://img.shields.io/badge/📚_LEARN_MORE-Complete_Guides-3b82f6?style=for-the-badge&labelColor=0d1117" alt="Learn"/>
+
+</div>
 
 </td>
+
 </tr>
+</tbody>
 </table>
 
 ---
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- ░░ QUICK PATHS ░░                                                   -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<div align="center">
+
+### 🛤️ Choose Your Path
+
+<sub><i>Pick the journey that matches your goal</i></sub>
+
+<br/><br/>
+
+<table width="100%">
+<tr>
+
+<td width="25%" align="center" valign="top">
+
+<br/>
+
+<h3>🆕</h3>
+
+**First Time Here?**
+
+<sub>Get up and running in 5 minutes</sub>
+
+<br/><br/>
+
+<a href="#-download--v1120">
+  <img src="https://img.shields.io/badge/📥_Download-FF4D00?style=for-the-badge" alt="Download"/>
+</a>
+
+<br/><br/>
+
+<a href="#-getting-started">
+  <img src="https://img.shields.io/badge/🚀_Setup-FF4D00?style=for-the-badge" alt="Setup"/>
+</a>
+
+<br/><br/>
+
+<sub>1️⃣ Download → 2️⃣ Install → 3️⃣ Chat</sub>
+
+</td>
+
+<td width="25%" align="center" valign="top">
+
+<br/>
+
+<h3>🔍</h3>
+
+**Exploring Features?**
+
+<sub>See what CubicLM can do</sub>
+
+<br/><br/>
+
+<a href="#-features">
+  <img src="https://img.shields.io/badge/✨_Features-8b5cf6?style=for-the-badge" alt="Features"/>
+</a>
+
+<br/><br/>
+
+<a href="#-supported-models">
+  <img src="https://img.shields.io/badge/🤖_Models-8b5cf6?style=for-the-badge" alt="Models"/>
+</a>
+
+<br/><br/>
+
+<sub>Local · Cloud · Vision · Image</sub>
+
+</td>
+
+<td width="25%" align="center" valign="top">
+
+<br/>
+
+<h3>⚡</h3>
+
+**Power User?**
+
+<sub>Extend with Skills & MCP</sub>
+
+<br/><br/>
+
+<a href="#-skills--offline-instruction-extensions">
+  <img src="https://img.shields.io/badge/🧩_Skills-8b5cf6?style=for-the-badge" alt="Skills"/>
+</a>
+
+<br/><br/>
+
+<a href="#-custom-mcp-server--single-remote-connection-no-marketplace">
+  <img src="https://img.shields.io/badge/🔌_MCP-8b5cf6?style=for-the-badge" alt="MCP"/>
+</a>
+
+<br/><br/>
+
+<sub>Tools · Automation · APIs</sub>
+
+</td>
+
+<td width="25%" align="center" valign="top">
+
+<br/>
+
+<h3>👨‍💻</h3>
+
+**Developer?**
+
+<sub>Build from source</sub>
+
+<br/><br/>
+
+<a href="#-project-structure">
+  <img src="https://img.shields.io/badge/📂_Structure-3b82f6?style=for-the-badge" alt="Structure"/>
+</a>
+
+<br/><br/>
+
+<a href="#-contributing">
+  <img src="https://img.shields.io/badge/🤝_Contribute-3b82f6?style=for-the-badge" alt="Contribute"/>
+</a>
+
+<br/><br/>
+
+<sub>Fork · Build · PR</sub>
+
+</td>
+
+</tr>
+</table>
+
+
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!--                            FEATURES                                     -->
@@ -1094,7 +1411,8 @@ Auto-detects **10 crash patterns**:
 
 <div align="center">
 
-# 🤖 Supported Models
+# <img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/ai/ai.gif" width="120" /> 
+# Supported Models
 
 <sub><i>18+ curated models across 3 runtimes — all downloadable in-app</i></sub>
 
@@ -1697,7 +2015,8 @@ Only what you explicitly configure:
 
 <div align="center">
 
-# ❓ Frequently Asked Questions
+# <img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/question/question1.gif" width="120" /> 
+## Frequently Asked Questions
 
 </div>
 
@@ -2007,8 +2326,9 @@ Use the [GitHub Issues](https://github.com/abir2afridi/CubicLM/issues) template.
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 
 <div align="center">
-
-# 💖 Acknowledgments
+  
+# <img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/love/icons8-heart-balloon.gif" />
+## Acknowledgments
 
 </div>
 
@@ -2103,5 +2423,41 @@ It helps others discover the project and keeps development going.
 <sub><b>✨ Every feature, capability & detail from the original README is preserved — upgraded into an advanced, magazine-style layout ✨</b></sub>
 
 <sub><b>✨ No information was removed — this is a full design upgrade with extensive new sections added ✨</b></sub>
+
+
+</div>
+
+---
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- ░░ FOOTER BAR ░░                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+<div align="center">
+
+<br/>
+
+<table>
+<tr>
+<td align="center">
+
+<sub>
+  💡 <b>Pro tip:</b> Press <kbd>Ctrl</kbd> + <kbd>F</kbd> to search · <kbd>T</kbd> for the file tree · <kbd>Esc</kbd> to close dialogs
+</sub>
+
+<br/><br/>
+
+<a href="#cubiclm">
+  <img src="https://img.shields.io/badge/⬆_Back_to_Top-FF4D00?style=for-the-badge&logo=rocket&logoColor=white&labelColor=0d1117" alt="Top"/>
+</a>
+
+</td>
+</tr>
+</table>
+
+<br/>
+
+</div>
+
 
 </div>
