@@ -89,7 +89,7 @@
 
 <div align="center">
 
-## <img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/target/target2.gif" width="120" /> 
+## <img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/target/target2.gif" width="90" /> 
 ## What is CubicLM?
 
 </div>
@@ -129,7 +129,7 @@
 
 <div align="center">
 
-## <img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/download/installing-updates.gif" width="120" /> 
+## <img src="https://github.com/abir2afridi/abir2afridi/blob/main/asset/download/installing-updates.gif" width="80" /> 
 ## Download — `v1.12.0`
 
 > 🎉 **Latest release** · Build date: current · [View full changelog →](CHANGELOG.md)
