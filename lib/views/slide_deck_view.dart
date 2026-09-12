@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
@@ -16,7 +17,6 @@ import '../theme/design_tokens.dart';
 import '../utils/slide_deck.dart';
 import '../utils/slide_palette.dart';
 import '../services/app_log_service.dart';
-import '../widgets/slide_source_selector.dart';
 import 'slides/slide_charts.dart';
 import 'slides/slide_canvas.dart';
 import 'slides/slide_dialogs.dart';
@@ -328,21 +328,28 @@ class _SlideDeckViewState extends State<SlideDeckView> {
               ],
             ),
           ),
-          // Source Selector
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Obx(() => SlideSourceSelector(
-                  selectedFile: c.sourceFile.value,
-                  useResearch: c.useResearch.value,
-                  onFileSelected: c.setSourceFile,
-                  onResearchToggled: (v) => c.useResearch.value = v,
-                )),
-          ),
+          // (Sources + research live under the + sheet.)
           const SizedBox(height: 4),
-          // Row 1: model pill … generate CTA (always fits 360dp).
+          // Row 1: + sheet . model pill . style/audience . generate CTA.
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              IconButton(
+                tooltip: 'Add source or AI research',
+                icon: Obx(() => Icon(
+                      (c.sourceFile.value != null || c.useResearch.value)
+                          ? LucideIcons.plusCircle
+                          : LucideIcons.plus,
+                      size: 20,
+                      color: (c.sourceFile.value != null ||
+                              c.useResearch.value)
+                          ? Dt.accent
+                          : Dt.textSecondary,
+                    )),
+                onPressed: c.generating.value
+                    ? null
+                    : () => _showPlusSheet(context),
+              ),
               SizedBox(
                 width: 125,
                 child: Obx(() => AppModelPill(
@@ -350,12 +357,16 @@ class _SlideDeckViewState extends State<SlideDeckView> {
                       onTap: () => showModelSwitcherSheet(context),
                     )),
               ),
+              const SizedBox(width: 6),
+              Flexible(child: Obx(() => _styleAudiencePill(context, isDark))),
               const Spacer(),
               AppCtaButton(
                 icon: c.generating.value
                     ? Icons.hourglass_top_rounded
                     : LucideIcons.presentation,
-                onTap: c.generating.value || _topicCtrl.text.trim().isEmpty
+                onTap: c.generating.value ||
+                        (_topicCtrl.text.trim().isEmpty &&
+                            c.sourceFile.value == null)
                     ? null
                     : () async {
                         c.topic.value = _topicCtrl.text;
@@ -369,17 +380,13 @@ class _SlideDeckViewState extends State<SlideDeckView> {
             ],
           ),
           const SizedBox(height: 6),
-          // Row 2: style + slide count.
+          // Row 2: visual style + slide count.
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Flexible(child: Obx(() => _stylePill(context, isDark))),
-              const SizedBox(width: 6),
               Flexible(child: Obx(() => _visualStylePill(context, isDark))),
               const SizedBox(width: 6),
               Flexible(child: Obx(() => _countStepper(context, isDark))),
-              const Spacer(),
-              Flexible(child: Obx(() => _audiencePill(context, isDark))),
             ],
           ),
           const SizedBox(height: 6),
@@ -416,49 +423,221 @@ class _SlideDeckViewState extends State<SlideDeckView> {
     return stripped.length > 14 ? '${stripped.substring(0, 14)}…' : stripped;
   }
 
-  /// Compact style picker pill.
-  Widget _stylePill(BuildContext context, bool isDark) {
-    return PopupMenuButton<String>(
-      enabled: !c.generating.value,
-      tooltip: 'Slide style',
-      initialValue: c.style.value,
-      onSelected: (v) => c.style.value = v,
-      itemBuilder: (_) => [
-        for (final s in SlideDeckController.styles)
-          PopupMenuItem(
-            value: s,
-            child: Text(s, style: GoogleFonts.plusJakartaSans(fontSize: 14)),
-          ),
-      ],
+  /// Single style+audience pill (sits next to the model switcher).
+  /// Opens one sheet with two tabs — Slide Style | Target Audience —
+  /// mirroring the CubicWeb Builder setup sheet.
+  Widget _styleAudiencePill(BuildContext context, bool isDark) {
+    final audience = c.audience.value;
+    final label = audience.isEmpty
+        ? c.style.value
+        : '${c.style.value} · $audience';
+    final highlighted = audience.isNotEmpty;
+    return InkWell(
+      onTap: c.generating.value ? null : () => _showStyleAudienceSheet(context),
+      borderRadius: BorderRadius.circular(Dt.pillHeight),
       child: Container(
         height: Dt.pillHeight,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: Dt.pillMuted,
+          color: highlighted
+              ? Dt.accent.withValues(alpha: 0.12)
+              : Dt.pillMuted,
           borderRadius: BorderRadius.circular(Dt.pillHeight),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Icon(LucideIcons.slidersHorizontal,
+                size: 13,
+                color: highlighted ? Dt.accent : Dt.textSecondary),
+            const SizedBox(width: 4),
             Flexible(
               child: Text(
-                c.style.value,
+                label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12.5,
+                style: TextStyle(
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w600,
-                  color: Dt.textPrimary,
+                  color: highlighted ? Dt.accent : Dt.textPrimary,
                 ),
               ),
             ),
-            const SizedBox(width: 2),
-            const Icon(Icons.expand_more_rounded,
-                size: 16, color: Dt.textSecondary),
           ],
         ),
       ),
     );
+  }
+
+  void _showStyleAudienceSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => SafeArea(
+        child: DefaultTabController(
+          length: 2,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TabBar(
+                labelColor: Dt.accent,
+                unselectedLabelColor: Theme.of(context).hintColor,
+                indicatorColor: Dt.accent,
+                labelStyle:
+                    GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
+                tabs: const [
+                  Tab(text: 'Slide Style'),
+                  Tab(text: 'Target Audience'),
+                ],
+              ),
+              SizedBox(
+                height: 320,
+                child: TabBarView(
+                  children: [
+                    SingleChildScrollView(
+                      child: Obx(() => Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (final s in SlideDeckController.styles)
+                                _optionRow(
+                                  label: s,
+                                  selected: c.style.value == s,
+                                  onTap: () => c.style.value = s,
+                                ),
+                            ],
+                          )),
+                    ),
+                    SingleChildScrollView(
+                      child: Obx(() => Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (final a in _audiences)
+                                _optionRow(
+                                  label: a,
+                                  selected: (c.audience.value.isEmpty
+                                          ? 'General'
+                                          : c.audience.value) ==
+                                      a,
+                                  onTap: () => c.audience.value =
+                                      a == 'General' ? '' : a,
+                                ),
+                            ],
+                          )),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// One selectable row for the style/audience tabs.
+  Widget _optionRow({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: Row(children: [
+          Expanded(
+            child: Text(label,
+                style: GoogleFonts.plusJakartaSans(
+                    fontSize: 14,
+                    fontWeight:
+                        selected ? FontWeight.w800 : FontWeight.w500,
+                    color: selected ? Dt.accent : Dt.textPrimary)),
+          ),
+          if (selected)
+            const Icon(LucideIcons.check, size: 18, color: Dt.accent),
+        ]),
+      ),
+    );
+  }
+
+  /// + sheet: file source + AI research live here now (composer stays lean).
+  void _showPlusSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Obx(() {
+          final file = c.sourceFile.value;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: Icon(
+                  file != null ? LucideIcons.fileCheck : LucideIcons.filePlus,
+                  color: file != null ? Dt.accent : Dt.textSecondary,
+                ),
+                title: Text(
+                  file != null
+                      ? file.path.split('/').last
+                      : 'Add Source (PDF/Docx/Pptx)',
+                  style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                subtitle: file != null
+                    ? const Text('.pptx imports instantly; others feed the AI')
+                    : null,
+                trailing: file != null
+                    ? IconButton(
+                        tooltip: 'Remove source',
+                        icon: const Icon(LucideIcons.x,
+                            size: 18, color: AppColors.error),
+                        onPressed: () => c.setSourceFile(null),
+                      )
+                    : null,
+                onTap: () => _pickSourceFile(),
+              ),
+              SwitchListTile(
+                secondary: Icon(
+                  LucideIcons.flaskConical,
+                  color: c.useResearch.value
+                      ? Dt.accent
+                      : Dt.textSecondary,
+                ),
+                title: Text('AI Research',
+                    style: GoogleFonts.plusJakartaSans(
+                        fontSize: 14, fontWeight: FontWeight.w600)),
+                subtitle:
+                    const Text('Fetch live sources before generating'),
+                value: c.useResearch.value,
+                activeThumbColor: Dt.accent,
+                onChanged: (v) => c.useResearch.value = v,
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Done'),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  Future<void> _pickSourceFile() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'docx', 'txt', 'md', 'pptx'],
+      );
+      if (result != null && result.files.single.path != null) {
+        c.setSourceFile(File(result.files.single.path!));
+      }
+    } catch (_) {}
   }
 
   /// Compact slide-count stepper.
@@ -513,55 +692,6 @@ class _SlideDeckViewState extends State<SlideDeckView> {
     'Clients',
     'Team',
   ];
-
-  Widget _audiencePill(BuildContext context, bool isDark) {
-    final current = c.audience.value;
-    final label = current.isEmpty ? 'Audience' : current;
-    return PopupMenuButton<String>(
-      enabled: !c.generating.value,
-      tooltip: 'Target audience',
-      initialValue: current.isEmpty ? null : current,
-      onSelected: (v) => c.audience.value = v == 'General' ? '' : v,
-      itemBuilder: (_) => [
-        for (final a in _audiences)
-          PopupMenuItem(
-            value: a,
-            child: Text(a, style: GoogleFonts.plusJakartaSans(fontSize: 13)),
-          ),
-      ],
-      child: Container(
-        height: Dt.pillHeight,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: current.isNotEmpty
-              ? Dt.accent.withValues(alpha: 0.12)
-              : Dt.pillMuted,
-          borderRadius: BorderRadius.circular(Dt.pillHeight),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(LucideIcons.users,
-                size: 13,
-                color: current.isNotEmpty ? Dt.accent : Dt.textSecondary),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: current.isNotEmpty ? Dt.accent : Dt.textPrimary,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _visualStylePill(BuildContext context, bool isDark) {
     return PopupMenuButton<String>(
