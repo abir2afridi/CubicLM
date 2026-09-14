@@ -36,7 +36,7 @@ dependencies:
   path_provider: ^2.1.0
   permission_handler: ^11.3.0
   connectivity_plus: ^6.1.4
-  camera: ^0.11.0
+  camera: ^0.12.1
   # Pinned exact: 1.9.0 rewrote android/ to .kts without applying
   # kotlin-android, so `kotlin {}` fails script compilation in this
   # project's build (AGP 8.11.1 + flutter-plugin-loader). 1.8.1 uses the
