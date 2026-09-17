@@ -41,7 +41,7 @@ dependencies:
   # kotlin-android, so `kotlin {}` fails script compilation in this
   # project's build (AGP 8.11.1 + flutter-plugin-loader). 1.8.1 uses the
   # classic Groovy script which compiles fine. Do NOT caret this.
-  dynamic_color: 1.8.1
+  dynamic_color: 2.1.0
   desktop_drop: ^0.5.0
 
   # Image Support
